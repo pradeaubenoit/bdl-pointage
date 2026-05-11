@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="BdL Admin Pointage">
+<meta name="theme-color" content="#F4EFE6">
+<title>Admin Pointage — Blanchisserie du Limousin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+:root {
+  --bg:#F4EFE6; --paper:#FBF8F2; --paper-2:#FFFFFF;
+  --ink:#15140F; --ink-2:#4A4842; --ink-3:#8A877E;
+  --line:#D9D2C2; --line-2:#ECE6D6;
+  --accent:#1F4A47; --accent-2:#2D6863; --accent-soft:#E1ECEA;
+  --ok:#2E6B3E; --warn:#B8742A; --bad:#A53A36;
+  --ok-bg:#E6EFE3; --warn-bg:#F3E7D2; --bad-bg:#F2DAD7;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Bricolage Grotesque',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;font-feature-settings:'ss01' on;min-height:100vh;font-size:14px;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.serif{font-family:'Instrument Serif',serif;font-weight:400}
+.mono{font-family:'JetBrains Mono',monospace;font-feature-settings:'tnum' on}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+
+.wrap{max-width:1200px;margin:0 auto;padding:24px 32px 100px}
+@media(max-width:720px){.wrap{padding:16px 14px 90px}}
+
+/* MASTHEAD */
+.masthead{border-bottom:1.5px solid var(--ink);padding-bottom:18px;margin-bottom:20px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:14px}
+.masthead .kicker{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-2);margin-bottom:4px;font-weight:500}
+.masthead h1{font-family:'Instrument Serif',serif;font-size:clamp(30px,5vw,52px);line-height:.92;letter-spacing:-.015em;font-weight:400}
+.masthead h1 em{font-style:italic;color:var(--accent)}
+.masthead-meta{text-align:right;font-size:11px;color:var(--ink-2);font-family:'JetBrains Mono',monospace}
+.masthead-meta strong{color:var(--ink);font-weight:500;display:block;font-size:13px}
+@media(max-width:720px){.masthead-meta{text-align:left;width:100%}}
+
+/* TABS */
+.tabs{display:flex;border:1px solid var(--ink);background:var(--paper);margin-bottom:24px;overflow-x:auto}
+.tabs button{flex:1;min-width:0;background:transparent;border:none;padding:12px 8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:500;color:var(--ink-2);cursor:pointer;border-right:1px solid var(--line);min-height:46px;white-space:nowrap}
+.tabs button:last-child{border-right:none}
+.tabs button[aria-selected=true]{background:var(--ink);color:var(--paper)}
+.tabs button:not([aria-selected=true]):hover{background:var(--bg)}
+.tabs button .ico{margin-right:4px}
+@media(max-width:540px){.tabs button{padding:10px 4px;font-size:10px;letter-spacing:.06em}.tabs button .ico{display:block;margin:0 auto 2px;font-size:16px}.tabs button .label{display:block}}
+
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* Buttons */
+.btn{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:500;padding:9px 14px;background:transparent;border:1px solid var(--ink);color:var(--ink);cursor:pointer;transition:all .15s;min-height:38px;border-radius:0}
+.btn:hover{background:var(--ink);color:var(--paper)}
+.btn-primary{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+.btn-primary:hover{background:var(--ink);border-color:var(--ink)}
+.btn-ghost{border-color:var(--line);color:var(--ink-2)}
+.btn-ghost:hover{background:var(--paper);color:var(--ink)}
+.btn-danger{color:var(--bad);border-color:var(--bad)}
+.btn-danger:hover{background:var(--bad);color:var(--paper)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:disabled:hover{background:transparent;color:var(--ink)}
+
+/* Connection bar */
+.conn-bar{padding:10px 14px;font-size:12px;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:10px;margin-bottom:20px;border:1px solid var(--line);background:var(--paper);flex-wrap:wrap}
+.conn-bar .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-3)}
+.conn-bar.ok .dot{background:var(--ok)}
+.conn-bar.err .dot{background:var(--bad)}
+.conn-bar .url{color:var(--ink-3);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.conn-bar .spacer{flex:1}
+
+/* Section heads */
+.section-head{display:flex;align-items:baseline;gap:14px;margin:24px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.section-head h2{font-family:'Instrument Serif',serif;font-size:26px;font-weight:400;letter-spacing:-.005em}
+.section-head h2 em{color:var(--accent);font-style:italic}
+.section-head .desc{font-size:12px;color:var(--ink-2);margin-left:auto;max-width:380px;text-align:right}
+@media(max-width:720px){.section-head .desc{text-align:left;margin-left:0;width:100%}.section-head h2{font-size:22px}}
+
+/* ==== TODAY ==== */
+.summary-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:24px}
+@media(max-width:720px){.summary-strip{grid-template-columns:repeat(2,1fr)}}
+.summary-cell{background:var(--paper);padding:18px 20px;display:flex;flex-direction:column;gap:4px}
+.summary-cell .lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);font-weight:500}
+.summary-cell .v{font-family:'Instrument Serif',serif;font-size:32px;line-height:1;color:var(--ink);letter-spacing:-.01em}
+.summary-cell .v .unit{font-size:12px;color:var(--ink-3);font-family:'Bricolage Grotesque',sans-serif;margin-left:4px}
+.summary-cell.green .v{color:var(--ok)}
+.summary-cell.amber .v{color:var(--warn)}
+
+.today-grid{display:grid;grid-template-columns:1fr;gap:1px;background:var(--line-2);border:1px solid var(--line)}
+.today-row{background:var(--paper);padding:14px 16px;display:grid;grid-template-columns:auto 1fr auto auto auto;gap:14px;align-items:center;font-size:13px}
+@media(max-width:720px){.today-row{grid-template-columns:auto 1fr auto;gap:10px}.today-row .scans-col,.today-row .actions-col{display:none}}
+.today-row .avatar{width:36px;height:36px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:500;font-family:'JetBrains Mono',monospace;font-size:13px;flex-shrink:0}
+.today-row .name-col{min-width:0}
+.today-row .name-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.today-row .name-role{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em}
+.today-row .scans-col{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.today-row .scans-col .tag{display:inline-block;background:var(--bg);padding:2px 7px;margin-right:4px;border:1px solid var(--line-2);font-size:11px}
+.today-row .hours-col{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;color:var(--accent);min-width:55px;text-align:right}
+.today-row .status{display:flex;align-items:center;gap:6px;font-size:11px;font-family:'JetBrains Mono',monospace}
+.today-row .status .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3)}
+.today-row .status.present .dot{background:var(--ok)}
+.today-row .status.absent .dot{background:var(--ink-3)}
+.today-row .status.done .dot{background:var(--accent)}
+.today-row .actions-col button{background:transparent;border:1px solid var(--line);color:var(--ink-3);padding:5px 9px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;min-height:32px}
+.today-row .actions-col button:hover{border-color:var(--ink);color:var(--ink)}
+
+.empty{padding:32px 16px;text-align:center;color:var(--ink-3);font-size:13px;background:var(--paper);border:1px dashed var(--line)}
+
+/* ==== EMPLOYEES ==== */
+.emp-form{background:var(--paper);border:1px solid var(--ink);padding:22px 24px;margin-bottom:22px;display:grid;grid-template-columns:1fr 1fr 1fr 130px 80px auto;gap:10px;align-items:end}
+@media(max-width:900px){.emp-form{grid-template-columns:1fr 1fr;gap:10px}}
+.emp-form .field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.emp-form label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);font-weight:500}
+.emp-form input,.emp-form select{background:transparent;border:1px solid var(--line);padding:8px 10px;font-size:13px;min-height:38px}
+.emp-form input:focus,.emp-form select:focus{outline:none;border-color:var(--accent);background:var(--paper-2)}
+.emp-form .mono-input{font-family:'JetBrains Mono',monospace;text-align:right}
+.emp-form button{height:38px}
+
+.emp-grid{display:grid;grid-template-columns:1fr;gap:1px;background:var(--line-2);border:1px solid var(--line)}
+.emp-row{background:var(--paper);padding:12px 14px;display:grid;grid-template-columns:auto 1.5fr 1fr 110px 90px auto auto;gap:10px;align-items:center;font-size:13px}
+@media(max-width:900px){.emp-row{grid-template-columns:auto 1fr auto auto;gap:8px}.emp-row .role-col,.emp-row .rate-col,.emp-row .actif-col{display:none}}
+.emp-row input,.emp-row select{background:transparent;border:1px solid transparent;padding:5px 7px;font-size:13px;min-height:32px;width:100%}
+.emp-row input:hover,.emp-row select:hover{border-color:var(--line-2)}
+.emp-row input:focus,.emp-row select:focus{outline:none;border-color:var(--accent);background:var(--paper-2)}
+.emp-row .mono-input{font-family:'JetBrains Mono',monospace;text-align:right}
+.emp-row .avatar{width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:500;font-family:'JetBrains Mono',monospace;font-size:12px;flex-shrink:0}
+.emp-row .name-col{display:flex;flex-direction:column;gap:2px}
+.emp-row .name-col input{font-weight:500}
+.emp-row .id-line{font-size:10px;color:var(--ink-3);font-family:'JetBrains Mono',monospace;padding-left:8px}
+.emp-row .actif-col input[type=checkbox]{width:20px;height:20px;cursor:pointer}
+.emp-row button{background:transparent;border:1px solid var(--line);color:var(--ink-2);padding:5px 9px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;min-height:32px;white-space:nowrap}
+.emp-row .qr-btn:hover{border-color:var(--accent);color:var(--accent)}
+.emp-row .del-btn:hover{border-color:var(--bad);color:var(--bad)}
+
+/* ==== HISTORIQUE ==== */
+.hist-filters{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:14px 16px;background:var(--paper);border:1px solid var(--line);margin-bottom:18px}
+.hist-filters .field{display:flex;flex-direction:column;gap:4px}
+.hist-filters label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);font-weight:500}
+.hist-filters input,.hist-filters select{background:transparent;border:1px solid var(--line);padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:13px;min-height:36px}
+.hist-filters .spacer{flex:1}
+
+.hist-grid{display:grid;grid-template-columns:1fr;gap:1px;background:var(--line-2);border:1px solid var(--line)}
+.hist-row{background:var(--paper);padding:10px 14px;display:grid;grid-template-columns:90px 1fr auto auto auto;gap:10px;align-items:center;font-size:12px}
+@media(max-width:720px){.hist-row{grid-template-columns:1fr auto auto;gap:8px}.hist-row .name-col,.hist-row .src-col{display:none}}
+.hist-row .date-col{font-family:'JetBrains Mono',monospace;color:var(--ink-2);font-size:12px}
+.hist-row .time-col{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;color:var(--ink)}
+.hist-row .src-col{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em}
+.hist-row .actions{display:flex;gap:6px}
+.hist-row button{background:transparent;border:1px solid var(--line);color:var(--ink-3);padding:5px 8px;font-size:10px;cursor:pointer;min-height:30px}
+.hist-row button:hover{border-color:var(--ink);color:var(--ink)}
+
+/* ==== RAPPORT ==== */
+.rpt-controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:14px 16px;background:var(--paper);border:1px solid var(--line);margin-bottom:18px}
+.rpt-controls select{background:transparent;border:1px solid var(--line);padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:13px;min-height:36px}
+.rpt-controls .spacer{flex:1}
+
+.rpt-totaux{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--ink);margin-bottom:24px}
+@media(max-width:720px){.rpt-totaux{grid-template-columns:1fr}}
+.rpt-tot-cell{background:var(--paper-2);padding:20px 22px}
+.rpt-tot-cell .lbl{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-2);font-weight:500;margin-bottom:6px}
+.rpt-tot-cell .v{font-family:'Instrument Serif',serif;font-size:38px;line-height:1;color:var(--ink);letter-spacing:-.01em}
+.rpt-tot-cell .v .unit{font-size:13px;color:var(--ink-3);font-family:'Bricolage Grotesque',sans-serif;margin-left:4px}
+
+.rpt-table{width:100%;border-collapse:collapse;font-size:13px;background:var(--paper);border:1px solid var(--line)}
+.rpt-table th{text-align:left;padding:10px 12px;border-bottom:1.5px solid var(--ink);background:var(--paper);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);font-weight:500;position:sticky;top:0}
+.rpt-table th.num{text-align:right}
+.rpt-table td{padding:10px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+.rpt-table td.num{text-align:right;font-family:'JetBrains Mono',monospace}
+.rpt-table td.warn{color:var(--warn);font-weight:500}
+.rpt-table tr:last-child td{border-bottom:none}
+.rpt-table tr.total-row td{border-top:1.5px solid var(--ink);font-weight:500;background:var(--paper)}
+.rpt-table .name{font-weight:500}
+.rpt-table .anomaly{font-size:10px;color:var(--bad);margin-top:2px;display:block}
+@media(max-width:720px){.rpt-table{font-size:11px}.rpt-table th,.rpt-table td{padding:8px 6px}}
+
+.rpt-wrap{overflow-x:auto;border:1px solid var(--line)}
+
+/* ==== CONFIG ==== */
+.config-card{background:var(--paper);border:1px solid var(--ink);padding:24px 28px;max-width:720px}
+.config-card h3{font-family:'Instrument Serif',serif;font-size:24px;font-weight:400;margin-bottom:4px}
+.config-card .sub{font-size:12px;color:var(--ink-2);margin-bottom:18px}
+.config-card .row{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.config-card label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);font-weight:500}
+.config-card input{background:var(--paper-2);border:1px solid var(--line);padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:13px;min-height:42px}
+.config-card input:focus{outline:none;border-color:var(--accent)}
+
+/* ==== MODAL QR ==== */
+.modal-bd{position:fixed;inset:0;background:rgba(21,20,15,.78);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.modal-bd.show{display:flex}
+.modal{background:var(--paper-2);border:1.5px solid var(--ink);max-width:480px;width:100%;padding:28px 28px 24px;text-align:center;max-height:92vh;overflow-y:auto}
+.modal h3{font-family:'Instrument Serif',serif;font-size:28px;font-weight:400;margin-bottom:6px}
+.modal h3 em{color:var(--accent);font-style:italic}
+.modal .modal-sub{font-size:12px;color:var(--ink-2);margin-bottom:18px;line-height:1.5}
+.modal .qr-box{margin:0 auto 18px;display:block;border:1px solid var(--line);padding:14px;background:white;max-width:280px;height:auto}
+.modal .qr-box img{display:block;width:100%;height:auto}
+.modal .link-box{padding:10px 12px;background:var(--bg);border:1px solid var(--line-2);font-family:'JetBrains Mono',monospace;font-size:11px;word-break:break-all;text-align:left;margin-bottom:14px;max-height:80px;overflow-y:auto}
+.modal-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.modal .close-x{position:absolute;top:14px;right:14px;background:transparent;border:none;font-size:24px;cursor:pointer;color:var(--ink-3);width:36px;height:36px}
+.modal-inner-wrap{position:relative}
+
+/* Toast */
+.toast{position:fixed;top:env(safe-area-inset-top);left:0;right:0;display:flex;justify-content:center;padding:12px;pointer-events:none;z-index:2000}
+.toast .inner{background:var(--ink);color:var(--paper);padding:12px 22px;font-size:13px;font-weight:500;max-width:480px;transform:translateY(-120%);transition:transform .3s cubic-bezier(.2,.7,.3,1);border:1px solid var(--ink)}
+.toast.show .inner{transform:translateY(0)}
+.toast.success .inner{background:var(--ok);border-color:var(--ok)}
+.toast.error .inner{background:var(--bad);border-color:var(--bad)}
+
+.spinner-inline{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-3);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+
+@media print{
+  body{background:white}
+  .tabs,.conn-bar,.btn,footer,.emp-form,.hist-filters,.rpt-controls,.modal-bd,.toast{display:none!important}
+  .tab-panel{display:block!important}
+  .wrap{padding:0;max-width:100%}
+  .badges-print{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .badge-card{border:1px solid #000;padding:14px;text-align:center;page-break-inside:avoid}
+}
+
+/* Print badges grid (shown only when badge print mode activated) */
+.badges-print{display:none}
+.badges-print.print-mode{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:12px;background:white}
+.badge-card{border:1px solid #000;padding:14px;text-align:center;background:white}
+.badge-card .badge-name{font-family:'Instrument Serif',serif;font-size:22px;margin:8px 0 4px}
+.badge-card .badge-role{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#666;margin-bottom:10px}
+.badge-card img{max-width:200px;height:auto;margin:0 auto}
+.badge-card .badge-foot{font-size:9px;color:#999;margin-top:8px;font-family:'JetBrains Mono',monospace}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"><div class="inner"></div></div>
+
+<div class="wrap">
+
+<div class="masthead">
+  <div>
+    <div class="kicker">Administration · Pointage</div>
+    <h1>Pointage<br><em>Blanchisserie du Limousin</em></h1>
+  </div>
+  <div class="masthead-meta">
+    <strong id="today-lbl">—</strong>
+    <span id="stats-lbl">—</span>
+  </div>
+</div>
+
+<div class="conn-bar" id="conn-bar"><span class="dot"></span><span id="conn-lbl">Non connecté</span><span class="spacer"></span><span class="url" id="conn-url"></span></div>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="today" aria-selected="true"><span class="ico">🟢</span><span class="label">Aujourd'hui</span></button>
+  <button role="tab" data-tab="history" aria-selected="false"><span class="ico">📅</span><span class="label">Historique</span></button>
+  <button role="tab" data-tab="report" aria-selected="false"><span class="ico">📑</span><span class="label">Rapport mensuel</span></button>
+  <button role="tab" data-tab="employees" aria-selected="false"><span class="ico">👥</span><span class="label">Salariés</span></button>
+  <button role="tab" data-tab="config" aria-selected="false"><span class="ico">⚙️</span><span class="label">Connexion</span></button>
+</nav>
+
+<!-- AUJOURD'HUI -->
+<div class="tab-panel active" data-panel="today">
+  <div class="section-head">
+    <h2><em>Présences</em> du jour</h2>
+    <div class="desc">Actualisation auto toutes les 30 s. Cliquez sur un salarié pour voir le détail.</div>
+  </div>
+  <div class="summary-strip" id="today-summary"></div>
+  <div class="today-grid" id="today-list"><div class="empty">Connecte-toi à l'API pour voir les présences.</div></div>
+</div>
+
+<!-- HISTORIQUE -->
+<div class="tab-panel" data-panel="history">
+  <div class="section-head">
+    <h2><em>Historique</em> des pointages</h2>
+    <div class="desc">Sélectionne un mois et/ou un salarié. Édite ou supprime les anomalies.</div>
+  </div>
+  <div class="hist-filters">
+    <div class="field"><label>Mois</label><select id="hist-month"></select></div>
+    <div class="field"><label>Salarié</label><select id="hist-emp"><option value="">Tous</option></select></div>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost" id="hist-refresh">↻ Rafraîchir</button>
+  </div>
+  <div class="hist-grid" id="hist-list"><div class="empty">Sélectionne un mois.</div></div>
+</div>
+
+<!-- RAPPORT MENSUEL -->
+<div class="tab-panel" data-panel="report">
+  <div class="section-head">
+    <h2><em>Rapport</em> mensuel</h2>
+    <div class="desc">Heures normales (≤35h/sem), heures sup (×1,25), coût total par salarié.</div>
+  </div>
+  <div class="rpt-controls">
+    <div class="field"><label style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);font-weight:500">Mois</label><select id="rpt-month"></select></div>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost" id="rpt-refresh">↻ Recalculer</button>
+    <button class="btn" id="rpt-csv">Exporter CSV</button>
+    <button class="btn btn-ghost" id="rpt-print">Imprimer / PDF</button>
+  </div>
+  <div id="rpt-totaux-wrap"></div>
+  <div class="rpt-wrap"><table class="rpt-table" id="rpt-table"><thead></thead><tbody></tbody></table></div>
+</div>
+
+<!-- SALARIES -->
+<div class="tab-panel" data-panel="employees">
+  <div class="section-head">
+    <h2><em>Salariés</em></h2>
+    <div class="desc">Ajoute, modifie, active/désactive. Le bouton QR génère le lien personnel à imprimer pour chaque salarié.</div>
+  </div>
+
+  <div class="emp-form">
+    <div class="field"><label>Prénom</label><input type="text" id="new-prenom" placeholder="Jean"></div>
+    <div class="field"><label>Nom</label><input type="text" id="new-nom" placeholder="Dupont"></div>
+    <div class="field"><label>Rôle</label>
+      <select id="new-role">
+        <option value="laveur">Laveur</option>
+        <option value="chauffeur">Chauffeur</option>
+        <option value="admin">Administratif</option>
+        <option value="autre">Autre</option>
+      </select>
+    </div>
+    <div class="field"><label>Taux horaire chargé (€/h)</label><input type="number" inputmode="decimal" step="0.5" id="new-taux" placeholder="28.50" class="mono-input"></div>
+    <div class="field"><label>Actif</label><input type="checkbox" id="new-actif" checked style="width:24px;height:24px;margin-top:8px"></div>
+    <button class="btn btn-primary" id="btn-add-emp">+ Ajouter</button>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-ghost" id="btn-refresh-emp">↻ Rafraîchir la liste</button>
+    <button class="btn btn-ghost" id="btn-print-badges">🖨 Imprimer tous les badges</button>
+  </div>
+
+  <div class="emp-grid" id="emp-list"><div class="empty">Connecte-toi à l'API pour voir la liste.</div></div>
+</div>
+
+<!-- CONFIG -->
+<div class="tab-panel" data-panel="config">
+  <div class="section-head">
+    <h2><em>Connexion</em> à l'API</h2>
+    <div class="desc">L'URL .../exec donnée par Apps Script après déploiement.</div>
+  </div>
+
+  <div class="config-card">
+    <h3>Apps Script Web App URL</h3>
+    <div class="sub">Cette URL est mémorisée localement (localStorage) sur cet appareil. Tu peux la modifier à tout moment.</div>
+    <div class="row">
+      <label>URL de l'API</label>
+      <input type="url" id="api-url-input" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="btn-save-api">Enregistrer & tester</button>
+      <button class="btn btn-ghost" id="btn-clear-api">Effacer</button>
+    </div>
+    <div style="margin-top:18px;padding:14px 16px;background:var(--accent-soft);border-left:3px solid var(--accent);font-size:12px;line-height:1.6">
+      <strong>1ère fois :</strong> consulte le fichier <code style="background:white;padding:1px 6px;font-family:'JetBrains Mono',monospace;font-size:11px;border:1px solid var(--line)">DEPLOIEMENT.md</code> pour générer cette URL.
+      Une fois collée, clique sur <strong>Enregistrer &amp; tester</strong> : un appel <code style="background:white;padding:1px 6px;font-family:'JetBrains Mono',monospace;font-size:11px;border:1px solid var(--line)">?action=ping</code> vérifie que ça répond bien.
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>BdL · Admin Pointage v1</span>
+  <span id="api-version">—</span>
+</footer>
+
+</div>
+
+<!-- MODAL QR -->
+<div class="modal-bd" id="modal-qr">
+  <div class="modal-inner-wrap">
+    <div class="modal">
+      <button class="close-x" id="modal-close">×</button>
+      <h3 id="modal-name"><em>—</em></h3>
+      <div class="modal-sub">Lien personnel de pointage. Le salarié scanne le QR avec son téléphone, puis ajoute la page à son écran d'accueil.</div>
+      <div class="qr-box" id="qr-box"></div>
+      <div class="link-box" id="link-box">—</div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="copy-link">Copier le lien</button>
+        <button class="btn" id="print-badge">Imprimer le badge</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BADGES PRINT (hidden, shown for print-all) -->
+<div class="badges-print" id="badges-print"></div>
+
+<script>
+'use strict';
+
+// ============================================================
+// STATE & CONFIG
+// ============================================================
+const STORAGE_KEY = 'bdl-pointage-admin-config';
+let apiUrl = '';
+let employees = [];
+let currentTab = 'today';
+let autoRefreshTimer = null;
+
+function loadConfig() {
+  try {
+    const c = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    apiUrl = c.apiUrl || '';
+  } catch (e) { apiUrl = ''; }
+}
+function saveConfig() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ apiUrl }));
+}
+loadConfig();
+
+// ============================================================
+// HELPERS
+// ============================================================
+function $(id) { return document.getElementById(id); }
+function fmtDateFR(d) {
+  if (!d) return '';
+  if (typeof d === 'string') { const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; }
+  return d.toLocaleDateString('fr-FR');
+}
+function fmtTodayFull() {
+  const d = new Date();
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+function fmtHours(h) {
+  if (h == null || isNaN(h)) return '0h00';
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  return hh + 'h' + String(mm).padStart(2, '0');
+}
+function fmtEUR(n, d) {
+  if (n == null || isNaN(n)) return '— €';
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: d||0, maximumFractionDigits: d||0 }).format(n);
+}
+function initials(emp) {
+  return ((emp.prenom || '?').charAt(0) + (emp.nom || '').charAt(0)).toUpperCase();
+}
+function listMonthsBack(n) {
+  const out = [];
+  const d = new Date(); d.setDate(1);
+  for (let i=0; i<n; i++) {
+    out.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+    d.setMonth(d.getMonth() - 1);
+  }
+  return out;
+}
+function monthLabel(mk) {
+  const noms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const [y,m] = mk.split('-');
+  return noms[parseInt(m,10)-1] + ' ' + y;
+}
+function toast(msg, type) {
+  const t = $('toast'); t.querySelector('.inner').textContent = msg;
+  t.className = 'toast show ' + (type||'');
+  setTimeout(() => { t.className = 'toast ' + (type||''); }, 3000);
+}
+
+// ============================================================
+// API
+// ============================================================
+async function apiGet(action, params) {
+  if (!apiUrl) throw new Error('API URL non configurée');
+  const u = new URL(apiUrl);
+  u.searchParams.set('action', action);
+  if (params) Object.entries(params).forEach(([k,v]) => u.searchParams.set(k, v));
+  const r = await fetch(u.toString());
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const d = await r.json();
+  if (d.error) throw new Error(d.error);
+  return d;
+}
+async function apiPost(payload) {
+  if (!apiUrl) throw new Error('API URL non configurée');
+  const r = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const d = await r.json();
+  if (d.error) throw new Error(d.error);
+  return d;
+}
+
+// ============================================================
+// CONNECTION BAR
+// ============================================================
+function setConn(state, label, urlShort) {
+  $('conn-bar').className = 'conn-bar ' + (state || '');
+  $('conn-lbl').textContent = label;
+  $('conn-url').textContent = urlShort || '';
+}
+
+async function testConnection(silent) {
+  if (!apiUrl) { setConn('', 'Pas d\'URL configurée — onglet Connexion', ''); return false; }
+  try {
+    const d = await apiGet('ping');
+    setConn('ok', `Connecté · serveur ${d.tz}`, apiUrl.split('/').slice(-2,-1)[0] + '/…/exec');
+    $('api-version').textContent = 'API OK · ' + new Date(d.time).toLocaleTimeString('fr-FR');
+    if (!silent) toast('✓ Connexion API OK', 'success');
+    return true;
+  } catch (e) {
+    setConn('err', 'Erreur connexion : ' + e.message, '');
+    if (!silent) toast('Erreur : ' + e.message, 'error');
+    return false;
+  }
+}
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+function switchTab(name) {
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+  currentTab = name;
+  stopAutoRefresh();
+  if (name === 'today') { renderToday(); startAutoRefresh(); }
+  if (name === 'history') renderHistory();
+  if (name === 'report') renderReport();
+  if (name === 'employees') renderEmployees();
+  if (name === 'config') renderConfig();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  autoRefreshTimer = setInterval(() => { if (currentTab === 'today') renderToday(true); }, 30000);
+}
+function stopAutoRefresh() { if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; } }
+
+// ============================================================
+// TAB: AUJOURD'HUI
+// ============================================================
+async function renderToday(silent) {
+  const list = $('today-list');
+  const summary = $('today-summary');
+  if (!apiUrl) {
+    list.innerHTML = '<div class="empty">Va dans Connexion pour configurer l\'API.</div>';
+    summary.innerHTML = '';
+    return;
+  }
+  if (!silent) list.innerHTML = '<div class="empty"><span class="spinner-inline"></span> Chargement…</div>';
+  try {
+    const d = await apiGet('presents');
+    const list_data = d.presents || [];
+    const present = list_data.filter(p => p.estPresent).length;
+    const finished = list_data.filter(p => p.pointages.length > 0 && !p.estPresent).length;
+    const absent = list_data.filter(p => p.pointages.length === 0).length;
+    const totHours = list_data.reduce((s,p) => s + (p.heures || 0), 0);
+
+    summary.innerHTML = `
+      <div class="summary-cell green"><div class="lbl">Présents maintenant</div><div class="v">${present}<span class="unit">/ ${list_data.length}</span></div></div>
+      <div class="summary-cell"><div class="lbl">Journée terminée</div><div class="v">${finished}</div></div>
+      <div class="summary-cell amber"><div class="lbl">Pas encore pointé</div><div class="v">${absent}</div></div>
+      <div class="summary-cell"><div class="lbl">Heures cumulées du jour</div><div class="v">${fmtHours(totHours)}</div></div>`;
+
+    if (!list_data.length) {
+      list.innerHTML = '<div class="empty">Aucun salarié enregistré. Va dans l\'onglet Salariés pour en créer.</div>';
+      return;
+    }
+    list.innerHTML = list_data.map(p => {
+      const e = p.employee;
+      const scans = p.pointages.map(x => `<span class="tag">${x.time}</span>`).join('');
+      const status = p.pointages.length === 0 ? 'absent'
+                   : p.estPresent ? 'present' : 'done';
+      const statusLbl = status === 'absent' ? 'Non pointé'
+                      : status === 'present' ? 'Présent' : 'Parti';
+      return `<div class="today-row">
+        <div class="avatar">${initials(e)}</div>
+        <div class="name-col">
+          <div class="name-name">${e.prenom} ${e.nom}</div>
+          <div class="name-role">${e.role}</div>
+        </div>
+        <div class="scans-col">${scans || '<span style="color:var(--ink-3)">—</span>'}</div>
+        <div class="hours-col">${fmtHours(p.heures)}</div>
+        <div class="status ${status}"><span class="dot"></span>${statusLbl}</div>
+      </div>`;
+    }).join('');
+
+    $('today-lbl').textContent = fmtTodayFull().charAt(0).toUpperCase() + fmtTodayFull().slice(1);
+    $('stats-lbl').textContent = `${present} présent${present>1?'s':''} · ${list_data.length} salarié${list_data.length>1?'s':''}`;
+  } catch (e) {
+    list.innerHTML = `<div class="empty" style="color:var(--bad)">Erreur : ${e.message}</div>`;
+    summary.innerHTML = '';
+  }
+}
+
+// ============================================================
+// TAB: HISTORIQUE
+// ============================================================
+function initHistoryFilters() {
+  const monthSel = $('hist-month');
+  if (!monthSel.options.length) {
+    monthSel.innerHTML = listMonthsBack(12).map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
+  }
+}
+async function renderHistory() {
+  initHistoryFilters();
+  await ensureEmployees();
+  const empSel = $('hist-emp');
+  if (empSel.options.length <= 1) {
+    empSel.innerHTML = '<option value="">Tous</option>' + employees.map(e => `<option value="${e.id}">${e.prenom} ${e.nom}</option>`).join('');
+  }
+  const list = $('hist-list');
+  const month = $('hist-month').value;
+  const empId = $('hist-emp').value;
+  list.innerHTML = '<div class="empty"><span class="spinner-inline"></span> Chargement…</div>';
+  try {
+    const d = await apiGet('pointages', { month });
+    let pts = d.pointages || [];
+    if (empId) pts = pts.filter(p => p.empId === empId);
+    pts.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+    if (!pts.length) {
+      list.innerHTML = '<div class="empty">Aucun pointage pour ces filtres.</div>';
+      return;
+    }
+    list.innerHTML = pts.map(p => {
+      const emp = employees.find(e => e.id === p.empId) || { prenom:'?', nom:'', role:'' };
+      const t = new Date(p.timestamp);
+      const timeStr = t.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+      return `<div class="hist-row" data-id="${p.id}">
+        <div class="date-col">${fmtDateFR(p.dateLocal)}</div>
+        <div class="name-col">${emp.prenom} ${emp.nom} <span style="color:var(--ink-3);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-left:6px">${emp.role}</span></div>
+        <div class="time-col">${timeStr}</div>
+        <div class="src-col">${p.source}</div>
+        <div class="actions">
+          <button class="edit-pt" data-id="${p.id}" data-ts="${p.timestamp}">Modifier</button>
+          <button class="del-pt" data-id="${p.id}">Supprimer</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.del-pt').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Supprimer ce pointage ? Cette action est définitive.')) return;
+      try { await apiPost({ action:'deletePointage', id: b.dataset.id }); toast('Pointage supprimé', 'success'); renderHistory(); }
+      catch(e){ toast('Erreur : ' + e.message, 'error'); }
+    }));
+    list.querySelectorAll('.edit-pt').forEach(b => b.addEventListener('click', async () => {
+      const current = b.dataset.ts;
+      const d = new Date(current);
+      const localStr = d.toISOString().slice(0,16);
+      const next = prompt('Nouveau timestamp ISO (YYYY-MM-DDTHH:MM) :', localStr);
+      if (!next) return;
+      try { await apiPost({ action:'updatePointage', pointage: { id: b.dataset.id, timestamp: new Date(next).toISOString() } }); toast('Pointage modifié', 'success'); renderHistory(); }
+      catch(e){ toast('Erreur : ' + e.message, 'error'); }
+    }));
+  } catch (e) {
+    list.innerHTML = `<div class="empty" style="color:var(--bad)">Erreur : ${e.message}</div>`;
+  }
+}
+$('hist-refresh').addEventListener('click', renderHistory);
+$('hist-month').addEventListener('change', renderHistory);
+$('hist-emp').addEventListener('change', renderHistory);
+
+// ============================================================
+// TAB: RAPPORT MENSUEL
+// ============================================================
+function initReportFilters() {
+  const sel = $('rpt-month');
+  if (!sel.options.length) sel.innerHTML = listMonthsBack(12).map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
+}
+let currentReport = null;
+async function renderReport() {
+  initReportFilters();
+  const month = $('rpt-month').value;
+  const totauxWrap = $('rpt-totaux-wrap');
+  const thead = document.querySelector('#rpt-table thead');
+  const tbody = document.querySelector('#rpt-table tbody');
+  totauxWrap.innerHTML = '<div style="padding:20px;text-align:center;color:var(--ink-3)"><span class="spinner-inline"></span> Calcul du rapport…</div>';
+  thead.innerHTML = ''; tbody.innerHTML = '';
+  try {
+    const d = await apiGet('monthlyReport', { month });
+    currentReport = d;
+    totauxWrap.innerHTML = `<div class="rpt-totaux">
+      <div class="rpt-tot-cell"><div class="lbl">${d.monthLabel} — Heures totales</div><div class="v">${fmtHours(d.totaux.heuresTotal)}</div></div>
+      <div class="rpt-tot-cell"><div class="lbl">Dont heures sup (>${d.baseHebdo}h/sem)</div><div class="v" style="color:var(--warn)">${fmtHours(d.totaux.heuresSup)}</div></div>
+      <div class="rpt-tot-cell"><div class="lbl">Coût total masse salariale</div><div class="v">${fmtEUR(d.totaux.coutTotal)}</div></div>
+    </div>`;
+    thead.innerHTML = `<tr>
+      <th>Salarié</th><th>Rôle</th><th class="num">Jours</th><th class="num">Heures</th><th class="num">H. norm.</th><th class="num">H. sup.</th><th class="num">Coût €</th></tr>`;
+    if (!d.report.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--ink-3)">Aucun salarié.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = d.report.map(r => {
+      const e = r.employee;
+      const anomalies = r.anomalies && r.anomalies.length ?
+        `<span class="anomaly">⚠ Jours impair (oubli départ ?) : ${r.anomalies.map(fmtDateFR).join(', ')}</span>` : '';
+      return `<tr>
+        <td><div class="name">${e.prenom} ${e.nom}</div>${anomalies}</td>
+        <td>${e.role}</td>
+        <td class="num">${r.joursTravailles}</td>
+        <td class="num">${fmtHours(r.heuresTotal)}</td>
+        <td class="num">${fmtHours(r.heuresNormales)}</td>
+        <td class="num ${r.heuresSup>0?'warn':''}">${fmtHours(r.heuresSup)}</td>
+        <td class="num">${fmtEUR(r.coutTotal)}</td>
+      </tr>`;
+    }).join('') + `<tr class="total-row">
+      <td>Total</td><td></td>
+      <td class="num">—</td>
+      <td class="num">${fmtHours(d.totaux.heuresTotal)}</td>
+      <td class="num">${fmtHours(d.totaux.heuresTotal - d.totaux.heuresSup)}</td>
+      <td class="num warn">${fmtHours(d.totaux.heuresSup)}</td>
+      <td class="num">${fmtEUR(d.totaux.coutTotal)}</td>
+    </tr>`;
+  } catch (e) {
+    totauxWrap.innerHTML = `<div style="padding:20px;color:var(--bad)">Erreur : ${e.message}</div>`;
+  }
+}
+$('rpt-refresh').addEventListener('click', renderReport);
+$('rpt-month').addEventListener('change', renderReport);
+$('rpt-print').addEventListener('click', () => window.print());
+$('rpt-csv').addEventListener('click', () => {
+  if (!currentReport) return toast('Charge d\'abord un rapport', 'error');
+  const rows = [['Salarié','Rôle','TauxHoraire','JoursTravaillés','HeuresTotal','HeuresNormales','HeuresSup','CoutNormal','CoutSup','CoutTotal']];
+  currentReport.report.forEach(r => {
+    rows.push([
+      `${r.employee.prenom} ${r.employee.nom}`,
+      r.employee.role,
+      r.employee.tauxHoraire,
+      r.joursTravailles, r.heuresTotal, r.heuresNormales, r.heuresSup,
+      r.coutNormal, r.coutSup, r.coutTotal
+    ]);
+  });
+  rows.push([]);
+  rows.push(['TOTAL','','','',currentReport.totaux.heuresTotal,'',currentReport.totaux.heuresSup,'','',currentReport.totaux.coutTotal]);
+  const csv = rows.map(r => r.map(c => {
+    const s = String(c == null ? '' : c).replace(/"/g, '""');
+    return /[;"\n]/.test(s) ? `"${s}"` : s;
+  }).join(';')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type:'text/csv;charset=utf-8' });
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = u; a.download = `bdl-pointage-${currentReport.month}.csv`; a.click();
+  URL.revokeObjectURL(u);
+});
+
+// ============================================================
+// TAB: SALARIÉS
+// ============================================================
+async function ensureEmployees() {
+  if (employees.length > 0) return;
+  try {
+    const d = await apiGet('salaries');
+    employees = d.salaries || [];
+  } catch (e) { /* silent */ }
+}
+async function renderEmployees() {
+  const list = $('emp-list');
+  if (!apiUrl) { list.innerHTML = '<div class="empty">Configure l\'API d\'abord.</div>'; return; }
+  list.innerHTML = '<div class="empty"><span class="spinner-inline"></span> Chargement…</div>';
+  try {
+    const d = await apiGet('salaries');
+    employees = d.salaries || [];
+    if (!employees.length) {
+      list.innerHTML = '<div class="empty">Aucun salarié. Utilise le formulaire au-dessus pour en ajouter.</div>';
+      return;
+    }
+    list.innerHTML = employees.map(e => `<div class="emp-row" data-id="${e.id}">
+      <div class="avatar">${initials(e)}</div>
+      <div class="name-col">
+        <input type="text" class="emp-prenom" value="${e.prenom}" placeholder="Prénom">
+        <input type="text" class="emp-nom" value="${e.nom}" placeholder="Nom">
+        <div class="id-line">${e.id}</div>
+      </div>
+      <div class="role-col">
+        <select class="emp-role">
+          <option value="laveur"${e.role==='laveur'?' selected':''}>Laveur</option>
+          <option value="chauffeur"${e.role==='chauffeur'?' selected':''}>Chauffeur</option>
+          <option value="admin"${e.role==='admin'?' selected':''}>Administratif</option>
+          <option value="autre"${e.role==='autre'?' selected':''}>Autre</option>
+        </select>
+      </div>
+      <div class="rate-col"><input type="number" inputmode="decimal" step="0.5" class="emp-taux mono-input" value="${e.tauxHoraire}" placeholder="€/h"></div>
+      <div class="actif-col" style="text-align:center"><input type="checkbox" class="emp-actif"${e.actif?' checked':''}></div>
+      <button class="qr-btn" data-emp="${e.id}">QR / Lien</button>
+      <button class="del-btn" data-emp="${e.id}">Supprimer</button>
+    </div>`).join('');
+
+    // Wire up
+    list.querySelectorAll('.emp-row').forEach(row => {
+      const id = row.dataset.id;
+      const fields = ['prenom','nom','role','taux','actif'];
+      const inputs = {
+        prenom: row.querySelector('.emp-prenom'),
+        nom: row.querySelector('.emp-nom'),
+        role: row.querySelector('.emp-role'),
+        taux: row.querySelector('.emp-taux'),
+        actif: row.querySelector('.emp-actif')
+      };
+      const saveRow = async () => {
+        try {
+          await apiPost({ action:'updateEmployee', employee: {
+            id, prenom: inputs.prenom.value, nom: inputs.nom.value,
+            role: inputs.role.value, tauxHoraire: parseFloat(inputs.taux.value)||0,
+            actif: inputs.actif.checked
+          }});
+          toast('✓ Modifications enregistrées', 'success');
+          const idx = employees.findIndex(x => x.id === id);
+          if (idx > -1) {
+            employees[idx] = { ...employees[idx], prenom: inputs.prenom.value, nom: inputs.nom.value,
+              role: inputs.role.value, tauxHoraire: parseFloat(inputs.taux.value)||0, actif: inputs.actif.checked };
+          }
+        } catch(e) { toast('Erreur : ' + e.message, 'error'); }
+      };
+      fields.forEach(f => inputs[f].addEventListener('change', saveRow));
+      row.querySelector('.qr-btn').addEventListener('click', () => openQR(id));
+      row.querySelector('.del-btn').addEventListener('click', async () => {
+        if (!confirm(`Supprimer ${inputs.prenom.value} ${inputs.nom.value} ? Cette action ne supprime PAS les pointages déjà enregistrés, mais les laisse orphelins.`)) return;
+        try { await apiPost({ action:'deleteEmployee', id }); toast('Salarié supprimé', 'success'); renderEmployees(); }
+        catch(e) { toast('Erreur : ' + e.message, 'error'); }
+      });
+    });
+  } catch (e) {
+    list.innerHTML = `<div class="empty" style="color:var(--bad)">Erreur : ${e.message}</div>`;
+  }
+}
+
+$('btn-add-emp').addEventListener('click', async () => {
+  const prenom = $('new-prenom').value.trim();
+  const nom = $('new-nom').value.trim();
+  if (!prenom && !nom) return toast('Renseigne au moins prénom ou nom', 'error');
+  const employee = {
+    prenom, nom,
+    role: $('new-role').value,
+    tauxHoraire: parseFloat($('new-taux').value)||0,
+    actif: $('new-actif').checked
+  };
+  try {
+    const d = await apiPost({ action:'addEmployee', employee });
+    toast(`✓ ${prenom} ${nom} ajouté`, 'success');
+    $('new-prenom').value = ''; $('new-nom').value = '';
+    $('new-taux').value = '';
+    employees = [];
+    renderEmployees();
+  } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+});
+$('btn-refresh-emp').addEventListener('click', () => { employees = []; renderEmployees(); });
+
+// ============================================================
+// QR / LIEN PERSONNEL
+// ============================================================
+function buildEmployeeUrl(empId) {
+  // Construire l'URL : pointage-salarie est généralement servi à la racine (index.html), donc on lie vers ./
+  // Mais s'il garde son nom, on pointe dessus
+  const base = location.origin + location.pathname.replace(/[^\/]*$/, '');
+  // Si la page d'admin est admin.html à la racine, l'app salarié est probablement index.html ou pointage-salarie.html
+  // Heuristique : essayer pointage-salarie.html si l'admin est nommé pointage-admin.html, sinon ./
+  const adminFile = location.pathname.split('/').pop();
+  let target;
+  if (adminFile === 'pointage-admin.html') target = base + 'pointage-salarie.html';
+  else target = base; // index.html
+  return `${target}?id=${encodeURIComponent(empId)}&api=${encodeURIComponent(apiUrl)}`;
+}
+
+function generateQR(text, sizePx) {
+  // qrcode-generator API: qrcode(typeNumber, errorCorrection)
+  const qr = qrcode(0, 'M');  // typeNumber=0 → auto, M = medium correction
+  qr.addData(text);
+  qr.make();
+  return qr.createDataURL(6, 4);  // cellSize=6px, margin=4 cells
+}
+
+function openQR(empId) {
+  const emp = employees.find(e => e.id === empId);
+  if (!emp) return;
+  const url = buildEmployeeUrl(empId);
+  $('modal-name').innerHTML = `<em>${emp.prenom}</em> ${emp.nom}`;
+  $('link-box').textContent = url;
+  const dataUrl = generateQR(url);
+  $('qr-box').innerHTML = `<img src="${dataUrl}" alt="QR code">`;
+  $('modal-qr').classList.add('show');
+  // Wire up copy/print
+  $('copy-link').onclick = () => {
+    navigator.clipboard.writeText(url).then(() => toast('✓ Lien copié', 'success')).catch(()=>toast('Impossible de copier', 'error'));
+  };
+  $('print-badge').onclick = () => {
+    // Render a single-badge print page
+    const grid = $('badges-print');
+    grid.innerHTML = `<div class="badge-card">
+      <div class="badge-name">${emp.prenom} ${emp.nom}</div>
+      <div class="badge-role">${emp.role}</div>
+      <img src="${dataUrl}" alt="QR">
+      <div class="badge-foot">${emp.id}</div>
+    </div>`;
+    grid.classList.add('print-mode');
+    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+    $('modal-qr').style.display = 'none';
+    window.print();
+    setTimeout(() => {
+      grid.classList.remove('print-mode');
+      grid.innerHTML = '';
+      document.querySelectorAll('.tab-panel').forEach(p => p.style.display = '');
+      $('modal-qr').style.display = '';
+    }, 200);
+  };
+}
+$('modal-close').addEventListener('click', () => $('modal-qr').classList.remove('show'));
+$('modal-qr').addEventListener('click', (e) => { if (e.target.id === 'modal-qr') $('modal-qr').classList.remove('show'); });
+
+$('btn-print-badges').addEventListener('click', () => {
+  if (!employees.length) return toast('Aucun salarié', 'error');
+  const grid = $('badges-print');
+  grid.innerHTML = employees.filter(e => e.actif).map(e => {
+    const url = buildEmployeeUrl(e.id);
+    const dataUrl = generateQR(url);
+    return `<div class="badge-card">
+      <div class="badge-name">${e.prenom} ${e.nom}</div>
+      <div class="badge-role">${e.role}</div>
+      <img src="${dataUrl}" alt="QR">
+      <div class="badge-foot">${e.id}</div>
+    </div>`;
+  }).join('');
+  grid.classList.add('print-mode');
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  window.print();
+  setTimeout(() => {
+    grid.classList.remove('print-mode');
+    grid.innerHTML = '';
+    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = '');
+  }, 200);
+});
+
+// ============================================================
+// TAB: CONFIG
+// ============================================================
+function renderConfig() {
+  $('api-url-input').value = apiUrl;
+}
+$('btn-save-api').addEventListener('click', async () => {
+  const v = $('api-url-input').value.trim();
+  if (!v) return toast('Colle d\'abord l\'URL', 'error');
+  apiUrl = v;
+  saveConfig();
+  const ok = await testConnection(false);
+  if (ok) {
+    employees = [];
+    setTimeout(() => switchTab('today'), 500);
+  }
+});
+$('btn-clear-api').addEventListener('click', () => {
+  if (!confirm('Effacer l\'URL API enregistrée ?')) return;
+  apiUrl = '';
+  saveConfig();
+  $('api-url-input').value = '';
+  setConn('', 'Non connecté', '');
+  toast('Configuration effacée', 'success');
+});
+
+// ============================================================
+// INIT
+// ============================================================
+$('today-lbl').textContent = fmtTodayFull().charAt(0).toUpperCase() + fmtTodayFull().slice(1);
+if (apiUrl) {
+  testConnection(true).then(ok => {
+    if (ok) { renderToday(); startAutoRefresh(); }
+  });
+} else {
+  // Auto-switch to config tab on first visit
+  switchTab('config');
+}
+</script>
+</body>
+</html>
