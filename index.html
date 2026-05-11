@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 :root {
   --bg: #F4EFE6;
@@ -328,6 +329,69 @@ footer {
   .status-block .big-time { font-size: 52px; }
   .action-btn { font-size: 20px; min-height: 160px; }
 }
+/* ==== SCANNER QR (modal plein écran) ==== */
+.scan-overlay {
+  position: fixed; inset: 0; background: #000;
+  display: none; flex-direction: column;
+  z-index: 9999; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+.scan-overlay.show { display: flex; }
+.scan-video-wrap {
+  flex: 1; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.scan-video {
+  width: 100%; height: 100%; object-fit: cover;
+  background: #000;
+}
+.scan-canvas { display: none; }
+.scan-frame {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.scan-frame .reticle {
+  width: 70vw; max-width: 280px; aspect-ratio: 1;
+  border: 3px solid rgba(255,255,255,.95);
+  border-radius: 18px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
+  animation: pulse-scan 1.6s ease-in-out infinite;
+}
+@keyframes pulse-scan {
+  0%, 100% { border-color: rgba(255,255,255,.95); }
+  50% { border-color: rgba(46,107,62,.95); }
+}
+.scan-header {
+  position: absolute; top: env(safe-area-inset-top); left: 0; right: 0;
+  padding: 14px 20px; color: white; font-weight: 500;
+  background: linear-gradient(180deg, rgba(0,0,0,.6), transparent);
+  text-align: center; font-size: 15px;
+}
+.scan-footer {
+  padding: 18px 20px env(safe-area-inset-bottom); background: #000;
+  display: flex; flex-direction: column; gap: 12px; align-items: center;
+  color: white;
+}
+.scan-footer .hint {
+  font-size: 13px; color: rgba(255,255,255,.7);
+  text-align: center; max-width: 320px;
+}
+.scan-cancel {
+  background: rgba(255,255,255,.1); color: white;
+  border: 1px solid rgba(255,255,255,.3); padding: 12px 24px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  border-radius: 8px; min-height: 48px; min-width: 140px;
+  font-family: inherit;
+}
+.scan-cancel:active { background: rgba(255,255,255,.2); }
+.scan-error {
+  position: absolute; bottom: 100px; left: 20px; right: 20px;
+  background: rgba(165,58,54,.95); color: white;
+  padding: 14px 18px; border-radius: 10px;
+  font-size: 14px; text-align: center;
+  display: none;
+}
+.scan-error.show { display: block; }
 </style>
 </head>
 <body>
@@ -373,6 +437,21 @@ footer {
 </div>
 
 <footer>Blanchisserie du Limousin · Pointage v1</footer>
+
+<!-- Scanner QR plein écran -->
+<div class="scan-overlay" id="scan-overlay">
+  <div class="scan-video-wrap">
+    <video class="scan-video" id="scan-video" playsinline muted autoplay></video>
+    <canvas class="scan-canvas" id="scan-canvas"></canvas>
+    <div class="scan-frame"><div class="reticle"></div></div>
+    <div class="scan-header" id="scan-header">Scanne le QR de l'entreprise</div>
+    <div class="scan-error" id="scan-error"></div>
+  </div>
+  <div class="scan-footer">
+    <div class="hint">Place le QR code BdL affiché à l'entrée dans le cadre</div>
+    <button class="scan-cancel" id="scan-cancel">Annuler</button>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -444,30 +523,48 @@ function setConnection(state, label) {
 }
 
 // ============================================================
-// NETWORK
+// NETWORK (via JSONP pour contourner les restrictions CORS d'Apps Script)
 // ============================================================
-async function apiGet(action, params) {
-  const url = new URL(config.apiUrl);
-  url.searchParams.set('action', action);
-  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), { method: 'GET' });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data;
-}
+function apiCall(params) {
+  return new Promise((resolve, reject) => {
+    if (!config.apiUrl) return reject(new Error('API URL non configurée'));
+    const cbName = '_bdlcb' + Date.now() + Math.random().toString(36).slice(2, 7);
+    const url = new URL(config.apiUrl);
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+    });
+    url.searchParams.set('callback', cbName);
 
-async function apiPost(payload) {
-  const res = await fetch(config.apiUrl, {
-    method: 'POST',
-    // text/plain évite le preflight CORS (Apps Script gère mal preflight)
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
+    let cleanedUp = false;
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Délai dépassé'));
+    }, 15000);
+    const script = document.createElement('script');
+
+    function cleanup() {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      clearTimeout(timeout);
+      try { delete window[cbName]; } catch(e) { window[cbName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(data) {
+      cleanup();
+      if (data && data.error) reject(new Error(data.error));
+      else resolve(data || {});
+    };
+    script.src = url.toString();
+    script.onerror = () => { cleanup(); reject(new Error('Échec du chargement')); };
+    document.body.appendChild(script);
   });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data;
+}
+async function apiGet(action, params) {
+  return apiCall(Object.assign({ action }, params || {}));
+}
+async function apiPost(payload) {
+  // Pour JSONP, on transforme le POST en GET avec tous les paramètres dans l'URL
+  return apiCall(payload);
 }
 
 // ============================================================
@@ -527,20 +624,20 @@ function renderState(state) {
 
   if (pts.length === 0) {
     $('status-msg').textContent = 'Pas encore pointé aujourd\'hui';
-    lbl.textContent = 'Pointer l\'arrivée';
+    lbl.textContent = '📷 Scanner pour pointer l\'arrivée';
     ico.textContent = '→';
     setBodyState(null);
   } else if (state.estPresent) {
     const lastTime = pts[pts.length - 1].time;
     $('status-msg').innerHTML = 'Dernier pointage à <strong>' + lastTime + '</strong> — en travail';
-    lbl.textContent = 'Pointer le départ';
+    lbl.textContent = '📷 Scanner pour pointer le départ';
     ico.textContent = '←';
     btn.classList.add('depart');
     setBodyState('depart');
   } else {
     const lastTime = pts[pts.length - 1].time;
     $('status-msg').innerHTML = 'Pause/départ à <strong>' + lastTime + '</strong> — pointer pour reprendre';
-    lbl.textContent = 'Pointer le retour';
+    lbl.textContent = '📷 Scanner pour pointer le retour';
     ico.textContent = '→';
     setBodyState(null);
   }
@@ -574,7 +671,85 @@ function renderError(message, suggestion) {
 }
 
 // ============================================================
-// ACTION : POINTER
+// SCANNER QR DE SITE
+// ============================================================
+let scanStream = null;
+let scanRunning = false;
+
+function openScanner() {
+  return new Promise((resolve, reject) => {
+    const overlay = $('scan-overlay');
+    const video = $('scan-video');
+    const canvas = $('scan-canvas');
+    const errorEl = $('scan-error');
+    const headerEl = $('scan-header');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    errorEl.classList.remove('show');
+    errorEl.textContent = '';
+    headerEl.textContent = 'Scanne le QR de l\'entreprise';
+    overlay.classList.add('show');
+    scanRunning = true;
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.classList.add('show');
+    }
+    function cleanup() {
+      scanRunning = false;
+      if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+      overlay.classList.remove('show');
+    }
+
+    $('scan-cancel').onclick = () => { cleanup(); reject(new Error('Annulé')); };
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showError('La caméra n\'est pas accessible. Vérifie tes paramètres.');
+      setTimeout(() => { cleanup(); reject(new Error('Caméra indisponible')); }, 2500);
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+      .then(stream => {
+        scanStream = stream;
+        video.srcObject = stream;
+        return video.play();
+      })
+      .then(() => {
+        function tick() {
+          if (!scanRunning) return;
+          if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width  = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            try {
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = (typeof jsQR !== 'undefined') ? jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' }) : null;
+              if (code && code.data) {
+                // Validate QR is from BdL site
+                if (code.data.indexOf('BDL-SITE:') === 0) {
+                  cleanup();
+                  resolve(code.data);
+                  return;
+                } else {
+                  showError('QR non reconnu. Cherche le QR BdL.');
+                }
+              }
+            } catch(e) { /* getImageData peut échouer si cross-origin, on ignore */ }
+          }
+          requestAnimationFrame(tick);
+        }
+        tick();
+      })
+      .catch(err => {
+        showError('Caméra inaccessible : ' + (err.message || err.name || 'erreur inconnue'));
+        setTimeout(() => { cleanup(); reject(err); }, 3000);
+      });
+  });
+}
+
+// ============================================================
+// ACTION : POINTER (avec scan du QR de site)
 // ============================================================
 async function doPointage() {
   if (!currentState) return;
@@ -582,6 +757,17 @@ async function doPointage() {
   const lbl = $('action-label');
   const wasDepart = currentState.estPresent;
 
+  // Étape 1 : scanner le QR de site
+  let qrData;
+  try {
+    qrData = await openScanner();
+  } catch (e) {
+    if (e.message === 'Annulé') return; // L'utilisateur a annulé, pas d'erreur
+    toast('Erreur scanner : ' + (e.message || 'inconnu'), 'error');
+    return;
+  }
+
+  // Étape 2 : envoyer le pointage avec le siteToken
   btn.disabled = true;
   btn.classList.add('loading');
   lbl.innerHTML = '<span class="spinner"></span> Enregistrement…';
@@ -589,6 +775,7 @@ async function doPointage() {
   const payload = {
     action: 'pointer',
     empId: config.empId,
+    siteToken: qrData,
     source: 'mobile'
   };
 
