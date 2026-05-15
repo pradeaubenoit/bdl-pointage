@@ -490,7 +490,7 @@ footer {
         <div class="v" id="stats-mois">—</div>
       </div>
       <div class="stat-cell year">
-        <div class="lbl" id="stats-annee-lbl">Depuis le 1ᵉʳ janvier</div>
+        <div class="lbl" id="stats-annee-lbl">Démarrage du système : 15/05/2026</div>
         <div class="v" id="stats-annee">—</div>
       </div>
     </div>
@@ -947,7 +947,8 @@ function renderStats(s) {
   }
   // Labels dynamiques
   if (s.moisLabel) $('stats-mois-lbl').textContent = s.moisLabel;
-  if (s.annee) $('stats-annee-lbl').textContent = 'Depuis le 1ᵉʳ janvier ' + s.annee;
+  // Date de démarrage du système (hard-codée — affichée en haut du cumul "annuel")
+  $('stats-annee-lbl').textContent = 'Démarrage du système : 15/05/2026';
 }
 
 function fmtHM(h) {
