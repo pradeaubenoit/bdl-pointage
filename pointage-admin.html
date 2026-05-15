@@ -906,16 +906,10 @@ $('btn-refresh-emp').addEventListener('click', () => { employees = []; renderEmp
 // QR / LIEN PERSONNEL
 // ============================================================
 function buildEmployeeUrl(empId) {
-  // Construire l'URL : pointage-salarie est généralement servi à la racine (index.html), donc on lie vers ./
-  // Mais s'il garde son nom, on pointe dessus
+  // L'app salarié est servie comme index.html à la racine du repo bdl-pointage/
+  // Donc on pointe vers le base path sans préciser le fichier (index.html est par défaut).
   const base = location.origin + location.pathname.replace(/[^\/]*$/, '');
-  // Si la page d'admin est admin.html à la racine, l'app salarié est probablement index.html ou pointage-salarie.html
-  // Heuristique : essayer pointage-salarie.html si l'admin est nommé pointage-admin.html, sinon ./
-  const adminFile = location.pathname.split('/').pop();
-  let target;
-  if (adminFile === 'pointage-admin.html') target = base + 'pointage-salarie.html';
-  else target = base; // index.html
-  return `${target}?id=${encodeURIComponent(empId)}&api=${encodeURIComponent(apiUrl)}`;
+  return `${base}?id=${encodeURIComponent(empId)}&api=${encodeURIComponent(apiUrl)}`;
 }
 
 function generateQR(text, sizePx) {
