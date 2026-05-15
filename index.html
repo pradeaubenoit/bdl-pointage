@@ -329,6 +329,57 @@ footer {
   .status-block .big-time { font-size: 52px; }
   .action-btn { font-size: 20px; min-height: 160px; }
 }
+/* ==== STATS RÉCAP (jour / semaine / mois / année) ==== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin: 20px 0;
+}
+.stat-cell {
+  background: var(--paper);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stat-cell .lbl {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.stat-cell .v {
+  font-family: 'Instrument Serif', serif;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.stat-cell .sub {
+  font-size: 10px;
+  color: var(--ink-3);
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 2px;
+}
+.stat-cell.warn .v { color: var(--bad); }
+.stat-cell.year {
+  grid-column: 1 / -1;
+  background: var(--ink);
+  color: var(--paper);
+}
+.stat-cell.year .lbl { color: rgba(251, 248, 242, 0.65); }
+.stat-cell.year .v { color: var(--paper); }
+.stats-spinner {
+  text-align: center;
+  padding: 18px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
 /* ==== SCANNER QR (modal plein écran) ==== */
 .scan-overlay {
   position: fixed; inset: 0; background: #000;
@@ -422,6 +473,26 @@ footer {
         <span class="ico">●</span>
         <span id="action-label">Chargement…</span>
       </button>
+    </div>
+
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-cell">
+        <div class="lbl">Aujourd'hui</div>
+        <div class="v" id="stats-jour">—</div>
+      </div>
+      <div class="stat-cell" id="stats-semaine-cell">
+        <div class="lbl">Cette semaine</div>
+        <div class="v" id="stats-semaine">—</div>
+        <div class="sub" id="stats-semaine-sub"></div>
+      </div>
+      <div class="stat-cell">
+        <div class="lbl" id="stats-mois-lbl">Ce mois</div>
+        <div class="v" id="stats-mois">—</div>
+      </div>
+      <div class="stat-cell year">
+        <div class="lbl" id="stats-annee-lbl">Depuis le 1ᵉʳ janvier</div>
+        <div class="v" id="stats-annee">—</div>
+      </div>
     </div>
 
     <div class="scans" id="scans-block" style="display:none">
@@ -790,6 +861,8 @@ async function doPointage() {
       setBodyState('arrive');
       setTimeout(() => setBodyState(wasDepart ? null : 'depart'), 1800);
     }
+    // Recharger les stats (jour/semaine/mois/année) car le pointage vient d'être enregistré
+    loadStats();
   } catch (e) {
     // Réseau ? On enfile en file d'attente.
     enqueuePointage(payload);
@@ -838,9 +911,50 @@ async function refresh() {
     const state = await apiGet('state', { empId: config.empId });
     renderState(state);
     updateConnectionStatus();
+    // 3. Charge les stats en arrière-plan (jour/semaine/mois/année)
+    loadStats();
   } catch (e) {
     setConnection('offline', 'Erreur : ' + e.message);
   }
+}
+
+async function loadStats() {
+  if (!config.apiUrl || !config.empId) return;
+  try {
+    const s = await apiGet('employeeStats', { empId: config.empId });
+    renderStats(s);
+  } catch (e) {
+    // On affiche pas d'erreur, juste — c'est une info bonus
+    console.warn('loadStats failed', e);
+  }
+}
+
+function renderStats(s) {
+  if (!s || s.error) return;
+  $('stats-jour').textContent = fmtHM(s.heuresAujourdhui);
+  $('stats-semaine').textContent = fmtHM(s.heuresSemaine);
+  $('stats-mois').textContent = fmtHM(s.heuresMois);
+  $('stats-annee').textContent = fmtHM(s.heuresAnnee);
+  // Sous-titre semaine : "x/35h" avec warn si dépassé
+  const cell = $('stats-semaine-cell');
+  const base = s.baseHebdo || 35;
+  if (s.heuresSemaine > base) {
+    cell.classList.add('warn');
+    $('stats-semaine-sub').textContent = '+' + fmtHM(s.heuresSemaine - base) + ' au-delà de ' + base + 'h';
+  } else {
+    cell.classList.remove('warn');
+    $('stats-semaine-sub').textContent = 'Base : ' + base + 'h/semaine';
+  }
+  // Labels dynamiques
+  if (s.moisLabel) $('stats-mois-lbl').textContent = s.moisLabel;
+  if (s.annee) $('stats-annee-lbl').textContent = 'Depuis le 1ᵉʳ janvier ' + s.annee;
+}
+
+function fmtHM(h) {
+  if (h == null || isNaN(h)) return '0h00';
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  return hh + 'h' + String(mm).padStart(2, '0');
 }
 
 // ============================================================
