@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Import Historique Production BdL</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #FBF8F2;
+  color: #15140F;
+  padding: 24px;
+  max-width: 720px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+h1 { font-size: 24px; margin-bottom: 8px; color: #1F4A47; }
+.subtitle { color: #54534C; margin-bottom: 24px; font-size: 14px; }
+
+.card {
+  background: white;
+  border: 1px solid #E5DDC8;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #E5DDC8;
+  font-size: 14px;
+}
+.stat:last-child { border-bottom: none; }
+.stat-value { font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+
+button {
+  width: 100%;
+  padding: 16px;
+  background: #1F4A47;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+}
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.danger { background: #A53A36; }
+
+.log {
+  background: #15140F;
+  color: #A8E8C0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 16px;
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  margin-top: 16px;
+}
+
+.success { color: #2E6B3E; font-weight: 600; }
+.error { color: #A53A36; font-weight: 600; }
+.progress {
+  width: 100%;
+  height: 8px;
+  background: #E5DDC8;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+.progress-bar {
+  height: 100%;
+  background: #C97C2A;
+  transition: width 0.3s;
+}
+
+textarea {
+  width: 100%;
+  height: 200px;
+  padding: 12px;
+  border: 1px solid #E5DDC8;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  background: #FBF8F2;
+  resize: vertical;
+}
+</style>
+</head>
+<body>
+
+<h1>🚛 Import Historique Production</h1>
+<div class="subtitle">Import des 86 jours de relevés depuis l'Excel BdL (janvier → 10 avril 2026)</div>
+
+<div class="card">
+  <h3 style="font-size: 14px; margin-bottom: 12px; color: #1F4A47;">📊 Données à importer</h3>
+  <div class="stat"><span>Période</span><span class="stat-value">31/12/2025 → 09/04/2026</span></div>
+  <div class="stat"><span>Nombre de jours</span><span class="stat-value" id="statCount">86</span></div>
+  <div class="stat"><span>Source</span><span class="stat-value">Excel bilan_et_suivi_2026</span></div>
+  <div class="stat"><span>Conversion</span><span class="stat-value">35 kg/transfert</span></div>
+</div>
+
+<div class="card">
+  <h3 style="font-size: 14px; margin-bottom: 8px; color: #1F4A47;">⚙️ Configuration</h3>
+  <div style="font-size: 13px; color: #54534C; margin-bottom: 8px;">URL API Apps Script :</div>
+  <input type="text" id="apiUrl" style="width:100%;padding:10px;border:1px solid #E5DDC8;border-radius:6px;font-family:monospace;font-size:11px;" value="https://script.google.com/macros/s/AKfycbz8oAMGTXFYdOThvCJscCHOCg9SwPYffgQmrNv1dNdWIwbNbRU3VjoQEcDMb5kLwzHXUw/exec">
+</div>
+
+<div class="card">
+  <button id="btnImport" onclick="lancer()">📤 Lancer l'import</button>
+  <button class="danger" onclick="document.getElementById('viewData').style.display='block'" style="background:#54534C;margin-top:8px;">🔍 Voir les données JSON</button>
+</div>
+
+<div class="card" id="viewData" style="display:none;">
+  <h3 style="font-size: 14px; margin-bottom: 8px;">Données JSON</h3>
+  <textarea id="jsonData" readonly></textarea>
+</div>
+
+<div class="log" id="log" style="display:none;"></div>
+
+<script>
+// ============================================================
+// DONNÉES À IMPORTER (incluses directement dans la page)
+// ============================================================
+const PRODUCTION_DATA = [
+  {
+    "date_travail": "2025-12-31",
+    "date_saisie": "2026-01-01",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 100,
+    "kg": 3500,
+    "eau_compteur": 9519.0,
+    "eau_m3": 0.0,
+    "compresseur_compteur": 16880.0,
+    "compresseur_h": 0.0,
+    "gaz_cuve_pct": 53.0
+  },
+  {
+    "date_travail": "2026-01-01",
+    "date_saisie": "2026-01-02",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 130,
+    "kg": 4550,
+    "eau_compteur": 9568.0,
+    "eau_m3": 49.0,
+    "compresseur_compteur": 16890.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 50.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-01-02",
+    "date_saisie": "2026-01-03",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 0,
+    "kg": 0,
+    "compresseur_compteur": 16900.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 50.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-01-02",
+    "date_saisie": "2026-01-05",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 120,
+    "kg": 4200,
+    "eau_compteur": 9640.0,
+    "eau_m3": 72.0,
+    "compresseur_compteur": 16910.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 45.0,
+    "gaz_pct": 5.0
+  },
+  {
+    "date_travail": "2026-01-05",
+    "date_saisie": "2026-01-06",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 163,
+    "kg": 5705,
+    "eau_compteur": 9662.0,
+    "eau_m3": 22.0,
+    "compresseur_compteur": 16920.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 40.0,
+    "gaz_pct": 5.0
+  },
+  {
+    "date_travail": "2026-01-06",
+    "date_saisie": "2026-01-07",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 125,
+    "kg": 4375,
+    "eau_compteur": 9674.0,
+    "eau_m3": 12.0,
+    "compresseur_compteur": 16930.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 35.0,
+    "gaz_pct": 5.0
+  },
+  {
+    "date_travail": "2026-01-07",
+    "date_saisie": "2026-01-08",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 101,
+    "kg": 3535,
+    "eau_compteur": 9707.0,
+    "eau_m3": 33.0,
+    "compresseur_compteur": 16941.0,
+    "compresseur_h": 11.0,
+    "gaz_cuve_pct": 84.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-01-08",
+    "date_saisie": "2026-01-09",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 202,
+    "kg": 7070,
+    "eau_compteur": 9720.0,
+    "eau_m3": 13.0,
+    "compresseur_compteur": 16946.0,
+    "compresseur_h": 5.0,
+    "gaz_cuve_pct": 79.5,
+    "gaz_pct": 4.5
+  },
+  {
+    "date_travail": "2026-01-09",
+    "date_saisie": "2026-01-10",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 0,
+    "kg": 0,
+    "gaz_cuve_pct": 79.5,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-01-09",
+    "date_saisie": "2026-01-12",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 143,
+    "kg": 5005,
+    "eau_compteur": 9754.0,
+    "eau_m3": 34.0,
+    "compresseur_compteur": 16955.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 76.0,
+    "gaz_pct": 3.5
+  },
+  {
+    "date_travail": "2026-01-12",
+    "date_saisie": "2026-01-13",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 126,
+    "kg": 4410,
+    "eau_compteur": 9771.0,
+    "eau_m3": 17.0,
+    "compresseur_compteur": 16963.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 73.5,
+    "gaz_pct": 2.5
+  },
+  {
+    "date_travail": "2026-01-13",
+    "date_saisie": "2026-01-14",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 126,
+    "kg": 4410,
+    "eau_compteur": 9790.0,
+    "eau_m3": 19.0,
+    "compresseur_compteur": 16969.0,
+    "compresseur_h": 6.0,
+    "gaz_cuve_pct": 71.5,
+    "gaz_pct": 2.0
+  },
+  {
+    "date_travail": "2026-01-14",
+    "date_saisie": "2026-01-15",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 101,
+    "kg": 3535,
+    "eau_compteur": 9814.0,
+    "eau_m3": 24.0,
+    "compresseur_compteur": 16977.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 70.0,
+    "gaz_pct": 1.5
+  },
+  {
+    "date_travail": "2026-01-15",
+    "date_saisie": "2026-01-16",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 135,
+    "kg": 4725,
+    "eau_compteur": 9828.0,
+    "eau_m3": 14.0,
+    "compresseur_compteur": 16985.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 67.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-01-16",
+    "date_saisie": "2026-01-17",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 0,
+    "kg": 0,
+    "gaz_cuve_pct": 67.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-01-16",
+    "date_saisie": "2026-01-19",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 125,
+    "kg": 4375,
+    "eau_compteur": 9843.0,
+    "eau_m3": 15.0,
+    "compresseur_compteur": 16994.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 63.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-01-19",
+    "date_saisie": "2026-01-20",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 163,
+    "kg": 5705,
+    "eau_compteur": 9854.0,
+    "eau_m3": 11.0,
+    "compresseur_compteur": 17002.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 62.0,
+    "gaz_pct": 1.0
+  },
+  {
+    "date_travail": "2026-01-20",
+    "date_saisie": "2026-01-21",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 150,
+    "kg": 5250,
+    "eau_compteur": 9867.0,
+    "eau_m3": 13.0,
+    "compresseur_compteur": 17009.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 59.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-01-21",
+    "date_saisie": "2026-01-22",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 95,
+    "kg": 3325,
+    "eau_compteur": 9873.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17016.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 85.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-01-22",
+    "date_saisie": "2026-01-23",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 127,
+    "kg": 4445,
+    "eau_compteur": 9882.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17023.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 82.5,
+    "gaz_pct": 2.5
+  },
+  {
+    "date_travail": "2026-01-23",
+    "date_saisie": "2026-01-24",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 0,
+    "kg": 0,
+    "gaz_cuve_pct": 82.5,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-01-23",
+    "date_saisie": "2026-01-26",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 125,
+    "kg": 4375,
+    "eau_compteur": 9896.0,
+    "eau_m3": 14.0,
+    "compresseur_compteur": 17032.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 80.5,
+    "gaz_pct": 2.0
+  },
+  {
+    "date_travail": "2026-01-26",
+    "date_saisie": "2026-01-27",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 150,
+    "kg": 5250,
+    "eau_compteur": 9910.0,
+    "eau_m3": 14.0,
+    "compresseur_compteur": 17037.0,
+    "compresseur_h": 5.0,
+    "gaz_cuve_pct": 78.0,
+    "gaz_pct": 2.5
+  },
+  {
+    "date_travail": "2026-01-27",
+    "date_saisie": "2026-01-28",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 171,
+    "kg": 5985,
+    "eau_compteur": 9919.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17046.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 75.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-01-28",
+    "date_saisie": "2026-01-29",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 130,
+    "kg": 4550,
+    "eau_compteur": 9924.0,
+    "eau_m3": 5.0,
+    "compresseur_compteur": 17053.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 72.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-01-29",
+    "date_saisie": "2026-01-30",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 117,
+    "kg": 4095,
+    "eau_compteur": 9934.0,
+    "eau_m3": 10.0,
+    "compresseur_compteur": 17060.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 70.0,
+    "gaz_pct": 2.0
+  },
+  {
+    "date_travail": "2026-01-30",
+    "date_saisie": "2026-01-31",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 0,
+    "kg": 0,
+    "gaz_cuve_pct": 70.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-01-30",
+    "date_saisie": "2026-02-02",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 137,
+    "kg": 4795,
+    "eau_compteur": 9948.0,
+    "eau_m3": 14.0,
+    "compresseur_compteur": 17069.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 67.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-02-02",
+    "date_saisie": "2026-02-03",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 155,
+    "kg": 5425,
+    "eau_compteur": 9954.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17077.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 65.0,
+    "gaz_pct": 2.0
+  },
+  {
+    "date_travail": "2026-02-03",
+    "date_saisie": "2026-02-04",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 200,
+    "kg": 7000,
+    "eau_compteur": 9968.0,
+    "eau_m3": 14.0,
+    "compresseur_compteur": 17086.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 60.5,
+    "gaz_pct": 4.5
+  },
+  {
+    "date_travail": "2026-02-04",
+    "date_saisie": "2026-02-05",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 100,
+    "kg": 3500,
+    "eau_compteur": 9972.0,
+    "eau_m3": 4.0,
+    "compresseur_compteur": 17093.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 58.0,
+    "gaz_pct": 2.5
+  },
+  {
+    "date_travail": "2026-02-05",
+    "date_saisie": "2026-02-06",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 123,
+    "kg": 4305,
+    "eau_compteur": 9980.0,
+    "eau_m3": 8.0,
+    "compresseur_compteur": 17100.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 55.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-02-06",
+    "date_saisie": "2026-02-07",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 150,
+    "kg": 5250,
+    "gaz_cuve_pct": 55.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-02-06",
+    "date_saisie": "2026-02-09",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 107,
+    "kg": 3745,
+    "eau_compteur": 9994.0,
+    "eau_m3": 14.0,
+    "compresseur_compteur": 17107.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 53.0,
+    "gaz_pct": 2.0
+  },
+  {
+    "date_travail": "2026-02-09",
+    "date_saisie": "2026-02-10",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 180,
+    "kg": 6300,
+    "eau_compteur": 10001.0,
+    "eau_m3": 7.0,
+    "compresseur_compteur": 17116.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 49.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-02-10",
+    "date_saisie": "2026-02-11",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 200,
+    "kg": 7000,
+    "eau_compteur": 10007.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17125.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 85.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-02-11",
+    "date_saisie": "2026-02-12",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 130,
+    "kg": 4550,
+    "eau_compteur": 10016.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17135.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 82.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-02-12",
+    "date_saisie": "2026-02-13",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 159,
+    "kg": 5565,
+    "eau_compteur": 10021.0,
+    "eau_m3": 5.0,
+    "compresseur_compteur": 17142.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 79.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-02-13",
+    "date_saisie": "2026-02-14",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "gaz_cuve_pct": 79.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-02-13",
+    "date_saisie": "2026-02-16",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 130,
+    "kg": 4550,
+    "eau_compteur": 10034.0,
+    "eau_m3": 13.0,
+    "compresseur_compteur": 17149.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 76.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-02-16",
+    "date_saisie": "2026-02-17",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 170,
+    "kg": 5950,
+    "eau_compteur": 10043.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17157.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 73.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-02-17",
+    "date_saisie": "2026-02-18",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 205,
+    "kg": 7175,
+    "eau_compteur": 10051.0,
+    "eau_m3": 8.0,
+    "compresseur_compteur": 17167.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 69.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-02-18",
+    "date_saisie": "2026-02-19",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 195,
+    "kg": 6825,
+    "eau_compteur": 10063.0,
+    "eau_m3": 12.0,
+    "compresseur_compteur": 17177.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 65.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-02-19",
+    "date_saisie": "2026-02-20",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 167,
+    "kg": 5845,
+    "eau_compteur": 10069.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17188.0,
+    "compresseur_h": 11.0,
+    "gaz_cuve_pct": 62.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-02-20",
+    "date_saisie": "2026-02-21",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "gaz_cuve_pct": 62.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-02-20",
+    "date_saisie": "2026-02-23",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 159,
+    "kg": 5565,
+    "eau_compteur": 10078.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17195.0,
+    "compresseur_h": 7.0,
+    "gaz_cuve_pct": 60.0,
+    "gaz_pct": 2.0
+  },
+  {
+    "date_travail": "2026-02-23",
+    "date_saisie": "2026-02-24",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 171,
+    "kg": 5985,
+    "eau_compteur": 10083.0,
+    "eau_m3": 5.0,
+    "compresseur_compteur": 17203.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 56.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-02-24",
+    "date_saisie": "2026-02-25",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 181,
+    "kg": 6335,
+    "eau_compteur": 10089.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17213.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 52.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-02-25",
+    "date_saisie": "2026-02-26",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 174,
+    "kg": 6090,
+    "eau_compteur": 10105.0,
+    "eau_m3": 16.0,
+    "compresseur_compteur": 17223.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 48.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-02-26",
+    "date_saisie": "2026-02-27",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 165,
+    "kg": 5775,
+    "eau_compteur": 10111.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17232.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 44.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-02-27",
+    "date_saisie": "2026-02-28",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "eau_compteur": 10111.0,
+    "eau_m3": 0.0,
+    "compresseur_compteur": 17232.0,
+    "compresseur_h": 0.0,
+    "gaz_cuve_pct": 44.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-02-27",
+    "date_saisie": "2026-03-02",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 145,
+    "kg": 5075,
+    "eau_compteur": 10118.0,
+    "eau_m3": 7.0,
+    "compresseur_compteur": 17242.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 40.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-03-02",
+    "date_saisie": "2026-03-03",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 172,
+    "kg": 6020,
+    "eau_compteur": 10125.0,
+    "eau_m3": 7.0,
+    "compresseur_compteur": 17251.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 84.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-03-03",
+    "date_saisie": "2026-03-04",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 215,
+    "kg": 7525,
+    "eau_compteur": 10134.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17262.0,
+    "compresseur_h": 11.0,
+    "gaz_cuve_pct": 81.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-03-04",
+    "date_saisie": "2026-03-05",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 200,
+    "kg": 7000,
+    "eau_compteur": 10145.0,
+    "eau_m3": 11.0,
+    "compresseur_compteur": 17271.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 78.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-03-05",
+    "date_saisie": "2026-03-06",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 161,
+    "kg": 5635,
+    "eau_compteur": 10148.0,
+    "eau_m3": 3.0,
+    "compresseur_compteur": 17280.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 75.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-03-06",
+    "date_saisie": "2026-03-07",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "gaz_cuve_pct": 75.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-03-06",
+    "date_saisie": "2026-03-09",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 162,
+    "kg": 5670,
+    "eau_compteur": 10163.0,
+    "eau_m3": 15.0,
+    "compresseur_compteur": 17290.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 73.0,
+    "gaz_pct": 2.0
+  },
+  {
+    "date_travail": "2026-03-09",
+    "date_saisie": "2026-03-10",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 163,
+    "kg": 5705,
+    "eau_compteur": 10169.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17298.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 69.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-03-10",
+    "date_saisie": "2026-03-11",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 163,
+    "kg": 5705,
+    "eau_compteur": 10175.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17307.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 66.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-03-11",
+    "date_saisie": "2026-03-12",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 150,
+    "kg": 5250,
+    "eau_compteur": 10184.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17317.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 62.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-03-12",
+    "date_saisie": "2026-03-13",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 151,
+    "kg": 5285,
+    "eau_compteur": 10189.0,
+    "eau_m3": 5.0,
+    "compresseur_compteur": 17326.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 59.5,
+    "gaz_pct": 2.5
+  },
+  {
+    "date_travail": "2026-03-13",
+    "date_saisie": "2026-03-14",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "gaz_cuve_pct": 59.5,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-03-13",
+    "date_saisie": "2026-03-16",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 150,
+    "kg": 5250,
+    "eau_compteur": 10198.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17334.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 56.0,
+    "gaz_pct": 3.5
+  },
+  {
+    "date_travail": "2026-03-16",
+    "date_saisie": "2026-03-17",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 160,
+    "kg": 5600,
+    "eau_compteur": 10202.0,
+    "eau_m3": 4.0,
+    "compresseur_compteur": 17343.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 52.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-03-17",
+    "date_saisie": "2026-03-18",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 197,
+    "kg": 6895,
+    "eau_compteur": 10212.0,
+    "eau_m3": 10.0,
+    "compresseur_compteur": 17354.0,
+    "compresseur_h": 11.0,
+    "gaz_cuve_pct": 46.0,
+    "gaz_pct": 6.0
+  },
+  {
+    "date_travail": "2026-03-18",
+    "date_saisie": "2026-03-19",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 180,
+    "kg": 6300,
+    "eau_compteur": 10228.0,
+    "eau_m3": 16.0,
+    "compresseur_compteur": 17365.0,
+    "compresseur_h": 11.0,
+    "gaz_cuve_pct": 43.5,
+    "gaz_pct": 2.5
+  },
+  {
+    "date_travail": "2026-03-19",
+    "date_saisie": "2026-03-20",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 170,
+    "kg": 5950,
+    "eau_compteur": 10236.0,
+    "eau_m3": 8.0,
+    "compresseur_compteur": 17373.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 85.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-03-20",
+    "date_saisie": "2026-03-21",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "compresseur_compteur": 17373.0,
+    "compresseur_h": 0.0,
+    "gaz_cuve_pct": 85.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-03-20",
+    "date_saisie": "2026-03-23",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 160,
+    "kg": 5600,
+    "eau_compteur": 10242.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17382.0,
+    "compresseur_h": 9.0,
+    "gaz_cuve_pct": 81.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-03-23",
+    "date_saisie": "2026-03-24",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 160,
+    "kg": 5600,
+    "eau_compteur": 10250.0,
+    "eau_m3": 8.0,
+    "compresseur_compteur": 17390.0,
+    "compresseur_h": 8.0,
+    "gaz_cuve_pct": 79.0,
+    "gaz_pct": 2.0
+  },
+  {
+    "date_travail": "2026-03-24",
+    "date_saisie": "2026-03-25",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 196,
+    "kg": 6860,
+    "eau_compteur": 10257.0,
+    "eau_m3": 7.0,
+    "compresseur_compteur": 17400.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 75.5,
+    "gaz_pct": 3.5
+  },
+  {
+    "date_travail": "2026-03-25",
+    "date_saisie": "2026-03-26",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 187,
+    "kg": 6545,
+    "eau_compteur": 10263.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17412.0,
+    "compresseur_h": 12.0,
+    "gaz_cuve_pct": 71.0,
+    "gaz_pct": 4.5
+  },
+  {
+    "date_travail": "2026-03-26",
+    "date_saisie": "2026-03-27",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 213,
+    "kg": 7455,
+    "eau_compteur": 10272.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17422.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 67.0,
+    "gaz_pct": 4.0
+  },
+  {
+    "date_travail": "2026-03-27",
+    "date_saisie": "2026-03-28",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "eau_compteur": 10272.0,
+    "eau_m3": 0.0,
+    "compresseur_compteur": 17422.0,
+    "compresseur_h": 0.0,
+    "gaz_cuve_pct": 67.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-03-27",
+    "date_saisie": "2026-03-30",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 191,
+    "kg": 6685,
+    "eau_compteur": 10279.0,
+    "eau_m3": 7.0,
+    "compresseur_compteur": 17433.0,
+    "compresseur_h": 11.0,
+    "gaz_cuve_pct": 63.5,
+    "gaz_pct": 3.5
+  },
+  {
+    "date_travail": "2026-03-30",
+    "date_saisie": "2026-03-31",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 188,
+    "kg": 6580,
+    "eau_compteur": 10286.0,
+    "eau_m3": 7.0,
+    "compresseur_compteur": 17443.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 60.0,
+    "gaz_pct": 3.5
+  },
+  {
+    "date_travail": "2026-03-31",
+    "date_saisie": "2026-04-01",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 247,
+    "kg": 8645,
+    "eau_compteur": 10295.0,
+    "eau_m3": 9.0,
+    "compresseur_compteur": 17455.0,
+    "compresseur_h": 12.0,
+    "gaz_cuve_pct": 55.0,
+    "gaz_pct": 5.0
+  },
+  {
+    "date_travail": "2026-04-01",
+    "date_saisie": "2026-04-02",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 220,
+    "kg": 7700,
+    "eau_compteur": 10305.0,
+    "eau_m3": 10.0,
+    "compresseur_compteur": 17466.0,
+    "compresseur_h": 11.0,
+    "gaz_cuve_pct": 49.5,
+    "gaz_pct": 5.5
+  },
+  {
+    "date_travail": "2026-04-02",
+    "date_saisie": "2026-04-03",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 223,
+    "kg": 7805,
+    "eau_compteur": 10318.0,
+    "eau_m3": 13.0,
+    "compresseur_compteur": 17478.0,
+    "compresseur_h": 12.0,
+    "gaz_cuve_pct": 44.0,
+    "gaz_pct": 5.5
+  },
+  {
+    "date_travail": "2026-04-03",
+    "date_saisie": "2026-04-04",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "eau_compteur": 10324.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17478.0,
+    "compresseur_h": 0.0,
+    "gaz_cuve_pct": 41.0,
+    "gaz_pct": 3.0
+  },
+  {
+    "date_travail": "2026-04-03",
+    "date_saisie": "2026-04-06",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 324,
+    "kg": 11340,
+    "eau_compteur": 10334.0,
+    "eau_m3": 10.0,
+    "compresseur_compteur": 17496.0,
+    "compresseur_h": 18.0,
+    "gaz_cuve_pct": 40.0,
+    "gaz_pct": 1.0
+  },
+  {
+    "date_travail": "2026-04-06",
+    "date_saisie": "2026-04-07",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 229,
+    "kg": 8015,
+    "eau_compteur": 10344.0,
+    "eau_m3": 10.0,
+    "compresseur_compteur": 17506.0,
+    "compresseur_h": 10.0,
+    "gaz_cuve_pct": 35.0,
+    "gaz_pct": 5.0
+  },
+  {
+    "date_travail": "2026-04-07",
+    "date_saisie": "2026-04-08",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 302,
+    "kg": 10570,
+    "eau_compteur": 10357.0,
+    "eau_m3": 13.0,
+    "compresseur_compteur": 17520.0,
+    "compresseur_h": 14.0,
+    "gaz_cuve_pct": 28.0,
+    "gaz_pct": 7.0
+  },
+  {
+    "date_travail": "2026-04-08",
+    "date_saisie": "2026-04-09",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 253,
+    "kg": 8855,
+    "eau_compteur": 10363.0,
+    "eau_m3": 6.0,
+    "compresseur_compteur": 17532.0,
+    "compresseur_h": 12.0,
+    "gaz_cuve_pct": 84.0,
+    "gaz_pct": 0.0
+  },
+  {
+    "date_travail": "2026-04-09",
+    "date_saisie": "2026-04-10",
+    "saison": "basse",
+    "source": "import_excel",
+    "createdBy": "import_2026",
+    "transferts": 250,
+    "kg": 8750,
+    "eau_compteur": 10376.0,
+    "eau_m3": 13.0,
+    "compresseur_compteur": 17543.0,
+    "compresseur_h": 11.0,
+    "gaz_cuve_pct": 79.0,
+    "gaz_pct": 5.0
+  }
+];
+
+document.getElementById('statCount').textContent = PRODUCTION_DATA.length;
+document.getElementById('jsonData').value = JSON.stringify(PRODUCTION_DATA, null, 2);
+
+// ============================================================
+// IMPORT VIA JSONP (puisque l'API ne supporte que GET avec callback)
+// ============================================================
+function log(msg, cls) {
+  const el = document.getElementById('log');
+  el.style.display = 'block';
+  const span = cls ? `<span class="${cls}">${msg}</span>` : msg;
+  el.innerHTML += span + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+let jsonpCounter = 0;
+function jsonpCall(action, params) {
+  return new Promise((resolve, reject) => {
+    const apiUrl = document.getElementById('apiUrl').value;
+    const cbName = 'imp_cb_' + Date.now() + '_' + (++jsonpCounter);
+    const timeout = setTimeout(() => {
+      delete window[cbName];
+      if (s.parentNode) document.body.removeChild(s);
+      reject(new Error('Timeout (>30s)'));
+    }, 30000);
+    window[cbName] = function(data) {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (s.parentNode) document.body.removeChild(s);
+      if (data && data.error) reject(new Error(data.error));
+      else resolve(data);
+    };
+    const parts = ['action=' + encodeURIComponent(action), 'callback=' + cbName];
+    if (params) {
+      Object.keys(params).forEach(k => {
+        if (params[k] !== undefined && params[k] !== null) {
+          parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+        }
+      });
+    }
+    const s = document.createElement('script');
+    s.src = apiUrl + '?' + parts.join('&');
+    s.onerror = () => {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (s.parentNode) document.body.removeChild(s);
+      reject(new Error('Échec de chargement du script'));
+    };
+    document.body.appendChild(s);
+  });
+}
+
+// Une URL JSONP est limitée à ~2000 caractères dans le navigateur, donc on fait des micro-batches
+// On va appeler saveProduction pour chaque jour individuellement (plus sûr)
+async function lancer() {
+  document.getElementById('btnImport').disabled = true;
+  document.getElementById('log').style.display = 'block';
+  document.getElementById('log').innerHTML = '';
+
+  log('=== DÉBUT DE L\'IMPORT ===', 'success');
+  log('Vérification de l\'API…');
+
+  try {
+    const ping = await jsonpCall('ping');
+    log(`✓ API ${ping.version} opérationnelle`);
+  } catch (err) {
+    log('✗ Erreur ping : ' + err.message, 'error');
+    document.getElementById('btnImport').disabled = false;
+    return;
+  }
+
+  let imported = 0, skipped = 0, errors = 0;
+  const total = PRODUCTION_DATA.length;
+
+  for (let i = 0; i < total; i++) {
+    const rec = PRODUCTION_DATA[i];
+    const progress = Math.round(((i + 1) / total) * 100);
+
+    try {
+      const res = await jsonpCall('saveProduction', rec);
+      if (res.action === 'created') {
+        imported++;
+        log(`[${i+1}/${total}] ✓ ${rec.date_travail} ajouté (${rec.kg || '?'} kg)`);
+      } else if (res.action === 'updated') {
+        skipped++;
+        log(`[${i+1}/${total}] · ${rec.date_travail} déjà présent, mis à jour`);
+      }
+    } catch (err) {
+      errors++;
+      log(`[${i+1}/${total}] ✗ ${rec.date_travail} : ${err.message}`, 'error');
+    }
+
+    // Petite pause pour ne pas saturer l'API
+    await new Promise(r => setTimeout(r, 150));
+  }
+
+  log('=== FIN DE L\'IMPORT ===', 'success');
+  log(`✓ Importés : ${imported}`, 'success');
+  log(`· Mis à jour : ${skipped}`);
+  if (errors > 0) log(`✗ Erreurs : ${errors}`, 'error');
+
+  document.getElementById('btnImport').disabled = false;
+  document.getElementById('btnImport').textContent = '✓ Terminé — Tu peux fermer cette page';
+}
+</script>
+
+</body>
+</html>

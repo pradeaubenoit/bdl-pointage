@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BdL Production">
+<meta name="theme-color" content="#1F4A47">
+<title>BdL — Production</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&family=JetBrains+Mono:wght@400;500;700&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #1F4A47;
+  --primary-light: #2D6864;
+  --primary-dark: #15302E;
+  --accent: #C97C2A;
+  --accent-light: #E59A4D;
+  --bg: #FBF8F2;
+  --bg-elevated: #FFFFFF;
+  --ink: #15140F;
+  --ink-soft: #54534C;
+  --ink-faint: #8A877E;
+  --border: #E5DDC8;
+  --border-strong: #D4C9AC;
+  --success: #2E6B3E;
+  --warning: #B8742A;
+  --danger: #A53A36;
+  --shadow-sm: 0 1px 2px rgba(21, 20, 15, 0.04), 0 1px 3px rgba(21, 20, 15, 0.06);
+  --shadow-md: 0 2px 4px rgba(21, 20, 15, 0.04), 0 4px 12px rgba(21, 20, 15, 0.08);
+  --shadow-lg: 0 8px 24px rgba(21, 20, 15, 0.12);
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 16px;
+  line-height: 1.5;
+  overscroll-behavior: none;
+}
+
+body {
+  min-height: 100vh;
+  padding: calc(var(--safe-top) + 12px) 16px calc(var(--safe-bottom) + 24px);
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* ============= LOADING ============= */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.3s;
+}
+.loading-screen.hidden { opacity: 0; pointer-events: none; }
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============= HEADER ============= */
+.header {
+  padding: 20px 0 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--primary);
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+.brand-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.brand-subtitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.date-card {
+  background: var(--primary);
+  color: white;
+  padding: 18px 20px;
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.date-card-main {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.date-card-meta {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.75;
+  margin-top: 4px;
+  font-weight: 500;
+}
+.season-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 5px 10px;
+  border-radius: 100px;
+  font-weight: 700;
+}
+.season-badge.basse {
+  background: rgba(255,255,255,0.15);
+  color: white;
+}
+.season-badge.haute {
+  background: var(--accent);
+  color: white;
+}
+
+/* ============= FORM ============= */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.field {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  transition: all 0.2s;
+  position: relative;
+}
+.field.focused {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(31, 74, 71, 0.1);
+}
+
+.field-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.field-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.field-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  text-transform: uppercase;
+  flex: 1;
+}
+.field-unit {
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.field-input-wrap {
+  position: relative;
+  margin-top: 8px;
+}
+.field-input {
+  width: 100%;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 38px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  padding: 4px 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.field-input::placeholder {
+  color: var(--ink-faint);
+  opacity: 0.5;
+}
+.field-input.decimal {
+  font-size: 36px;
+}
+
+.field-helper {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 16px;
+}
+.field-helper-left { display: flex; align-items: center; gap: 6px; }
+.field-helper-right { font-weight: 600; color: var(--primary); }
+.field-helper.alert { color: var(--warning); }
+.field-helper-arrow {
+  display: inline-block;
+  width: 12px;
+  text-align: center;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ============= SUBMIT BUTTON ============= */
+.submit-btn {
+  width: 100%;
+  padding: 20px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 14px;
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-top: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.submit-btn:active {
+  transform: scale(0.98);
+  background: var(--primary-dark);
+}
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.submit-btn .icon {
+  font-size: 20px;
+}
+
+.change-date-link {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.change-date-link button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 8px;
+  font-family: inherit;
+}
+
+/* ============= RECENT DAYS ============= */
+.recent {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.recent-title {
+  font-family: 'Fraunces', serif;
+  font-size: 18px;
+  font-weight: 500;
+  margin-bottom: 14px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.recent-item {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.recent-item.empty {
+  background: transparent;
+  border-style: dashed;
+  opacity: 0.6;
+}
+.recent-day {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  width: 60px;
+  flex-shrink: 0;
+}
+.recent-stats {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--ink);
+}
+.recent-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.recent-stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+.recent-warn {
+  color: var(--warning);
+  font-size: 14px;
+}
+
+/* ============= MODAL ============= */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(21, 20, 15, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  padding: 16px;
+}
+.modal-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal {
+  background: var(--bg-elevated);
+  border-radius: 20px;
+  max-width: 460px;
+  width: 100%;
+  max-height: 92vh;
+  overflow-y: auto;
+  transform: translateY(20px);
+  transition: transform 0.3s;
+  padding-bottom: calc(var(--safe-bottom) + 16px);
+}
+.modal-backdrop.visible .modal {
+  transform: translateY(0);
+}
+
+.modal-header {
+  padding: 24px 24px 16px;
+  text-align: center;
+}
+.modal-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  background: var(--success);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  box-shadow: var(--shadow-md);
+}
+.modal-icon.warn { background: var(--warning); }
+.modal-icon.alert { background: var(--danger); }
+.modal-title {
+  font-family: 'Fraunces', serif;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+.modal-subtitle {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.modal-body {
+  padding: 0 20px 20px;
+}
+
+.ratios {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.ratios-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  color: var(--ink-faint);
+  margin-bottom: 12px;
+}
+.ratio {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ratio:last-child { border-bottom: none; }
+.ratio-label { display: flex; align-items: center; gap: 8px; }
+.ratio-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 14px;
+}
+.ratio-status {
+  font-size: 16px;
+}
+
+.anomaly {
+  background: #FFF7ED;
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.anomaly.alerte { background: #FFF1E6; border-left-color: var(--accent); }
+.anomaly.critique { background: #FEF2F2; border-left-color: var(--danger); }
+.anomaly-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.anomaly.attention .anomaly-header { color: var(--warning); }
+.anomaly.alerte .anomaly-header { color: var(--accent); }
+.anomaly.critique .anomaly-header { color: var(--danger); }
+.anomaly-message {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 20px;
+  margin-top: 8px;
+}
+.modal-btn {
+  width: 100%;
+  padding: 16px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  letter-spacing: 0.01em;
+}
+.modal-btn.primary { background: var(--primary); color: white; }
+.modal-btn.primary:active { transform: scale(0.98); background: var(--primary-dark); }
+.modal-btn.secondary {
+  background: transparent;
+  color: var(--ink-soft);
+  border: 1px solid var(--border-strong);
+}
+.modal-btn.secondary:active { background: var(--bg); }
+
+/* ============= DATE PICKER (overlay) ============= */
+.date-picker-modal {
+  background: var(--bg-elevated);
+  border-radius: 20px;
+  padding: 24px;
+  max-width: 380px;
+  width: 100%;
+}
+.date-picker-modal h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+.date-picker-modal input[type="date"] {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  font-size: 16px;
+  font-family: inherit;
+  margin-bottom: 16px;
+  background: var(--bg);
+}
+
+/* ============= TOASTS ============= */
+.toast {
+  position: fixed;
+  top: calc(var(--safe-top) + 16px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-100px);
+  background: var(--ink);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 100px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 2000;
+  transition: transform 0.3s;
+  box-shadow: var(--shadow-lg);
+}
+.toast.visible { transform: translateX(-50%) translateY(0); }
+.toast.error { background: var(--danger); }
+
+/* ============= UTILS ============= */
+.error-banner {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: var(--danger);
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  display: none;
+}
+.error-banner.visible { display: block; }
+
+@supports (-webkit-touch-callout: none) {
+  /* iOS-specific tweaks */
+  .field-input { font-size: 17px; /* prevent zoom */ }
+}
+@media (min-width: 380px) {
+  .field-input { font-size: 38px !important; }
+  .field-input.decimal { font-size: 36px !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="spinner"></div>
+  <div style="color: var(--ink-soft); font-size: 14px;">Chargement…</div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="brand">
+    <div class="brand-icon">🧺</div>
+    <div>
+      <div class="brand-title">BdL Production</div>
+      <div class="brand-subtitle">Relevé quotidien</div>
+    </div>
+  </div>
+
+  <div class="date-card">
+    <div>
+      <div class="date-card-main" id="dateLabel">—</div>
+      <div class="date-card-meta" id="dateMeta">Chargement…</div>
+    </div>
+    <div class="season-badge" id="seasonBadge">—</div>
+  </div>
+</div>
+
+<div class="error-banner" id="errorBanner"></div>
+
+<!-- FORM -->
+<form class="form" id="prodForm" onsubmit="return false;">
+
+  <!-- TRANSFERTS -->
+  <div class="field" data-field="transferts">
+    <div class="field-header">
+      <span class="field-icon">🔢</span>
+      <span class="field-label">Transferts</span>
+      <span class="field-unit">tunnel</span>
+    </div>
+    <div class="field-input-wrap">
+      <input type="text" inputmode="numeric" pattern="[0-9]*" class="field-input" id="inputTransferts" placeholder="0">
+    </div>
+    <div class="field-helper">
+      <span class="field-helper-left" id="transfertsHint">Nombre du jour</span>
+      <span class="field-helper-right" id="kgPreview"></span>
+    </div>
+  </div>
+
+  <!-- EAU -->
+  <div class="field" data-field="eau">
+    <div class="field-header">
+      <span class="field-icon">💧</span>
+      <span class="field-label">Eau</span>
+      <span class="field-unit">compteur m³</span>
+    </div>
+    <div class="field-input-wrap">
+      <input type="text" inputmode="decimal" class="field-input" id="inputEau" placeholder="0">
+    </div>
+    <div class="field-helper">
+      <span class="field-helper-left" id="eauHint">Saisis le relevé</span>
+      <span class="field-helper-right" id="eauPreview"></span>
+    </div>
+  </div>
+
+  <!-- GAZ -->
+  <div class="field" data-field="gaz">
+    <div class="field-header">
+      <span class="field-icon">🔥</span>
+      <span class="field-label">Gaz</span>
+      <span class="field-unit">% cuve restante</span>
+    </div>
+    <div class="field-input-wrap">
+      <input type="text" inputmode="decimal" class="field-input" id="inputGaz" placeholder="0">
+    </div>
+    <div class="field-helper">
+      <span class="field-helper-left" id="gazHint">% restant ce matin</span>
+      <span class="field-helper-right" id="gazPreview"></span>
+    </div>
+  </div>
+
+  <!-- COMPRESSEUR -->
+  <div class="field" data-field="compresseur">
+    <div class="field-header">
+      <span class="field-icon">⚙️</span>
+      <span class="field-label">Compresseur</span>
+      <span class="field-unit">compteur heures</span>
+    </div>
+    <div class="field-input-wrap">
+      <input type="text" inputmode="numeric" pattern="[0-9]*" class="field-input" id="inputCompresseur" placeholder="0">
+    </div>
+    <div class="field-helper">
+      <span class="field-helper-left" id="comprHint">Saisis le relevé</span>
+      <span class="field-helper-right" id="comprPreview"></span>
+    </div>
+  </div>
+
+  <button type="button" class="submit-btn" id="submitBtn">
+    <span class="icon">✓</span>
+    <span>Enregistrer</span>
+  </button>
+
+  <div class="change-date-link">
+    <button type="button" id="changeDateBtn">📅 Changer la date</button>
+  </div>
+</form>
+
+<!-- RECENT DAYS -->
+<div class="recent">
+  <div class="recent-title">5 derniers jours</div>
+  <div class="recent-list" id="recentList">
+    <div class="recent-item empty">
+      <div class="recent-day">—</div>
+      <div class="recent-stats" style="color: var(--ink-faint);">Chargement…</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMATION -->
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-icon" id="modalIcon">✓</div>
+      <div class="modal-title" id="modalTitle">Enregistré !</div>
+      <div class="modal-subtitle" id="modalSubtitle">—</div>
+    </div>
+    <div class="modal-body">
+      <div class="ratios">
+        <div class="ratios-title">Ratios du jour</div>
+        <div id="ratiosList"></div>
+      </div>
+      <div id="anomaliesList"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn primary" onclick="closeModal()">OK, continuer</button>
+    </div>
+  </div>
+</div>
+
+<!-- DATE PICKER -->
+<div class="modal-backdrop" id="dateModal" style="align-items: center;">
+  <div class="date-picker-modal">
+    <h3>Choisir une autre date</h3>
+    <input type="date" id="datePickerInput">
+    <div class="modal-actions" style="padding: 0;">
+      <button class="modal-btn primary" onclick="confirmDateChange()">Valider</button>
+      <button class="modal-btn secondary" onclick="closeDateModal()">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIGURATION
+// ============================================================
+const PARAMS = new URLSearchParams(window.location.search);
+const API_URL = PARAMS.get('api') || localStorage.getItem('bdl_api_url') || '';
+const EMP_ID = PARAMS.get('id') || localStorage.getItem('bdl_emp_id') || '';
+
+if (API_URL) localStorage.setItem('bdl_api_url', API_URL);
+if (EMP_ID) localStorage.setItem('bdl_emp_id', EMP_ID);
+
+// État courant
+const state = {
+  dateTravail: null,
+  dateSaisie: null,
+  jourTravail: null,
+  saison: null,
+  lastReadings: null,
+  kgParTransfert: 35
+};
+
+// ============================================================
+// API (JSONP pour éviter CORS)
+// ============================================================
+let jsonpCounter = 0;
+function callApi(action, params) {
+  return new Promise((resolve, reject) => {
+    if (!API_URL) { reject(new Error('Pas d\'URL API. Ajoute ?api=...')); return; }
+    const cbName = 'cb_' + (Date.now()) + '_' + (++jsonpCounter);
+    const timeout = setTimeout(() => {
+      delete window[cbName];
+      document.body.removeChild(s);
+      reject(new Error('Timeout API'));
+    }, 30000);
+    window[cbName] = function(data) {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (s.parentNode) document.body.removeChild(s);
+      if (data && data.error) reject(new Error(data.error));
+      else resolve(data);
+    };
+    const queryParts = ['action=' + encodeURIComponent(action), 'callback=' + cbName];
+    if (params) {
+      Object.keys(params).forEach(k => {
+        if (params[k] !== undefined && params[k] !== null) {
+          queryParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+        }
+      });
+    }
+    const s = document.createElement('script');
+    s.src = API_URL + '?' + queryParts.join('&');
+    s.onerror = () => {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (s.parentNode) document.body.removeChild(s);
+      reject(new Error('Échec de chargement'));
+    };
+    document.body.appendChild(s);
+  });
+}
+
+// ============================================================
+// FORMATTERS
+// ============================================================
+const JOURS_LONG = { Lun: 'Lundi', Mar: 'Mardi', Mer: 'Mercredi', Jeu: 'Jeudi', Ven: 'Vendredi', Sam: 'Samedi', Dim: 'Dimanche' };
+const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+
+function formatDateLong(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return d.getDate() + ' ' + MOIS[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function jourFromISO(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'][d.getDay()];
+}
+
+function fmtNum(n, dec) {
+  if (n == null || isNaN(n)) return '—';
+  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 });
+}
+
+function fmtDateShort(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth()+1)).slice(-2);
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function toast(msg, error) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast visible' + (error ? ' error' : '');
+  setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+
+function showError(msg) {
+  const b = document.getElementById('errorBanner');
+  b.textContent = msg;
+  b.className = 'error-banner visible';
+}
+
+function clearError() {
+  document.getElementById('errorBanner').className = 'error-banner';
+}
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  try {
+    if (!API_URL) {
+      document.getElementById('loadingScreen').classList.add('hidden');
+      showError('URL d\'API manquante. Cette page doit être ouverte avec ?api=…');
+      return;
+    }
+
+    // Récupérer la date de travail par défaut + paramètres
+    const [defaultDate, params, lastReadings, recent] = await Promise.all([
+      callApi('getDefaultDateTravail'),
+      callApi('getParametres'),
+      callApi('getLastReadings'),
+      callApi('getProductionLast', { n: 5 })
+    ]);
+
+    state.dateTravail = defaultDate.date_travail;
+    state.dateSaisie = defaultDate.today;
+    state.jourTravail = defaultDate.date_travail_jour;
+    state.saison = defaultDate.saison;
+    state.lastReadings = lastReadings;
+    state.kgParTransfert = Number(params.byKey.kg_par_transfert) || 35;
+
+    renderHeader();
+    renderHelpers();
+    renderRecent(recent.production);
+
+    document.getElementById('loadingScreen').classList.add('hidden');
+  } catch (err) {
+    document.getElementById('loadingScreen').classList.add('hidden');
+    showError('Erreur de chargement : ' + err.message);
+  }
+}
+
+function renderHeader() {
+  const jourLong = JOURS_LONG[state.jourTravail] || state.jourTravail;
+  document.getElementById('dateLabel').textContent = jourLong + ' ' + formatDateLong(state.dateTravail);
+  let meta = 'Saisie ' + JOURS_LONG[jourFromISO(state.dateSaisie)].toLowerCase() + ' ' + fmtDateShort(state.dateSaisie);
+  if (state.dateTravail !== state.dateSaisie) meta += ' · veille';
+  document.getElementById('dateMeta').textContent = meta;
+  const badge = document.getElementById('seasonBadge');
+  badge.textContent = state.saison;
+  badge.className = 'season-badge ' + state.saison;
+}
+
+function renderHelpers() {
+  const lr = state.lastReadings || {};
+  // Eau
+  if (lr.eau_compteur != null) {
+    document.getElementById('eauHint').innerHTML = 'Dernier (' + fmtDateShort(lr.eau_compteur_date) + ') : ' + fmtNum(lr.eau_compteur);
+  }
+  // Compresseur
+  if (lr.compresseur_compteur != null) {
+    document.getElementById('comprHint').innerHTML = 'Dernier (' + fmtDateShort(lr.compresseur_compteur_date) + ') : ' + fmtNum(lr.compresseur_compteur);
+  }
+  // Gaz
+  if (lr.gaz_cuve_pct != null) {
+    document.getElementById('gazHint').innerHTML = 'Hier (' + fmtDateShort(lr.gaz_cuve_pct_date) + ') : ' + fmtNum(lr.gaz_cuve_pct) + '%';
+  }
+}
+
+function renderRecent(items) {
+  const list = document.getElementById('recentList');
+  if (!items || items.length === 0) {
+    list.innerHTML = '<div class="recent-item empty"><div class="recent-day">—</div><div class="recent-stats" style="color: var(--ink-faint);">Pas encore de données</div></div>';
+    return;
+  }
+  list.innerHTML = items.map(p => {
+    const stats = [];
+    if (p.kg) stats.push('<span class="recent-stat"><span class="recent-stat-value">' + fmtNum(p.kg) + '</span> kg</span>');
+    if (p.eau_m3 != null) stats.push('<span class="recent-stat">💧 <span class="recent-stat-value">' + fmtNum(p.eau_m3, 1) + '</span> m³</span>');
+    if (p.gaz_pct != null) stats.push('<span class="recent-stat">🔥 <span class="recent-stat-value">' + fmtNum(p.gaz_pct, 1) + '</span>%</span>');
+    if (p.compresseur_h != null) stats.push('<span class="recent-stat">⚙️ <span class="recent-stat-value">' + fmtNum(p.compresseur_h, 1) + '</span>h</span>');
+    return `<div class="recent-item">
+      <div class="recent-day">${p.jour_travail} ${fmtDateShort(p.date_travail)}</div>
+      <div class="recent-stats">${stats.join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// INPUT HANDLERS
+// ============================================================
+const inputs = {
+  transferts: document.getElementById('inputTransferts'),
+  eau: document.getElementById('inputEau'),
+  gaz: document.getElementById('inputGaz'),
+  compresseur: document.getElementById('inputCompresseur')
+};
+
+// Focus highlighting
+Object.keys(inputs).forEach(key => {
+  const input = inputs[key];
+  const field = input.closest('.field');
+  input.addEventListener('focus', () => field.classList.add('focused'));
+  input.addEventListener('blur', () => field.classList.remove('focused'));
+});
+
+// Transferts → calcul kg en temps réel
+inputs.transferts.addEventListener('input', () => {
+  const t = Number(inputs.transferts.value.replace(',', '.'));
+  const preview = document.getElementById('kgPreview');
+  if (t > 0) {
+    preview.textContent = '≈ ' + fmtNum(t * state.kgParTransfert) + ' kg';
+  } else {
+    preview.textContent = '';
+  }
+});
+
+// Eau → calcul delta en temps réel
+inputs.eau.addEventListener('input', () => {
+  const v = Number(inputs.eau.value.replace(',', '.'));
+  const preview = document.getElementById('eauPreview');
+  const lr = state.lastReadings;
+  if (v > 0 && lr && lr.eau_compteur != null) {
+    const delta = v - lr.eau_compteur;
+    if (delta >= 0) {
+      preview.innerHTML = '<span class="field-helper-arrow">→</span> ' + fmtNum(delta, 1) + ' m³';
+      preview.style.color = 'var(--primary)';
+    } else {
+      preview.innerHTML = '⚠️ compteur en baisse';
+      preview.style.color = 'var(--warning)';
+    }
+  } else {
+    preview.textContent = '';
+  }
+});
+
+// Compresseur → calcul delta
+inputs.compresseur.addEventListener('input', () => {
+  const v = Number(inputs.compresseur.value.replace(',', '.'));
+  const preview = document.getElementById('comprPreview');
+  const lr = state.lastReadings;
+  if (v > 0 && lr && lr.compresseur_compteur != null) {
+    const delta = v - lr.compresseur_compteur;
+    if (delta >= 0) {
+      preview.innerHTML = '<span class="field-helper-arrow">→</span> ' + fmtNum(delta, 1) + ' h';
+      preview.style.color = 'var(--primary)';
+    } else {
+      preview.innerHTML = '⚠️ compteur en baisse';
+      preview.style.color = 'var(--warning)';
+    }
+  } else {
+    preview.textContent = '';
+  }
+});
+
+// Gaz → calcul delta
+inputs.gaz.addEventListener('input', () => {
+  const v = Number(inputs.gaz.value.replace(',', '.'));
+  const preview = document.getElementById('gazPreview');
+  const lr = state.lastReadings;
+  if (v >= 0 && lr && lr.gaz_cuve_pct != null) {
+    const delta = lr.gaz_cuve_pct - v;  // positif = conso
+    if (delta < 0) {
+      preview.innerHTML = '🔄 remplissage';
+      preview.style.color = 'var(--accent)';
+    } else {
+      preview.innerHTML = '<span class="field-helper-arrow">→</span> ' + fmtNum(delta, 1) + '%';
+      preview.style.color = 'var(--primary)';
+    }
+  } else {
+    preview.textContent = '';
+  }
+});
+
+// ============================================================
+// SUBMIT
+// ============================================================
+document.getElementById('submitBtn').addEventListener('click', async function() {
+  clearError();
+  const btn = this;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="icon">…</span><span>Envoi…</span>';
+
+  try {
+    const data = {
+      date_travail: state.dateTravail,
+      date_saisie: state.dateSaisie,
+      source: 'iphone',
+      createdBy: EMP_ID || 'benoit'
+    };
+
+    const t = inputs.transferts.value.replace(',', '.').trim();
+    if (t) data.transferts = Number(t);
+
+    const e = inputs.eau.value.replace(',', '.').trim();
+    if (e) data.eau_compteur = Number(e);
+
+    const g = inputs.gaz.value.replace(',', '.').trim();
+    if (g) data.gaz_cuve_pct = Number(g);
+
+    const c = inputs.compresseur.value.replace(',', '.').trim();
+    if (c) data.compresseur_compteur = Number(c);
+
+    if (!data.transferts && !data.eau_compteur && !data.gaz_cuve_pct && !data.compresseur_compteur) {
+      throw new Error('Au moins un relevé doit être saisi');
+    }
+
+    const result = await callApi('saveProduction', data);
+    showConfirmation(result, data);
+
+  } catch (err) {
+    showError('Erreur : ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '<span class="icon">✓</span><span>Enregistrer</span>';
+  }
+});
+
+function showConfirmation(result, data) {
+  const modal = document.getElementById('confirmModal');
+  const icon = document.getElementById('modalIcon');
+  const title = document.getElementById('modalTitle');
+  const subtitle = document.getElementById('modalSubtitle');
+
+  const anomalies = result.anomalies || [];
+  const hasCritical = anomalies.some(a => a.niveau === 'critique');
+  const hasAlert = anomalies.some(a => a.niveau === 'alerte');
+
+  if (hasCritical) {
+    icon.className = 'modal-icon alert';
+    icon.textContent = '!';
+    title.textContent = 'Vérifications à faire';
+    subtitle.textContent = 'Enregistré, mais quelque chose sort des clous';
+  } else if (hasAlert || anomalies.length > 0) {
+    icon.className = 'modal-icon warn';
+    icon.textContent = '⚠';
+    title.textContent = 'Petit signal d\'alerte';
+    subtitle.textContent = 'Saisie enregistrée';
+  } else {
+    icon.className = 'modal-icon';
+    icon.textContent = '✓';
+    title.textContent = 'Enregistré !';
+    subtitle.textContent = 'Tout est cohérent';
+  }
+
+  // Calculer ratios à afficher
+  const kg = data.transferts ? data.transferts * state.kgParTransfert : null;
+  const lr = state.lastReadings;
+  const ratiosHtml = [];
+
+  if (kg && data.eau_compteur != null && lr && lr.eau_compteur != null) {
+    const conso = data.eau_compteur - lr.eau_compteur;
+    if (conso > 0) {
+      const ratio = (conso * 1000) / kg;
+      const ano = anomalies.find(a => a.mesure === 'eau');
+      ratiosHtml.push(`<div class="ratio">
+        <span class="ratio-label">💧 Eau / kg</span>
+        <span class="ratio-value">${fmtNum(ratio, 2)} L/kg</span>
+        <span class="ratio-status">${ano ? '⚠️' : '✓'}</span>
+      </div>`);
+    }
+  }
+
+  if (kg && data.gaz_cuve_pct != null && lr && lr.gaz_cuve_pct != null) {
+    const conso = lr.gaz_cuve_pct - data.gaz_cuve_pct;
+    if (conso > 0) {
+      const ratio = (conso * 1000) / kg;
+      const ano = anomalies.find(a => a.mesure === 'gaz');
+      ratiosHtml.push(`<div class="ratio">
+        <span class="ratio-label">🔥 Gaz / tonne</span>
+        <span class="ratio-value">${fmtNum(ratio, 2)} %/t</span>
+        <span class="ratio-status">${ano ? '⚠️' : '✓'}</span>
+      </div>`);
+    }
+  }
+
+  if (kg && data.compresseur_compteur != null && lr && lr.compresseur_compteur != null) {
+    const conso = data.compresseur_compteur - lr.compresseur_compteur;
+    if (conso > 0) {
+      const ratio = (conso * 1000) / kg;
+      const ano = anomalies.find(a => a.mesure === 'compresseur');
+      ratiosHtml.push(`<div class="ratio">
+        <span class="ratio-label">⚙️ Compresseur / tonne</span>
+        <span class="ratio-value">${fmtNum(ratio, 2)} h/t</span>
+        <span class="ratio-status">${ano ? '⚠️' : '✓'}</span>
+      </div>`);
+    }
+  }
+
+  if (kg) {
+    ratiosHtml.push(`<div class="ratio">
+      <span class="ratio-label">📦 Tonnage</span>
+      <span class="ratio-value">${fmtNum(kg)} kg</span>
+      <span class="ratio-status">—</span>
+    </div>`);
+  }
+
+  document.getElementById('ratiosList').innerHTML = ratiosHtml.join('') || '<div style="color: var(--ink-faint); font-size: 13px;">Pas assez de données pour calculer les ratios</div>';
+
+  // Anomalies
+  const anomaliesHtml = anomalies.map(a => `<div class="anomaly ${a.niveau}">
+    <div class="anomaly-header">${a.mesure} · écart ${a.ecart_pct > 0 ? '+' : ''}${a.ecart_pct}%</div>
+    <div class="anomaly-message">${a.message}</div>
+  </div>`).join('');
+  document.getElementById('anomaliesList').innerHTML = anomaliesHtml;
+
+  modal.classList.add('visible');
+}
+
+function closeModal() {
+  document.getElementById('confirmModal').classList.remove('visible');
+  // Reset form et reload
+  Object.keys(inputs).forEach(k => inputs[k].value = '');
+  ['kgPreview', 'eauPreview', 'gazPreview', 'comprPreview'].forEach(id => {
+    document.getElementById(id).textContent = '';
+  });
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<span class="icon">✓</span><span>Enregistrer</span>';
+  init(); // recharger état (avec nouveau "dernier compteur")
+}
+
+// ============================================================
+// CHANGE DATE
+// ============================================================
+document.getElementById('changeDateBtn').addEventListener('click', () => {
+  document.getElementById('datePickerInput').value = state.dateTravail;
+  document.getElementById('dateModal').classList.add('visible');
+});
+
+function closeDateModal() {
+  document.getElementById('dateModal').classList.remove('visible');
+}
+
+function confirmDateChange() {
+  const newDate = document.getElementById('datePickerInput').value;
+  if (!newDate) { closeDateModal(); return; }
+  state.dateTravail = newDate;
+  state.jourTravail = jourFromISO(newDate);
+  // Recharger les lastReadings pour la nouvelle date
+  callApi('getLastReadings', { beforeDate: newDate }).then(lr => {
+    state.lastReadings = lr;
+    renderHeader();
+    renderHelpers();
+    // Reset previews (les calculs delta vont changer)
+    ['kgPreview', 'eauPreview', 'gazPreview', 'comprPreview'].forEach(id => {
+      document.getElementById(id).textContent = '';
+    });
+  }).catch(err => {
+    showError('Impossible de charger les compteurs pour cette date : ' + err.message);
+  });
+  closeDateModal();
+}
+
+// ============================================================
+// GO
+// ============================================================
+init();
+</script>
+</body>
+</html>
