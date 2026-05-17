@@ -1,0 +1,1859 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1F4A47">
+<title>BdL Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #1F4A47;
+  --primary-light: #2D6864;
+  --primary-dark: #15302E;
+  --accent: #C97C2A;
+  --accent-light: #E59A4D;
+  --accent-soft: #E1ECEA;
+  --bg: #FBF8F2;
+  --bg-elevated: #FFFFFF;
+  --bg-sunken: #F4EFE6;
+  --ink: #15140F;
+  --ink-soft: #54534C;
+  --ink-faint: #8A877E;
+  --border: #E5DDC8;
+  --border-strong: #D4C9AC;
+  --success: #2E6B3E;
+  --success-soft: #E6EFE3;
+  --warning: #B8742A;
+  --warning-soft: #F8E9D2;
+  --danger: #A53A36;
+  --danger-soft: #FEF2F2;
+  --shadow-sm: 0 1px 2px rgba(21, 20, 15, 0.04), 0 1px 3px rgba(21, 20, 15, 0.06);
+  --shadow-md: 0 2px 4px rgba(21, 20, 15, 0.04), 0 4px 12px rgba(21, 20, 15, 0.08);
+  --shadow-lg: 0 8px 24px rgba(21, 20, 15, 0.12);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* === HEADER === */
+.app-header {
+  background: var(--primary);
+  color: white;
+  padding: 16px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+}
+.app-header-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+.brand-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.brand-sub {
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+.season-tag {
+  background: rgba(255,255,255,0.15);
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.season-tag.haute { background: var(--accent); }
+
+/* === TABS === */
+.tabs-bar {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 68px;
+  z-index: 90;
+}
+.tabs-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  overflow-x: auto;
+  padding: 0 8px;
+  scrollbar-width: none;
+}
+.tabs-inner::-webkit-scrollbar { display: none; }
+.tab {
+  background: transparent;
+  border: none;
+  padding: 16px 20px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tab:hover { color: var(--ink); }
+.tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* === CONTAINER === */
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.section {
+  display: none;
+}
+.section.active {
+  display: block;
+  animation: fadeIn 0.3s;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* === SECTION HEADER === */
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.section-title {
+  font-family: 'Fraunces', serif;
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.section-subtitle {
+  color: var(--ink-soft);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+/* === CARDS === */
+.card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-faint);
+  margin-bottom: 12px;
+}
+
+/* === HERO CARD (coût/kg) === */
+.hero-card {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  border-radius: 18px;
+  padding: 32px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.hero-card::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -100px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(201, 124, 42, 0.2) 0%, transparent 70%);
+}
+.hero-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  opacity: 0.7;
+  margin-bottom: 8px;
+  position: relative;
+}
+.hero-value {
+  font-family: 'Fraunces', serif;
+  font-size: 64px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin: 8px 0;
+  position: relative;
+}
+.hero-value .unit {
+  font-size: 28px;
+  opacity: 0.7;
+  font-weight: 400;
+  margin-left: 4px;
+}
+.hero-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  position: relative;
+}
+.hero-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hero-trend.up { color: #FFB39A; }
+.hero-trend.down { color: #A8E8C0; }
+.hero-trend.flat { opacity: 0.7; }
+
+/* === STAT GRID === */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.stat {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.stat-icon {
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+.stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+.stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 24px;
+  font-weight: 600;
+  margin-top: 4px;
+  letter-spacing: -0.01em;
+}
+.stat-meta {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+.stat-meta.up { color: var(--danger); }
+.stat-meta.down { color: var(--success); }
+
+/* === COST BREAKDOWN === */
+.breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.breakdown-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 8px 0;
+}
+.breakdown-icon { font-size: 16px; }
+.breakdown-label {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.breakdown-bar {
+  height: 6px;
+  background: var(--bg-sunken);
+  border-radius: 100px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.breakdown-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 100px;
+  transition: width 0.5s;
+}
+.breakdown-bar-fill.gas { background: #E59A4D; }
+.breakdown-bar-fill.water { background: #5BA0D0; }
+.breakdown-bar-fill.personnel { background: #7DA77A; }
+.breakdown-bar-fill.struct { background: #B5A48F; }
+.breakdown-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: right;
+  min-width: 80px;
+}
+.breakdown-pct {
+  font-size: 12px;
+  color: var(--ink-faint);
+  text-align: right;
+  min-width: 50px;
+}
+.breakdown-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* === CHART === */
+.chart-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.chart-svg {
+  width: 100%;
+  height: 240px;
+}
+.chart-grid line { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 4; }
+.chart-axis text { fill: var(--ink-faint); font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+.chart-line { stroke: var(--accent); stroke-width: 2.5; fill: none; }
+.chart-area { fill: var(--accent); opacity: 0.1; }
+.chart-target { stroke: var(--success); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none; }
+.chart-dot { fill: var(--accent); }
+.chart-tooltip { pointer-events: none; }
+
+/* === TABLE === */
+.table-wrap {
+  overflow-x: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead {
+  background: var(--bg-sunken);
+}
+th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover { background: var(--bg-sunken); }
+.td-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+}
+.td-num { text-align: right; }
+.td-day { font-weight: 600; color: var(--primary); }
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.badge.ok { background: var(--success-soft); color: var(--success); }
+.badge.warn { background: var(--warning-soft); color: var(--warning); }
+.badge.alert { background: var(--danger-soft); color: var(--danger); }
+.badge.haute { background: var(--accent); color: white; }
+.badge.basse { background: var(--bg-sunken); color: var(--ink-soft); }
+
+/* === ACTIONS === */
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.btn-icon {
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  color: var(--ink-soft);
+}
+.btn-icon:hover { background: var(--bg-sunken); }
+.btn-icon.danger:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+
+/* === BUTTONS === */
+.btn {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn.primary { background: var(--primary); color: white; }
+.btn.primary:hover { background: var(--primary-dark); }
+.btn.accent { background: var(--accent); color: white; }
+.btn.accent:hover { background: var(--accent-light); }
+.btn.ghost { background: transparent; border: 1px solid var(--border-strong); color: var(--ink-soft); }
+.btn.ghost:hover { background: var(--bg-sunken); color: var(--ink); }
+.btn.danger { background: var(--danger); color: white; }
+
+/* === SELECT === */
+.select-wrap {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+.select-wrap select {
+  border: none;
+  background: transparent;
+  padding: 10px 4px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  padding-right: 24px;
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2354534C' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+}
+
+/* === FORM === */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.form-row:last-child { border-bottom: none; }
+.form-label {
+  font-weight: 500;
+}
+.form-label-meta {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+.form-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.form-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  background: var(--bg);
+  text-align: right;
+  outline: none;
+  width: 100%;
+}
+.form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(31, 74, 71, 0.1); }
+.form-unit {
+  font-size: 12px;
+  color: var(--ink-faint);
+  min-width: 50px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* === TOGGLE SAISON === */
+.season-toggle {
+  display: inline-flex;
+  background: var(--bg-sunken);
+  border-radius: 100px;
+  padding: 4px;
+  gap: 4px;
+}
+.season-toggle button {
+  background: transparent;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 100px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: all 0.15s;
+}
+.season-toggle button.active {
+  background: var(--primary);
+  color: white;
+}
+.season-toggle button.active.haute {
+  background: var(--accent);
+}
+
+/* === LOADING & EMPTY === */
+.loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--ink-faint);
+}
+.spinner-mini {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+/* === MODAL === */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(21, 20, 15, 0.5);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.modal-backdrop.visible { display: flex; }
+.modal {
+  background: var(--bg-elevated);
+  border-radius: 16px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+.modal-head {
+  padding: 20px 24px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.modal-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--ink-faint);
+  padding: 4px 8px;
+}
+.modal-body { padding: 16px 24px; }
+.modal-footer {
+  padding: 16px 24px 24px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* === TOAST === */
+.toast {
+  position: fixed;
+  top: 80px;
+  right: 24px;
+  background: var(--ink);
+  color: white;
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  z-index: 2000;
+  transform: translateX(120%);
+  transition: transform 0.3s;
+  box-shadow: var(--shadow-lg);
+  max-width: 360px;
+}
+.toast.visible { transform: translateX(0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+
+/* === RESPONSIVE === */
+@media (max-width: 720px) {
+  .container { padding: 16px; }
+  .hero-card { padding: 24px; }
+  .hero-value { font-size: 48px; }
+  .section-title { font-size: 24px; }
+  .form-row { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header">
+  <div class="app-header-inner">
+    <div class="brand">
+      <div class="brand-icon">🏭</div>
+      <div>
+        <div class="brand-title">BdL Admin</div>
+        <div class="brand-sub">Blanchisserie du Limousin</div>
+      </div>
+    </div>
+    <div class="header-meta">
+      <span class="season-tag" id="headerSeason">—</span>
+      <span id="headerDate" style="opacity: 0.8;"></span>
+    </div>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tabs-bar">
+  <div class="tabs-inner">
+    <button class="tab active" data-tab="dashboard">📊 Tableau de bord</button>
+    <button class="tab" data-tab="production">📝 Production</button>
+    <button class="tab" data-tab="gaz">🚛 Gaz Livraisons</button>
+    <button class="tab" data-tab="reglages">⚙️ Réglages</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- SECTION DASHBOARD -->
+  <section class="section active" id="section-dashboard">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title">Tableau de bord</h1>
+        <div class="section-subtitle" id="dashSubtitle">Vue synthétique du mois en cours</div>
+      </div>
+      <div class="select-wrap">
+        <select id="dashMonth"></select>
+      </div>
+    </div>
+
+    <!-- Hero Coût/kg -->
+    <div class="hero-card">
+      <div class="hero-label">Coût au kg estimé · fluides uniquement</div>
+      <div class="hero-value">
+        <span id="heroCoutKg">—</span>
+        <span class="unit">€/kg</span>
+      </div>
+      <div class="hero-meta">
+        <span class="hero-meta-item" id="heroVsCible">
+          <span>🎯</span>
+          <span id="heroVsCibleText">vs cible —</span>
+        </span>
+        <span class="hero-meta-item" id="heroVsMonth">
+          <span id="heroTrendIcon">→</span>
+          <span id="heroTrendText">vs mois précédent —</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Tuiles stats -->
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-icon">📦</div>
+        <div class="stat-label">Tonnage</div>
+        <div class="stat-value" id="statTonnage">—</div>
+        <div class="stat-meta" id="statTonnageMeta">— jours saisis</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon">💧</div>
+        <div class="stat-label">Eau</div>
+        <div class="stat-value" id="statEau">—</div>
+        <div class="stat-meta" id="statEauMeta">— €</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon">🔥</div>
+        <div class="stat-label">Gaz</div>
+        <div class="stat-value" id="statGaz">—</div>
+        <div class="stat-meta" id="statGazMeta">— €</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon">⚙️</div>
+        <div class="stat-label">Compresseur</div>
+        <div class="stat-value" id="statCompr">—</div>
+        <div class="stat-meta" id="statComprMeta">— h/j moy</div>
+      </div>
+    </div>
+
+    <!-- Décomposition des coûts -->
+    <div class="card">
+      <div class="card-title">Décomposition des coûts fluides</div>
+      <div class="breakdown" id="breakdownList"></div>
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border); font-size: 12px; color: var(--ink-faint);">
+        ⓘ Personnel, électricité, structure, camions ajoutés en Phase 4
+      </div>
+    </div>
+
+    <!-- Graphique évolution -->
+    <div class="chart-card">
+      <div class="card-title">Évolution du coût/kg sur 12 mois</div>
+      <svg class="chart-svg" id="chartEvolution" viewBox="0 0 800 240" preserveAspectRatio="none"></svg>
+    </div>
+
+    <!-- Anomalies récentes -->
+    <div class="card" id="anomaliesCard" style="display:none;">
+      <div class="card-title">⚠️ Anomalies récentes</div>
+      <div id="anomaliesList"></div>
+    </div>
+  </section>
+
+  <!-- SECTION PRODUCTION -->
+  <section class="section" id="section-production">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title">Production</h1>
+        <div class="section-subtitle">Saisies quotidiennes — édition possible</div>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <div class="select-wrap"><select id="prodMonth"></select></div>
+        <button class="btn primary" onclick="openProdAddModal()">+ Nouvelle saisie</button>
+      </div>
+    </div>
+
+    <!-- Totaux mensuels -->
+    <div class="stat-grid" id="prodMonthTotals"></div>
+
+    <!-- Tableau -->
+    <div class="table-wrap">
+      <table id="prodTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Jour</th>
+            <th class="td-num">Transf.</th>
+            <th class="td-num">Kg</th>
+            <th class="td-num">Eau (m³)</th>
+            <th class="td-num">Gaz (%)</th>
+            <th class="td-num">Compr. (h)</th>
+            <th>Saison</th>
+            <th>Note</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="prodTbody">
+          <tr><td colspan="10" class="empty-state">Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION GAZ -->
+  <section class="section" id="section-gaz">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title">Livraisons de gaz</h1>
+        <div class="section-subtitle">Détection automatique · saisir le coût réel après facture</div>
+      </div>
+    </div>
+
+    <div class="stat-grid" id="gazStats"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date livraison</th>
+            <th>Cuve avant</th>
+            <th>Cuve après</th>
+            <th class="td-num">Tonnes</th>
+            <th class="td-num">Coût estimé</th>
+            <th class="td-num">Coût réel</th>
+            <th class="td-num">Écart</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="gazTbody">
+          <tr><td colspan="8" class="empty-state">Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION RÉGLAGES -->
+  <section class="section" id="section-reglages">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title">Réglages</h1>
+        <div class="section-subtitle">Paramètres tarifaires et opérationnels</div>
+      </div>
+    </div>
+
+    <!-- Bascule saison -->
+    <div class="card">
+      <div class="card-title">Saison actuelle</div>
+      <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <div class="season-toggle">
+          <button id="btnSaisonBasse">● Basse</button>
+          <button id="btnSaisonHaute">● Haute</button>
+        </div>
+        <div style="color: var(--ink-soft); font-size: 13px;">
+          <strong>Basse</strong> : Lundi → Vendredi · <strong>Haute</strong> : Lundi → Samedi
+        </div>
+      </div>
+      <div id="saisonInfo" style="margin-top: 12px; font-size: 13px; color: var(--ink-faint);"></div>
+    </div>
+
+    <!-- Tarifs -->
+    <div class="card">
+      <div class="card-title">Prix unitaires & paramètres</div>
+      <div id="paramsList"></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- MODAL ÉDITION -->
+<div class="modal-backdrop" id="editModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="editModalTitle">Modifier la saisie</div>
+      <button class="modal-close" onclick="closeEditModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="editModalBody"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeEditModal()">Annuler</button>
+      <button class="btn primary" id="editSaveBtn" onclick="saveProductionEdit()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL COÛT GAZ -->
+<div class="modal-backdrop" id="gazCoutModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Saisir le coût réel</div>
+      <button class="modal-close" onclick="closeGazModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="gazCoutBody"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeGazModal()">Annuler</button>
+      <button class="btn primary" id="gazCoutSaveBtn" onclick="saveGazCout()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMATION -->
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="confirmTitle">Confirmer</div>
+    </div>
+    <div class="modal-body" id="confirmBody"></div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeConfirm()">Annuler</button>
+      <button class="btn danger" id="confirmBtn">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIGURATION
+// ============================================================
+const PARAMS_URL = new URLSearchParams(window.location.search);
+const API_URL = PARAMS_URL.get('api') || localStorage.getItem('bdl_api_url') || '';
+if (API_URL) localStorage.setItem('bdl_api_url', API_URL);
+
+// ============================================================
+// ÉTAT GLOBAL
+// ============================================================
+const state = {
+  parametres: {},
+  saisons: [],
+  productionByMonth: {}, // cache par YYYY-MM
+  livraisons: [],
+  currentMonth: null,
+  currentSection: 'dashboard',
+  editTarget: null,
+  gazTarget: null
+};
+
+// ============================================================
+// API (JSONP)
+// ============================================================
+let jsonpCounter = 0;
+function callApi(action, params) {
+  return new Promise((resolve, reject) => {
+    if (!API_URL) { reject(new Error('Pas d\'URL API. Ajoute ?api=...')); return; }
+    const cbName = 'cb_' + Date.now() + '_' + (++jsonpCounter);
+    const timeout = setTimeout(() => {
+      delete window[cbName];
+      if (s.parentNode) document.body.removeChild(s);
+      reject(new Error('Timeout API'));
+    }, 30000);
+    window[cbName] = function(data) {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (s.parentNode) document.body.removeChild(s);
+      if (data && data.error) reject(new Error(data.error));
+      else resolve(data);
+    };
+    const queryParts = ['action=' + encodeURIComponent(action), 'callback=' + cbName];
+    if (params) {
+      Object.keys(params).forEach(k => {
+        if (params[k] !== undefined && params[k] !== null) {
+          queryParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+        }
+      });
+    }
+    const s = document.createElement('script');
+    s.src = API_URL + '?' + queryParts.join('&');
+    s.onerror = () => {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (s.parentNode) document.body.removeChild(s);
+      reject(new Error('Échec chargement'));
+    };
+    document.body.appendChild(s);
+  });
+}
+
+// ============================================================
+// FORMATTERS
+// ============================================================
+const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const JOURS_COURT = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+
+function fmtNum(n, dec) {
+  if (n == null || isNaN(n)) return '—';
+  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 });
+}
+function fmtEur(n) {
+  if (n == null || isNaN(n)) return '—';
+  return fmtNum(n) + ' €';
+}
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth()+1)).slice(-2) + '/' + d.getFullYear();
+}
+function fmtDateShort(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth()+1)).slice(-2);
+}
+function monthLabel(yyyymm) {
+  if (!yyyymm) return '';
+  const [y, m] = yyyymm.split('-');
+  return MOIS[parseInt(m, 10) - 1] + ' ' + y;
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast visible' + (type ? ' ' + type : '');
+  setTimeout(() => { el.className = 'toast' + (type ? ' ' + type : ''); }, 3500);
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// ============================================================
+// NAVIGATION ONGLETS
+// ============================================================
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === 'section-' + name));
+  state.currentSection = name;
+  if (name === 'production' && state.currentMonth) loadProductionMonth(state.currentMonth);
+  if (name === 'gaz') loadGazLivraisons();
+  if (name === 'reglages') renderReglages();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  try {
+    if (!API_URL) {
+      toast('URL API manquante. Ajoute ?api=…', 'error');
+      return;
+    }
+    // Charger paramètres + saisons + dernière saisie (pour savoir le mois actuel)
+    const [params, saisons, defaultDate] = await Promise.all([
+      callApi('getParametres'),
+      callApi('getSaisons'),
+      callApi('getDefaultDateTravail')
+    ]);
+
+    state.parametres = params.byKey;
+    state.saisons = saisons.saisons || [];
+
+    // Header
+    document.getElementById('headerSeason').textContent = defaultDate.saison;
+    document.getElementById('headerSeason').className = 'season-tag ' + defaultDate.saison;
+    document.getElementById('headerDate').textContent = fmtDate(defaultDate.today);
+
+    // Détecter le mois courant à partir de la dernière saisie
+    state.currentMonth = defaultDate.date_travail.slice(0, 7);
+
+    // Remplir les sélecteurs de mois
+    populateMonthSelectors();
+
+    // Charger la production du mois courant
+    await loadDashboard(state.currentMonth);
+
+  } catch (err) {
+    toast('Erreur init : ' + err.message, 'error');
+  }
+}
+
+function populateMonthSelectors() {
+  // Générer 18 derniers mois
+  const months = [];
+  const now = new Date();
+  for (let i = 0; i < 18; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ym = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+    months.push(ym);
+  }
+  ['dashMonth', 'prodMonth'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = months.map(m => `<option value="${m}" ${m === state.currentMonth ? 'selected' : ''}>${monthLabel(m)}</option>`).join('');
+    sel.addEventListener('change', e => {
+      if (id === 'dashMonth') loadDashboard(e.target.value);
+      else loadProductionMonth(e.target.value);
+    });
+  });
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+async function loadDashboard(month) {
+  document.getElementById('dashSubtitle').textContent = 'Mois sélectionné : ' + monthLabel(month);
+
+  const prod = await loadProductionMonthData(month);
+  const records = prod.production || [];
+
+  // Statistiques de base
+  const totals = records.reduce((acc, r) => {
+    acc.kg += r.kg || 0;
+    acc.eau += r.eau_m3 || 0;
+    acc.gaz_pct += r.gaz_pct || 0;
+    acc.compresseur_h += r.compresseur_h || 0;
+    acc.days++;
+    return acc;
+  }, { kg: 0, eau: 0, gaz_pct: 0, compresseur_h: 0, days: 0 });
+
+  const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
+  const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
+  const cuveTonnes = Number(state.parametres.cuve_gaz_pleine_tonnes) || 12.5;
+
+  const cout_eau = totals.eau * prixEau;
+  const cout_gaz = totals.gaz_pct / 100 * cuveTonnes * prixGaz;
+  const cout_total = cout_eau + cout_gaz;
+  const cout_kg = totals.kg > 0 ? cout_total / totals.kg : 0;
+  const cible = Number(state.parametres.cout_kg_cible) || 1.50;
+
+  // HERO
+  document.getElementById('heroCoutKg').textContent = fmtNum(cout_kg, 4);
+
+  // vs cible
+  const vsCibleEl = document.getElementById('heroVsCibleText');
+  if (cout_kg > 0) {
+    const pct = ((cout_kg - cible) / cible * 100).toFixed(0);
+    if (cout_kg <= cible) {
+      vsCibleEl.textContent = `Sous la cible (${cible.toFixed(2)} €/kg) ✓`;
+      document.getElementById('heroVsCible').className = 'hero-meta-item hero-trend down';
+    } else {
+      vsCibleEl.textContent = `${pct}% au-dessus de la cible`;
+      document.getElementById('heroVsCible').className = 'hero-meta-item hero-trend up';
+    }
+  } else vsCibleEl.textContent = 'Pas assez de données';
+
+  // vs mois précédent
+  await computeMonthTrend(month, cout_kg);
+
+  // Tuiles
+  document.getElementById('statTonnage').textContent = fmtNum(totals.kg) + ' kg';
+  document.getElementById('statTonnageMeta').textContent = totals.days + ' jours saisis';
+  document.getElementById('statEau').textContent = fmtNum(totals.eau, 1) + ' m³';
+  document.getElementById('statEauMeta').textContent = fmtEur(cout_eau);
+  const gaz_tonnes = totals.gaz_pct / 100 * cuveTonnes;
+  document.getElementById('statGaz').textContent = fmtNum(gaz_tonnes, 2) + ' t';
+  document.getElementById('statGazMeta').textContent = fmtEur(cout_gaz);
+  document.getElementById('statCompr').textContent = fmtNum(totals.compresseur_h) + ' h';
+  const moyComp = totals.days > 0 ? totals.compresseur_h / totals.days : 0;
+  document.getElementById('statComprMeta').textContent = fmtNum(moyComp, 1) + ' h/j moy';
+
+  // Décomposition
+  renderBreakdown(cout_eau, cout_gaz, cout_total);
+
+  // Graphique 12 mois
+  await renderEvolutionChart(month);
+
+  // Anomalies
+  renderAnomalies(records);
+}
+
+function renderBreakdown(cout_eau, cout_gaz, total) {
+  const items = [
+    { label: 'Gaz', icon: '🔥', value: cout_gaz, color: 'gas' },
+    { label: 'Eau', icon: '💧', value: cout_eau, color: 'water' },
+    { label: 'Personnel', icon: '👥', value: 0, color: 'personnel', faded: true, note: 'Phase 4' },
+    { label: 'Élec totale', icon: '⚡', value: 0, color: 'struct', faded: true, note: 'Phase 4' }
+  ];
+  document.getElementById('breakdownList').innerHTML = items.map(i => {
+    const pct = total > 0 && !i.faded ? (i.value / total * 100) : 0;
+    return `<div class="breakdown-item" style="${i.faded ? 'opacity: 0.4;' : ''}">
+      <div class="breakdown-col">
+        <div class="breakdown-label">
+          <span class="breakdown-icon">${i.icon}</span>
+          <span>${i.label}</span>
+          ${i.note ? `<span style="font-size: 10px; color: var(--ink-faint); margin-left: 4px;">${i.note}</span>` : ''}
+        </div>
+        <div class="breakdown-bar"><div class="breakdown-bar-fill ${i.color}" style="width: ${pct}%"></div></div>
+      </div>
+      <div class="breakdown-value">${i.faded ? '—' : fmtEur(i.value)}</div>
+      <div class="breakdown-pct">${i.faded ? '' : pct.toFixed(0) + '%'}</div>
+    </div>`;
+  }).join('');
+}
+
+async function computeMonthTrend(month, currentCoutKg) {
+  // Comparer au mois précédent
+  const [y, m] = month.split('-').map(Number);
+  const prevDate = new Date(y, m - 2, 1);
+  const prevMonth = prevDate.getFullYear() + '-' + ('0' + (prevDate.getMonth() + 1)).slice(-2);
+  try {
+    const prevProd = await loadProductionMonthData(prevMonth);
+    const records = prevProd.production || [];
+    const totals = records.reduce((acc, r) => {
+      acc.kg += r.kg || 0;
+      acc.eau += r.eau_m3 || 0;
+      acc.gaz_pct += r.gaz_pct || 0;
+      return acc;
+    }, { kg: 0, eau: 0, gaz_pct: 0 });
+    const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
+    const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
+    const cuveTonnes = Number(state.parametres.cuve_gaz_pleine_tonnes) || 12.5;
+    const prevCout = (totals.eau * prixEau + totals.gaz_pct / 100 * cuveTonnes * prixGaz);
+    const prevCoutKg = totals.kg > 0 ? prevCout / totals.kg : 0;
+    const el = document.getElementById('heroVsMonth');
+    const text = document.getElementById('heroTrendText');
+    const icon = document.getElementById('heroTrendIcon');
+    if (prevCoutKg > 0 && currentCoutKg > 0) {
+      const pct = ((currentCoutKg - prevCoutKg) / prevCoutKg * 100);
+      if (Math.abs(pct) < 2) {
+        text.textContent = `Stable vs ${monthLabel(prevMonth)}`;
+        icon.textContent = '→';
+        el.className = 'hero-meta-item hero-trend flat';
+      } else if (pct < 0) {
+        text.textContent = `${Math.abs(pct).toFixed(0)}% moins cher vs ${monthLabel(prevMonth)}`;
+        icon.textContent = '↓';
+        el.className = 'hero-meta-item hero-trend down';
+      } else {
+        text.textContent = `+${pct.toFixed(0)}% vs ${monthLabel(prevMonth)}`;
+        icon.textContent = '↑';
+        el.className = 'hero-meta-item hero-trend up';
+      }
+    } else text.textContent = `Pas de données pour ${monthLabel(prevMonth)}`;
+  } catch (e) {
+    document.getElementById('heroTrendText').textContent = '—';
+  }
+}
+
+async function renderEvolutionChart(currentMonth) {
+  // Charger les 12 derniers mois
+  const months = [];
+  const [y, m] = currentMonth.split('-').map(Number);
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(y, m - 1 - i, 1);
+    months.push(d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2));
+  }
+
+  const datapoints = [];
+  for (const mo of months) {
+    const prod = await loadProductionMonthData(mo);
+    const records = prod.production || [];
+    const tot = records.reduce((a, r) => {
+      a.kg += r.kg || 0;
+      a.eau += r.eau_m3 || 0;
+      a.gaz_pct += r.gaz_pct || 0;
+      return a;
+    }, { kg: 0, eau: 0, gaz_pct: 0 });
+    const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
+    const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
+    const cuveTonnes = Number(state.parametres.cuve_gaz_pleine_tonnes) || 12.5;
+    const cout = tot.eau * prixEau + tot.gaz_pct / 100 * cuveTonnes * prixGaz;
+    const coutKg = tot.kg > 0 ? cout / tot.kg : 0;
+    datapoints.push({ month: mo, value: coutKg });
+  }
+
+  // Dessiner SVG
+  const svg = document.getElementById('chartEvolution');
+  const w = 800, h = 240, pad = { top: 20, right: 20, bottom: 30, left: 50 };
+  const validPoints = datapoints.filter(p => p.value > 0);
+  if (validPoints.length === 0) {
+    svg.innerHTML = '<text x="400" y="120" text-anchor="middle" fill="#8A877E" font-size="14">Pas assez de données</text>';
+    return;
+  }
+  const maxVal = Math.max(...validPoints.map(p => p.value)) * 1.2;
+  const cible = Number(state.parametres.cout_kg_cible) || 1.50;
+  const innerW = w - pad.left - pad.right;
+  const innerH = h - pad.top - pad.bottom;
+  const xStep = innerW / (datapoints.length - 1 || 1);
+
+  function xPos(i) { return pad.left + i * xStep; }
+  function yPos(v) { return pad.top + innerH - (v / maxVal * innerH); }
+
+  // Lignes grille
+  let grid = '';
+  for (let i = 0; i <= 4; i++) {
+    const yv = (maxVal / 4) * i;
+    const yp = yPos(yv);
+    grid += `<line x1="${pad.left}" y1="${yp}" x2="${w - pad.right}" y2="${yp}" />`;
+    grid += `<text x="${pad.left - 8}" y="${yp + 4}" text-anchor="end" fill="#8A877E" font-size="10" font-family="JetBrains Mono">${yv.toFixed(3)}</text>`;
+  }
+
+  // Cible
+  const cibleY = yPos(cible);
+  const cibleLine = cible <= maxVal ? `<line class="chart-target" x1="${pad.left}" y1="${cibleY}" x2="${w - pad.right}" y2="${cibleY}"/>
+    <text x="${w - pad.right - 4}" y="${cibleY - 4}" text-anchor="end" fill="#2E6B3E" font-size="10" font-family="JetBrains Mono">cible ${cible.toFixed(2)}</text>` : '';
+
+  // Path
+  const validInOrder = datapoints.map((p, i) => p.value > 0 ? { x: xPos(i), y: yPos(p.value) } : null);
+  let pathD = '';
+  let started = false;
+  validInOrder.forEach((pt, i) => {
+    if (!pt) return;
+    pathD += (started ? ' L ' : 'M ') + pt.x + ' ' + pt.y;
+    started = true;
+  });
+
+  // Aire sous la courbe (pour visuel)
+  let areaD = pathD;
+  const firstValid = validInOrder.findIndex(p => p);
+  const lastValid = validInOrder.length - 1 - [...validInOrder].reverse().findIndex(p => p);
+  if (firstValid >= 0 && lastValid >= 0 && firstValid < lastValid) {
+    areaD += ` L ${xPos(lastValid)} ${pad.top + innerH} L ${xPos(firstValid)} ${pad.top + innerH} Z`;
+  }
+
+  // Dots + labels X
+  let dots = '', xLabels = '';
+  datapoints.forEach((p, i) => {
+    if (p.value > 0) {
+      dots += `<circle class="chart-dot" cx="${xPos(i)}" cy="${yPos(p.value)}" r="4"/>`;
+      dots += `<title>${monthLabel(p.month)} : ${p.value.toFixed(4)} €/kg</title>`;
+    }
+    if (i === 0 || i === datapoints.length - 1 || i % 2 === 0) {
+      xLabels += `<text x="${xPos(i)}" y="${h - pad.bottom + 16}" text-anchor="middle" fill="#8A877E" font-size="10" font-family="JetBrains Mono">${p.month.slice(5)}/${p.month.slice(2,4)}</text>`;
+    }
+  });
+
+  svg.innerHTML = `
+    <g class="chart-grid">${grid}</g>
+    ${cibleLine}
+    <path class="chart-area" d="${areaD}"/>
+    <path class="chart-line" d="${pathD}"/>
+    ${dots}
+    ${xLabels}
+  `;
+}
+
+function renderAnomalies(records) {
+  // Détection rapide : ratio eau/kg, gaz/kg, comp/kg
+  const valids = records.filter(r => r.kg > 0);
+  if (valids.length < 5) {
+    document.getElementById('anomaliesCard').style.display = 'none';
+    return;
+  }
+  const ratiosEau = valids.filter(r => r.eau_m3).map(r => r.eau_m3 / r.kg * 1000);
+  const moy = ratiosEau.length ? ratiosEau.reduce((a,b) => a+b, 0) / ratiosEau.length : 0;
+  const anomalies = [];
+  valids.forEach(r => {
+    if (r.eau_m3 && moy > 0) {
+      const ratio = r.eau_m3 / r.kg * 1000;
+      const ecart = (ratio - moy) / moy * 100;
+      if (Math.abs(ecart) >= 50) {
+        anomalies.push({ date: r.date_travail, jour: r.jour_travail, mesure: 'Eau', ratio, moy, ecart });
+      }
+    }
+  });
+  if (anomalies.length === 0) {
+    document.getElementById('anomaliesCard').style.display = 'none';
+    return;
+  }
+  document.getElementById('anomaliesCard').style.display = 'block';
+  document.getElementById('anomaliesList').innerHTML = anomalies.slice(0, 5).map(a => `
+    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border);">
+      <span style="font-size: 16px;">${a.mesure === 'Eau' ? '💧' : '🔥'}</span>
+      <div style="flex: 1;">
+        <div style="font-weight: 600;">${a.jour} ${fmtDate(a.date)}</div>
+        <div style="font-size: 12px; color: var(--ink-soft);">${a.mesure} : ${a.ratio.toFixed(2)} L/kg (moy ${a.moy.toFixed(2)})</div>
+      </div>
+      <span class="badge ${a.ecart > 0 ? 'warn' : 'alert'}">${a.ecart > 0 ? '+' : ''}${a.ecart.toFixed(0)}%</span>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// LOADER PRODUCTION (avec cache)
+// ============================================================
+async function loadProductionMonthData(month) {
+  if (state.productionByMonth[month]) return state.productionByMonth[month];
+  const data = await callApi('getProductionMonth', { month });
+  state.productionByMonth[month] = data;
+  return data;
+}
+
+// ============================================================
+// SECTION PRODUCTION
+// ============================================================
+async function loadProductionMonth(month) {
+  const tbody = document.getElementById('prodTbody');
+  tbody.innerHTML = '<tr><td colspan="10"><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
+
+  // Bust cache pour avoir le frais
+  delete state.productionByMonth[month];
+  const prod = await loadProductionMonthData(month);
+  const records = prod.production || [];
+
+  // Totaux
+  const tot = records.reduce((a, r) => {
+    a.kg += r.kg || 0;
+    a.eau += r.eau_m3 || 0;
+    a.gaz += r.gaz_pct || 0;
+    a.compr += r.compresseur_h || 0;
+    a.transferts += r.transferts || 0;
+    return a;
+  }, { kg: 0, eau: 0, gaz: 0, compr: 0, transferts: 0 });
+  const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
+  const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
+  const cuveTonnes = Number(state.parametres.cuve_gaz_pleine_tonnes) || 12.5;
+
+  document.getElementById('prodMonthTotals').innerHTML = `
+    <div class="stat">
+      <div class="stat-icon">📅</div>
+      <div class="stat-label">Jours saisis</div>
+      <div class="stat-value">${records.length}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">📦</div>
+      <div class="stat-label">Tonnage total</div>
+      <div class="stat-value">${fmtNum(tot.kg)}</div>
+      <div class="stat-meta">${fmtNum(tot.transferts)} transferts</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">💧</div>
+      <div class="stat-label">Eau totale</div>
+      <div class="stat-value">${fmtNum(tot.eau, 1)} m³</div>
+      <div class="stat-meta">${fmtEur(tot.eau * prixEau)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">🔥</div>
+      <div class="stat-label">Gaz consommé</div>
+      <div class="stat-value">${fmtNum(tot.gaz / 100 * cuveTonnes, 2)} t</div>
+      <div class="stat-meta">${fmtEur(tot.gaz / 100 * cuveTonnes * prixGaz)}</div>
+    </div>
+  `;
+
+  // Tableau
+  if (records.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Aucune saisie pour ce mois</td></tr>';
+    return;
+  }
+  // Tri décroissant (plus récent en haut)
+  records.sort((a, b) => b.date_travail.localeCompare(a.date_travail));
+  tbody.innerHTML = records.map(r => `
+    <tr>
+      <td class="td-mono">${fmtDateShort(r.date_travail)}</td>
+      <td class="td-day">${r.jour_travail || ''}</td>
+      <td class="td-num td-mono">${r.transferts != null ? fmtNum(r.transferts) : '—'}</td>
+      <td class="td-num td-mono">${r.kg != null ? fmtNum(r.kg) : '—'}</td>
+      <td class="td-num td-mono">${r.eau_m3 != null ? fmtNum(r.eau_m3, 1) : '—'}</td>
+      <td class="td-num td-mono">${r.gaz_pct != null ? fmtNum(r.gaz_pct, 1) : '—'}</td>
+      <td class="td-num td-mono">${r.compresseur_h != null ? fmtNum(r.compresseur_h, 1) : '—'}</td>
+      <td><span class="badge ${r.saison || 'basse'}">${r.saison || ''}</span></td>
+      <td style="font-size: 11px; color: var(--ink-faint); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.note || ''}</td>
+      <td>
+        <div class="actions">
+          <button class="btn-icon" onclick="openEditProductionModal('${r.date_travail}')" title="Modifier">✏️</button>
+          <button class="btn-icon danger" onclick="confirmDeleteProduction('${r.id}', '${r.date_travail}')" title="Supprimer">🗑</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ============================================================
+// MODAL : ÉDITION / NOUVELLE SAISIE
+// ============================================================
+function openProdAddModal() {
+  state.editTarget = { isNew: true, date_travail: todayIso() };
+  buildEditForm({});
+  document.getElementById('editModalTitle').textContent = 'Nouvelle saisie';
+  document.getElementById('editModal').classList.add('visible');
+}
+
+async function openEditProductionModal(dateTravail) {
+  state.editTarget = { isNew: false, date_travail: dateTravail };
+  document.getElementById('editModalTitle').textContent = 'Modifier · ' + fmtDate(dateTravail);
+  // Récupérer les données
+  try {
+    const res = await callApi('getProductionDay', { date: dateTravail });
+    buildEditForm(res.production || {});
+    document.getElementById('editModal').classList.add('visible');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function buildEditForm(p) {
+  const body = document.getElementById('editModalBody');
+  body.innerHTML = `
+    <div class="form-row">
+      <div>
+        <div class="form-label">Date du travail</div>
+        <div class="form-label-meta">YYYY-MM-DD</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="date" class="form-input" id="ef_date" value="${p.date_travail || state.editTarget.date_travail}" style="text-align: left;">
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <div class="form-label">🔢 Transferts</div>
+        <div class="form-label-meta">Nombre du tunnel</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="number" class="form-input" id="ef_transferts" value="${p.transferts != null ? p.transferts : ''}" step="1">
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <div class="form-label">💧 Eau (compteur)</div>
+        <div class="form-label-meta">Relevé compteur en m³</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="number" class="form-input" id="ef_eau" value="${p.eau_compteur != null ? p.eau_compteur : ''}" step="0.1">
+        <span class="form-unit">m³</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <div class="form-label">🔥 Gaz (cuve restante)</div>
+        <div class="form-label-meta">% restant ce matin</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="number" class="form-input" id="ef_gaz" value="${p.gaz_cuve_pct != null ? p.gaz_cuve_pct : ''}" step="0.5">
+        <span class="form-unit">%</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <div class="form-label">⚙️ Compresseur</div>
+        <div class="form-label-meta">Relevé compteur en heures</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="number" class="form-input" id="ef_compr" value="${p.compresseur_compteur != null ? p.compresseur_compteur : ''}" step="1">
+        <span class="form-unit">h</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <div class="form-label">📝 Note</div>
+        <div class="form-label-meta">Optionnel</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="text" class="form-input" id="ef_note" value="${(p.note || '').replace(/"/g,'&quot;')}" style="text-align: left;">
+      </div>
+    </div>
+  `;
+}
+
+async function saveProductionEdit() {
+  const btn = document.getElementById('editSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Envoi…';
+  try {
+    const data = {
+      date_travail: document.getElementById('ef_date').value,
+      source: 'admin'
+    };
+    const tr = document.getElementById('ef_transferts').value;
+    if (tr) data.transferts = Number(tr);
+    const eau = document.getElementById('ef_eau').value;
+    if (eau) data.eau_compteur = Number(eau);
+    const gaz = document.getElementById('ef_gaz').value;
+    if (gaz) data.gaz_cuve_pct = Number(gaz);
+    const compr = document.getElementById('ef_compr').value;
+    if (compr) data.compresseur_compteur = Number(compr);
+    const note = document.getElementById('ef_note').value;
+    if (note) data.note = note;
+
+    await callApi('saveProduction', data);
+    toast('Saisie enregistrée', 'success');
+    closeEditModal();
+    // Recharger
+    delete state.productionByMonth[state.currentMonth];
+    if (state.currentSection === 'production') loadProductionMonth(state.currentMonth);
+    if (state.currentSection === 'dashboard') loadDashboard(state.currentMonth);
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer';
+  }
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('visible');
+  state.editTarget = null;
+}
+
+// ============================================================
+// SUPPRESSION SAISIE
+// ============================================================
+function confirmDeleteProduction(id, date) {
+  document.getElementById('confirmTitle').textContent = 'Supprimer cette saisie ?';
+  document.getElementById('confirmBody').innerHTML = `<p>La saisie du <strong>${fmtDate(date)}</strong> sera définitivement supprimée.</p>`;
+  document.getElementById('confirmBtn').onclick = async () => {
+    try {
+      await callApi('deleteProduction', { id });
+      toast('Supprimé', 'success');
+      closeConfirm();
+      delete state.productionByMonth[state.currentMonth];
+      loadProductionMonth(state.currentMonth);
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+  document.getElementById('confirmModal').classList.add('visible');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmModal').classList.remove('visible');
+}
+
+// ============================================================
+// SECTION GAZ LIVRAISONS
+// ============================================================
+async function loadGazLivraisons() {
+  document.getElementById('gazTbody').innerHTML = '<tr><td colspan="8"><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
+  try {
+    const res = await callApi('getGazLivraisons');
+    state.livraisons = res.livraisons || [];
+    renderGazStats(res.stats || {});
+    renderGazTable();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function renderGazStats(stats) {
+  document.getElementById('gazStats').innerHTML = `
+    <div class="stat">
+      <div class="stat-icon">🚛</div>
+      <div class="stat-label">Livraisons</div>
+      <div class="stat-value">${stats.nb_livraisons || 0}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">⚖️</div>
+      <div class="stat-label">Tonnes livrées</div>
+      <div class="stat-value">${fmtNum(stats.total_tonnes, 2)} t</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">💰</div>
+      <div class="stat-label">Coût estimé total</div>
+      <div class="stat-value">${fmtEur(stats.total_cout_estime)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">📊</div>
+      <div class="stat-label">Écart estimé/réel</div>
+      <div class="stat-value">${stats.ecart_total != null ? fmtEur(stats.ecart_total) : '—'}</div>
+      <div class="stat-meta">${stats.total_cout_reel ? fmtEur(stats.total_cout_reel) + ' facturé' : 'Saisir les coûts réels'}</div>
+    </div>
+  `;
+}
+
+function renderGazTable() {
+  const tbody = document.getElementById('gazTbody');
+  if (state.livraisons.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Aucune livraison détectée</td></tr>';
+    return;
+  }
+  state.livraisons.sort((a, b) => b.date_livraison.localeCompare(a.date_livraison));
+  tbody.innerHTML = state.livraisons.map(l => {
+    const ecart = l.cout_reel != null ? l.cout_reel - l.cout_estime : null;
+    const ecartClass = ecart != null ? (ecart > 0 ? 'warn' : 'ok') : '';
+    return `<tr>
+      <td class="td-mono">${fmtDate(l.date_livraison)}</td>
+      <td class="td-mono">${l.cuve_avant_pct}%</td>
+      <td class="td-mono">${l.cuve_apres_pct}%</td>
+      <td class="td-num td-mono">${fmtNum(l.tonnes_livrees, 2)} t</td>
+      <td class="td-num td-mono">${fmtEur(l.cout_estime)}</td>
+      <td class="td-num td-mono" style="${l.cout_reel ? 'color: var(--success); font-weight: 600;' : 'color: var(--ink-faint);'}">${l.cout_reel ? fmtEur(l.cout_reel) : 'Non saisi'}</td>
+      <td class="td-num td-mono">${ecart != null ? `<span class="badge ${ecartClass}">${ecart > 0 ? '+' : ''}${fmtEur(ecart)}</span>` : '—'}</td>
+      <td><button class="btn-icon" onclick="openGazCoutModal('${l.id}')" title="Saisir coût réel">💰</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function openGazCoutModal(id) {
+  const liv = state.livraisons.find(l => l.id === id);
+  if (!liv) return;
+  state.gazTarget = liv;
+  document.getElementById('gazCoutBody').innerHTML = `
+    <p style="margin-bottom: 16px;">Livraison du <strong>${fmtDate(liv.date_livraison)}</strong></p>
+    <div class="form-row">
+      <div>
+        <div class="form-label">Quantité</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="text" class="form-input" value="${fmtNum(liv.tonnes_livrees, 2)} t" disabled>
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <div class="form-label">Coût estimé</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="text" class="form-input" value="${fmtEur(liv.cout_estime)}" disabled>
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <div class="form-label">💰 Coût réel facturé</div>
+        <div class="form-label-meta">Montant HT de la facture fournisseur</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="number" class="form-input" id="gz_cout" value="${liv.cout_reel != null ? liv.cout_reel : ''}" step="1">
+        <span class="form-unit">€ HT</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <div class="form-label">Note</div>
+        <div class="form-label-meta">N° facture, fournisseur…</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="text" class="form-input" id="gz_note" value="${(liv.note || '').replace(/"/g,'&quot;')}" style="text-align: left;">
+      </div>
+    </div>
+  `;
+  document.getElementById('gazCoutModal').classList.add('visible');
+}
+
+function closeGazModal() {
+  document.getElementById('gazCoutModal').classList.remove('visible');
+}
+
+async function saveGazCout() {
+  const btn = document.getElementById('gazCoutSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Envoi…';
+  try {
+    const cout = Number(document.getElementById('gz_cout').value);
+    if (!cout || cout <= 0) throw new Error('Montant invalide');
+    const note = document.getElementById('gz_note').value;
+    await callApi('updateGazLivraisonCoutReel', { id: state.gazTarget.id, cout_reel: cout, note });
+    toast('Coût enregistré', 'success');
+    closeGazModal();
+    loadGazLivraisons();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer';
+  }
+}
+
+// ============================================================
+// SECTION RÉGLAGES
+// ============================================================
+function renderReglages() {
+  // Saison
+  const saisonActuelle = state.parametres.saison_actuelle || 'basse';
+  document.getElementById('btnSaisonBasse').classList.toggle('active', saisonActuelle === 'basse');
+  document.getElementById('btnSaisonHaute').classList.toggle('active', saisonActuelle === 'haute');
+  document.getElementById('btnSaisonHaute').classList.toggle('haute', true);
+  document.getElementById('btnSaisonBasse').onclick = () => switchSaison('basse');
+  document.getElementById('btnSaisonHaute').onclick = () => switchSaison('haute');
+
+  // Dernière info saison
+  const last = state.saisons[state.saisons.length - 1];
+  document.getElementById('saisonInfo').textContent = last
+    ? `Dernier basculement : ${last.saison} depuis le ${fmtDate(last.date_debut)} (${last.note || ''})`
+    : 'Aucun historique de saison';
+
+  // Liste des paramètres
+  const params = [
+    { cle: 'prix_eau_m3', label: 'Prix de l\'eau (réseau)', unit: '€/m³', step: 0.01 },
+    { cle: 'prix_gaz_tonne', label: 'Prix du gaz propane', unit: '€/tonne', step: 1 },
+    { cle: 'kg_par_transfert', label: 'Conversion linge', unit: 'kg/transfert', step: 1 },
+    { cle: 'cuve_gaz_pleine_tonnes', label: 'Capacité cuve gaz', unit: 'tonnes', step: 0.5 },
+    { cle: 'cout_kg_cible', label: 'Cible coût/kg', unit: '€/kg', step: 0.01 },
+    { cle: 'marge_brute_cible_pct', label: 'Cible marge brute', unit: '%', step: 1 },
+    { cle: 'alerte_eau_seuil_pct', label: 'Seuil alerte eau', unit: '%', step: 5 },
+    { cle: 'alerte_gaz_seuil_pct', label: 'Seuil alerte gaz', unit: '%', step: 5 },
+    { cle: 'alerte_compresseur_seuil_pct', label: 'Seuil alerte compresseur', unit: '%', step: 5 },
+    { cle: 'fenetre_moyenne_jours', label: 'Fenêtre moyenne (jours)', unit: 'j', step: 5 }
+  ];
+  document.getElementById('paramsList').innerHTML = params.map(p => `
+    <div class="form-row">
+      <div>
+        <div class="form-label">${p.label}</div>
+        <div class="form-label-meta">${p.cle}</div>
+      </div>
+      <div class="form-input-wrap">
+        <input type="number" class="form-input" id="param_${p.cle}" value="${state.parametres[p.cle] || ''}" step="${p.step}" onchange="updateParam('${p.cle}', this.value)">
+        <span class="form-unit">${p.unit}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function updateParam(cle, valeur) {
+  try {
+    const v = Number(valeur);
+    if (isNaN(v)) throw new Error('Valeur invalide');
+    await callApi('updateParametre', { cle, valeur: v });
+    state.parametres[cle] = v;
+    toast('Paramètre enregistré', 'success');
+    // Vider les caches qui dépendent des prix
+    state.productionByMonth = {};
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function switchSaison(nouvelle) {
+  if (state.parametres.saison_actuelle === nouvelle) return;
+  const ok = confirm(`Basculer en saison ${nouvelle.toUpperCase()} ?\n\nUne nouvelle ligne sera ajoutée à l'historique des saisons.`);
+  if (!ok) return;
+  try {
+    await callApi('addSaison', { date_debut: todayIso(), saison: nouvelle, note: 'Bascule manuelle' });
+    state.parametres.saison_actuelle = nouvelle;
+    toast('Saison basculée en ' + nouvelle, 'success');
+    // Recharger saisons
+    const s = await callApi('getSaisons');
+    state.saisons = s.saisons || [];
+    renderReglages();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ============================================================
+// GO
+// ============================================================
+init();
+</script>
+</body>
+</html>
