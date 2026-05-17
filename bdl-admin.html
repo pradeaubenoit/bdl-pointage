@@ -799,6 +799,7 @@ tr:hover { background: var(--bg-sunken); }
 <div class="tabs-bar">
   <div class="tabs-inner">
     <button class="tab active" data-tab="dashboard">📊 Tableau de bord</button>
+    <button class="tab" data-tab="pilotage">⚡ Pilotage Jour</button>
     <button class="tab" data-tab="production">📝 Production</button>
     <button class="tab" data-tab="gaz">🚛 Gaz Livraisons</button>
     <button class="tab" data-tab="charges">💰 Charges</button>
@@ -886,6 +887,71 @@ tr:hover { background: var(--bg-sunken); }
     <div class="card" id="anomaliesCard" style="display:none;">
       <div class="card-title">⚠️ Anomalies récentes</div>
       <div id="anomaliesList"></div>
+    </div>
+  </section>
+
+  <!-- SECTION PILOTAGE QUOTIDIEN (V4.5) -->
+  <section class="section" id="section-pilotage">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title">⚡ Pilotage Quotidien</h1>
+        <div class="section-subtitle">Coût personnel + fluides jour par jour — détectes les dérives tout de suite</div>
+      </div>
+      <div class="section-actions">
+        <select id="pilotageMonthSelector" class="select-month"></select>
+      </div>
+    </div>
+
+    <!-- KPIs Mois en cours -->
+    <div class="cards-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px;">
+      <div class="kpi-card">
+        <div class="kpi-label">📦 Tonnage mois</div>
+        <div class="kpi-value" id="pilotKpiTonnage">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">⏱️ Heures pointées</div>
+        <div class="kpi-value" id="pilotKpiHeures">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">👥 Coût personnel</div>
+        <div class="kpi-value" id="pilotKpiPersonnel">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">💧🔥 Coût fluides</div>
+        <div class="kpi-value" id="pilotKpiFluides">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">📊 Coût/kg moyen</div>
+        <div class="kpi-value" id="pilotKpiCoutKg">—</div>
+      </div>
+    </div>
+
+    <!-- Info SMIC actuel -->
+    <div style="background: var(--bg-card, #fff); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; color: #666;">
+      💡 Calcul basé sur : SMIC <strong id="pilotSmicH">12,02</strong> €/h × coefficient charges <strong id="pilotCoef">1,30</strong> = <strong id="pilotCoutH">15,63</strong> €/h coût employeur réel
+    </div>
+
+    <!-- Tableau journalier -->
+    <div class="section-subtitle" style="margin-top: 16px;">Détail jour par jour</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Jour</th>
+            <th>Tonnage</th>
+            <th>Heures</th>
+            <th>Coût pers.</th>
+            <th>Coût fluides</th>
+            <th>Coût total</th>
+            <th>Coût/kg</th>
+            <th>vs moyenne</th>
+          </tr>
+        </thead>
+        <tbody id="pilotageTbody">
+          <tr><td colspan="9" class="empty-state">Chargement…</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -1362,6 +1428,7 @@ function switchTab(name) {
   if (name === 'production' && state.currentMonth) loadProductionMonth(state.currentMonth);
   if (name === 'gaz') loadGazLivraisons();
   if (name === 'charges') loadChargesSection();
+  if (name === 'pilotage') loadPilotageSection();
   if (name === 'reglages') renderReglages();
 }
 
@@ -2347,6 +2414,113 @@ async function deleteChargesForm() {
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
   }
+}
+
+// ============================================================
+// V4.5 — PILOTAGE QUOTIDIEN
+// ============================================================
+async function loadPilotageSection() {
+  try {
+    // Remplir le sélecteur de mois (12 derniers mois)
+    const sel = document.getElementById('pilotageMonthSelector');
+    if (sel.options.length <= 1) {
+      const today = new Date();
+      const opts = [];
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const mois = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        opts.push({ value: mois, label: label });
+      }
+      sel.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+      sel.onchange = () => loadPilotageMonth(sel.value);
+    }
+    // Charger le mois en cours par défaut
+    const currentMonth = state.currentMonth || sel.value;
+    sel.value = currentMonth;
+    await loadPilotageMonth(currentMonth);
+  } catch (err) {
+    toast('Erreur Pilotage : ' + err.message, 'error');
+  }
+}
+
+async function loadPilotageMonth(month) {
+  if (!month) return;
+  try {
+    const resp = await callApi('getPilotageMonth', { month: month });
+    if (!resp.ok) {
+      toast('Erreur : ' + (resp.error || 'inconnue'), 'error');
+      return;
+    }
+    renderPilotageKpi(resp);
+    renderPilotageTable(resp);
+  } catch (err) {
+    toast('Erreur chargement pilotage : ' + err.message, 'error');
+  }
+}
+
+function renderPilotageKpi(data) {
+  document.getElementById('pilotKpiTonnage').textContent = (data.tonnage_total || 0).toLocaleString('fr-FR') + ' kg';
+  document.getElementById('pilotKpiHeures').textContent = (data.heures_totales || 0).toFixed(1) + ' h';
+
+  // Calcul personnel + fluides séparément
+  let totalPers = 0, totalFluides = 0;
+  (data.jours || []).forEach(j => {
+    totalPers += j.cout_personnel || 0;
+    totalFluides += j.cout_fluides || 0;
+  });
+  document.getElementById('pilotKpiPersonnel').textContent = Math.round(totalPers).toLocaleString('fr-FR') + ' €';
+  document.getElementById('pilotKpiFluides').textContent = Math.round(totalFluides).toLocaleString('fr-FR') + ' €';
+  document.getElementById('pilotKpiCoutKg').innerHTML = data.cout_kg_moyen != null
+    ? `${data.cout_kg_moyen.toFixed(4)} €/kg`
+    : '—';
+
+  // Info SMIC
+  document.getElementById('pilotSmicH').textContent = (data.smic_horaire || 12.02).toFixed(2).replace('.', ',');
+  document.getElementById('pilotCoef').textContent = (data.coef_charges || 1.30).toFixed(2).replace('.', ',');
+  document.getElementById('pilotCoutH').textContent = (data.cout_horaire_employeur || 15.63).toFixed(2).replace('.', ',');
+}
+
+function renderPilotageTable(data) {
+  const tbody = document.getElementById('pilotageTbody');
+  if (!data.jours || data.jours.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Aucune donnée pour ce mois.</td></tr>';
+    return;
+  }
+
+  // Trier par date décroissante (plus récent en haut)
+  const jours = [...data.jours].sort((a, b) => b.date.localeCompare(a.date));
+
+  tbody.innerHTML = jours.map(j => {
+    // Couleur selon écart avec moyenne
+    let ecartHtml = '—';
+    let rowStyle = '';
+    if (j.ecart_vs_moyenne_pct != null) {
+      const ec = j.ecart_vs_moyenne_pct;
+      if (ec < -5) {
+        ecartHtml = `<span style="color:#10b981;font-weight:500">${ec.toFixed(1)}%</span>`;
+      } else if (ec > 15) {
+        ecartHtml = `<span style="color:#ef4444;font-weight:500">⚠ +${ec.toFixed(1)}%</span>`;
+        rowStyle = 'background:rgba(239,68,68,0.05);';
+      } else if (ec > 5) {
+        ecartHtml = `<span style="color:#f59e0b;font-weight:500">+${ec.toFixed(1)}%</span>`;
+      } else {
+        ecartHtml = `<span style="color:#6b7280">${ec >= 0 ? '+' : ''}${ec.toFixed(1)}%</span>`;
+      }
+    }
+    const coutKg = j.cout_kg != null ? `<strong>${j.cout_kg.toFixed(4)} €</strong>` : '—';
+    return `<tr style="${rowStyle}">
+      <td><strong>${j.date}</strong></td>
+      <td>${j.jour || '—'}</td>
+      <td>${j.kg ? j.kg.toLocaleString('fr-FR') + ' kg' : '—'}</td>
+      <td>${j.heures_pointees > 0 ? j.heures_pointees.toFixed(1) + ' h' : '—'}</td>
+      <td>${Math.round(j.cout_personnel).toLocaleString('fr-FR')} €</td>
+      <td>${Math.round(j.cout_fluides).toLocaleString('fr-FR')} €</td>
+      <td><strong>${Math.round(j.cout_total).toLocaleString('fr-FR')} €</strong></td>
+      <td>${coutKg}</td>
+      <td>${ecartHtml}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ============================================================
