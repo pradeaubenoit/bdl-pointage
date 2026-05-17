@@ -682,6 +682,98 @@ tr:hover { background: var(--bg-sunken); }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* === V4.4 — SECTION CHARGES === */
+.kpi-card {
+  background: var(--bg-card, #fff);
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 16px;
+}
+.kpi-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+.kpi-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #111;
+}
+.form-group-section {
+  margin-bottom: 8px;
+}
+.form-group-section h4 {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 200px 30px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+}
+.form-row label {
+  font-size: 14px;
+  color: #333;
+}
+.form-row label small {
+  color: #999;
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.form-row input, .form-row textarea {
+  padding: 8px 12px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.form-row textarea {
+  grid-column: 2 / 4;
+  resize: vertical;
+}
+.form-row span {
+  color: #666;
+  font-size: 14px;
+}
+.btn-primary {
+  background: #4f46e5;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn-primary:hover { background: #4338ca; }
+.btn-danger {
+  background: white;
+  color: #ef4444;
+  padding: 10px 20px;
+  border: 1px solid #ef4444;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn-danger:hover { background: #fee2e2; }
+.select-month {
+  padding: 8px 12px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: white;
+}
+.section-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
 </style>
 </head>
 <body>
@@ -709,6 +801,7 @@ tr:hover { background: var(--bg-sunken); }
     <button class="tab active" data-tab="dashboard">📊 Tableau de bord</button>
     <button class="tab" data-tab="production">📝 Production</button>
     <button class="tab" data-tab="gaz">🚛 Gaz Livraisons</button>
+    <button class="tab" data-tab="charges">💰 Charges</button>
     <button class="tab" data-tab="reglages">⚙️ Réglages</button>
   </div>
 </div>
@@ -863,6 +956,203 @@ tr:hover { background: var(--bg-sunken); }
         </thead>
         <tbody id="gazTbody">
           <tr><td colspan="8" class="empty-state">Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION CHARGES (V4.4 — PHASE 4) -->
+  <section class="section" id="section-charges">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title">💰 Charges mensuelles</h1>
+        <div class="section-subtitle">Saisie des coûts par mois pour calcul du vrai coût/kg</div>
+      </div>
+      <div class="section-actions">
+        <select id="chargesMonthSelector" class="select-month">
+          <option value="">Sélectionner un mois…</option>
+        </select>
+        <button id="btnNewCharges" class="btn-primary">+ Nouveau mois</button>
+      </div>
+    </div>
+
+    <!-- Affichage du mois courant -->
+    <div id="chargesCurrentMonth" style="display:none;">
+      <div class="cards-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px;">
+        <div class="kpi-card">
+          <div class="kpi-label">📈 Chiffre d'affaires</div>
+          <div class="kpi-value" id="chargesKpiCA">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">💸 Total charges</div>
+          <div class="kpi-value" id="chargesKpiTotal">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">💎 Marge brute</div>
+          <div class="kpi-value" id="chargesKpiMarge">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">📊 Coût/kg complet</div>
+          <div class="kpi-value" id="chargesKpiCoutKg">—</div>
+        </div>
+      </div>
+
+      <!-- Formulaire de saisie / édition -->
+      <div class="form-card" id="chargesFormCard" style="background: var(--bg-card, #fff); padding: 24px; border-radius: 12px; margin-bottom: 24px;">
+        <h3 style="margin: 0 0 16px 0;">Saisie pour <span id="chargesFormMonth">—</span></h3>
+
+        <!-- Groupe Personnel -->
+        <div class="form-group-section">
+          <h4 style="font-size: 14px; color: #666; margin: 16px 0 8px 0;">👥 PERSONNEL</h4>
+          <div class="form-row">
+            <label>Personnel complet <small>(salaires + charges patronales)</small></label>
+            <input type="number" id="ch_personnel" placeholder="0" step="100">
+            <span>€</span>
+          </div>
+        </div>
+
+        <!-- Groupe CA (optionnel) -->
+        <div class="form-group-section">
+          <h4 style="font-size: 14px; color: #666; margin: 16px 0 8px 0;">📈 CHIFFRE D'AFFAIRES (optionnel)</h4>
+          <div class="form-row">
+            <label>CA mensuel facturé</label>
+            <input type="number" id="ch_ca" placeholder="0" step="100">
+            <span>€</span>
+          </div>
+        </div>
+
+        <!-- Groupe Énergie -->
+        <div class="form-group-section">
+          <h4 style="font-size: 14px; color: #666; margin: 16px 0 8px 0;">⚡ ÉLECTRICITÉ</h4>
+          <div class="form-row">
+            <label>EDF (électricité totale)</label>
+            <input type="number" id="ch_edf" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+        </div>
+
+        <!-- Groupe Camions -->
+        <div class="form-group-section">
+          <h4 style="font-size: 14px; color: #666; margin: 16px 0 8px 0;">🚚 CAMIONS</h4>
+          <div class="form-row">
+            <label>Loyer 4 camions (total)</label>
+            <input type="number" id="ch_loyer_camions" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+          <div class="form-row">
+            <label>Carburant camions</label>
+            <input type="number" id="ch_carburant" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+        </div>
+
+        <!-- Groupe Machines -->
+        <div class="form-group-section">
+          <h4 style="font-size: 14px; color: #666; margin: 16px 0 8px 0;">⚙️ MACHINES & ÉQUIPEMENTS</h4>
+          <div class="form-row">
+            <label>Location Kannegiesser <small>(tunnel principal)</small></label>
+            <input type="number" id="ch_location_kannegiesser" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+          <div class="form-row">
+            <label>Location conditionnement</label>
+            <input type="number" id="ch_location_conditionnement" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+          <div class="form-row">
+            <label>Autres locations machines</label>
+            <input type="number" id="ch_location_autres_machines" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+        </div>
+
+        <!-- Groupe Maintenance -->
+        <div class="form-group-section">
+          <h4 style="font-size: 14px; color: #666; margin: 16px 0 8px 0;">🔧 MAINTENANCE & PIÈCES</h4>
+          <div class="form-row">
+            <label>Pièces détachées</label>
+            <input type="number" id="ch_pieces_detachees" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+          <div class="form-row">
+            <label>Maintenance externe</label>
+            <input type="number" id="ch_maintenance_externe" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+        </div>
+
+        <!-- Groupe Structure -->
+        <div class="form-group-section">
+          <h4 style="font-size: 14px; color: #666; margin: 16px 0 8px 0;">🏭 STRUCTURE</h4>
+          <div class="form-row">
+            <label>Loyer atelier</label>
+            <input type="number" id="ch_loyer_atelier" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+          <div class="form-row">
+            <label>Assurances</label>
+            <input type="number" id="ch_assurances" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+        </div>
+
+        <!-- Groupe Consommables -->
+        <div class="form-group-section">
+          <h4 style="font-size: 14px; color: #666; margin: 16px 0 8px 0;">🧴 CONSOMMABLES</h4>
+          <div class="form-row">
+            <label>Lessive</label>
+            <input type="number" id="ch_lessive" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+          <div class="form-row">
+            <label>Consommables divers</label>
+            <input type="number" id="ch_consommables" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+        </div>
+
+        <!-- Groupe Autres -->
+        <div class="form-group-section">
+          <h4 style="font-size: 14px; color: #666; margin: 16px 0 8px 0;">💡 AUTRES</h4>
+          <div class="form-row">
+            <label>Autres charges <small>(téléphone, comptable, etc.)</small></label>
+            <input type="number" id="ch_autres" placeholder="0" step="10">
+            <span>€</span>
+          </div>
+          <div class="form-row">
+            <label>Note (optionnelle)</label>
+            <textarea id="ch_note" placeholder="Commentaire libre…" rows="2"></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions" style="margin-top: 24px; display: flex; gap: 12px;">
+          <button id="btnSaveCharges" class="btn-primary">💾 Enregistrer</button>
+          <button id="btnDeleteCharges" class="btn-danger">🗑️ Supprimer ce mois</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historique de tous les mois -->
+    <div class="section-subtitle" style="margin-top: 32px;">📊 Historique des charges</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Mois</th>
+            <th>CA</th>
+            <th>Personnel</th>
+            <th>Fluides+EDF</th>
+            <th>Camions</th>
+            <th>Machines</th>
+            <th>Maintenance</th>
+            <th>Autres</th>
+            <th>Total</th>
+            <th>Marge</th>
+            <th>Coût/kg</th>
+          </tr>
+        </thead>
+        <tbody id="chargesTbody">
+          <tr><td colspan="11" class="empty-state">Chargement…</td></tr>
         </tbody>
       </table>
     </div>
@@ -1071,6 +1361,7 @@ function switchTab(name) {
   state.currentSection = name;
   if (name === 'production' && state.currentMonth) loadProductionMonth(state.currentMonth);
   if (name === 'gaz') loadGazLivraisons();
+  if (name === 'charges') loadChargesSection();
   if (name === 'reglages') renderReglages();
 }
 
@@ -1847,6 +2138,214 @@ async function switchSaison(nouvelle) {
     renderReglages();
   } catch (err) {
     toast(err.message, 'error');
+  }
+}
+
+// ============================================================
+// V4.4 — CHARGES MENSUELLES (PHASE 4)
+// ============================================================
+const CHARGES_FIELDS = [
+  'ca', 'personnel', 'edf',
+  'loyer_camions', 'carburant',
+  'location_kannegiesser', 'location_conditionnement', 'location_autres_machines',
+  'pieces_detachees', 'maintenance_externe',
+  'loyer_atelier', 'assurances',
+  'lessive', 'consommables', 'autres'
+];
+
+let chargesAllData = [];
+let currentChargesMonth = null;
+
+async function loadChargesSection() {
+  try {
+    const resp = await callApi('getChargesAll');
+    chargesAllData = resp.charges || [];
+    renderChargesMonthSelector();
+    renderChargesHistoryTable();
+
+    // Si on a un mois en cours (production), le pré-sélectionner
+    if (state.currentMonth) {
+      const sel = document.getElementById('chargesMonthSelector');
+      sel.value = state.currentMonth;
+      await selectChargesMonth(state.currentMonth);
+    }
+  } catch (err) {
+    toast('Erreur chargement charges : ' + err.message, 'error');
+  }
+}
+
+function renderChargesMonthSelector() {
+  const sel = document.getElementById('chargesMonthSelector');
+  // Récupérer tous les mois de la production + ceux déjà saisis dans charges
+  const moisDansCharges = new Set(chargesAllData.map(c => c.mois));
+
+  // Générer la liste des 18 derniers mois
+  const today = new Date();
+  const options = [];
+  for (let i = 0; i < 18; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const mois = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    const saisi = moisDansCharges.has(mois) ? ' ✓' : '';
+    options.push({ value: mois, label: label + saisi });
+  }
+
+  sel.innerHTML = '<option value="">Sélectionner un mois…</option>' +
+    options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+
+  // Event listener
+  sel.onchange = () => selectChargesMonth(sel.value);
+}
+
+async function selectChargesMonth(month) {
+  if (!month) {
+    document.getElementById('chargesCurrentMonth').style.display = 'none';
+    return;
+  }
+  currentChargesMonth = month;
+  document.getElementById('chargesCurrentMonth').style.display = 'block';
+  document.getElementById('chargesFormMonth').textContent = formatMonthLabel(month);
+
+  // Récupérer le calcul complet pour ce mois
+  try {
+    const resp = await callApi('getCoutCompletMonth', { month: month });
+
+    // Mettre à jour les KPI
+    document.getElementById('chargesKpiCA').textContent = resp.ca ? formatMoney(resp.ca) : '—';
+    document.getElementById('chargesKpiTotal').textContent = formatMoney(resp.cout_total_mois);
+
+    if (resp.marge_brute !== null) {
+      const margeColor = resp.marge_brute > 0 ? '#10b981' : '#ef4444';
+      document.getElementById('chargesKpiMarge').innerHTML =
+        `<span style="color:${margeColor}">${formatMoney(resp.marge_brute)}</span><br><small style="font-size:11px;color:#666">${resp.marge_pct}%</small>`;
+    } else {
+      document.getElementById('chargesKpiMarge').textContent = '—';
+    }
+
+    document.getElementById('chargesKpiCoutKg').innerHTML = resp.cout_kg_complet !== null
+      ? `<span>${resp.cout_kg_complet.toFixed(4)} €/kg</span><br><small style="font-size:11px;color:#666">${Math.round(resp.tonnage_kg).toLocaleString('fr-FR')} kg</small>`
+      : '—';
+
+    // Remplir le formulaire
+    const c = resp.charges || {};
+    CHARGES_FIELDS.forEach(field => {
+      const input = document.getElementById('ch_' + field);
+      if (input) input.value = c[field] != null ? c[field] : '';
+    });
+    document.getElementById('ch_note').value = c.note || '';
+  } catch (err) {
+    toast('Erreur chargement mois : ' + err.message, 'error');
+  }
+}
+
+function formatMonthLabel(month) {
+  if (!month) return '—';
+  const [y, m] = month.split('-');
+  const d = new Date(parseInt(y), parseInt(m) - 1, 1);
+  return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+}
+
+function formatMoney(amount) {
+  if (amount == null) return '—';
+  return Math.round(amount).toLocaleString('fr-FR') + ' €';
+}
+
+function renderChargesHistoryTable() {
+  const tbody = document.getElementById('chargesTbody');
+  if (chargesAllData.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Aucune charge saisie. Sélectionne un mois pour commencer.</td></tr>';
+    return;
+  }
+
+  // Trier par mois décroissant (plus récent en haut)
+  const sorted = [...chargesAllData].sort((a, b) => b.mois.localeCompare(a.mois));
+
+  tbody.innerHTML = sorted.map(c => {
+    const camions = (Number(c.loyer_camions) || 0) + (Number(c.carburant) || 0);
+    const machines = (Number(c.location_kannegiesser) || 0) +
+                     (Number(c.location_conditionnement) || 0) +
+                     (Number(c.location_autres_machines) || 0);
+    const maintenance = (Number(c.pieces_detachees) || 0) + (Number(c.maintenance_externe) || 0);
+    const autres = (Number(c.loyer_atelier) || 0) + (Number(c.assurances) || 0) +
+                   (Number(c.lessive) || 0) + (Number(c.consommables) || 0) + (Number(c.autres) || 0);
+    const fluides = Number(c.edf) || 0;
+    const marge = c.marge_brute != null ? formatMoney(c.marge_brute) : '—';
+    return `<tr style="cursor:pointer" onclick="document.getElementById('chargesMonthSelector').value='${c.mois}';selectChargesMonth('${c.mois}');">
+      <td><strong>${formatMonthLabel(c.mois)}</strong></td>
+      <td>${c.ca ? formatMoney(c.ca) : '—'}</td>
+      <td>${formatMoney(c.personnel)}</td>
+      <td>${formatMoney(fluides)}</td>
+      <td>${formatMoney(camions)}</td>
+      <td>${formatMoney(machines)}</td>
+      <td>${formatMoney(maintenance)}</td>
+      <td>${formatMoney(autres)}</td>
+      <td><strong>${formatMoney(c.total_charges)}</strong></td>
+      <td>${marge}</td>
+      <td>—</td>
+    </tr>`;
+  }).join('');
+}
+
+// Bouton "Enregistrer"
+document.addEventListener('DOMContentLoaded', () => {
+  const btnSave = document.getElementById('btnSaveCharges');
+  if (btnSave) btnSave.addEventListener('click', saveChargesForm);
+
+  const btnDelete = document.getElementById('btnDeleteCharges');
+  if (btnDelete) btnDelete.addEventListener('click', deleteChargesForm);
+
+  const btnNew = document.getElementById('btnNewCharges');
+  if (btnNew) btnNew.addEventListener('click', () => {
+    const today = new Date();
+    const mois = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+    document.getElementById('chargesMonthSelector').value = mois;
+    selectChargesMonth(mois);
+  });
+});
+
+async function saveChargesForm() {
+  if (!currentChargesMonth) {
+    toast('Aucun mois sélectionné', 'error');
+    return;
+  }
+  const data = { mois: currentChargesMonth };
+  CHARGES_FIELDS.forEach(field => {
+    const input = document.getElementById('ch_' + field);
+    if (input && input.value !== '') data[field] = Number(input.value);
+  });
+  const note = document.getElementById('ch_note').value;
+  if (note) data.note = note;
+
+  try {
+    const resp = await callApi('saveCharges', data);
+    if (resp.error) {
+      toast('Erreur : ' + resp.error, 'error');
+      return;
+    }
+    toast('Charges enregistrées pour ' + formatMonthLabel(currentChargesMonth), 'success');
+    await loadChargesSection();
+    document.getElementById('chargesMonthSelector').value = currentChargesMonth;
+    await selectChargesMonth(currentChargesMonth);
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+}
+
+async function deleteChargesForm() {
+  if (!currentChargesMonth) return;
+  if (!confirm('Supprimer les charges de ' + formatMonthLabel(currentChargesMonth) + ' ?')) return;
+  try {
+    const resp = await callApi('deleteCharges', { month: currentChargesMonth });
+    if (resp.error) {
+      toast('Erreur : ' + resp.error, 'error');
+      return;
+    }
+    toast('Mois supprimé', 'success');
+    await loadChargesSection();
+    document.getElementById('chargesCurrentMonth').style.display = 'none';
+    document.getElementById('chargesMonthSelector').value = '';
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
   }
 }
 
