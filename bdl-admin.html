@@ -802,6 +802,7 @@ tr:hover { background: var(--bg-sunken); }
     <button class="tab" data-tab="pilotage">⚡ Pilotage Jour</button>
     <button class="tab" data-tab="production">📝 Production</button>
     <button class="tab" data-tab="gaz">🚛 Gaz Livraisons</button>
+    <button class="tab" data-tab="vehicules">🚗 Véhicules</button>
     <button class="tab" data-tab="charges">💰 Charges</button>
     <button class="tab" data-tab="reglages">⚙️ Réglages</button>
   </div>
@@ -1004,6 +1005,29 @@ tr:hover { background: var(--bg-sunken); }
       </div>
     </div>
 
+    <!-- SÉLECTEUR DE PÉRIODE -->
+    <div class="card" style="margin-bottom:16px;padding:14px">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <label class="lbl">📅 Date début</label>
+          <input type="date" id="gazDateDebut" class="form-input">
+        </div>
+        <div style="flex:1;min-width:140px">
+          <label class="lbl">📅 Date fin</label>
+          <input type="date" id="gazDateFin" class="form-input">
+        </div>
+        <button class="btn btn-primary" id="btnGazApplyPeriode">Appliquer</button>
+        <button class="btn btn-ghost" id="btnGazReset">Tout l'historique</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-ghost btn-sm" data-periode="12mois">12 derniers mois</button>
+        <button class="btn btn-ghost btn-sm" data-periode="annee_civile">Année civile en cours</button>
+        <button class="btn btn-ghost btn-sm" data-periode="annee_glissante">Mai 2025 → Avril 2026</button>
+        <button class="btn btn-ghost btn-sm" data-periode="trimestre">Trimestre en cours</button>
+      </div>
+      <div id="gazPeriodeInfo" style="margin-top:10px;color:var(--text-soft);font-size:13px"></div>
+    </div>
+
     <div class="stat-grid" id="gazStats"></div>
 
     <div class="table-wrap">
@@ -1024,6 +1048,94 @@ tr:hover { background: var(--bg-sunken); }
           <tr><td colspan="8" class="empty-state">Chargement…</td></tr>
         </tbody>
       </table>
+    </div>
+  </section>
+
+  <!-- SECTION VÉHICULES (V4.6) -->
+  <section class="section" id="section-vehicules">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title">🚗 Gestion de la flotte</h1>
+        <div class="section-subtitle">Camions de livraison et voitures de fonction · Ajouts/sorties tracés dans le temps</div>
+      </div>
+    </div>
+
+    <!-- STATS VÉHICULES -->
+    <div class="stat-grid" id="vehiculesStats"></div>
+
+    <!-- BOUTON AJOUTER -->
+    <div style="display:flex;gap:10px;margin:16px 0;flex-wrap:wrap">
+      <button class="btn btn-primary" id="btnAddCamion">+ Ajouter un camion</button>
+      <button class="btn btn-primary" id="btnAddVoiture">+ Ajouter une voiture de fonction</button>
+      <button class="btn btn-ghost" id="btnRefreshVehicules">↻ Rafraîchir</button>
+    </div>
+
+    <!-- FORMULAIRE D'AJOUT/ÉDITION (caché par défaut) -->
+    <div id="vehiculeForm" class="card" style="display:none;margin-bottom:16px;padding:16px">
+      <h3 style="margin-top:0" id="vehiculeFormTitle">Nouveau véhicule</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+        <div class="field">
+          <label class="lbl">Nom du véhicule</label>
+          <input type="text" id="vh_nom" class="form-input" placeholder="Ex: Iveco Daily n°1">
+        </div>
+        <div class="field">
+          <label class="lbl">Type</label>
+          <select id="vh_type" class="form-input">
+            <option value="camion">🚛 Camion de livraison</option>
+            <option value="voiture_fonction">🚗 Voiture de fonction</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl">Loyer mensuel (€)</label>
+          <input type="number" id="vh_loyer_mensuel" class="form-input" placeholder="0" step="0.01">
+        </div>
+        <div class="field">
+          <label class="lbl">Carburant estimé/mois (€)</label>
+          <input type="number" id="vh_carburant_estime_mensuel" class="form-input" placeholder="0" step="0.01">
+        </div>
+        <div class="field">
+          <label class="lbl">Date d'entrée</label>
+          <input type="date" id="vh_date_entree" class="form-input">
+        </div>
+        <div class="field">
+          <label class="lbl">Date de sortie (vide si actif)</label>
+          <input type="date" id="vh_date_sortie" class="form-input">
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="lbl">Note (optionnel)</label>
+          <input type="text" id="vh_note" class="form-input" placeholder="Ex: Leasing avec entretien inclus, contrat jusqu'en 2027">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-primary" id="btnSaveVehicule">💾 Enregistrer</button>
+        <button class="btn btn-ghost" id="btnCancelVehicule">Annuler</button>
+      </div>
+    </div>
+
+    <!-- SECTION CAMIONS -->
+    <div style="margin-top:24px">
+      <h2 style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        🚛 <span>Camions de livraison</span>
+        <span style="font-size:14px;color:var(--text-soft);font-weight:normal" id="camionsCount">(0 actifs)</span>
+      </h2>
+      <div id="camionsList"></div>
+    </div>
+
+    <!-- SECTION VOITURES DE FONCTION -->
+    <div style="margin-top:24px">
+      <h2 style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        🚗 <span>Voitures de fonction</span>
+        <span style="font-size:14px;color:var(--text-soft);font-weight:normal" id="voituresCount">(0 actives)</span>
+      </h2>
+      <div id="voituresList"></div>
+    </div>
+
+    <!-- HISTORIQUE -->
+    <div style="margin-top:24px">
+      <h2 style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        ⚪ <span>Historique (véhicules sortis)</span>
+      </h2>
+      <div id="historiqueList"></div>
     </div>
   </section>
 
@@ -1427,6 +1539,7 @@ function switchTab(name) {
   state.currentSection = name;
   if (name === 'production' && state.currentMonth) loadProductionMonth(state.currentMonth);
   if (name === 'gaz') loadGazLivraisons();
+  if (name === 'vehicules') loadVehiculesSection();
   if (name === 'charges') loadChargesSection();
   if (name === 'pilotage') loadPilotageSection();
   if (name === 'reglages') renderReglages();
@@ -2002,17 +2115,132 @@ function closeConfirm() {
 // ============================================================
 // SECTION GAZ LIVRAISONS
 // ============================================================
+let gazAllLivraisons = []; // Toutes les livraisons (cache local)
+let gazFilteredLivraisons = []; // Livraisons filtrées par période
+let gazDateDebut = null;
+let gazDateFin = null;
+
 async function loadGazLivraisons() {
   document.getElementById('gazTbody').innerHTML = '<tr><td colspan="8"><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
   try {
     const res = await callApi('getGazLivraisons');
-    state.livraisons = res.livraisons || [];
-    renderGazStats(res.stats || {});
-    renderGazTable();
+    gazAllLivraisons = res.livraisons || [];
+    state.livraisons = gazAllLivraisons;
+    applyGazPeriode(); // Applique la période actuelle ou affiche tout
   } catch (err) {
     toast(err.message, 'error');
   }
 }
+
+function applyGazPeriode() {
+  // Filtre les livraisons selon la période sélectionnée
+  if (!gazDateDebut && !gazDateFin) {
+    gazFilteredLivraisons = [...gazAllLivraisons];
+  } else {
+    gazFilteredLivraisons = gazAllLivraisons.filter(l => {
+      const dateL = l.date_livraison.split('T')[0]; // YYYY-MM-DD
+      if (gazDateDebut && dateL < gazDateDebut) return false;
+      if (gazDateFin && dateL > gazDateFin) return false;
+      return true;
+    });
+  }
+
+  state.livraisons = gazFilteredLivraisons;
+
+  // Recalcule les stats sur la période filtrée
+  const stats = computeGazStats(gazFilteredLivraisons);
+  renderGazStats(stats);
+  renderGazTable();
+  updateGazPeriodeInfo();
+}
+
+function computeGazStats(livraisons) {
+  const total_tonnes = livraisons.reduce((s, l) => s + (Number(l.tonnes_livrees) || 0), 0);
+  const total_cout_estime = livraisons.reduce((s, l) => s + (Number(l.cout_estime) || 0), 0);
+  const total_cout_reel = livraisons.reduce((s, l) => s + (Number(l.cout_reel) || 0), 0);
+  const ecart_total = total_cout_reel > 0 ? (total_cout_reel - total_cout_estime) : null;
+  return {
+    nb_livraisons: livraisons.length,
+    total_tonnes,
+    total_cout_estime,
+    total_cout_reel: total_cout_reel > 0 ? total_cout_reel : null,
+    ecart_total
+  };
+}
+
+function updateGazPeriodeInfo() {
+  const info = document.getElementById('gazPeriodeInfo');
+  if (!info) return;
+  if (!gazDateDebut && !gazDateFin) {
+    info.innerHTML = `📊 <strong>${gazFilteredLivraisons.length}</strong> livraison(s) affichée(s) (tout l'historique)`;
+  } else {
+    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '—';
+    info.innerHTML = `📊 <strong>${gazFilteredLivraisons.length}</strong> livraison(s) du <strong>${fmtDate(gazDateDebut)}</strong> au <strong>${fmtDate(gazDateFin)}</strong>`;
+  }
+}
+
+function setupGazPeriodeButtons() {
+  // Bouton Appliquer
+  const btnApply = document.getElementById('btnGazApplyPeriode');
+  if (btnApply) btnApply.addEventListener('click', () => {
+    gazDateDebut = document.getElementById('gazDateDebut').value || null;
+    gazDateFin = document.getElementById('gazDateFin').value || null;
+    applyGazPeriode();
+  });
+
+  // Bouton Reset (tout l'historique)
+  const btnReset = document.getElementById('btnGazReset');
+  if (btnReset) btnReset.addEventListener('click', () => {
+    gazDateDebut = null;
+    gazDateFin = null;
+    document.getElementById('gazDateDebut').value = '';
+    document.getElementById('gazDateFin').value = '';
+    applyGazPeriode();
+  });
+
+  // Boutons rapides
+  document.querySelectorAll('[data-periode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+
+      const periode = btn.dataset.periode;
+      if (periode === '12mois') {
+        const start = new Date(today);
+        start.setMonth(start.getMonth() - 12);
+        gazDateDebut = start.toISOString().split('T')[0];
+        gazDateFin = `${yyyy}-${mm}-${dd}`;
+      } else if (periode === 'annee_civile') {
+        gazDateDebut = `${yyyy}-01-01`;
+        gazDateFin = `${yyyy}-12-31`;
+      } else if (periode === 'annee_glissante') {
+        // Mai 2025 → Avril 2026 (an dernier + an actuel)
+        const startYear = yyyy - 1;
+        gazDateDebut = `${startYear}-05-01`;
+        gazDateFin = `${yyyy}-04-30`;
+      } else if (periode === 'trimestre') {
+        const month = today.getMonth();
+        const trimestreStart = Math.floor(month / 3) * 3;
+        const startDate = new Date(yyyy, trimestreStart, 1);
+        const endDate = new Date(yyyy, trimestreStart + 3, 0);
+        gazDateDebut = startDate.toISOString().split('T')[0];
+        gazDateFin = endDate.toISOString().split('T')[0];
+      }
+      document.getElementById('gazDateDebut').value = gazDateDebut || '';
+      document.getElementById('gazDateFin').value = gazDateFin || '';
+      applyGazPeriode();
+    });
+  });
+}
+
+// Setup au chargement
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('btnGazApplyPeriode')) {
+    setupGazPeriodeButtons();
+  }
+});
 
 function renderGazStats(stats) {
   document.getElementById('gazStats').innerHTML = `
@@ -2220,6 +2448,242 @@ const CHARGES_FIELDS = [
   'lessive', 'consommables', 'autres'
 ];
 
+// ============================================================
+// V4.6 — SECTION VÉHICULES (Camions + Voitures fonction)
+// ============================================================
+let vehiculesData = [];
+let vehiculesStats = {};
+let currentVehiculeId = null; // null = ajout, sinon édition
+
+async function loadVehiculesSection() {
+  try {
+    const resp = await callApi('getVehicules');
+    vehiculesData = resp.vehicules || [];
+    vehiculesStats = resp.stats || {};
+    renderVehiculesStats();
+    renderVehiculesLists();
+    setupVehiculesEvents();
+  } catch (err) {
+    toast('Erreur chargement véhicules : ' + err.message, 'error');
+  }
+}
+
+function renderVehiculesStats() {
+  const html = `
+    <div class="stat">
+      <div class="stat-icon">🚛</div>
+      <div class="stat-label">Camions actifs</div>
+      <div class="stat-value">${vehiculesStats.nb_camions_actifs || 0}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">🚗</div>
+      <div class="stat-label">Voitures actives</div>
+      <div class="stat-value">${vehiculesStats.nb_voitures_actives || 0}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">💰</div>
+      <div class="stat-label">Loyer total/mois</div>
+      <div class="stat-value">${fmtEur(vehiculesStats.loyer_total_actif || 0)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon">⛽</div>
+      <div class="stat-label">Carburant estimé/mois</div>
+      <div class="stat-value">${fmtEur(vehiculesStats.carburant_total_estime || 0)}</div>
+    </div>
+  `;
+  document.getElementById('vehiculesStats').innerHTML = html;
+}
+
+function renderVehiculesLists() {
+  const actifs = vehiculesData.filter(v => v.actif);
+  const inactifs = vehiculesData.filter(v => !v.actif);
+
+  const camions = actifs.filter(v => v.type === 'camion');
+  const voitures = actifs.filter(v => v.type === 'voiture_fonction');
+
+  // Compteurs
+  document.getElementById('camionsCount').textContent = `(${camions.length} actif${camions.length > 1 ? 's' : ''})`;
+  document.getElementById('voituresCount').textContent = `(${voitures.length} active${voitures.length > 1 ? 's' : ''})`;
+
+  // Camions
+  document.getElementById('camionsList').innerHTML = camions.length === 0
+    ? '<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-soft)">Aucun camion actif. Cliquez sur "Ajouter un camion" pour commencer.</div>'
+    : camions.map(v => renderVehiculeCard(v)).join('');
+
+  // Voitures
+  document.getElementById('voituresList').innerHTML = voitures.length === 0
+    ? '<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-soft)">Aucune voiture de fonction. Cliquez sur "Ajouter une voiture" pour commencer.</div>'
+    : voitures.map(v => renderVehiculeCard(v)).join('');
+
+  // Historique
+  document.getElementById('historiqueList').innerHTML = inactifs.length === 0
+    ? '<div class="empty-state" style="padding:20px;text-align:center;color:var(--text-soft)">Aucun véhicule sorti du parc.</div>'
+    : inactifs.map(v => renderVehiculeCard(v, true)).join('');
+}
+
+function renderVehiculeCard(v, historique = false) {
+  const icon = v.type === 'camion' ? '🚛' : '🚗';
+  const status = historique ? '⚪ Sorti' : '🟢 Actif';
+  const dateEntree = v.date_entree ? new Date(v.date_entree).toLocaleDateString('fr-FR') : '—';
+  const dateSortie = v.date_sortie ? new Date(v.date_sortie).toLocaleDateString('fr-FR') : '';
+  const dateInfo = historique ? `${dateEntree} → ${dateSortie}` : `Depuis ${dateEntree}`;
+
+  return `
+    <div class="card" style="padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:250px">
+          <div style="font-weight:600;font-size:16px">${icon} ${v.nom}</div>
+          <div style="color:var(--text-soft);font-size:13px;margin-top:4px">
+            ${status} · ${dateInfo}
+          </div>
+          <div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap">
+            <div>💰 <strong>${fmtEur(v.loyer_mensuel)}</strong>/mois</div>
+            <div>⛽ ${fmtEur(v.carburant_estime_mensuel)}/mois <span style="color:var(--text-soft);font-size:12px">(estimé)</span></div>
+          </div>
+          ${v.note ? `<div style="margin-top:6px;font-size:13px;color:var(--text-soft);font-style:italic">📝 ${v.note}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="editVehicule('${v.id}')">✏️ Modifier</button>
+          ${!historique ? `<button class="btn btn-ghost btn-sm" onclick="sortirVehicule('${v.id}')">🚫 Sortir du parc</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="suppVehicule('${v.id}')" style="color:var(--danger,#ef4444)">🗑️</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function setupVehiculesEvents() {
+  // Boutons d'ajout
+  const btnAddCamion = document.getElementById('btnAddCamion');
+  if (btnAddCamion) btnAddCamion.onclick = () => openVehiculeForm('camion');
+
+  const btnAddVoiture = document.getElementById('btnAddVoiture');
+  if (btnAddVoiture) btnAddVoiture.onclick = () => openVehiculeForm('voiture_fonction');
+
+  // Bouton refresh
+  const btnRefresh = document.getElementById('btnRefreshVehicules');
+  if (btnRefresh) btnRefresh.onclick = () => loadVehiculesSection();
+
+  // Bouton save
+  const btnSave = document.getElementById('btnSaveVehicule');
+  if (btnSave) btnSave.onclick = saveVehiculeForm;
+
+  // Bouton cancel
+  const btnCancel = document.getElementById('btnCancelVehicule');
+  if (btnCancel) btnCancel.onclick = () => {
+    document.getElementById('vehiculeForm').style.display = 'none';
+    currentVehiculeId = null;
+  };
+}
+
+function openVehiculeForm(type, vehicule = null) {
+  currentVehiculeId = vehicule ? vehicule.id : null;
+  const form = document.getElementById('vehiculeForm');
+  form.style.display = 'block';
+
+  document.getElementById('vehiculeFormTitle').textContent = vehicule
+    ? `Modifier ${vehicule.nom}`
+    : (type === 'camion' ? 'Nouveau camion' : 'Nouvelle voiture de fonction');
+
+  document.getElementById('vh_nom').value = vehicule ? vehicule.nom : '';
+  document.getElementById('vh_type').value = vehicule ? vehicule.type : type;
+  document.getElementById('vh_loyer_mensuel').value = vehicule ? (vehicule.loyer_mensuel || 0) : '';
+  document.getElementById('vh_carburant_estime_mensuel').value = vehicule ? (vehicule.carburant_estime_mensuel || 0) : '';
+  document.getElementById('vh_date_entree').value = vehicule
+    ? (String(vehicule.date_entree || '').split('T')[0])
+    : new Date().toISOString().split('T')[0];
+  document.getElementById('vh_date_sortie').value = vehicule
+    ? (String(vehicule.date_sortie || '').split('T')[0])
+    : '';
+  document.getElementById('vh_note').value = vehicule ? (vehicule.note || '') : '';
+
+  form.scrollIntoView({ behavior: 'smooth' });
+}
+
+window.editVehicule = function(id) {
+  const v = vehiculesData.find(x => x.id === id);
+  if (!v) return;
+  openVehiculeForm(v.type, v);
+};
+
+window.sortirVehicule = async function(id) {
+  const v = vehiculesData.find(x => x.id === id);
+  if (!v) return;
+  const today = new Date().toISOString().split('T')[0];
+  const dateSortie = prompt(`Date de sortie du véhicule "${v.nom}" ?\n(format YYYY-MM-DD, ou Entrée pour aujourd'hui)`, today);
+  if (!dateSortie) return;
+
+  try {
+    const resp = await callApi('sortieVehicule', { id, date_sortie: dateSortie });
+    if (resp.error) {
+      toast('Erreur : ' + resp.error, 'error');
+      return;
+    }
+    toast(`Véhicule "${v.nom}" sorti du parc le ${dateSortie}`, 'success');
+    await loadVehiculesSection();
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+};
+
+window.suppVehicule = async function(id) {
+  const v = vehiculesData.find(x => x.id === id);
+  if (!v) return;
+  if (!confirm(`SUPPRIMER DÉFINITIVEMENT "${v.nom}" ?\n\n⚠️ Cette action est IRRÉVERSIBLE.\nPréférez "Sortir du parc" pour garder l'historique.`)) return;
+
+  try {
+    const resp = await callApi('deleteVehicule', { id });
+    if (resp.error) {
+      toast('Erreur : ' + resp.error, 'error');
+      return;
+    }
+    toast(`Véhicule "${v.nom}" supprimé`, 'success');
+    await loadVehiculesSection();
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+};
+
+async function saveVehiculeForm() {
+  const data = {
+    nom: document.getElementById('vh_nom').value.trim(),
+    type: document.getElementById('vh_type').value,
+    loyer_mensuel: Number(document.getElementById('vh_loyer_mensuel').value) || 0,
+    carburant_estime_mensuel: Number(document.getElementById('vh_carburant_estime_mensuel').value) || 0,
+    date_entree: document.getElementById('vh_date_entree').value,
+    date_sortie: document.getElementById('vh_date_sortie').value,
+    note: document.getElementById('vh_note').value.trim()
+  };
+
+  if (!data.nom) {
+    toast('Nom du véhicule requis', 'error');
+    return;
+  }
+  if (!data.date_entree) {
+    toast('Date d\'entrée requise', 'error');
+    return;
+  }
+
+  try {
+    const action = currentVehiculeId ? 'updateVehicule' : 'addVehicule';
+    const payload = currentVehiculeId ? { ...data, id: currentVehiculeId } : data;
+    const resp = await callApi(action, payload);
+    if (resp.error) {
+      toast('Erreur : ' + resp.error, 'error');
+      return;
+    }
+    toast(currentVehiculeId ? 'Véhicule mis à jour' : 'Véhicule ajouté', 'success');
+    document.getElementById('vehiculeForm').style.display = 'none';
+    currentVehiculeId = null;
+    await loadVehiculesSection();
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+}
+
+// ============================================================
+// SECTION CHARGES (V4.4)
+// ============================================================
 let chargesAllData = [];
 let currentChargesMonth = null;
 
