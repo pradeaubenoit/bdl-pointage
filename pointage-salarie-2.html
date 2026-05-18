@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pointage BdL">
+<meta name="theme-color" content="#1F4A47">
+<title>Pointage — Blanchisserie du Limousin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+:root {
+  --bg: #F4EFE6;
+  --paper: #FBF8F2;
+  --ink: #15140F;
+  --ink-2: #4A4842;
+  --ink-3: #8A877E;
+  --line: #D9D2C2;
+  --accent: #1F4A47;
+  --accent-2: #2D6863;
+  --accent-soft: #E1ECEA;
+  --arrive: #2E6B3E;
+  --arrive-bg: #E6EFE3;
+  --depart: #2D6863;
+  --depart-bg: #DCE9E7;
+  --warn: #B8742A;
+  --bad: #A53A36;
+  --bad-bg: #F2DAD7;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'ss01' on;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  display: flex;
+  flex-direction: column;
+}
+
+/* When state changes, body bg shifts subtly */
+body.state-arrive  { background: var(--arrive-bg); }
+body.state-depart  { background: var(--depart-bg); }
+body.state-error   { background: var(--bad-bg); }
+
+.wrap {
+  flex: 1;
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 28px 24px 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+header .brand {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+header .brand strong { color: var(--accent); }
+header .date {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+/* Greeting */
+.greeting { margin-bottom: 32px; }
+.greeting .kicker {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.greeting .name {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(40px, 10vw, 56px);
+  line-height: 0.95;
+  letter-spacing: -0.015em;
+  font-weight: 400;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.greeting .name em { font-style: italic; color: var(--accent); }
+.greeting .role {
+  font-size: 13px;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+}
+
+/* Status block */
+.status-block {
+  padding: 24px 22px;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  margin-bottom: 28px;
+  text-align: center;
+}
+.status-block .lbl {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.status-block .big-time {
+  font-family: 'Instrument Serif', serif;
+  font-size: 64px;
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.status-block .big-time .unit {
+  font-size: 22px;
+  color: var(--ink-3);
+  margin-left: 4px;
+  font-family: 'Bricolage Grotesque', sans-serif;
+}
+.status-block .msg {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin-top: 8px;
+}
+
+/* Action button - the BIG one */
+.action-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0 28px;
+  min-height: 180px;
+}
+.action-btn {
+  width: 100%;
+  min-height: 180px;
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  padding: 32px 24px;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 0;
+  transition: transform 0.1s, background 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 0 var(--ink);
+}
+.action-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--ink); }
+.action-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.action-btn .ico {
+  font-size: 36px;
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+.action-btn.depart { background: var(--ink); }
+.action-btn.loading { background: var(--ink-3); }
+
+/* Scans list */
+.scans {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.scans .lbl {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.scan-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--line);
+}
+.scan-item:last-child { border-bottom: none; }
+.scan-item .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; flex-shrink: 0; }
+.scan-item .type { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); flex: 1; }
+.scan-item .time { color: var(--ink); font-weight: 500; }
+
+/* Connection indicator */
+.connection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--ink-3);
+}
+.connection .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.connection.online .dot { background: var(--arrive); }
+.connection.queued .dot { background: var(--warn); }
+.connection.offline .dot { background: var(--bad); }
+.connection.queued strong { color: var(--warn); }
+
+/* Toast / feedback */
+.toast {
+  position: fixed;
+  top: env(safe-area-inset-top);
+  left: 0; right: 0;
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  pointer-events: none;
+  z-index: 100;
+}
+.toast .inner {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 14px 22px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 0;
+  border: 1px solid var(--ink);
+  max-width: 480px;
+  transform: translateY(-120%);
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.toast.show .inner { transform: translateY(0); }
+.toast.success .inner { background: var(--arrive); }
+.toast.error .inner { background: var(--bad); }
+
+/* Error states */
+.error-screen {
+  text-align: center;
+  padding: 60px 24px;
+}
+.error-screen h2 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--bad);
+  margin-bottom: 12px;
+}
+.error-screen p {
+  font-size: 14px;
+  color: var(--ink-2);
+  max-width: 360px;
+  margin: 0 auto 18px;
+  line-height: 1.5;
+}
+.error-screen code {
+  background: var(--paper);
+  padding: 2px 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  border: 1px solid var(--line);
+}
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2px solid rgba(251, 248, 242, 0.3);
+  border-top-color: var(--paper);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Confetti / pulse animation on success */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(46, 107, 62, 0.5), 0 4px 0 var(--ink); }
+  100% { box-shadow: 0 0 0 40px rgba(46, 107, 62, 0), 0 4px 0 var(--ink); }
+}
+.action-btn.just-pulse { animation: pulse-ring 0.8s ease-out; }
+
+footer {
+  font-size: 10px;
+  color: var(--ink-3);
+  text-align: center;
+  padding: 12px 0 0;
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 380px) {
+  .wrap { padding: 22px 18px; }
+  .greeting .name { font-size: 38px; }
+  .status-block .big-time { font-size: 52px; }
+  .action-btn { font-size: 20px; min-height: 160px; }
+}
+/* ==== STATS RÉCAP (jour / semaine / mois / année) ==== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin: 20px 0;
+}
+.stat-cell {
+  background: var(--paper);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stat-cell .lbl {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.stat-cell .v {
+  font-family: 'Instrument Serif', serif;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.stat-cell .sub {
+  font-size: 10px;
+  color: var(--ink-3);
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 2px;
+}
+.stat-cell.warn .v { color: var(--bad); }
+.stat-cell.year {
+  grid-column: 1 / -1;
+  background: var(--ink);
+  color: var(--paper);
+}
+.stat-cell.year .lbl { color: rgba(251, 248, 242, 0.65); }
+.stat-cell.year .v { color: var(--paper); }
+.stats-spinner {
+  text-align: center;
+  padding: 18px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* ==== SCANNER QR (modal plein écran) ==== */
+.scan-overlay {
+  position: fixed; inset: 0; background: #000;
+  display: none; flex-direction: column;
+  z-index: 9999; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+.scan-overlay.show { display: flex; }
+.scan-video-wrap {
+  flex: 1; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.scan-video {
+  width: 100%; height: 100%; object-fit: cover;
+  background: #000;
+}
+.scan-canvas { display: none; }
+.scan-frame {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.scan-frame .reticle {
+  width: 70vw; max-width: 280px; aspect-ratio: 1;
+  border: 3px solid rgba(255,255,255,.95);
+  border-radius: 18px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
+  animation: pulse-scan 1.6s ease-in-out infinite;
+}
+@keyframes pulse-scan {
+  0%, 100% { border-color: rgba(255,255,255,.95); }
+  50% { border-color: rgba(46,107,62,.95); }
+}
+.scan-header {
+  position: absolute; top: env(safe-area-inset-top); left: 0; right: 0;
+  padding: 14px 20px; color: white; font-weight: 500;
+  background: linear-gradient(180deg, rgba(0,0,0,.6), transparent);
+  text-align: center; font-size: 15px;
+}
+.scan-footer {
+  padding: 18px 20px env(safe-area-inset-bottom); background: #000;
+  display: flex; flex-direction: column; gap: 12px; align-items: center;
+  color: white;
+}
+.scan-footer .hint {
+  font-size: 13px; color: rgba(255,255,255,.7);
+  text-align: center; max-width: 320px;
+}
+.scan-cancel {
+  background: rgba(255,255,255,.1); color: white;
+  border: 1px solid rgba(255,255,255,.3); padding: 12px 24px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  border-radius: 8px; min-height: 48px; min-width: 140px;
+  font-family: inherit;
+}
+.scan-cancel:active { background: rgba(255,255,255,.2); }
+.scan-error {
+  position: absolute; bottom: 100px; left: 20px; right: 20px;
+  background: rgba(165,58,54,.95); color: white;
+  padding: 14px 18px; border-radius: 10px;
+  font-size: 14px; text-align: center;
+  display: none;
+}
+.scan-error.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"><div class="inner"></div></div>
+
+<div class="wrap" id="app">
+  <header>
+    <div class="brand"><strong>BdL</strong> · Pointage</div>
+    <div class="date" id="date">—</div>
+  </header>
+
+  <div id="main">
+    <div class="greeting">
+      <div class="kicker">Bonjour</div>
+      <div class="name" id="emp-name">…</div>
+      <div class="role" id="emp-role"></div>
+    </div>
+
+    <div class="status-block">
+      <div class="lbl">Temps de travail aujourd'hui</div>
+      <div class="big-time" id="elapsed">00:00<span class="unit">h</span></div>
+      <div class="msg" id="status-msg">Chargement…</div>
+    </div>
+
+    <div class="action-wrap">
+      <button class="action-btn" id="action-btn" disabled>
+        <span class="ico">●</span>
+        <span id="action-label">Chargement…</span>
+      </button>
+    </div>
+
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-cell">
+        <div class="lbl">Aujourd'hui</div>
+        <div class="v" id="stats-jour">—</div>
+      </div>
+      <div class="stat-cell" id="stats-semaine-cell">
+        <div class="lbl">Cette semaine</div>
+        <div class="v" id="stats-semaine">—</div>
+        <div class="sub" id="stats-semaine-sub"></div>
+      </div>
+      <div class="stat-cell">
+        <div class="lbl" id="stats-mois-lbl">Ce mois</div>
+        <div class="v" id="stats-mois">—</div>
+      </div>
+      <div class="stat-cell year">
+        <div class="lbl" id="stats-annee-lbl">Démarrage du système : 15/05/2026</div>
+        <div class="v" id="stats-annee">—</div>
+      </div>
+    </div>
+
+    <div class="scans" id="scans-block" style="display:none">
+      <div class="lbl">Tes pointages du jour</div>
+      <div id="scans-list"></div>
+    </div>
+
+    <div class="connection" id="connection">
+      <span class="dot"></span>
+      <span id="connection-label">Connexion en cours…</span>
+    </div>
+  </div>
+</div>
+
+<footer>Blanchisserie du Limousin · Pointage v1</footer>
+
+<!-- Scanner QR plein écran -->
+<div class="scan-overlay" id="scan-overlay">
+  <div class="scan-video-wrap">
+    <video class="scan-video" id="scan-video" playsinline muted autoplay></video>
+    <canvas class="scan-canvas" id="scan-canvas"></canvas>
+    <div class="scan-frame"><div class="reticle"></div></div>
+    <div class="scan-header" id="scan-header">Scanne le QR de l'entreprise</div>
+    <div class="scan-error" id="scan-error"></div>
+  </div>
+  <div class="scan-footer">
+    <div class="hint">Place le QR code BdL affiché à l'entrée dans le cadre</div>
+    <button class="scan-cancel" id="scan-cancel">Annuler</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+// CONFIGURATION
+// ============================================================
+// L'URL Apps Script est lue depuis le paramètre ?api= (mémorisé), 
+// ou peut être codée en dur ci-dessous pour le déploiement final :
+const API_URL_DEFAULT = '';  // ← Coller ici l'URL .../exec après déploiement
+
+const LOCALSTORAGE_KEY = 'bdl-pointage-config';
+const QUEUE_KEY = 'bdl-pointage-queue';
+
+// ============================================================
+// CONFIG : URL API + empId
+// ============================================================
+function getConfig() {
+  const params = new URLSearchParams(location.search);
+  const stored = JSON.parse(localStorage.getItem(LOCALSTORAGE_KEY) || '{}');
+  const apiUrl = params.get('api') || stored.apiUrl || API_URL_DEFAULT;
+  const empId = params.get('id') || stored.empId || '';
+  if (params.get('api') || params.get('id')) {
+    // Mémoriser pour les prochaines ouvertures (et pour l'écran d'accueil iOS)
+    localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify({ apiUrl, empId }));
+  }
+  return { apiUrl, empId };
+}
+
+const config = getConfig();
+
+// ============================================================
+// STATE
+// ============================================================
+let currentState = null;  // dernier état renvoyé par l'API
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function $(id) { return document.getElementById(id); }
+
+function fmtDateFR(date) {
+  const opts = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+  return new Date(date).toLocaleDateString('fr-FR', opts);
+}
+
+function fmtHours(h) {
+  if (h == null || isNaN(h)) return '00:00';
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+}
+
+function toast(message, type) {
+  const t = $('toast');
+  t.querySelector('.inner').textContent = message;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(() => { t.className = 'toast ' + (type || ''); }, 3000);
+}
+
+function setBodyState(state) {
+  document.body.className = state ? 'state-' + state : '';
+}
+
+function setConnection(state, label) {
+  const c = $('connection');
+  c.className = 'connection ' + state;
+  $('connection-label').innerHTML = label;
+}
+
+// ============================================================
+// NETWORK (via JSONP pour contourner les restrictions CORS d'Apps Script)
+// ============================================================
+function apiCall(params) {
+  return new Promise((resolve, reject) => {
+    if (!config.apiUrl) return reject(new Error('API URL non configurée'));
+    const cbName = '_bdlcb' + Date.now() + Math.random().toString(36).slice(2, 7);
+    const url = new URL(config.apiUrl);
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+    });
+    url.searchParams.set('callback', cbName);
+
+    let cleanedUp = false;
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Délai dépassé'));
+    }, 15000);
+    const script = document.createElement('script');
+
+    function cleanup() {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      clearTimeout(timeout);
+      try { delete window[cbName]; } catch(e) { window[cbName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(data) {
+      cleanup();
+      if (data && data.error) reject(new Error(data.error));
+      else resolve(data || {});
+    };
+    script.src = url.toString();
+    script.onerror = () => { cleanup(); reject(new Error('Échec du chargement')); };
+    document.body.appendChild(script);
+  });
+}
+async function apiGet(action, params) {
+  return apiCall(Object.assign({ action }, params || {}));
+}
+async function apiPost(payload) {
+  // Pour JSONP, on transforme le POST en GET avec tous les paramètres dans l'URL
+  return apiCall(payload);
+}
+
+// ============================================================
+// QUEUE OFFLINE
+// ============================================================
+function getQueue() {
+  try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function setQueue(q) { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+
+function enqueuePointage(payload) {
+  const q = getQueue();
+  q.push({ ...payload, queuedAt: new Date().toISOString() });
+  setQueue(q);
+}
+
+async function flushQueue() {
+  let q = getQueue();
+  if (q.length === 0) return 0;
+  let sent = 0;
+  for (const item of [...q]) {
+    try {
+      await apiPost(item);
+      q = q.filter(x => x.queuedAt !== item.queuedAt);
+      setQueue(q);
+      sent++;
+    } catch (e) {
+      // Stop on first error, will retry later
+      break;
+    }
+  }
+  return sent;
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function renderState(state) {
+  currentState = state;
+  const emp = state.employee;
+  $('emp-name').innerHTML = '<em>' + emp.prenom + '</em> ' + emp.nom;
+  $('emp-role').textContent = emp.role.charAt(0).toUpperCase() + emp.role.slice(1);
+
+  // Status & button
+  const pts = state.pointagesAujourdhui || [];
+  const hours = state.heuresAujourdhui || 0;
+  const nextAction = state.nextAction; // 'arrivee' or 'depart'
+
+  $('elapsed').innerHTML = fmtHours(hours) + '<span class="unit">h</span>';
+
+  const btn = $('action-btn');
+  const lbl = $('action-label');
+  const ico = btn.querySelector('.ico');
+  btn.disabled = false;
+  btn.classList.remove('depart', 'loading');
+
+  if (pts.length === 0) {
+    $('status-msg').textContent = 'Pas encore pointé aujourd\'hui';
+    lbl.textContent = '📷 Scanner pour pointer l\'arrivée';
+    ico.textContent = '→';
+    setBodyState(null);
+  } else if (state.estPresent) {
+    const lastTime = pts[pts.length - 1].time;
+    $('status-msg').innerHTML = 'Dernier pointage à <strong>' + lastTime + '</strong> — en travail';
+    lbl.textContent = '📷 Scanner pour pointer le départ';
+    ico.textContent = '←';
+    btn.classList.add('depart');
+    setBodyState('depart');
+  } else {
+    const lastTime = pts[pts.length - 1].time;
+    $('status-msg').innerHTML = 'Pause/départ à <strong>' + lastTime + '</strong> — pointer pour reprendre';
+    lbl.textContent = '📷 Scanner pour pointer le retour';
+    ico.textContent = '→';
+    setBodyState(null);
+  }
+
+  // Scans list
+  if (pts.length > 0) {
+    $('scans-block').style.display = 'block';
+    $('scans-list').innerHTML = pts.map((p, i) => {
+      let label;
+      if (i === 0) label = 'Arrivée';
+      else if (i % 2 === 1) label = 'Sortie';
+      else label = 'Retour';
+      return `<div class="scan-item">
+        <span class="dot"></span>
+        <span class="type">${label}</span>
+        <span class="time">${p.time}</span>
+      </div>`;
+    }).join('');
+  } else {
+    $('scans-block').style.display = 'none';
+  }
+}
+
+function renderError(message, suggestion) {
+  $('main').innerHTML = `
+    <div class="error-screen">
+      <h2>Configuration manquante</h2>
+      <p>${message}</p>
+      ${suggestion ? `<p>${suggestion}</p>` : ''}
+    </div>`;
+}
+
+// ============================================================
+// SCANNER QR DE SITE
+// ============================================================
+let scanStream = null;
+let scanRunning = false;
+
+function openScanner() {
+  return new Promise((resolve, reject) => {
+    const overlay = $('scan-overlay');
+    const video = $('scan-video');
+    const canvas = $('scan-canvas');
+    const errorEl = $('scan-error');
+    const headerEl = $('scan-header');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    errorEl.classList.remove('show');
+    errorEl.textContent = '';
+    headerEl.textContent = 'Scanne le QR de l\'entreprise';
+    overlay.classList.add('show');
+    scanRunning = true;
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.classList.add('show');
+    }
+    function cleanup() {
+      scanRunning = false;
+      if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+      overlay.classList.remove('show');
+    }
+
+    $('scan-cancel').onclick = () => { cleanup(); reject(new Error('Annulé')); };
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showError('La caméra n\'est pas accessible. Vérifie tes paramètres.');
+      setTimeout(() => { cleanup(); reject(new Error('Caméra indisponible')); }, 2500);
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+      .then(stream => {
+        scanStream = stream;
+        video.srcObject = stream;
+        return video.play();
+      })
+      .then(() => {
+        function tick() {
+          if (!scanRunning) return;
+          if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width  = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            try {
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = (typeof jsQR !== 'undefined') ? jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' }) : null;
+              if (code && code.data) {
+                // Validate QR is from BdL site
+                if (code.data.indexOf('BDL-SITE:') === 0) {
+                  cleanup();
+                  resolve(code.data);
+                  return;
+                } else {
+                  showError('QR non reconnu. Cherche le QR BdL.');
+                }
+              }
+            } catch(e) { /* getImageData peut échouer si cross-origin, on ignore */ }
+          }
+          requestAnimationFrame(tick);
+        }
+        tick();
+      })
+      .catch(err => {
+        showError('Caméra inaccessible : ' + (err.message || err.name || 'erreur inconnue'));
+        setTimeout(() => { cleanup(); reject(err); }, 3000);
+      });
+  });
+}
+
+// ============================================================
+// ACTION : POINTER (avec scan du QR de site)
+// ============================================================
+async function doPointage() {
+  if (!currentState) return;
+  const btn = $('action-btn');
+  const lbl = $('action-label');
+  const wasDepart = currentState.estPresent;
+
+  // Étape 1 : scanner le QR de site
+  let qrData;
+  try {
+    qrData = await openScanner();
+  } catch (e) {
+    if (e.message === 'Annulé') return; // L'utilisateur a annulé, pas d'erreur
+    toast('Erreur scanner : ' + (e.message || 'inconnu'), 'error');
+    return;
+  }
+
+  // Étape 2 : envoyer le pointage avec le siteToken
+  btn.disabled = true;
+  btn.classList.add('loading');
+  lbl.innerHTML = '<span class="spinner"></span> Enregistrement…';
+
+  const payload = {
+    action: 'pointer',
+    empId: config.empId,
+    siteToken: qrData,
+    source: 'mobile'
+  };
+
+  try {
+    const result = await apiPost(payload);
+    renderState(result);
+    btn.classList.add('just-pulse');
+    setTimeout(() => btn.classList.remove('just-pulse'), 800);
+    if (result.justRegistered) {
+      const action = wasDepart ? 'Départ' : 'Arrivée';
+      toast(`✓ ${action} pointée à ${result.justRegistered.time}`, 'success');
+      setBodyState('arrive');
+      setTimeout(() => setBodyState(wasDepart ? null : 'depart'), 1800);
+    }
+    // Recharger les stats (jour/semaine/mois/année) car le pointage vient d'être enregistré
+    loadStats();
+  } catch (e) {
+    // Réseau ? On enfile en file d'attente.
+    enqueuePointage(payload);
+    toast('🔵 Pointage enregistré localement (sera envoyé dès que possible)', 'success');
+    // Estimer le nouvel état localement
+    const now = new Date();
+    const fakeScan = { id: 'queued', time: now.toTimeString().slice(0,5), timestamp: now.toISOString() };
+    currentState.pointagesAujourdhui.push(fakeScan);
+    currentState.estPresent = !currentState.estPresent;
+    currentState.nextAction = currentState.estPresent ? 'depart' : 'arrivee';
+    // Recalculer heures locales
+    const times = currentState.pointagesAujourdhui.map(p => new Date(p.timestamp).getTime()).sort();
+    let total = 0;
+    for (let i = 0; i + 1 < times.length; i += 2) total += (times[i+1] - times[i]) / 3600000;
+    currentState.heuresAujourdhui = Math.round(total * 100) / 100;
+    renderState(currentState);
+    updateConnectionStatus();
+  }
+}
+
+// ============================================================
+// CONNECTION STATUS
+// ============================================================
+function updateConnectionStatus() {
+  const q = getQueue();
+  if (!navigator.onLine) {
+    setConnection('offline', 'Hors ligne' + (q.length ? ` · <strong>${q.length} en attente</strong>` : ''));
+  } else if (q.length > 0) {
+    setConnection('queued', `<strong>${q.length} pointage${q.length>1?'s':''} en attente</strong> de synchronisation`);
+  } else {
+    setConnection('online', 'Connecté');
+  }
+}
+
+// ============================================================
+// REFRESH PERIODIQUE
+// ============================================================
+async function refresh() {
+  // 1. Try to flush queue
+  if (navigator.onLine) {
+    try { await flushQueue(); } catch (e) {}
+  }
+  // 2. Fetch latest state
+  if (!config.apiUrl || !config.empId) return;
+  try {
+    const state = await apiGet('state', { empId: config.empId });
+    renderState(state);
+    updateConnectionStatus();
+    // 3. Charge les stats en arrière-plan (jour/semaine/mois/année)
+    loadStats();
+  } catch (e) {
+    setConnection('offline', 'Erreur : ' + e.message);
+  }
+}
+
+async function loadStats() {
+  if (!config.apiUrl || !config.empId) return;
+  try {
+    const s = await apiGet('employeeStats', { empId: config.empId });
+    renderStats(s);
+  } catch (e) {
+    // On affiche pas d'erreur, juste — c'est une info bonus
+    console.warn('loadStats failed', e);
+  }
+}
+
+function renderStats(s) {
+  if (!s || s.error) return;
+  $('stats-jour').textContent = fmtHM(s.heuresAujourdhui);
+  $('stats-semaine').textContent = fmtHM(s.heuresSemaine);
+  $('stats-mois').textContent = fmtHM(s.heuresMois);
+  $('stats-annee').textContent = fmtHM(s.heuresAnnee);
+  // Sous-titre semaine : "x/35h" avec warn si dépassé
+  const cell = $('stats-semaine-cell');
+  const base = s.baseHebdo || 35;
+  if (s.heuresSemaine > base) {
+    cell.classList.add('warn');
+    $('stats-semaine-sub').textContent = '+' + fmtHM(s.heuresSemaine - base) + ' au-delà de ' + base + 'h';
+  } else {
+    cell.classList.remove('warn');
+    $('stats-semaine-sub').textContent = 'Base : ' + base + 'h/semaine';
+  }
+  // Labels dynamiques
+  if (s.moisLabel) $('stats-mois-lbl').textContent = s.moisLabel;
+  // Date de démarrage du système (hard-codée — affichée en haut du cumul "annuel")
+  $('stats-annee-lbl').textContent = 'Démarrage du système : 15/05/2026';
+}
+
+function fmtHM(h) {
+  if (h == null || isNaN(h)) return '0h00';
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  return hh + 'h' + String(mm).padStart(2, '0');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  $('date').textContent = fmtDateFR(new Date()).charAt(0).toUpperCase() + fmtDateFR(new Date()).slice(1);
+
+  if (!config.apiUrl) {
+    renderError(
+      'Cette page nécessite une URL d\'API valide.',
+      'Demande à la direction le bon lien (forme : <code>?id=...&api=...</code>).'
+    );
+    return;
+  }
+  if (!config.empId) {
+    renderError(
+      'Aucun identifiant salarié dans le lien.',
+      'Demande à la direction de te renvoyer ton lien personnel.'
+    );
+    return;
+  }
+
+  $('action-btn').addEventListener('click', doPointage);
+  window.addEventListener('online', () => { updateConnectionStatus(); refresh(); });
+  window.addEventListener('offline', updateConnectionStatus);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refresh();
+  });
+
+  refresh();
+  // Refresh toutes les 60 secondes
+  setInterval(refresh, 60000);
+  // Mise à jour temps écoulé toutes les 30 secondes (visuel)
+  setInterval(() => {
+    if (currentState && currentState.estPresent) {
+      const pts = currentState.pointagesAujourdhui;
+      const now = Date.now();
+      const times = pts.map(p => new Date(p.timestamp).getTime()).sort();
+      let total = 0;
+      for (let i = 0; i + 1 < times.length; i += 2) total += (times[i+1] - times[i]) / 3600000;
+      // Ajouter le segment en cours
+      if (times.length % 2 === 1) total += (now - times[times.length - 1]) / 3600000;
+      $('elapsed').innerHTML = fmtHours(total) + '<span class="unit">h</span>';
+    }
+  }, 30000);
+}
+
+init();
+</script>
+</body>
+</html>
