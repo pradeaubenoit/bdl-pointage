@@ -2371,11 +2371,25 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function saveChargesForm() {
-  if (!currentChargesMonth) {
+  // SÉCURITÉ : Toujours relire la valeur ACTUELLE du sélecteur juste avant d'enregistrer
+  const selectedMonth = document.getElementById('chargesMonthSelector').value;
+  const displayedMonth = document.getElementById('chargesFormMonth').textContent;
+
+  if (!selectedMonth) {
     toast('Aucun mois sélectionné', 'error');
     return;
   }
-  const data = { mois: currentChargesMonth };
+
+  // Mettre à jour currentChargesMonth avec la vraie valeur du sélecteur
+  currentChargesMonth = selectedMonth;
+
+  // Demande de confirmation pour éviter les erreurs de mois
+  const monthLabel = formatMonthLabel(selectedMonth);
+  if (!confirm('Enregistrer les charges pour ' + monthLabel + ' ?\n\nMois affiché : ' + displayedMonth)) {
+    return;
+  }
+
+  const data = { mois: selectedMonth };
   CHARGES_FIELDS.forEach(field => {
     const input = document.getElementById('ch_' + field);
     if (input && input.value !== '') data[field] = Number(input.value);
@@ -2389,10 +2403,10 @@ async function saveChargesForm() {
       toast('Erreur : ' + resp.error, 'error');
       return;
     }
-    toast('Charges enregistrées pour ' + formatMonthLabel(currentChargesMonth), 'success');
+    toast('Charges enregistrées pour ' + monthLabel, 'success');
     await loadChargesSection();
-    document.getElementById('chargesMonthSelector').value = currentChargesMonth;
-    await selectChargesMonth(currentChargesMonth);
+    document.getElementById('chargesMonthSelector').value = selectedMonth;
+    await selectChargesMonth(selectedMonth);
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
   }
