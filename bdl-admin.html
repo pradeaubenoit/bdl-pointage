@@ -1015,9 +1015,10 @@ tr:hover { background: var(--bg-sunken); }
       
       <div style="margin-bottom:12px">
         <label style="display:block;margin-bottom:4px;font-weight:600">Salarié :</label>
-        <select id="modalEmpId" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
-          <option value="">-- Sélectionner --</option>
-        </select>
+        <input type="text" id="modalEmpSearch" list="modalEmpDatalist" placeholder="Tape le nom du salarié..." autocomplete="off" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:15px">
+        <datalist id="modalEmpDatalist"></datalist>
+        <input type="hidden" id="modalEmpId">
+        <div id="modalEmpDisplay" style="margin-top:4px;font-size:13px;color:var(--text-soft)"></div>
       </div>
       
       <div style="margin-bottom:12px">
@@ -2685,9 +2686,6 @@ async function loadPointagesSection() {
     dateInput.value = new Date().toISOString().split('T')[0];
   }
   
-  // Charger les salariés dans le select du modal
-  await loadEmployeesForPointageModal();
-  
   // Charger les pointages du jour
   loadPointagesJour(dateInput.value);
   
@@ -2701,13 +2699,44 @@ async function loadEmployeesForPointageModal() {
   try {
     const resp = await callApi('getSalaries');
     if (resp.salaries) {
-      const select = document.getElementById('modalEmpId');
-      const actifs = resp.salaries.filter(s => s.actif);
-      select.innerHTML = '<option value="">-- Sélectionner --</option>' +
-        actifs.map(s => `<option value="${s.id}">${s.prenom} ${s.nom}</option>`).join('');
+      const datalist = document.getElementById('modalEmpDatalist');
+      // Tous les salariés (actifs ou non) pour pouvoir régulariser même sur ex-salariés
+      const list = resp.salaries.filter(s => s.actif !== false);
+      
+      datalist.innerHTML = list.map(s => 
+        `<option value="${s.prenom} ${s.nom}" data-id="${s.id}"></option>`
+      ).join('');
+      
+      // Stocker la liste pour la recherche par nom
+      window._salariesCache = list;
+      
+      // Brancher l'event sur l'input pour récupérer l'ID quand on tape ou sélectionne
+      const input = document.getElementById('modalEmpSearch');
+      input.oninput = function() {
+        const val = input.value.trim();
+        const found = window._salariesCache.find(s => 
+          (s.prenom + ' ' + s.nom).toLowerCase() === val.toLowerCase()
+        );
+        if (found) {
+          document.getElementById('modalEmpId').value = found.id;
+          document.getElementById('modalEmpDisplay').innerHTML = 
+            `✅ Sélectionné : <strong>${found.prenom} ${found.nom}</strong>`;
+          document.getElementById('modalEmpDisplay').style.color = '#15803d';
+        } else {
+          document.getElementById('modalEmpId').value = '';
+          if (val.length > 0) {
+            document.getElementById('modalEmpDisplay').innerHTML = 
+              `⌨️ Tape pour chercher dans la liste de ${list.length} salariés...`;
+            document.getElementById('modalEmpDisplay').style.color = '#6b7280';
+          } else {
+            document.getElementById('modalEmpDisplay').innerHTML = '';
+          }
+        }
+      };
     }
   } catch (e) {
     console.error('Erreur chargement salariés:', e);
+    document.getElementById('modalEmpDisplay').innerHTML = '⚠️ Erreur chargement : ' + e.message;
   }
 }
 
@@ -2800,19 +2829,40 @@ async function loadPointagesJour(date) {
   }
 }
 
-function openModalPointage() {
+async function openModalPointage() {
+  // S'assurer que la liste est chargée
+  await loadEmployeesForPointageModal();
+  
   // Reset
+  document.getElementById('modalEmpSearch').value = '';
   document.getElementById('modalEmpId').value = '';
+  document.getElementById('modalEmpDisplay').innerHTML = '';
   document.getElementById('modalDate').value = document.getElementById('pointagesDate').value;
   document.getElementById('modalHeure').value = '';
   document.getElementById('modalNote').value = '';
   document.getElementById('modalPointage').style.display = 'flex';
 }
 
-window.prefillModalPointage = function(empId, date) {
-  document.getElementById('modalEmpId').value = empId;
+window.prefillModalPointage = async function(empId, date) {
+  // S'assurer que la liste est chargée
+  await loadEmployeesForPointageModal();
+  
+  // Trouver le salarié dans le cache
+  const emp = window._salariesCache ? window._salariesCache.find(s => s.id === empId) : null;
+  
+  if (emp) {
+    document.getElementById('modalEmpSearch').value = emp.prenom + ' ' + emp.nom;
+    document.getElementById('modalEmpId').value = empId;
+    document.getElementById('modalEmpDisplay').innerHTML = 
+      `✅ Sélectionné : <strong>${emp.prenom} ${emp.nom}</strong>`;
+    document.getElementById('modalEmpDisplay').style.color = '#15803d';
+  } else {
+    document.getElementById('modalEmpSearch').value = '';
+    document.getElementById('modalEmpId').value = '';
+  }
+  
   document.getElementById('modalDate').value = date;
-  document.getElementById('modalHeure').value = '17:00'; // valeur par défaut
+  document.getElementById('modalHeure').value = '17:00';
   document.getElementById('modalNote').value = 'Régularisation oubli de pointage';
   document.getElementById('modalPointage').style.display = 'flex';
 };
