@@ -841,6 +841,17 @@ tr:hover { background: var(--bg-sunken); }
       </div>
     </div>
 
+    <!-- V4.8 — SUIVI BUDGETS FLUIDES -->
+    <div style="margin:24px 0">
+      <h2 style="font-size:20px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        💰 <span>Suivi budgets fluides</span>
+        <span style="font-size:13px;color:var(--text-soft);font-weight:normal" id="budgetsMonthLabel"></span>
+      </h2>
+      <div id="budgetsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
+        <div class="card" style="padding:16px"><em>Chargement des budgets...</em></div>
+      </div>
+    </div>
+
     <!-- Tuiles stats -->
     <div class="stat-grid">
       <div class="stat">
@@ -1609,6 +1620,9 @@ function populateMonthSelectors() {
 // ============================================================
 async function loadDashboard(month) {
   document.getElementById('dashSubtitle').textContent = 'Mois sélectionné : ' + monthLabel(month);
+
+  // V4.8 — Charger les budgets fluides (en parallèle, asynchrone)
+  loadBudgetsFluides(month);
 
   const prod = await loadProductionMonthData(month);
   const records = prod.production || [];
@@ -2449,6 +2463,143 @@ const CHARGES_FIELDS = [
   'loyer_atelier', 'assurances',
   'lessive', 'consommables', 'autres'
 ];
+
+// ============================================================
+// V4.8 — SECTION BUDGETS FLUIDES (Eau + Gaz + EDF)
+// ============================================================
+async function loadBudgetsFluides(month) {
+  try {
+    const resp = await callApi('getSuiviBudgetsAll', { month: month });
+    if (resp.ok) {
+      renderBudgetsFluides(resp.budgets, month);
+    }
+  } catch (err) {
+    document.getElementById('budgetsGrid').innerHTML = '<div class="card" style="padding:16px;color:var(--text-soft)">⚠️ Erreur chargement budgets</div>';
+  }
+}
+
+function renderBudgetsFluides(budgets, month) {
+  const labelMonth = monthLabel(month);
+  document.getElementById('budgetsMonthLabel').textContent = '· ' + labelMonth;
+
+  const fluides = [
+    { code: 'eau', label: 'Eau', icon: '💧', color: '#0ea5e9' },
+    { code: 'gaz', label: 'Gaz', icon: '🔥', color: '#f59e0b' },
+    { code: 'edf', label: 'EDF', icon: '⚡', color: '#eab308' }
+  ];
+
+  const html = fluides.map(f => renderBudgetCard(f, budgets[f.code])).join('');
+  document.getElementById('budgetsGrid').innerHTML = html;
+}
+
+function renderBudgetCard(fluide, data) {
+  // Pas de budget configuré
+  if (!data || !data.budget_annuel || data.budget_annuel === 0) {
+    return `
+      <div class="card" style="padding:16px;border-left:4px solid #9ca3af;background:#f9fafb">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:24px">${fluide.icon}</span>
+          <strong style="font-size:16px">${fluide.label}</strong>
+        </div>
+        <div style="color:var(--text-soft);font-size:14px;margin-bottom:10px">
+          ⚙️ Pas encore de budget annuel défini
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="promptBudget('${fluide.code}', '${fluide.label}')">
+          ➕ Définir un budget
+        </button>
+      </div>
+    `;
+  }
+
+  // Couleurs selon niveau d'alerte
+  const colorMap = {
+    'vert':   { bg: '#dcfce7', border: '#22c55e', text: '#15803d', icon: '✅' },
+    'jaune':  { bg: '#fef9c3', border: '#eab308', text: '#854d0e', icon: '⚠️' },
+    'rouge':  { bg: '#fee2e2', border: '#ef4444', text: '#991b1b', icon: '🚨' },
+    'inconnu':{ bg: '#f9fafb', border: '#9ca3af', text: '#6b7280', icon: '❔' }
+  };
+  const colors = colorMap[data.niveau] || colorMap.inconnu;
+
+  // Barre de progression
+  const pctVisuel = Math.min(100, data.pct_conso_mois || 0);
+  const pctTotal = data.pct_conso_mois || 0;
+
+  // Couleur de la barre
+  let barColor = '#22c55e'; // vert
+  if (data.niveau === 'jaune') barColor = '#eab308';
+  if (data.niveau === 'rouge') barColor = '#ef4444';
+
+  // Projection
+  let projectionHtml = '';
+  if (data.projection_fin_mois !== null && data.projection_fin_mois !== undefined) {
+    const projVsBudget = data.budget_mensuel > 0 
+      ? Math.round((data.projection_fin_mois / data.budget_mensuel) * 100)
+      : 0;
+    const projColor = projVsBudget <= 100 ? '#15803d' : '#991b1b';
+    const projIcon = projVsBudget <= 100 ? '✅' : '⚠️';
+    projectionHtml = `
+      <div style="margin-top:8px;padding:8px;background:rgba(255,255,255,0.6);border-radius:6px;font-size:13px">
+        📊 <strong>Projection fin de mois</strong> : ${fmtEur(data.projection_fin_mois)} 
+        <span style="color:${projColor}">${projIcon} ${projVsBudget}% du budget</span>
+      </div>
+    `;
+  }
+
+  // YTD info
+  const ytdHtml = `
+    <div style="margin-top:6px;color:var(--text-soft);font-size:12px">
+      📅 Cumul année : ${fmtEur(data.cout_consomme_ytd)} / ${fmtEur(data.budget_annuel)} (${data.pct_conso_ytd}%)
+    </div>
+  `;
+
+  return `
+    <div class="card" style="padding:16px;border-left:4px solid ${colors.border};background:${colors.bg}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:24px">${fluide.icon}</span>
+          <strong style="font-size:16px;color:${colors.text}">${fluide.label}</strong>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="font-size:12px;padding:4px 8px" onclick="promptBudget('${fluide.code}', '${fluide.label}')" title="Modifier le budget annuel">
+          ✏️
+        </button>
+      </div>
+      
+      <div style="font-size:14px;margin-bottom:8px">
+        <strong>${fmtEur(data.cout_consomme_mois)}</strong> / ${fmtEur(data.budget_mensuel)}
+        <span style="color:${colors.text};font-weight:600;margin-left:6px">${colors.icon} ${pctTotal}%</span>
+      </div>
+      
+      <div style="background:rgba(0,0,0,0.08);border-radius:8px;height:10px;overflow:hidden;margin-bottom:6px">
+        <div style="height:100%;width:${pctVisuel}%;background:${barColor};transition:width 0.3s"></div>
+      </div>
+      
+      <div style="color:var(--text-soft);font-size:12px">
+        Jour ${data.jour_du_mois}/${data.jours_total_mois} · Reste : ${fmtEur(data.reste_mois)}
+      </div>
+      
+      ${projectionHtml}
+      ${ytdHtml}
+    </div>
+  `;
+}
+
+window.promptBudget = async function(fluide, label) {
+  const current = prompt(`Budget annuel ${label} (en €) :\n\nLaisse vide ou 0 pour désactiver le suivi.`);
+  if (current === null) return; // annulé
+  const value = Number(current) || 0;
+  try {
+    const resp = await callApi('updateBudgetFluide', { fluide: fluide, budget_annuel: value });
+    if (resp.error) {
+      toast('Erreur : ' + resp.error, 'error');
+      return;
+    }
+    toast(`Budget ${label} mis à jour : ${value} €/an`, 'success');
+    // Recharger l'affichage
+    if (state.currentMonth) loadBudgetsFluides(state.currentMonth);
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+};
 
 // ============================================================
 // V4.6 — SECTION VÉHICULES (Camions + Voitures fonction)
