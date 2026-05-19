@@ -800,6 +800,7 @@ tr:hover { background: var(--bg-sunken); }
   <div class="tabs-inner">
     <button class="tab active" data-tab="dashboard">📊 Tableau de bord</button>
     <button class="tab" data-tab="pilotage">⚡ Pilotage Jour</button>
+    <button class="tab" data-tab="pointages">👥 Pointages</button>
     <button class="tab" data-tab="production">📝 Production</button>
     <button class="tab" data-tab="gaz">🚛 Gaz Livraisons</button>
     <button class="tab" data-tab="vehicules">🚗 Véhicules</button>
@@ -970,6 +971,77 @@ tr:hover { background: var(--bg-sunken); }
   </section>
 
   <!-- SECTION PRODUCTION -->
+  <!-- V4.8 — SECTION POINTAGES (Gestion manuelle) -->
+  <section class="section" id="section-pointages">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title">👥 Pointages</h1>
+        <div class="section-subtitle">Gestion des pointages — régularisation des oublis</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:14px;color:var(--text-soft)">Date :</label>
+        <input type="date" id="pointagesDate" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border)">
+        <button class="btn btn-primary" id="btnAjouterPointage">➕ Ajouter pointage</button>
+      </div>
+    </div>
+
+    <!-- Stats du jour -->
+    <div id="pointagesStats" style="display:flex;gap:12px;margin-bottom:16px"></div>
+
+    <!-- Tableau des pointages -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Salarié</th>
+            <th>Scans du jour</th>
+            <th>Heures</th>
+            <th>Statut</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="pointagesTbody">
+          <tr><td colspan="5" class="empty-state">Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Modal Ajouter Pointage -->
+  <div id="modalPointage" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;padding:24px;border-radius:12px;max-width:480px;width:90%;max-height:90vh;overflow-y:auto">
+      <h2 style="margin-top:0">➕ Ajouter un pointage</h2>
+      <p style="color:var(--text-soft);font-size:14px">Régularisation d'un oubli de pointage</p>
+      
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Salarié :</label>
+        <select id="modalEmpId" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
+          <option value="">-- Sélectionner --</option>
+        </select>
+      </div>
+      
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Date :</label>
+        <input type="date" id="modalDate" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
+      </div>
+      
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Heure :</label>
+        <input type="time" id="modalHeure" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
+      </div>
+      
+      <div style="margin-bottom:16px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Note (optionnelle) :</label>
+        <input type="text" id="modalNote" placeholder="ex: Régularisation oubli départ" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
+      </div>
+      
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="document.getElementById('modalPointage').style.display='none'">Annuler</button>
+        <button class="btn btn-primary" id="btnSavePointage">💾 Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <section class="section" id="section-production">
     <div class="section-header">
       <div>
@@ -1553,6 +1625,7 @@ function switchTab(name) {
   if (name === 'production' && state.currentMonth) loadProductionMonth(state.currentMonth);
   if (name === 'gaz') loadGazLivraisons();
   if (name === 'vehicules') loadVehiculesSection();
+  if (name === 'pointages') loadPointagesSection();
   if (name === 'charges') loadChargesSection();
   if (name === 'pilotage') loadPilotageSection();
   if (name === 'reglages') renderReglages();
@@ -2598,6 +2671,198 @@ window.promptBudget = async function(fluide, label) {
     if (state.currentMonth) loadBudgetsFluides(state.currentMonth);
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
+  }
+};
+
+// ============================================================
+// V4.8 — SECTION POINTAGES (Gestion manuelle)
+// ============================================================
+
+async function loadPointagesSection() {
+  // Initialiser la date si pas déjà fait
+  const dateInput = document.getElementById('pointagesDate');
+  if (!dateInput.value) {
+    dateInput.value = new Date().toISOString().split('T')[0];
+  }
+  
+  // Charger les salariés dans le select du modal
+  await loadEmployeesForPointageModal();
+  
+  // Charger les pointages du jour
+  loadPointagesJour(dateInput.value);
+  
+  // Brancher les events
+  dateInput.onchange = () => loadPointagesJour(dateInput.value);
+  document.getElementById('btnAjouterPointage').onclick = openModalPointage;
+  document.getElementById('btnSavePointage').onclick = savePointageManuel;
+}
+
+async function loadEmployeesForPointageModal() {
+  try {
+    const resp = await callApi('getSalaries');
+    if (resp.salaries) {
+      const select = document.getElementById('modalEmpId');
+      const actifs = resp.salaries.filter(s => s.actif);
+      select.innerHTML = '<option value="">-- Sélectionner --</option>' +
+        actifs.map(s => `<option value="${s.id}">${s.prenom} ${s.nom}</option>`).join('');
+    }
+  } catch (e) {
+    console.error('Erreur chargement salariés:', e);
+  }
+}
+
+async function loadPointagesJour(date) {
+  const tbody = document.getElementById('pointagesTbody');
+  const stats = document.getElementById('pointagesStats');
+  tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Chargement…</td></tr>';
+  
+  try {
+    const resp = await callApi('getPointagesJour', { date: date });
+    if (!resp.ok) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Erreur</td></tr>';
+      return;
+    }
+    
+    // Stats
+    stats.innerHTML = `
+      <div class="card" style="padding:12px;flex:1">
+        <div style="color:var(--text-soft);font-size:13px">Présents maintenant</div>
+        <div style="font-size:24px;font-weight:600">${resp.nb_presents}</div>
+      </div>
+      <div class="card" style="padding:12px;flex:1;${resp.nb_anomalies > 0 ? 'border-left:4px solid #ef4444' : ''}">
+        <div style="color:var(--text-soft);font-size:13px">Anomalies (oublis)</div>
+        <div style="font-size:24px;font-weight:600;color:${resp.nb_anomalies > 0 ? '#ef4444' : '#6b7280'}">${resp.nb_anomalies}</div>
+      </div>
+    `;
+    
+    // Tableau
+    const salariesAvecScans = resp.par_salarie.filter(s => s.nb_scans > 0);
+    const salariesSansScans = resp.par_salarie.filter(s => s.nb_scans === 0);
+    
+    let html = '';
+    
+    // D'abord les salariés AVEC scans
+    salariesAvecScans.forEach(p => {
+      const emp = p.employee;
+      const scansHtml = p.scans.map(s => {
+        const isOdd = p.scans.indexOf(s) % 2 === 0;
+        const icon = isOdd ? '🟢' : '🔴';
+        const label = isOdd ? 'Arrivée' : 'Départ';
+        return `<div style="margin:2px 0">
+          ${icon} ${s.time} <span style="color:var(--text-soft);font-size:12px">(${label})</span>
+          <button class="btn btn-ghost btn-sm" style="margin-left:8px;font-size:11px;padding:2px 6px" onclick="deletePointage('${s.id}')" title="Supprimer ce scan">🗑️</button>
+        </div>`;
+      }).join('');
+      
+      let statut = '';
+      let rowStyle = '';
+      if (p.est_anomalie) {
+        statut = '<span style="background:#fee2e2;color:#991b1b;padding:4px 8px;border-radius:6px;font-size:12px;font-weight:600">⚠️ Oubli départ</span>';
+        rowStyle = 'background:rgba(239,68,68,0.04)';
+      } else if (p.est_present) {
+        statut = '<span style="background:#dcfce7;color:#15803d;padding:4px 8px;border-radius:6px;font-size:12px;font-weight:600">🟢 Présent</span>';
+      } else {
+        statut = '<span style="background:#f3f4f6;color:#6b7280;padding:4px 8px;border-radius:6px;font-size:12px">✓ Parti</span>';
+      }
+      
+      html += `<tr style="${rowStyle}">
+        <td><strong>${emp.prenom} ${emp.nom}</strong></td>
+        <td>${scansHtml}</td>
+        <td>${p.heures.toFixed(1)} h</td>
+        <td>${statut}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="prefillModalPointage('${emp.id}', '${resp.date}')">➕ Ajouter scan</button>
+        </td>
+      </tr>`;
+    });
+    
+    // Puis les salariés sans scans (absents)
+    if (salariesSansScans.length > 0) {
+      html += `<tr><td colspan="5" style="background:#f9fafb;font-weight:600;padding:8px">Salariés sans pointage (${salariesSansScans.length})</td></tr>`;
+      salariesSansScans.forEach(p => {
+        const emp = p.employee;
+        html += `<tr style="color:var(--text-soft)">
+          <td>${emp.prenom} ${emp.nom}</td>
+          <td><em>Aucun scan</em></td>
+          <td>—</td>
+          <td><span style="color:var(--text-soft);font-size:12px">Absent / Repos</span></td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="prefillModalPointage('${emp.id}', '${resp.date}')">➕ Ajouter scan</button>
+          </td>
+        </tr>`;
+      });
+    }
+    
+    tbody.innerHTML = html || '<tr><td colspan="5" class="empty-state">Aucun salarié</td></tr>';
+    
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Erreur: ' + err.message + '</td></tr>';
+  }
+}
+
+function openModalPointage() {
+  // Reset
+  document.getElementById('modalEmpId').value = '';
+  document.getElementById('modalDate').value = document.getElementById('pointagesDate').value;
+  document.getElementById('modalHeure').value = '';
+  document.getElementById('modalNote').value = '';
+  document.getElementById('modalPointage').style.display = 'flex';
+}
+
+window.prefillModalPointage = function(empId, date) {
+  document.getElementById('modalEmpId').value = empId;
+  document.getElementById('modalDate').value = date;
+  document.getElementById('modalHeure').value = '17:00'; // valeur par défaut
+  document.getElementById('modalNote').value = 'Régularisation oubli de pointage';
+  document.getElementById('modalPointage').style.display = 'flex';
+};
+
+async function savePointageManuel() {
+  const empId = document.getElementById('modalEmpId').value;
+  const date = document.getElementById('modalDate').value;
+  const heure = document.getElementById('modalHeure').value;
+  const note = document.getElementById('modalNote').value;
+  
+  if (!empId) { alert('Sélectionne un salarié'); return; }
+  if (!date) { alert('Sélectionne une date'); return; }
+  if (!heure) { alert('Saisis une heure'); return; }
+  
+  try {
+    const resp = await callApi('addPointageManuel', {
+      empId: empId,
+      date: date,
+      heure: heure,
+      notes: note || 'Régularisation manuelle'
+    });
+    
+    if (resp.error) {
+      alert('Erreur : ' + resp.error);
+      return;
+    }
+    
+    toast('✅ Pointage ajouté avec succès', 'success');
+    document.getElementById('modalPointage').style.display = 'none';
+    
+    // Recharger la liste
+    loadPointagesJour(document.getElementById('pointagesDate').value);
+    
+  } catch (err) {
+    alert('Erreur : ' + err.message);
+  }
+}
+
+window.deletePointage = async function(id) {
+  if (!confirm('Supprimer ce pointage ?')) return;
+  try {
+    const resp = await callApi('deletePointage', { id: id });
+    if (resp.ok) {
+      toast('Pointage supprimé', 'success');
+      loadPointagesJour(document.getElementById('pointagesDate').value);
+    } else {
+      alert('Erreur : ' + (resp.error || 'Échec suppression'));
+    }
+  } catch (err) {
+    alert('Erreur : ' + err.message);
   }
 };
 
