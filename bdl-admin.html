@@ -1025,12 +1025,12 @@ tr:hover { background: var(--bg-sunken); }
       
       <!-- Légende -->
       <div style="margin-bottom:12px;padding:10px;background:#f9fafb;border-radius:6px;font-size:13px;display:flex;gap:16px;flex-wrap:wrap">
-        <span><strong>Couleurs jour :</strong></span>
+        <span><strong>Couleurs jour (heures travaillées) :</strong></span>
         <span>🟢 ≤7h</span>
         <span>🟡 7-8h</span>
         <span>🟠 8-9h</span>
         <span>🔴 >9h ou <4h</span>
-        <span style="margin-left:auto"><strong>Semaine :</strong> Sup au-delà de 35h</span>
+        <span style="margin-left:auto;color:var(--text-soft);font-size:12px">💡 Survole une case pour voir aussi les heures sup</span>
       </div>
       
       <div class="table-wrap" style="overflow-x:auto">
@@ -3342,13 +3342,13 @@ function renderCalendrierHeures(data) {
   data.jours_du_mois.forEach(function(j) {
     const isWeekend = (j.jour_label === 'Sam' || j.jour_label === 'Dim');
     const bg = j.is_dimanche ? '#fee2e2' : (isWeekend ? '#fef3c7' : '');
-    headerHtml += '<th style="text-align:center;padding:4px 6px;font-size:11px;min-width:40px;' + (bg ? 'background:' + bg : '') + '">' +
+    headerHtml += '<th style="text-align:center;padding:4px 6px;font-size:11px;min-width:42px;' + (bg ? 'background:' + bg : '') + '">' +
       '<div style="font-weight:600">' + j.jour_num + '</div>' +
       '<div style="font-size:10px;color:var(--text-soft)">' + j.jour_label + '</div>' +
       '</th>';
   });
-  headerHtml += '<th style="background:#dcfce7;text-align:center;font-size:12px;min-width:80px">Total mois</th>';
-  headerHtml += '<th style="background:#fed7aa;text-align:center;font-size:12px;min-width:80px">H Sup</th>';
+  headerHtml += '<th style="background:#dcfce7;text-align:center;font-size:12px;min-width:80px">Total<br>mois</th>';
+  headerHtml += '<th style="background:#fed7aa;text-align:center;font-size:12px;min-width:80px">H Sup<br>mois</th>';
   headerHtml += '</tr>';
   thead.innerHTML = headerHtml;
   
@@ -3361,9 +3361,13 @@ function renderCalendrierHeures(data) {
     
     data.jours_du_mois.forEach(function(j) {
       const h = empData.jours[j.date] || 0;
+      const supJour = empData.jours_sup ? (empData.jours_sup[j.date] || 0) : 0;
+      const cumulSup = empData.jours_cumul_sup ? (empData.jours_cumul_sup[j.date] || 0) : 0;
+      
       let bg = '#f9fafb';
       let color = '#9ca3af';
       let content = '—';
+      let tooltip = j.date + ' : aucune donnée';
       
       if (h > 0) {
         content = h.toFixed(1);
@@ -3372,13 +3376,20 @@ function renderCalendrierHeures(data) {
         else if (h <= 8) { bg = '#fef9c3'; color = '#854d0e'; }
         else if (h <= 9) { bg = '#fed7aa'; color = '#9a3412'; }
         else { bg = '#fee2e2'; color = '#991b1b'; }
+        
+        tooltip = j.date + ' (' + j.jour_label + ')\n' +
+                  'Heures : ' + h.toFixed(1) + 'h\n' +
+                  (supJour > 0 ? 'Sup ce jour : ' + supJour.toFixed(1) + 'h\n' : '') +
+                  'Cumul sup mois : ' + cumulSup.toFixed(1) + 'h';
       }
       
-      row += '<td style="background:' + bg + ';color:' + color + ';text-align:center;padding:6px;font-size:13px;font-weight:500" title="' + j.date + ' : ' + h.toFixed(1) + 'h">' + content + '</td>';
+      row += '<td style="background:' + bg + ';color:' + color + ';text-align:center;padding:6px;font-size:13px;font-weight:500" title="' + tooltip + '">' + content + '</td>';
     });
     
+    // Total mois (heures totales travaillées)
     row += '<td style="background:#dcfce7;color:#15803d;text-align:center;font-weight:700;padding:8px">' + empData.total_mois.toFixed(1) + 'h</td>';
     
+    // Total sup mois
     const supColor = empData.total_sup_mois > 0 ? '#9a3412' : '#9ca3af';
     const supBg = empData.total_sup_mois > 0 ? '#fed7aa' : '#f9fafb';
     row += '<td style="background:' + supBg + ';color:' + supColor + ';text-align:center;font-weight:700;padding:8px">' + empData.total_sup_mois.toFixed(1) + 'h</td>';
