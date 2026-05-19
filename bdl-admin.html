@@ -986,25 +986,63 @@ tr:hover { background: var(--bg-sunken); }
       </div>
     </div>
 
-    <!-- Stats du jour -->
-    <div id="pointagesStats" style="display:flex;gap:12px;margin-bottom:16px"></div>
+    <!-- V4.8.3 — Toggle Vue Jour / Vue Calendrier Mois -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px">
+      <button class="btn" id="btnVueJour" style="background:#1F4A47;color:white" onclick="window.switchVuePointages('jour')">📋 Vue Jour</button>
+      <button class="btn btn-ghost" id="btnVueCalendrier" onclick="window.switchVuePointages('calendrier')">📅 Calendrier du mois</button>
+    </div>
 
-    <!-- Tableau des pointages -->
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Salarié</th>
-            <th>Scans du jour</th>
-            <th>Heures</th>
-            <th>Statut</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="pointagesTbody">
-          <tr><td colspan="5" class="empty-state">Chargement…</td></tr>
-        </tbody>
-      </table>
+    <!-- Vue JOUR (par défaut) -->
+    <div id="vuePointagesJour">
+      <!-- Stats du jour -->
+      <div id="pointagesStats" style="display:flex;gap:12px;margin-bottom:16px"></div>
+
+      <!-- Tableau des pointages -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Salarié</th>
+              <th>Scans du jour</th>
+              <th>Heures</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="pointagesTbody">
+            <tr><td colspan="5" class="empty-state">Chargement…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- V4.8.3 — Vue CALENDRIER du mois -->
+    <div id="vuePointagesCalendrier" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <label style="font-weight:600">Mois :</label>
+        <input type="month" id="calendrierMois" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border)">
+      </div>
+      
+      <!-- Légende -->
+      <div style="margin-bottom:12px;padding:10px;background:#f9fafb;border-radius:6px;font-size:13px;display:flex;gap:16px;flex-wrap:wrap">
+        <span><strong>Couleurs jour :</strong></span>
+        <span>🟢 ≤7h</span>
+        <span>🟡 7-8h</span>
+        <span>🟠 8-9h</span>
+        <span>🔴 >9h ou <4h</span>
+        <span style="margin-left:auto"><strong>Semaine :</strong> Sup au-delà de 35h</span>
+      </div>
+      
+      <div class="table-wrap" style="overflow-x:auto">
+        <table id="calendrierTable">
+          <thead id="calendrierThead">
+            <tr><th>Chargement...</th></tr>
+          </thead>
+          <tbody id="calendrierTbody">
+            <tr><td class="empty-state">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
 
@@ -3232,6 +3270,125 @@ window.deletePointage = async function(id) {
     alert('Erreur : ' + err.message);
   }
 };
+
+// ============================================================
+// V4.8.3 — VUE CALENDRIER HEURES JOUR PAR JOUR
+// ============================================================
+window.switchVuePointages = function(vue) {
+  const vueJour = document.getElementById('vuePointagesJour');
+  const vueCal = document.getElementById('vuePointagesCalendrier');
+  const btnJour = document.getElementById('btnVueJour');
+  const btnCal = document.getElementById('btnVueCalendrier');
+  
+  if (vue === 'jour') {
+    vueJour.style.display = 'block';
+    vueCal.style.display = 'none';
+    btnJour.style.background = '#1F4A47';
+    btnJour.style.color = 'white';
+    btnJour.classList.remove('btn-ghost');
+    btnCal.style.background = '';
+    btnCal.style.color = '';
+    btnCal.classList.add('btn-ghost');
+  } else {
+    vueJour.style.display = 'none';
+    vueCal.style.display = 'block';
+    btnCal.style.background = '#1F4A47';
+    btnCal.style.color = 'white';
+    btnCal.classList.remove('btn-ghost');
+    btnJour.style.background = '';
+    btnJour.style.color = '';
+    btnJour.classList.add('btn-ghost');
+    
+    const moisInput = document.getElementById('calendrierMois');
+    if (!moisInput.value) {
+      moisInput.value = new Date().toISOString().slice(0, 7);
+    }
+    loadCalendrierHeures(moisInput.value);
+    moisInput.onchange = function() { loadCalendrierHeures(moisInput.value); };
+  }
+};
+
+async function loadCalendrierHeures(month) {
+  const thead = document.getElementById('calendrierThead');
+  const tbody = document.getElementById('calendrierTbody');
+  
+  thead.innerHTML = '<tr><th>Chargement...</th></tr>';
+  tbody.innerHTML = '<tr><td class="empty-state">Chargement...</td></tr>';
+  
+  try {
+    const resp = await callApi('getCalendrierHeuresMois', { month: month });
+    if (!resp.ok) {
+      tbody.innerHTML = '<tr><td class="empty-state">Erreur</td></tr>';
+      return;
+    }
+    renderCalendrierHeures(resp);
+  } catch (err) {
+    tbody.innerHTML = '<tr><td class="empty-state">Erreur: ' + err.message + '</td></tr>';
+  }
+}
+
+function renderCalendrierHeures(data) {
+  const thead = document.getElementById('calendrierThead');
+  const tbody = document.getElementById('calendrierTbody');
+  
+  if (!data.calendrier || data.calendrier.length === 0) {
+    thead.innerHTML = '<tr><th>Salarié</th></tr>';
+    tbody.innerHTML = '<tr><td class="empty-state">Aucun salarié</td></tr>';
+    return;
+  }
+  
+  // En-têtes
+  let headerHtml = '<tr><th style="position:sticky;left:0;background:white;z-index:2;min-width:140px;border-right:2px solid var(--border)">Salarié</th>';
+  data.jours_du_mois.forEach(function(j) {
+    const isWeekend = (j.jour_label === 'Sam' || j.jour_label === 'Dim');
+    const bg = j.is_dimanche ? '#fee2e2' : (isWeekend ? '#fef3c7' : '');
+    headerHtml += '<th style="text-align:center;padding:4px 6px;font-size:11px;min-width:40px;' + (bg ? 'background:' + bg : '') + '">' +
+      '<div style="font-weight:600">' + j.jour_num + '</div>' +
+      '<div style="font-size:10px;color:var(--text-soft)">' + j.jour_label + '</div>' +
+      '</th>';
+  });
+  headerHtml += '<th style="background:#dcfce7;text-align:center;font-size:12px;min-width:80px">Total mois</th>';
+  headerHtml += '<th style="background:#fed7aa;text-align:center;font-size:12px;min-width:80px">H Sup</th>';
+  headerHtml += '</tr>';
+  thead.innerHTML = headerHtml;
+  
+  // Lignes salariés
+  let bodyHtml = '';
+  data.calendrier.forEach(function(empData) {
+    const emp = empData.employee;
+    let row = '<tr><td style="position:sticky;left:0;background:white;z-index:1;font-weight:600;border-right:2px solid var(--border);padding:8px">' + 
+              emp.prenom + ' ' + emp.nom + '</td>';
+    
+    data.jours_du_mois.forEach(function(j) {
+      const h = empData.jours[j.date] || 0;
+      let bg = '#f9fafb';
+      let color = '#9ca3af';
+      let content = '—';
+      
+      if (h > 0) {
+        content = h.toFixed(1);
+        if (h < 4) { bg = '#fee2e2'; color = '#991b1b'; }
+        else if (h <= 7) { bg = '#dcfce7'; color = '#15803d'; }
+        else if (h <= 8) { bg = '#fef9c3'; color = '#854d0e'; }
+        else if (h <= 9) { bg = '#fed7aa'; color = '#9a3412'; }
+        else { bg = '#fee2e2'; color = '#991b1b'; }
+      }
+      
+      row += '<td style="background:' + bg + ';color:' + color + ';text-align:center;padding:6px;font-size:13px;font-weight:500" title="' + j.date + ' : ' + h.toFixed(1) + 'h">' + content + '</td>';
+    });
+    
+    row += '<td style="background:#dcfce7;color:#15803d;text-align:center;font-weight:700;padding:8px">' + empData.total_mois.toFixed(1) + 'h</td>';
+    
+    const supColor = empData.total_sup_mois > 0 ? '#9a3412' : '#9ca3af';
+    const supBg = empData.total_sup_mois > 0 ? '#fed7aa' : '#f9fafb';
+    row += '<td style="background:' + supBg + ';color:' + supColor + ';text-align:center;font-weight:700;padding:8px">' + empData.total_sup_mois.toFixed(1) + 'h</td>';
+    
+    row += '</tr>';
+    bodyHtml += row;
+  });
+  
+  tbody.innerHTML = bodyHtml;
+}
 
 // ============================================================
 // V4.6 — SECTION VÉHICULES (Camions + Voitures fonction)
