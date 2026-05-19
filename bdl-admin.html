@@ -2898,8 +2898,6 @@ async function loadRelevesJour(date) {
     
     renderRelevesTable(tbodyEau, resp.par_type.eau || [], 'eau');
     renderRelevesTable(tbodyGaz, resp.par_type.gaz || [], 'gaz');
-    renderRelevesTable(tbodyEau, resp.par_type.eau || [], 'eau');
-    renderRelevesTable(tbodyGaz, resp.par_type.gaz || [], 'gaz');
     renderRelevesTable(tbodyEdf, resp.par_type.edf || [], 'edf');
   } catch (err) {
     tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur: ' + err.message + '</td></tr>';
