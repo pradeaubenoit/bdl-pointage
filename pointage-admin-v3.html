@@ -763,14 +763,22 @@ async function renderReport() {
       const e = r.employee;
       const anomalies = r.anomalies && r.anomalies.length ?
         `<span class="anomaly">⚠ Jours impair (oubli départ ?) : ${r.anomalies.map(fmtDateFR).join(', ')}</span>` : '';
-      return `<tr>
-        <td><div class="name">${e.prenom} ${e.nom}</div>${anomalies}</td>
+      return `<tr data-emp-id="${e.id}">
+        <td>
+          <div class="name name-clickable" onclick="window.toggleDetailSalarie('${e.id}', '${e.prenom} ${e.nom}')" style="cursor:pointer;color:#1F4A47;text-decoration:underline;text-decoration-style:dotted">${e.prenom} ${e.nom} 📊</div>
+          ${anomalies}
+        </td>
         <td>${e.role}</td>
         <td class="num">${r.joursTravailles}</td>
         <td class="num">${fmtHours(r.heuresTotal)}</td>
         <td class="num">${fmtHours(r.heuresNormales)}</td>
         <td class="num ${r.heuresSup>0?'warn':''}">${fmtHours(r.heuresSup)}</td>
         <td class="num">${fmtEUR(r.coutTotal)}</td>
+      </tr>
+      <tr class="detail-row" id="detail-${e.id}" style="display:none">
+        <td colspan="7" style="background:#f9fafb;padding:0">
+          <div id="detail-content-${e.id}" style="padding:16px"></div>
+        </td>
       </tr>`;
     }).join('') + `<tr class="total-row">
       <td>Total</td><td></td>
@@ -784,6 +792,124 @@ async function renderReport() {
     totauxWrap.innerHTML = `<div style="padding:20px;color:var(--bad)">Erreur : ${e.message}</div>`;
   }
 }
+
+// V4.8 — Détail jour par jour d'un salarié
+window.toggleDetailSalarie = async function(empId, empName) {
+  const detailRow = document.getElementById('detail-' + empId);
+  const detailContent = document.getElementById('detail-content-' + empId);
+  
+  if (detailRow.style.display === 'table-row') {
+    detailRow.style.display = 'none';
+    return;
+  }
+  
+  // Fermer les autres détails ouverts
+  document.querySelectorAll('.detail-row').forEach(function(r) {
+    r.style.display = 'none';
+  });
+  
+  detailRow.style.display = 'table-row';
+  detailContent.innerHTML = '<div style="text-align:center;padding:20px;color:var(--ink-3)">Chargement du détail...</div>';
+  
+  const month = $('rpt-month').value;
+  
+  try {
+    const data = await apiGet('getCalendrierHeuresMois', { month: month });
+    if (!data.ok) throw new Error('Erreur de chargement');
+    
+    const empData = data.calendrier.find(function(c) { return c.employee.id === empId; });
+    if (!empData) {
+      detailContent.innerHTML = '<div style="padding:20px;color:var(--ink-3)">Aucune donnée pour ce salarié</div>';
+      return;
+    }
+    
+    // Construire le tableau jour par jour
+    const datesOrdered = Object.keys(empData.jours).sort();
+    
+    if (datesOrdered.length === 0) {
+      detailContent.innerHTML = '<div style="padding:20px;color:var(--ink-3)">Pas de jours travaillés ce mois</div>';
+      return;
+    }
+    
+    let html = '<h3 style="margin:0 0 12px 0;font-size:16px">📊 Détail jour par jour — <strong>' + empName + '</strong></h3>';
+    
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13px;background:white;border-radius:8px;overflow:hidden">';
+    html += '<thead><tr style="background:#1F4A47;color:white">' +
+            '<th style="padding:8px 12px;text-align:left">Date</th>' +
+            '<th style="padding:8px 12px;text-align:left">Jour</th>' +
+            '<th style="padding:8px 12px;text-align:right">Heures</th>' +
+            '<th style="padding:8px 12px;text-align:right">Sup ce jour</th>' +
+            '<th style="padding:8px 12px;text-align:right">Cumul semaine</th>' +
+            '<th style="padding:8px 12px;text-align:right">Cumul sup mois</th>' +
+            '</tr></thead><tbody>';
+    
+    // Pour suivre les changements de semaine
+    let semaineActuelle = null;
+    let cumulSemAvant = 0;
+    
+    datesOrdered.forEach(function(dateISO) {
+      const heures = empData.jours[dateISO];
+      const supJour = empData.jours_sup[dateISO] || 0;
+      const cumulSupMois = empData.jours_cumul_sup[dateISO] || 0;
+      const d = new Date(dateISO + 'T12:00:00');
+      const jourLabel = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'][d.getDay()];
+      const jourCourt = ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth()+1)).slice(-2);
+      
+      // Calculer numéro de semaine ISO
+      const tempDate = new Date(d.getTime());
+      tempDate.setUTCDate(tempDate.getUTCDate() + 4 - (tempDate.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(tempDate.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((tempDate - yearStart) / 86400000) + 1) / 7);
+      
+      // Si nouvelle semaine, afficher un séparateur et reset cumul semaine
+      if (semaineActuelle !== weekNo) {
+        if (semaineActuelle !== null) {
+          // Récap semaine précédente
+          html += '<tr style="background:#fef3c7"><td colspan="6" style="padding:6px 12px;font-style:italic;color:#854d0e;font-size:12px">— Fin semaine ' + semaineActuelle + ' : ' + cumulSemAvant.toFixed(1) + 'h —</td></tr>';
+        }
+        semaineActuelle = weekNo;
+        cumulSemAvant = 0;
+      }
+      
+      cumulSemAvant += heures;
+      
+      // Couleurs
+      const supColor = supJour > 0 ? 'color:#9a3412;font-weight:600' : 'color:#9ca3af';
+      const cumulMoisColor = cumulSupMois > 0 ? 'color:#9a3412;font-weight:600' : 'color:#9ca3af';
+      const cumulSemColor = cumulSemAvant > 35 ? 'color:#9a3412;font-weight:600' : '';
+      
+      html += '<tr style="border-bottom:1px solid #e5e7eb">' +
+              '<td style="padding:6px 12px"><strong>' + jourCourt + '</strong></td>' +
+              '<td style="padding:6px 12px;color:var(--ink-2)">' + jourLabel + '</td>' +
+              '<td style="padding:6px 12px;text-align:right">' + heures.toFixed(1) + 'h</td>' +
+              '<td style="padding:6px 12px;text-align:right;' + supColor + '">' + (supJour > 0 ? supJour.toFixed(1) + 'h' : '—') + '</td>' +
+              '<td style="padding:6px 12px;text-align:right;' + cumulSemColor + '">' + cumulSemAvant.toFixed(1) + 'h</td>' +
+              '<td style="padding:6px 12px;text-align:right;' + cumulMoisColor + '">' + (cumulSupMois > 0 ? cumulSupMois.toFixed(1) + 'h' : '0h') + '</td>' +
+              '</tr>';
+    });
+    
+    // Récap dernière semaine
+    if (semaineActuelle !== null) {
+      html += '<tr style="background:#fef3c7"><td colspan="6" style="padding:6px 12px;font-style:italic;color:#854d0e;font-size:12px">— Fin semaine ' + semaineActuelle + ' : ' + cumulSemAvant.toFixed(1) + 'h —</td></tr>';
+    }
+    
+    // Total
+    html += '<tr style="background:#1F4A47;color:white;font-weight:600">' +
+            '<td colspan="2" style="padding:10px 12px">TOTAL MOIS</td>' +
+            '<td style="padding:10px 12px;text-align:right">' + empData.total_mois.toFixed(1) + 'h</td>' +
+            '<td style="padding:10px 12px;text-align:right">—</td>' +
+            '<td style="padding:10px 12px;text-align:right">—</td>' +
+            '<td style="padding:10px 12px;text-align:right;background:#fed7aa;color:#9a3412">' + empData.total_sup_mois.toFixed(1) + 'h sup</td>' +
+            '</tr>';
+    
+    html += '</tbody></table>';
+    
+    detailContent.innerHTML = html;
+    
+  } catch (err) {
+    detailContent.innerHTML = '<div style="padding:20px;color:var(--bad)">Erreur : ' + err.message + '</div>';
+  }
+};
 $('rpt-refresh').addEventListener('click', renderReport);
 $('rpt-month').addEventListener('change', renderReport);
 $('rpt-print').addEventListener('click', () => window.print());
