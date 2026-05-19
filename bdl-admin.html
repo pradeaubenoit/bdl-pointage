@@ -2511,7 +2511,7 @@ function renderBudgetCard(fluide, data) {
     `;
   }
 
-  // Couleurs selon niveau d'alerte
+  // Couleurs selon niveau d'alerte (V4.8.1 : 2 niveaux seulement)
   const colorMap = {
     'vert':   { bg: '#dcfce7', border: '#22c55e', text: '#15803d', icon: '✅' },
     'jaune':  { bg: '#fef9c3', border: '#eab308', text: '#854d0e', icon: '⚠️' },
@@ -2524,23 +2524,23 @@ function renderBudgetCard(fluide, data) {
   const pctVisuel = Math.min(100, data.pct_conso_mois || 0);
   const pctTotal = data.pct_conso_mois || 0;
 
-  // Couleur de la barre
-  let barColor = '#22c55e'; // vert
-  if (data.niveau === 'jaune') barColor = '#eab308';
+  // Couleur de la barre (basée sur projection, pas conso)
+  let barColor = '#22c55e'; // vert par défaut
   if (data.niveau === 'rouge') barColor = '#ef4444';
 
-  // Projection
+  // Projection — visible en gros car c'est ce qui détermine le niveau
   let projectionHtml = '';
   if (data.projection_fin_mois !== null && data.projection_fin_mois !== undefined) {
     const projVsBudget = data.budget_mensuel > 0 
       ? Math.round((data.projection_fin_mois / data.budget_mensuel) * 100)
       : 0;
     const projColor = projVsBudget <= 100 ? '#15803d' : '#991b1b';
-    const projIcon = projVsBudget <= 100 ? '✅' : '⚠️';
+    const projIcon = projVsBudget <= 100 ? '✅ Budget respecté' : '🚨 Budget dépassé';
     projectionHtml = `
-      <div style="margin-top:8px;padding:8px;background:rgba(255,255,255,0.6);border-radius:6px;font-size:13px">
-        📊 <strong>Projection fin de mois</strong> : ${fmtEur(data.projection_fin_mois)} 
-        <span style="color:${projColor}">${projIcon} ${projVsBudget}% du budget</span>
+      <div style="margin-top:8px;padding:10px;background:rgba(255,255,255,0.7);border-radius:6px;font-size:13px;border:2px solid ${projColor}">
+        <div style="font-weight:600;color:${projColor};margin-bottom:4px">📊 Projection fin de mois</div>
+        <div><strong style="font-size:15px">${fmtEur(data.projection_fin_mois)}</strong> · ${projVsBudget}% du budget</div>
+        <div style="margin-top:4px;color:${projColor}">${projIcon}</div>
       </div>
     `;
   }
