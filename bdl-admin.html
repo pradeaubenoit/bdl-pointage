@@ -1153,6 +1153,32 @@ tr:hover { background: var(--bg-sunken); }
         </table>
       </div>
     </div>
+
+    <!-- V4.9 — Section EDF -->
+    <div style="margin-bottom:24px">
+      <h2 style="font-size:18px;display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        ⚡ <span>Relevés EDF du jour</span>
+        <span id="diagnosticEdfCount" style="font-size:13px;color:var(--text-soft);font-weight:normal"></span>
+      </h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Heure</th>
+              <th>Compteur (kWh)</th>
+              <th>Δ Conso</th>
+              <th>Durée</th>
+              <th>📊 Débit (kWh/h)</th>
+              <th>Note</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="diagnosticEdfTbody">
+            <tr><td colspan="7" class="empty-state">Aucun relevé</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </section>
 
   <!-- Modal Ajouter Relevé -->
@@ -1163,9 +1189,10 @@ tr:hover { background: var(--bg-sunken); }
       
       <div style="margin-bottom:12px">
         <label style="display:block;margin-bottom:4px;font-weight:600">Type :</label>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" id="btnTypeEau" style="flex:1" onclick="window.setReleveType('eau')">💧 Eau (m³)</button>
-          <button class="btn btn-ghost" id="btnTypeGaz" style="flex:1" onclick="window.setReleveType('gaz')">🔥 Gaz (%)</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost" id="btnTypeEau" style="flex:1;min-width:80px" onclick="window.setReleveType('eau')">💧 Eau (m³)</button>
+          <button class="btn btn-ghost" id="btnTypeGaz" style="flex:1;min-width:80px" onclick="window.setReleveType('gaz')">🔥 Gaz (%)</button>
+          <button class="btn btn-ghost" id="btnTypeEdf" style="flex:1;min-width:80px" onclick="window.setReleveType('edf')">⚡ EDF (kWh)</button>
         </div>
         <input type="hidden" id="modalReleveType" value="eau">
       </div>
@@ -2850,25 +2877,34 @@ async function loadDiagnosticSection() {
 async function loadRelevesJour(date) {
   const tbodyEau = document.getElementById('diagnosticEauTbody');
   const tbodyGaz = document.getElementById('diagnosticGazTbody');
+  const tbodyEdf = document.getElementById('diagnosticEdfTbody');
   
   tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
+  tbodyGaz.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
+  tbodyEdf.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
   
   try {
     const resp = await callApi('getRelevesDiagnostic', { date: date });
     if (!resp.ok) {
       tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
+      tbodyGaz.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
+      tbodyEdf.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
       return;
     }
     
-    document.getElementById('diagnosticEauCount').textContent = `· ${resp.nb_eau} relevés`;
-    document.getElementById('diagnosticGazCount').textContent = `· ${resp.nb_gaz} relevés`;
+    document.getElementById('diagnosticEauCount').textContent = '· ' + (resp.par_type.eau || []).length + ' relevés';
+    document.getElementById('diagnosticGazCount').textContent = '· ' + (resp.par_type.gaz || []).length + ' relevés';
+    document.getElementById('diagnosticEdfCount').textContent = '· ' + (resp.par_type.edf || []).length + ' relevés';
     
-    // Rendre les 2 tableaux
     renderRelevesTable(tbodyEau, resp.par_type.eau || [], 'eau');
     renderRelevesTable(tbodyGaz, resp.par_type.gaz || [], 'gaz');
-    
+    renderRelevesTable(tbodyEau, resp.par_type.eau || [], 'eau');
+    renderRelevesTable(tbodyGaz, resp.par_type.gaz || [], 'gaz');
+    renderRelevesTable(tbodyEdf, resp.par_type.edf || [], 'edf');
   } catch (err) {
     tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur: ' + err.message + '</td></tr>';
+    tbodyGaz.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
+    tbodyEdf.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
   }
 }
 
@@ -2885,7 +2921,8 @@ function renderRelevesTable(tbody, releves, type) {
     let rowStyle = '';
     
     if (i > 0 && r.debit_par_heure !== undefined) {
-      deltaHtml = `<strong>+${r.delta_compteur}</strong> ${type === 'eau' ? 'm³' : '%'}`;
+      const unite = type === 'eau' ? 'm³' : (type === 'gaz' ? '%' : (type === 'edf' ? 'kWh' : ''));
+      deltaHtml = `<strong>+${r.delta_compteur}</strong> ${unite}`;
       dureeHtml = `${r.duree_h.toFixed(1)} h`;
       
       // Couleur selon débit (à ajuster avec l'expérience)
@@ -2902,6 +2939,11 @@ function renderRelevesTable(tbody, releves, type) {
         // Pour le gaz : seuil 0.5%/h
         if (debit > 1) { color = '#ef4444'; icon = '🚨'; rowStyle = 'background:rgba(239,68,68,0.05)'; }
         else if (debit > 0.5) { color = '#f59e0b'; icon = '⚠️'; }
+      } else if (type === 'edf') {
+        // V4.9 — Pour EDF : seuils calculés depuis conso moyenne (~130 kWh/h)
+        if (debit > 300) { color = '#ef4444'; icon = '🚨'; rowStyle = 'background:rgba(239,68,68,0.05)'; }
+        else if (debit > 200) { color = '#f59e0b'; icon = '⚠️'; }
+        else if (debit > 130) { color = '#84cc16'; icon = '🟡'; }
       }
       
       debitHtml = `<strong style="color:${color}">${icon} ${debit.toFixed(2)}</strong>`;
@@ -2940,16 +2982,21 @@ window.setReleveType = function(type) {
   document.getElementById('modalReleveType').value = type;
   const btnEau = document.getElementById('btnTypeEau');
   const btnGaz = document.getElementById('btnTypeGaz');
-  if (type === 'eau') {
-    btnEau.classList.remove('btn-ghost');
-    btnEau.classList.add('btn-primary');
-    btnGaz.classList.remove('btn-primary');
-    btnGaz.classList.add('btn-ghost');
-  } else {
-    btnGaz.classList.remove('btn-ghost');
-    btnGaz.classList.add('btn-primary');
-    btnEau.classList.remove('btn-primary');
-    btnEau.classList.add('btn-ghost');
+  const btnEdf = document.getElementById('btnTypeEdf');
+  
+  // Reset tous
+  [btnEau, btnGaz, btnEdf].forEach(function(b) {
+    if (b) { b.classList.remove('btn-primary'); b.classList.add('btn-ghost'); }
+  });
+  
+  // Activer celui sélectionné
+  var btnActif = btnEau;
+  if (type === 'gaz') btnActif = btnGaz;
+  else if (type === 'edf') btnActif = btnEdf;
+  
+  if (btnActif) {
+    btnActif.classList.remove('btn-ghost');
+    btnActif.classList.add('btn-primary');
   }
 };
 
