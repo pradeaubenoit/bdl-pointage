@@ -1062,6 +1062,47 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
     }
 
     const result = await callApi('saveProduction', data);
+    
+    // V4.8 — Synchronisation automatique avec Releves_Diagnostic
+    // Pour avoir l'heure précise et la vue intra-jour
+    try {
+      const now = new Date();
+      const heureNow = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+      
+      // Eau
+      if (data.eau_compteur != null) {
+        await callApi('addReleveDiagnostic', {
+          type: 'eau',
+          date: data.date_travail,
+          heure: heureNow,
+          valeur_compteur: data.eau_compteur,
+          note: 'Saisie matin'
+        });
+      }
+      // Gaz
+      if (data.gaz_cuve_pct != null) {
+        await callApi('addReleveDiagnostic', {
+          type: 'gaz',
+          date: data.date_travail,
+          heure: heureNow,
+          valeur_compteur: data.gaz_cuve_pct,
+          note: 'Saisie matin'
+        });
+      }
+      // Compresseur
+      if (data.compresseur_compteur != null) {
+        await callApi('addReleveDiagnostic', {
+          type: 'compresseur',
+          date: data.date_travail,
+          heure: heureNow,
+          valeur_compteur: data.compresseur_compteur,
+          note: 'Saisie matin'
+        });
+      }
+    } catch (e) {
+      console.log('Sync Diagnostic non bloquant:', e);
+    }
+    
     showConfirmation(result, data);
 
   } catch (err) {
