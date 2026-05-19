@@ -1013,12 +1013,12 @@ tr:hover { background: var(--bg-sunken); }
       <h2 style="margin-top:0">➕ Ajouter un pointage</h2>
       <p style="color:var(--text-soft);font-size:14px">Régularisation d'un oubli de pointage</p>
       
-      <div style="margin-bottom:12px">
+      <div style="margin-bottom:12px;position:relative">
         <label style="display:block;margin-bottom:4px;font-weight:600">Salarié :</label>
-        <input type="text" id="modalEmpSearch" list="modalEmpDatalist" placeholder="Tape le nom du salarié..." autocomplete="off" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:15px">
-        <datalist id="modalEmpDatalist"></datalist>
+        <input type="text" id="modalEmpSearch" placeholder="Tape un nom ou clique pour voir la liste..." autocomplete="off" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:15px">
         <input type="hidden" id="modalEmpId">
-        <div id="modalEmpDisplay" style="margin-top:4px;font-size:13px;color:var(--text-soft)"></div>
+        <div id="modalEmpList" style="position:relative;max-height:250px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:4px;display:none;background:white;z-index:10"></div>
+        <div id="modalEmpDisplay" style="margin-top:6px;font-size:13px;color:var(--text-soft)"></div>
       </div>
       
       <div style="margin-bottom:12px">
@@ -2699,46 +2699,75 @@ async function loadEmployeesForPointageModal() {
   try {
     const resp = await callApi('salaries');
     if (resp.salaries) {
-      const datalist = document.getElementById('modalEmpDatalist');
-      // Tous les salariés (actifs ou non) pour pouvoir régulariser même sur ex-salariés
       const list = resp.salaries.filter(s => s.actif !== false);
-      
-      datalist.innerHTML = list.map(s => 
-        `<option value="${s.prenom} ${s.nom}" data-id="${s.id}"></option>`
-      ).join('');
-      
-      // Stocker la liste pour la recherche par nom
       window._salariesCache = list;
       
-      // Brancher l'event sur l'input pour récupérer l'ID quand on tape ou sélectionne
+      // Brancher l'input pour filtrer la liste
       const input = document.getElementById('modalEmpSearch');
-      input.oninput = function() {
-        const val = input.value.trim();
-        const found = window._salariesCache.find(s => 
-          (s.prenom + ' ' + s.nom).toLowerCase() === val.toLowerCase()
-        );
-        if (found) {
-          document.getElementById('modalEmpId').value = found.id;
-          document.getElementById('modalEmpDisplay').innerHTML = 
-            `✅ Sélectionné : <strong>${found.prenom} ${found.nom}</strong>`;
-          document.getElementById('modalEmpDisplay').style.color = '#15803d';
-        } else {
-          document.getElementById('modalEmpId').value = '';
-          if (val.length > 0) {
-            document.getElementById('modalEmpDisplay').innerHTML = 
-              `⌨️ Tape pour chercher dans la liste de ${list.length} salariés...`;
-            document.getElementById('modalEmpDisplay').style.color = '#6b7280';
-          } else {
-            document.getElementById('modalEmpDisplay').innerHTML = '';
-          }
-        }
+      const listDiv = document.getElementById('modalEmpList');
+      
+      // Cliquer sur l'input = afficher TOUTE la liste
+      input.onfocus = function() {
+        renderSalariesList(window._salariesCache);
+        listDiv.style.display = 'block';
       };
+      
+      // Taper dans l'input = filtrer
+      input.oninput = function() {
+        const term = input.value.toLowerCase().trim();
+        if (!term) {
+          renderSalariesList(window._salariesCache);
+        } else {
+          const filtered = window._salariesCache.filter(s => 
+            (s.prenom + ' ' + s.nom).toLowerCase().includes(term) ||
+            (s.nom + ' ' + s.prenom).toLowerCase().includes(term)
+          );
+          renderSalariesList(filtered);
+        }
+        listDiv.style.display = 'block';
+        // Reset l'ID tant qu'on n'a pas cliqué sur un nom
+        document.getElementById('modalEmpId').value = '';
+        document.getElementById('modalEmpDisplay').innerHTML = 
+          `⌨️ Tape ou clique sur un nom dans la liste ci-dessus`;
+        document.getElementById('modalEmpDisplay').style.color = '#6b7280';
+      };
+      
+      return true;
     }
+    return false;
   } catch (e) {
     console.error('Erreur chargement salariés:', e);
     document.getElementById('modalEmpDisplay').innerHTML = '⚠️ Erreur chargement : ' + e.message;
+    return false;
   }
 }
+
+function renderSalariesList(list) {
+  const container = document.getElementById('modalEmpList');
+  if (list.length === 0) {
+    container.innerHTML = '<div style="padding:12px;color:var(--text-soft);text-align:center">Aucun salarié trouvé</div>';
+    return;
+  }
+  // Trier par prénom
+  const sorted = [...list].sort((a, b) => a.prenom.localeCompare(b.prenom));
+  container.innerHTML = sorted.map(s => 
+    `<div class="emp-item" onclick="window.selectEmp('${s.id}', '${s.prenom.replace(/'/g, "\\'")} ${s.nom.replace(/'/g, "\\'")}')" 
+      style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6"
+      onmouseover="this.style.background='#f3f4f6'"
+      onmouseout="this.style.background='white'">
+      <strong>${s.prenom} ${s.nom}</strong>
+    </div>`
+  ).join('');
+}
+
+window.selectEmp = function(id, name) {
+  document.getElementById('modalEmpId').value = id;
+  document.getElementById('modalEmpSearch').value = name;
+  document.getElementById('modalEmpList').style.display = 'none';
+  document.getElementById('modalEmpDisplay').innerHTML = 
+    `✅ Sélectionné : <strong>${name}</strong>`;
+  document.getElementById('modalEmpDisplay').style.color = '#15803d';
+};
 
 async function loadPointagesJour(date) {
   const tbody = document.getElementById('pointagesTbody');
@@ -2837,6 +2866,7 @@ async function openModalPointage() {
   document.getElementById('modalEmpSearch').value = '';
   document.getElementById('modalEmpId').value = '';
   document.getElementById('modalEmpDisplay').innerHTML = '';
+  document.getElementById('modalEmpList').style.display = 'none';
   document.getElementById('modalDate').value = document.getElementById('pointagesDate').value;
   document.getElementById('modalHeure').value = '';
   document.getElementById('modalNote').value = '';
@@ -2847,18 +2877,16 @@ window.prefillModalPointage = async function(empId, date) {
   // S'assurer que la liste est chargée
   await loadEmployeesForPointageModal();
   
-  // Trouver le salarié dans le cache
+  // Trouver le salarié dans le cache et le pré-sélectionner
   const emp = window._salariesCache ? window._salariesCache.find(s => s.id === empId) : null;
   
   if (emp) {
-    document.getElementById('modalEmpSearch').value = emp.prenom + ' ' + emp.nom;
-    document.getElementById('modalEmpId').value = empId;
-    document.getElementById('modalEmpDisplay').innerHTML = 
-      `✅ Sélectionné : <strong>${emp.prenom} ${emp.nom}</strong>`;
-    document.getElementById('modalEmpDisplay').style.color = '#15803d';
+    // Utiliser la fonction de sélection
+    window.selectEmp(empId, emp.prenom + ' ' + emp.nom);
   } else {
     document.getElementById('modalEmpSearch').value = '';
     document.getElementById('modalEmpId').value = '';
+    document.getElementById('modalEmpDisplay').innerHTML = '';
   }
   
   document.getElementById('modalDate').value = date;
