@@ -2697,7 +2697,7 @@ async function loadPointagesSection() {
 
 async function loadEmployeesForPointageModal() {
   try {
-    const resp = await callApi('getSalaries');
+    const resp = await callApi('salaries');
     if (resp.salaries) {
       const datalist = document.getElementById('modalEmpDatalist');
       // Tous les salariés (actifs ou non) pour pouvoir régulariser même sur ex-salariés
