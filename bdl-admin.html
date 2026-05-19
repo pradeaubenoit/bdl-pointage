@@ -801,6 +801,7 @@ tr:hover { background: var(--bg-sunken); }
     <button class="tab active" data-tab="dashboard">📊 Tableau de bord</button>
     <button class="tab" data-tab="pilotage">⚡ Pilotage Jour</button>
     <button class="tab" data-tab="pointages">👥 Pointages</button>
+    <button class="tab" data-tab="diagnostic">🔍 Diagnostic</button>
     <button class="tab" data-tab="production">📝 Production</button>
     <button class="tab" data-tab="gaz">🚛 Gaz Livraisons</button>
     <button class="tab" data-tab="vehicules">🚗 Véhicules</button>
@@ -1039,6 +1040,121 @@ tr:hover { background: var(--bg-sunken); }
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="document.getElementById('modalPointage').style.display='none'">Annuler</button>
         <button class="btn btn-primary" id="btnSavePointage">💾 Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- V4.8 — SECTION DIAGNOSTIC (Relevés intra-jour pour fuites) -->
+  <section class="section" id="section-diagnostic">
+    <div class="section-header">
+      <div>
+        <h1 class="section-title">🔍 Diagnostic</h1>
+        <div class="section-subtitle">Relevés intra-jour pour identifier fuites et anomalies</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:14px;color:var(--text-soft)">Date :</label>
+        <input type="date" id="diagnosticDate" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border)">
+        <button class="btn btn-primary" id="btnAjouterReleve">➕ Nouveau relevé</button>
+      </div>
+    </div>
+
+    <!-- Info bandeau -->
+    <div style="margin-bottom:16px;padding:12px;background:#fef9c3;border-left:4px solid #eab308;border-radius:6px;font-size:14px">
+      💡 <strong>Comment utiliser :</strong> Quand tu soupçonnes une fuite, fais plusieurs relevés du compteur dans la journée.
+      Le système calcule automatiquement le <strong>débit en m³/h entre chaque relevé</strong> pour identifier les anomalies et vérifier si l'intervention a fonctionné.
+    </div>
+
+    <!-- Section EAU -->
+    <div style="margin-bottom:24px">
+      <h2 style="font-size:18px;display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        💧 <span>Relevés EAU du jour</span>
+        <span id="diagnosticEauCount" style="font-size:13px;color:var(--text-soft);font-weight:normal"></span>
+      </h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Heure</th>
+              <th>Compteur (m³)</th>
+              <th>Δ Conso</th>
+              <th>Durée</th>
+              <th>📊 Débit (m³/h)</th>
+              <th>Note</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="diagnosticEauTbody">
+            <tr><td colspan="7" class="empty-state">Chargement…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section GAZ -->
+    <div style="margin-bottom:24px">
+      <h2 style="font-size:18px;display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        🔥 <span>Relevés GAZ du jour</span>
+        <span id="diagnosticGazCount" style="font-size:13px;color:var(--text-soft);font-weight:normal"></span>
+      </h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Heure</th>
+              <th>Cuve (%)</th>
+              <th>Δ Conso</th>
+              <th>Durée</th>
+              <th>📊 Débit (%/h)</th>
+              <th>Note</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="diagnosticGazTbody">
+            <tr><td colspan="7" class="empty-state">Aucun relevé</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal Ajouter Relevé -->
+  <div id="modalReleve" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;padding:24px;border-radius:12px;max-width:480px;width:90%;max-height:90vh;overflow-y:auto">
+      <h2 style="margin-top:0">➕ Nouveau relevé</h2>
+      <p style="color:var(--text-soft);font-size:14px">Saisi un relevé compteur pour diagnostiquer</p>
+      
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Type :</label>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" id="btnTypeEau" style="flex:1" onclick="window.setReleveType('eau')">💧 Eau (m³)</button>
+          <button class="btn btn-ghost" id="btnTypeGaz" style="flex:1" onclick="window.setReleveType('gaz')">🔥 Gaz (%)</button>
+        </div>
+        <input type="hidden" id="modalReleveType" value="eau">
+      </div>
+      
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Date :</label>
+        <input type="date" id="modalReleveDate" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
+      </div>
+      
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Heure :</label>
+        <input type="time" id="modalReleveHeure" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
+      </div>
+      
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Valeur compteur :</label>
+        <input type="number" step="0.01" id="modalReleveValeur" placeholder="ex: 12345.67" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px">
+      </div>
+      
+      <div style="margin-bottom:16px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Note :</label>
+        <input type="text" id="modalReleveNote" placeholder="ex: Suspicion fuite tunnel 2 / Intervention vanne fermée" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
+      </div>
+      
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="document.getElementById('modalReleve').style.display='none'">Annuler</button>
+        <button class="btn btn-primary" id="btnSaveReleve">💾 Enregistrer</button>
       </div>
     </div>
   </div>
@@ -1627,6 +1743,7 @@ function switchTab(name) {
   if (name === 'gaz') loadGazLivraisons();
   if (name === 'vehicules') loadVehiculesSection();
   if (name === 'pointages') loadPointagesSection();
+  if (name === 'diagnostic') loadDiagnosticSection();
   if (name === 'charges') loadChargesSection();
   if (name === 'pilotage') loadPilotageSection();
   if (name === 'reglages') renderReglages();
@@ -2672,6 +2789,178 @@ window.promptBudget = async function(fluide, label) {
     if (state.currentMonth) loadBudgetsFluides(state.currentMonth);
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
+  }
+};
+
+// ============================================================
+// V4.8 — SECTION DIAGNOSTIC (Relevés intra-jour pour fuites)
+// ============================================================
+
+async function loadDiagnosticSection() {
+  const dateInput = document.getElementById('diagnosticDate');
+  if (!dateInput.value) {
+    dateInput.value = new Date().toISOString().split('T')[0];
+  }
+  
+  loadRelevesJour(dateInput.value);
+  
+  dateInput.onchange = () => loadRelevesJour(dateInput.value);
+  document.getElementById('btnAjouterReleve').onclick = openModalReleve;
+  document.getElementById('btnSaveReleve').onclick = saveReleveDiagnostic;
+}
+
+async function loadRelevesJour(date) {
+  const tbodyEau = document.getElementById('diagnosticEauTbody');
+  const tbodyGaz = document.getElementById('diagnosticGazTbody');
+  
+  tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
+  
+  try {
+    const resp = await callApi('getRelevesDiagnostic', { date: date });
+    if (!resp.ok) {
+      tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
+      return;
+    }
+    
+    document.getElementById('diagnosticEauCount').textContent = `· ${resp.nb_eau} relevés`;
+    document.getElementById('diagnosticGazCount').textContent = `· ${resp.nb_gaz} relevés`;
+    
+    // Rendre les 2 tableaux
+    renderRelevesTable(tbodyEau, resp.par_type.eau || [], 'eau');
+    renderRelevesTable(tbodyGaz, resp.par_type.gaz || [], 'gaz');
+    
+  } catch (err) {
+    tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur: ' + err.message + '</td></tr>';
+  }
+}
+
+function renderRelevesTable(tbody, releves, type) {
+  if (releves.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Aucun relevé ${type} pour ce jour. Clique "➕ Nouveau relevé" pour commencer.</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = releves.map((r, i) => {
+    let deltaHtml = '<span style="color:var(--text-soft)">—</span>';
+    let dureeHtml = '<span style="color:var(--text-soft)">—</span>';
+    let debitHtml = '<span style="color:var(--text-soft)">Référence</span>';
+    let rowStyle = '';
+    
+    if (i > 0 && r.debit_par_heure !== undefined) {
+      deltaHtml = `<strong>+${r.delta_compteur}</strong> ${type === 'eau' ? 'm³' : '%'}`;
+      dureeHtml = `${r.duree_h.toFixed(1)} h`;
+      
+      // Couleur selon débit (à ajuster avec l'expérience)
+      const debit = r.debit_par_heure;
+      let color = '#15803d';
+      let icon = '✅';
+      
+      if (type === 'eau') {
+        // Pour l'eau : seuil 3 m³/h = limite haute
+        if (debit > 5) { color = '#ef4444'; icon = '🚨'; rowStyle = 'background:rgba(239,68,68,0.05)'; }
+        else if (debit > 3) { color = '#f59e0b'; icon = '⚠️'; }
+        else if (debit > 1.5) { color = '#84cc16'; icon = '🟡'; }
+      } else if (type === 'gaz') {
+        // Pour le gaz : seuil 0.5%/h
+        if (debit > 1) { color = '#ef4444'; icon = '🚨'; rowStyle = 'background:rgba(239,68,68,0.05)'; }
+        else if (debit > 0.5) { color = '#f59e0b'; icon = '⚠️'; }
+      }
+      
+      debitHtml = `<strong style="color:${color}">${icon} ${debit.toFixed(2)}</strong>`;
+    }
+    
+    return `<tr style="${rowStyle}">
+      <td><strong>${r.heure}</strong></td>
+      <td>${r.valeur_compteur.toLocaleString('fr-FR')}</td>
+      <td>${deltaHtml}</td>
+      <td>${dureeHtml}</td>
+      <td>${debitHtml}</td>
+      <td style="font-size:13px">${r.note || '—'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="window.deleteReleve('${r.id}')" title="Supprimer">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openModalReleve() {
+  document.getElementById('modalReleveType').value = 'eau';
+  window.setReleveType('eau');
+  document.getElementById('modalReleveDate').value = document.getElementById('diagnosticDate').value;
+  
+  // Heure actuelle par défaut
+  const now = new Date();
+  const heure = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('modalReleveHeure').value = heure;
+  
+  document.getElementById('modalReleveValeur').value = '';
+  document.getElementById('modalReleveNote').value = '';
+  document.getElementById('modalReleve').style.display = 'flex';
+}
+
+window.setReleveType = function(type) {
+  document.getElementById('modalReleveType').value = type;
+  const btnEau = document.getElementById('btnTypeEau');
+  const btnGaz = document.getElementById('btnTypeGaz');
+  if (type === 'eau') {
+    btnEau.classList.remove('btn-ghost');
+    btnEau.classList.add('btn-primary');
+    btnGaz.classList.remove('btn-primary');
+    btnGaz.classList.add('btn-ghost');
+  } else {
+    btnGaz.classList.remove('btn-ghost');
+    btnGaz.classList.add('btn-primary');
+    btnEau.classList.remove('btn-primary');
+    btnEau.classList.add('btn-ghost');
+  }
+};
+
+async function saveReleveDiagnostic() {
+  const type = document.getElementById('modalReleveType').value;
+  const date = document.getElementById('modalReleveDate').value;
+  const heure = document.getElementById('modalReleveHeure').value;
+  const valeur = document.getElementById('modalReleveValeur').value;
+  const note = document.getElementById('modalReleveNote').value;
+  
+  if (!date) { alert('Date requise'); return; }
+  if (!heure) { alert('Heure requise'); return; }
+  if (!valeur) { alert('Valeur compteur requise'); return; }
+  
+  try {
+    const resp = await callApi('addReleveDiagnostic', {
+      type: type,
+      date: date,
+      heure: heure,
+      valeur_compteur: Number(valeur),
+      note: note
+    });
+    
+    if (resp.error) {
+      alert('Erreur : ' + resp.error);
+      return;
+    }
+    
+    toast('✅ Relevé enregistré', 'success');
+    document.getElementById('modalReleve').style.display = 'none';
+    loadRelevesJour(document.getElementById('diagnosticDate').value);
+    
+  } catch (err) {
+    alert('Erreur : ' + err.message);
+  }
+}
+
+window.deleteReleve = async function(id) {
+  if (!confirm('Supprimer ce relevé ?')) return;
+  try {
+    const resp = await callApi('deleteReleveDiagnostic', { id: id });
+    if (resp.ok) {
+      toast('Relevé supprimé', 'success');
+      loadRelevesJour(document.getElementById('diagnosticDate').value);
+    } else {
+      alert('Erreur : ' + (resp.error || 'Échec'));
+    }
+  } catch (err) {
+    alert('Erreur : ' + err.message);
   }
 };
 
