@@ -157,11 +157,11 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
 .rpt-controls select{background:transparent;border:1px solid var(--line);padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:13px;min-height:36px}
 .rpt-controls .spacer{flex:1}
 
-.rpt-totaux{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--ink);margin-bottom:24px}
-@media(max-width:720px){.rpt-totaux{grid-template-columns:1fr}}
+.rpt-totaux{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--ink);margin-bottom:24px}
+@media(max-width:720px){.rpt-totaux{grid-template-columns:repeat(2,1fr)}}
 .rpt-tot-cell{background:var(--paper-2);padding:20px 22px}
 .rpt-tot-cell .lbl{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-2);font-weight:500;margin-bottom:6px}
-.rpt-tot-cell .v{font-family:'Instrument Serif',serif;font-size:38px;line-height:1;color:var(--ink);letter-spacing:-.01em}
+.rpt-tot-cell .v{font-family:'Instrument Serif',serif;font-size:34px;line-height:1;color:var(--ink);letter-spacing:-.01em}
 .rpt-tot-cell .v .unit{font-size:13px;color:var(--ink-3);font-family:'Bricolage Grotesque',sans-serif;margin-left:4px}
 
 .rpt-table{width:100%;border-collapse:collapse;font-size:13px;background:var(--paper);border:1px solid var(--line)}
@@ -170,13 +170,35 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
 .rpt-table td{padding:10px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle}
 .rpt-table td.num{text-align:right;font-family:'JetBrains Mono',monospace}
 .rpt-table td.warn{color:var(--warn);font-weight:500}
+.rpt-table td.ok{color:var(--ok);font-weight:500}
 .rpt-table tr:last-child td{border-bottom:none}
 .rpt-table tr.total-row td{border-top:1.5px solid var(--ink);font-weight:500;background:var(--paper)}
 .rpt-table .name{font-weight:500}
 .rpt-table .anomaly{font-size:10px;color:var(--bad);margin-top:2px;display:block}
+.rpt-table .btn-retrait{background:var(--accent);color:var(--paper);border:1px solid var(--accent);padding:5px 9px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;min-height:30px;white-space:nowrap}
+.rpt-table .btn-retrait:hover{background:var(--ink);border-color:var(--ink)}
+.rpt-table .btn-retrait:disabled{opacity:.4;cursor:not-allowed;background:var(--line);border-color:var(--line);color:var(--ink-2)}
 @media(max-width:720px){.rpt-table{font-size:11px}.rpt-table th,.rpt-table td{padding:8px 6px}}
 
 .rpt-wrap{overflow-x:auto;border:1px solid var(--line)}
+
+/* ==== OPERATIONS SUP (V4.9.5) ==== */
+.ops-section{margin-top:32px;padding-top:24px;border-top:1.5px solid var(--ink)}
+.ops-section h3{font-family:'Instrument Serif',serif;font-size:22px;font-weight:400;margin-bottom:6px}
+.ops-section h3 em{color:var(--accent);font-style:italic}
+.ops-section .desc{font-size:12px;color:var(--ink-2);margin-bottom:14px}
+.ops-list{display:grid;grid-template-columns:1fr;gap:1px;background:var(--line-2);border:1px solid var(--line)}
+.ops-row{background:var(--paper);padding:10px 14px;display:grid;grid-template-columns:90px 1fr auto auto auto;gap:12px;align-items:center;font-size:12px}
+@media(max-width:720px){.ops-row{grid-template-columns:1fr auto auto;gap:8px}.ops-row .date-col,.ops-row .mode-col{display:none}}
+.ops-row .date-col{font-family:'JetBrains Mono',monospace;color:var(--ink-2)}
+.ops-row .name-col{font-weight:500}
+.ops-row .heures-col{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;color:var(--warn)}
+.ops-row .mode-col{font-size:10px;text-transform:uppercase;letter-spacing:.1em;padding:3px 8px;border:1px solid var(--line);border-radius:0}
+.ops-row .mode-col.paye{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.ops-row .mode-col.recup{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.ops-row .note-col{font-size:11px;color:var(--ink-3);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
+.ops-row button{background:transparent;border:1px solid var(--line);color:var(--ink-3);padding:5px 8px;font-size:10px;cursor:pointer;min-height:30px}
+.ops-row button:hover{border-color:var(--bad);color:var(--bad)}
 
 /* ==== CONFIG ==== */
 .config-card{background:var(--paper);border:1px solid var(--ink);padding:24px 28px;max-width:720px}
@@ -200,6 +222,21 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
 .modal-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .modal .close-x{position:absolute;top:14px;right:14px;background:transparent;border:none;font-size:24px;cursor:pointer;color:var(--ink-3);width:36px;height:36px}
 .modal-inner-wrap{position:relative}
+
+/* ==== MODAL RETRAIT SUP (V4.9.5) ==== */
+.modal-retrait{text-align:left}
+.modal-retrait .row{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.modal-retrait label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);font-weight:500}
+.modal-retrait input,.modal-retrait textarea,.modal-retrait select{background:var(--paper);border:1px solid var(--line);padding:10px 12px;font-family:'Bricolage Grotesque',sans-serif;font-size:14px;min-height:42px}
+.modal-retrait input:focus,.modal-retrait textarea:focus,.modal-retrait select:focus{outline:none;border-color:var(--accent)}
+.modal-retrait .mono-input{font-family:'JetBrains Mono',monospace}
+.modal-retrait .solde-info{padding:12px 14px;background:var(--accent-soft);border-left:3px solid var(--accent);font-size:12px;line-height:1.6;margin-bottom:18px}
+.modal-retrait .solde-info strong{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--accent)}
+.modal-retrait .mode-toggle{display:flex;gap:8px}
+.modal-retrait .mode-toggle label{flex:1;padding:12px;border:1.5px solid var(--line);text-align:center;cursor:pointer;text-transform:uppercase;font-weight:500;letter-spacing:.06em;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.modal-retrait .mode-toggle label .ico{font-size:20px;font-style:normal;letter-spacing:0}
+.modal-retrait .mode-toggle input[type=radio]{display:none}
+.modal-retrait .mode-toggle input[type=radio]:checked + label{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 
 /* Toast */
 .toast{position:fixed;top:env(safe-area-inset-top);left:0;right:0;display:flex;justify-content:center;padding:12px;pointer-events:none;z-index:2000}
@@ -289,7 +326,7 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-si
 <div class="tab-panel" data-panel="report">
   <div class="section-head">
     <h2><em>Rapport</em> mensuel</h2>
-    <div class="desc">Heures normales (≤35h/sem), heures sup (×1,25), coût total par salarié.</div>
+    <div class="desc">Heures normales (≤35h/sem), heures sup (×1,25), retraits (paye/récup), solde global.</div>
   </div>
   <div class="rpt-controls">
     <div class="field"><label style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);font-weight:500">Mois</label><select id="rpt-month"></select></div>
@@ -300,6 +337,13 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-si
   </div>
   <div id="rpt-totaux-wrap"></div>
   <div class="rpt-wrap"><table class="rpt-table" id="rpt-table"><thead></thead><tbody></tbody></table></div>
+
+  <!-- V4.9.5 — Historique des retraits du mois -->
+  <div class="ops-section">
+    <h3><em>Historique</em> des retraits du mois</h3>
+    <div class="desc">Heures sup payées ou récupérées. Cliquer sur 🗑 annule une opération (avec confirmation).</div>
+    <div class="ops-list" id="ops-list"><div class="empty">Aucun retrait pour ce mois.</div></div>
+  </div>
 </div>
 
 <!-- SALARIES -->
@@ -436,6 +480,57 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-si
   </div>
 </div>
 
+<!-- V4.9.5 — MODAL RETRAIT HEURES SUP -->
+<div class="modal-bd" id="modal-retrait">
+  <div class="modal-inner-wrap">
+    <div class="modal modal-retrait">
+      <button class="close-x" id="modal-retrait-close">×</button>
+      <h3><em>Retirer</em> des heures sup</h3>
+      <div class="modal-sub">Saisie d'une opération de paye ou récupération d'heures supplémentaires.</div>
+
+      <div class="solde-info" id="retrait-solde-info">
+        Chargement du solde…
+      </div>
+
+      <div class="row">
+        <label>Salarié</label>
+        <input type="text" id="retrait-emp-name" readonly style="background:var(--line-2);color:var(--ink-2)">
+        <input type="hidden" id="retrait-emp-id">
+      </div>
+
+      <div class="row">
+        <label>Mode</label>
+        <div class="mode-toggle">
+          <input type="radio" name="retrait-mode" id="mode-paye" value="paye" checked>
+          <label for="mode-paye"><span class="ico">💰</span><span>Paye</span></label>
+          <input type="radio" name="retrait-mode" id="mode-recup" value="recup">
+          <label for="mode-recup"><span class="ico">🏖️</span><span>Récup</span></label>
+        </div>
+      </div>
+
+      <div class="row">
+        <label>Heures à retirer</label>
+        <input type="number" id="retrait-heures" class="mono-input" step="0.25" min="0.25" placeholder="ex: 7.5">
+      </div>
+
+      <div class="row">
+        <label>Date de l'opération</label>
+        <input type="date" id="retrait-date" class="mono-input">
+      </div>
+
+      <div class="row">
+        <label>Note (optionnel)</label>
+        <input type="text" id="retrait-note" placeholder="ex: Paye mensuelle mai 2026 / 1 jour de récup pris le 28/05">
+      </div>
+
+      <div class="modal-actions" style="margin-top:20px">
+        <button class="btn btn-ghost" id="btn-cancel-retrait">Annuler</button>
+        <button class="btn btn-primary" id="btn-save-retrait">💾 Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- BADGES PRINT (hidden, shown for print-all) -->
 <div class="badges-print" id="badges-print"></div>
 
@@ -507,6 +602,9 @@ function toast(msg, type) {
   t.className = 'toast show ' + (type||'');
   setTimeout(() => { t.className = 'toast ' + (type||''); }, 3000);
 }
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 // ============================================================
 // API (via JSONP pour contourner les restrictions CORS d'Apps Script)
@@ -549,11 +647,10 @@ async function apiGet(action, params) {
   return apiCall(Object.assign({ action }, params || {}));
 }
 async function apiPost(payload) {
-  // Aplatit payload.employee et payload.pointage en paramètres URL
   const params = { action: payload.action };
   if (payload.employee) Object.entries(payload.employee).forEach(([k,v]) => { if (v !== undefined) params[k] = v; });
   if (payload.pointage) Object.entries(payload.pointage).forEach(([k,v]) => { if (v !== undefined) params[k] = v; });
-  ['id','empId','source','notes'].forEach(k => { if (payload[k] !== undefined) params[k] = payload[k]; });
+  ['id','empId','source','notes','date','heures','mode','note'].forEach(k => { if (payload[k] !== undefined) params[k] = payload[k]; });
   return apiCall(params);
 }
 
@@ -571,7 +668,7 @@ async function testConnection(silent) {
   try {
     const d = await apiGet('ping');
     setConn('ok', `Connecté · serveur ${d.tz}`, apiUrl.split('/').slice(-2,-1)[0] + '/…/exec');
-    $('api-version').textContent = 'API OK · ' + new Date(d.time).toLocaleTimeString('fr-FR');
+    $('api-version').textContent = 'API ' + (d.version || 'OK') + ' · ' + new Date(d.time).toLocaleTimeString('fr-FR');
     if (!silent) toast('✓ Connexion API OK', 'success');
     return true;
   } catch (e) {
@@ -748,21 +845,36 @@ async function renderReport() {
   try {
     const d = await apiGet('monthlyReport', { month });
     currentReport = d;
+    // V4.9.5 — Ajout d'une 4ème tuile avec les retraits du mois
+    const retraitsTotMois = (d.totaux.retraitsMois) || 0;
     totauxWrap.innerHTML = `<div class="rpt-totaux">
       <div class="rpt-tot-cell"><div class="lbl">${d.monthLabel} — Heures totales</div><div class="v">${fmtHours(d.totaux.heuresTotal)}</div></div>
-      <div class="rpt-tot-cell"><div class="lbl">Dont heures sup (>${d.baseHebdo}h/sem)</div><div class="v" style="color:var(--warn)">${fmtHours(d.totaux.heuresSup)}</div></div>
+      <div class="rpt-tot-cell"><div class="lbl">Dont heures sup (>${d.baseHebdo}h/jour)</div><div class="v" style="color:var(--warn)">${fmtHours(d.totaux.heuresSup)}</div></div>
+      <div class="rpt-tot-cell"><div class="lbl">Retraits du mois (paye+récup)</div><div class="v" style="color:var(--ok)">${fmtHours(retraitsTotMois)}</div></div>
       <div class="rpt-tot-cell"><div class="lbl">Coût total masse salariale</div><div class="v">${fmtEUR(d.totaux.coutTotal)}</div></div>
     </div>`;
+    // V4.9.5 — Nouvelles colonnes : Retraits + Solde + Action
     thead.innerHTML = `<tr>
-      <th>Salarié</th><th>Rôle</th><th class="num">Jours</th><th class="num">Heures</th><th class="num">H. norm.</th><th class="num">H. sup.</th><th class="num">Coût €</th></tr>`;
+      <th>Salarié</th><th>Rôle</th>
+      <th class="num">Jours</th><th class="num">Heures</th>
+      <th class="num">H. norm.</th><th class="num">H. sup.</th>
+      <th class="num">Retraits mois</th><th class="num">Solde global</th>
+      <th class="num">Coût €</th>
+      <th></th></tr>`;
     if (!d.report.length) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--ink-3)">Aucun salarié.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--ink-3)">Aucun salarié.</td></tr>`;
       return;
     }
     tbody.innerHTML = d.report.map(r => {
       const e = r.employee;
       const anomalies = r.anomalies && r.anomalies.length ?
         `<span class="anomaly">⚠ Jours impair (oubli départ ?) : ${r.anomalies.map(fmtDateFR).join(', ')}</span>` : '';
+      const retraitsMois = (r.retraitsMois && r.retraitsMois.total) || 0;
+      const retraitsTotal = (r.retraitsTotal && r.retraitsTotal.total) || 0;
+      // Pour calculer le solde global, on a besoin des sup générées totales. On approxime ici en
+      // appelant getSoldeSup_ via le bouton "détail" si besoin. Pour l'affichage rapide,
+      // on récupère le solde via getSoldeSup côté backend (un seul call par salarié serait coûteux,
+      // donc on affiche juste le total des retraits du mois et un bouton "détail solde").
       return `<tr data-emp-id="${e.id}">
         <td>
           <div class="name name-clickable" onclick="window.toggleDetailSalarie('${e.id}', '${e.prenom} ${e.nom}')" style="cursor:pointer;color:#1F4A47;text-decoration:underline;text-decoration-style:dotted">${e.prenom} ${e.nom} 📊</div>
@@ -773,10 +885,13 @@ async function renderReport() {
         <td class="num">${fmtHours(r.heuresTotal)}</td>
         <td class="num">${fmtHours(r.heuresNormales)}</td>
         <td class="num ${r.heuresSup>0?'warn':''}">${fmtHours(r.heuresSup)}</td>
+        <td class="num ${retraitsMois>0?'ok':''}">${retraitsMois>0?fmtHours(retraitsMois):'—'}</td>
+        <td class="num" id="solde-${e.id}" style="color:var(--ink-3)"><em>charger</em></td>
         <td class="num">${fmtEUR(r.coutTotal)}</td>
+        <td><button class="btn-retrait" onclick="window.openRetraitModal('${e.id}', '${e.prenom.replace(/'/g,"\\'")} ${e.nom.replace(/'/g,"\\'")}')">− Retirer</button></td>
       </tr>
       <tr class="detail-row" id="detail-${e.id}" style="display:none">
-        <td colspan="7" style="background:#f9fafb;padding:0">
+        <td colspan="10" style="background:#f9fafb;padding:0">
           <div id="detail-content-${e.id}" style="padding:16px"></div>
         </td>
       </tr>`;
@@ -786,12 +901,135 @@ async function renderReport() {
       <td class="num">${fmtHours(d.totaux.heuresTotal)}</td>
       <td class="num">${fmtHours(d.totaux.heuresTotal - d.totaux.heuresSup)}</td>
       <td class="num warn">${fmtHours(d.totaux.heuresSup)}</td>
+      <td class="num ok">${fmtHours(retraitsTotMois)}</td>
+      <td class="num">—</td>
       <td class="num">${fmtEUR(d.totaux.coutTotal)}</td>
+      <td></td>
     </tr>`;
+    // V4.9.5 — Charger les soldes globaux en arrière-plan (un appel par salarié)
+    loadAllSoldes(d.report);
+    // V4.9.5 — Charger l'historique des opérations du mois
+    loadOpsMonth(month);
   } catch (e) {
     totauxWrap.innerHTML = `<div style="padding:20px;color:var(--bad)">Erreur : ${e.message}</div>`;
   }
 }
+
+// V4.9.5 — Charger les soldes globaux (sup générées - retraits) en arrière-plan
+async function loadAllSoldes(reportList) {
+  for (const r of reportList) {
+    const id = r.employee.id;
+    const cell = document.getElementById('solde-' + id);
+    if (!cell) continue;
+    try {
+      const s = await apiGet('getSoldeSup', { empId: id });
+      if (s.ok) {
+        const solde = s.solde;
+        const color = solde < 0 ? 'var(--bad)' : (solde > 0 ? 'var(--warn)' : 'var(--ink-3)');
+        const title = `Généré : ${fmtHours(s.supGenerees)}\nPayé : ${fmtHours(s.supPayees)}\nRécup : ${fmtHours(s.supRecuperees)}\nSolde : ${fmtHours(s.solde)}`;
+        cell.innerHTML = `<span style="color:${color};font-weight:500" title="${title.replace(/"/g,'&quot;').replace(/\n/g,' · ')}">${fmtHours(solde)}</span>`;
+      } else {
+        cell.innerHTML = '<span style="color:var(--ink-3)">—</span>';
+      }
+    } catch (e) {
+      cell.innerHTML = '<span style="color:var(--bad);font-size:10px">err</span>';
+    }
+  }
+}
+
+// V4.9.5 — Charger l'historique des opérations du mois
+async function loadOpsMonth(month) {
+  const list = $('ops-list');
+  list.innerHTML = '<div class="empty"><span class="spinner-inline"></span> Chargement…</div>';
+  try {
+    const d = await apiGet('getOperationsSup', { month });
+    const ops = (d.operations || []);
+    if (!ops.length) {
+      list.innerHTML = '<div class="empty">Aucun retrait pour ce mois.</div>';
+      return;
+    }
+    list.innerHTML = ops.map(o => {
+      const emp = o.employee ? `${o.employee.prenom} ${o.employee.nom}` : o.empId;
+      const modeLbl = o.mode === 'paye' ? '💰 Payé' : '🏖️ Récup';
+      return `<div class="ops-row" data-id="${o.id}">
+        <div class="date-col">${fmtDateFR(o.date)}</div>
+        <div class="name-col">${emp}</div>
+        <div class="heures-col">−${fmtHours(o.heures)}</div>
+        <div class="mode-col ${o.mode}">${modeLbl}</div>
+        <div class="note-col" title="${(o.note||'').replace(/"/g,'&quot;')}">${o.note || '—'}</div>
+        <button class="del-op" data-id="${o.id}">🗑</button>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.del-op').forEach(b => b.addEventListener('click', async () => {
+      const id = b.dataset.id;
+      if (!confirm('Annuler ce retrait d\'heures sup ?\n\nLe salarié récupérera ces heures dans son solde.')) return;
+      try {
+        await apiPost({ action: 'deleteOperationSup', id: id });
+        toast('Retrait annulé', 'success');
+        renderReport(); // recharge tout
+      } catch (e) {
+        toast('Erreur : ' + e.message, 'error');
+      }
+    }));
+  } catch (e) {
+    list.innerHTML = `<div class="empty" style="color:var(--bad)">Erreur : ${e.message}</div>`;
+  }
+}
+
+// V4.9.5 — Ouvrir le modal de retrait pour un salarié
+window.openRetraitModal = async function(empId, empName) {
+  $('retrait-emp-id').value = empId;
+  $('retrait-emp-name').value = empName;
+  $('retrait-heures').value = '';
+  $('retrait-note').value = '';
+  $('retrait-date').value = todayIso();
+  $('mode-paye').checked = true;
+  $('retrait-solde-info').innerHTML = '<span class="spinner-inline"></span> Chargement du solde…';
+  $('modal-retrait').classList.add('show');
+  // Charger le solde actuel
+  try {
+    const s = await apiGet('getSoldeSup', { empId: empId });
+    if (s.ok) {
+      const soldeColor = s.solde > 0 ? 'var(--warn)' : (s.solde < 0 ? 'var(--bad)' : 'var(--ink-3)');
+      $('retrait-solde-info').innerHTML = `
+        <div><strong style="font-size:14px;color:${soldeColor}">Solde actuel : ${fmtHours(s.solde)}</strong></div>
+        <div style="margin-top:6px;font-size:11px;color:var(--ink-3)">
+          Généré depuis le ${fmtDateFR(s.dateDemarrage)} : ${fmtHours(s.supGenerees)} ·
+          Déjà payé : ${fmtHours(s.supPayees)} ·
+          Déjà récupéré : ${fmtHours(s.supRecuperees)}
+        </div>
+      `;
+    } else {
+      $('retrait-solde-info').innerHTML = '<span style="color:var(--bad)">Erreur de chargement du solde</span>';
+    }
+  } catch (e) {
+    $('retrait-solde-info').innerHTML = '<span style="color:var(--bad)">Erreur : ' + e.message + '</span>';
+  }
+};
+
+$('modal-retrait-close').addEventListener('click', () => $('modal-retrait').classList.remove('show'));
+$('btn-cancel-retrait').addEventListener('click', () => $('modal-retrait').classList.remove('show'));
+$('modal-retrait').addEventListener('click', (e) => { if (e.target.id === 'modal-retrait') $('modal-retrait').classList.remove('show'); });
+
+$('btn-save-retrait').addEventListener('click', async () => {
+  const empId = $('retrait-emp-id').value;
+  const date = $('retrait-date').value;
+  const heures = parseFloat($('retrait-heures').value);
+  const mode = document.querySelector('input[name="retrait-mode"]:checked').value;
+  const note = $('retrait-note').value.trim();
+  if (!empId) return toast('Salarié manquant', 'error');
+  if (!date) return toast('Date requise', 'error');
+  if (!heures || heures <= 0) return toast('Heures invalides', 'error');
+  if (!confirm(`Retirer ${fmtHours(heures)} de ${$('retrait-emp-name').value} ?\n\nMode : ${mode === 'paye' ? 'Paye' : 'Récupération'}\nDate : ${fmtDateFR(date)}`)) return;
+  try {
+    await apiPost({ action: 'addOperationSup', empId, date, heures, mode, note });
+    toast('✓ Retrait enregistré', 'success');
+    $('modal-retrait').classList.remove('show');
+    renderReport(); // recharge le rapport pour mettre à jour les soldes
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  }
+});
 
 // V4.8 — Détail jour par jour d'un salarié
 window.toggleDetailSalarie = async function(empId, empName) {
@@ -823,7 +1061,6 @@ window.toggleDetailSalarie = async function(empId, empName) {
       return;
     }
     
-    // Construire le tableau jour par jour
     const datesOrdered = Object.keys(empData.jours).sort();
     
     if (datesOrdered.length === 0) {
@@ -843,7 +1080,6 @@ window.toggleDetailSalarie = async function(empId, empName) {
             '<th style="padding:8px 12px;text-align:right">Cumul sup mois</th>' +
             '</tr></thead><tbody>';
     
-    // Pour suivre les changements de semaine
     let semaineActuelle = null;
     let cumulSemAvant = 0;
     
@@ -855,16 +1091,13 @@ window.toggleDetailSalarie = async function(empId, empName) {
       const jourLabel = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'][d.getDay()];
       const jourCourt = ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth()+1)).slice(-2);
       
-      // Calculer numéro de semaine ISO
       const tempDate = new Date(d.getTime());
       tempDate.setUTCDate(tempDate.getUTCDate() + 4 - (tempDate.getUTCDay() || 7));
       const yearStart = new Date(Date.UTC(tempDate.getUTCFullYear(), 0, 1));
       const weekNo = Math.ceil((((tempDate - yearStart) / 86400000) + 1) / 7);
       
-      // Si nouvelle semaine, afficher un séparateur et reset cumul semaine
       if (semaineActuelle !== weekNo) {
         if (semaineActuelle !== null) {
-          // Récap semaine précédente
           html += '<tr style="background:#fef3c7"><td colspan="6" style="padding:6px 12px;font-style:italic;color:#854d0e;font-size:12px">— Fin semaine ' + semaineActuelle + ' : ' + cumulSemAvant.toFixed(1) + 'h —</td></tr>';
         }
         semaineActuelle = weekNo;
@@ -873,7 +1106,6 @@ window.toggleDetailSalarie = async function(empId, empName) {
       
       cumulSemAvant += heures;
       
-      // Couleurs
       const supColor = supJour > 0 ? 'color:#9a3412;font-weight:600' : 'color:#9ca3af';
       const cumulMoisColor = cumulSupMois > 0 ? 'color:#9a3412;font-weight:600' : 'color:#9ca3af';
       const cumulSemColor = cumulSemAvant > 35 ? 'color:#9a3412;font-weight:600' : '';
@@ -888,12 +1120,10 @@ window.toggleDetailSalarie = async function(empId, empName) {
               '</tr>';
     });
     
-    // Récap dernière semaine
     if (semaineActuelle !== null) {
       html += '<tr style="background:#fef3c7"><td colspan="6" style="padding:6px 12px;font-style:italic;color:#854d0e;font-size:12px">— Fin semaine ' + semaineActuelle + ' : ' + cumulSemAvant.toFixed(1) + 'h —</td></tr>';
     }
     
-    // Total
     html += '<tr style="background:#1F4A47;color:white;font-weight:600">' +
             '<td colspan="2" style="padding:10px 12px">TOTAL MOIS</td>' +
             '<td style="padding:10px 12px;text-align:right">' + empData.total_mois.toFixed(1) + 'h</td>' +
@@ -915,18 +1145,19 @@ $('rpt-month').addEventListener('change', renderReport);
 $('rpt-print').addEventListener('click', () => window.print());
 $('rpt-csv').addEventListener('click', () => {
   if (!currentReport) return toast('Charge d\'abord un rapport', 'error');
-  const rows = [['Salarié','Rôle','TauxHoraire','JoursTravaillés','HeuresTotal','HeuresNormales','HeuresSup','CoutNormal','CoutSup','CoutTotal']];
+  const rows = [['Salarié','Rôle','TauxHoraire','JoursTravaillés','HeuresTotal','HeuresNormales','HeuresSup','RetraitsMois','CoutNormal','CoutSup','CoutTotal']];
   currentReport.report.forEach(r => {
     rows.push([
       `${r.employee.prenom} ${r.employee.nom}`,
       r.employee.role,
       r.employee.tauxHoraire,
       r.joursTravailles, r.heuresTotal, r.heuresNormales, r.heuresSup,
+      (r.retraitsMois && r.retraitsMois.total) || 0,
       r.coutNormal, r.coutSup, r.coutTotal
     ]);
   });
   rows.push([]);
-  rows.push(['TOTAL','','','',currentReport.totaux.heuresTotal,'',currentReport.totaux.heuresSup,'','',currentReport.totaux.coutTotal]);
+  rows.push(['TOTAL','','','',currentReport.totaux.heuresTotal,'',currentReport.totaux.heuresSup, currentReport.totaux.retraitsMois||0, '','',currentReport.totaux.coutTotal]);
   const csv = rows.map(r => r.map(c => {
     const s = String(c == null ? '' : c).replace(/"/g, '""');
     return /[;"\n]/.test(s) ? `"${s}"` : s;
@@ -990,7 +1221,6 @@ async function renderEmployees() {
       <button class="del-btn" data-emp="${e.id}">Supprimer</button>
     </div>`).join('');
 
-    // Wire up
     list.querySelectorAll('.emp-row').forEach(row => {
       const id = row.dataset.id;
       const fields = ['prenom','nom','role','taux','actif'];
@@ -1054,18 +1284,15 @@ $('btn-refresh-emp').addEventListener('click', () => { employees = []; renderEmp
 // QR / LIEN PERSONNEL
 // ============================================================
 function buildEmployeeUrl(empId) {
-  // L'app salarié est servie comme index.html à la racine du repo bdl-pointage/
-  // Donc on pointe vers le base path sans préciser le fichier (index.html est par défaut).
   const base = location.origin + location.pathname.replace(/[^\/]*$/, '');
   return `${base}?id=${encodeURIComponent(empId)}&api=${encodeURIComponent(apiUrl)}`;
 }
 
 function generateQR(text, sizePx) {
-  // qrcode-generator API: qrcode(typeNumber, errorCorrection)
-  const qr = qrcode(0, 'M');  // typeNumber=0 → auto, M = medium correction
+  const qr = qrcode(0, 'M');
   qr.addData(text);
   qr.make();
-  return qr.createDataURL(6, 4);  // cellSize=6px, margin=4 cells
+  return qr.createDataURL(6, 4);
 }
 
 function openQR(empId) {
@@ -1077,12 +1304,10 @@ function openQR(empId) {
   const dataUrl = generateQR(url);
   $('qr-box').innerHTML = `<img src="${dataUrl}" alt="QR code">`;
   $('modal-qr').classList.add('show');
-  // Wire up copy/print
   $('copy-link').onclick = () => {
     navigator.clipboard.writeText(url).then(() => toast('✓ Lien copié', 'success')).catch(()=>toast('Impossible de copier', 'error'));
   };
   $('print-badge').onclick = () => {
-    // Render a single-badge print page
     const grid = $('badges-print');
     grid.innerHTML = `<div class="badge-card">
       <div class="badge-name">${emp.prenom} ${emp.nom}</div>
@@ -1150,7 +1375,6 @@ async function renderSite() {
     currentSiteQrPayload = d.qrPayload;
     const dateStr = d.updatedAt ? new Date(d.updatedAt).toLocaleString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'inconnu';
     info.innerHTML = `Token : <strong style="font-family:'JetBrains Mono',monospace">${d.siteToken}</strong><br><span style="font-size:11px">Dernière mise à jour : ${dateStr}</span>`;
-    // Génère le QR via qrcode-generator (déjà chargé pour les badges)
     const qr = qrcode(0, 'M');
     qr.addData(d.qrPayload);
     qr.make();
@@ -1164,11 +1388,10 @@ async function renderSite() {
 
 $('btn-print-site').addEventListener('click', () => {
   if (!currentSiteQrPayload) return toast('Charge d\'abord le QR', 'error');
-  const qr = qrcode(0, 'H');  // High error correction pour l'affichage mural
+  const qr = qrcode(0, 'H');
   qr.addData(currentSiteQrPayload);
   qr.make();
   const dataUrl = qr.createDataURL(14, 4);
-  // Crée une page d'impression A5-friendly
   const win = window.open('', '_blank', 'width=600,height=800');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>QR de site BdL</title>
     <style>
@@ -1246,7 +1469,6 @@ if (apiUrl) {
     if (ok) { renderToday(); startAutoRefresh(); }
   });
 } else {
-  // Auto-switch to config tab on first visit
   switchTab('config');
 }
 </script>
