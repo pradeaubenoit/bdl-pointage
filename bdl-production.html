@@ -1109,7 +1109,6 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
     
     // V4.8 — Synchronisation automatique avec Releves_Diagnostic
     // Pour avoir l'heure précise et la vue intra-jour
-    alert('🔧 DEBUG: Avant sync Diagnostic. data.gaz_cuve_pct = ' + data.gaz_cuve_pct);
     try {
       const now = new Date();
       const heureNow = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
@@ -1126,7 +1125,6 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
       }
       // Gaz
       if (data.gaz_cuve_pct != null) {
-        alert('🔧 DEBUG: Envoi sync GAZ avec valeur ' + data.gaz_cuve_pct);
         await callApi('addReleveDiagnostic', {
           type: 'gaz',
           date: data.date_travail,
@@ -1134,7 +1132,6 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
           valeur_compteur: data.gaz_cuve_pct,
           note: 'Saisie matin'
         });
-        alert('🔧 DEBUG: Sync GAZ envoyée !');
       }
       // Compresseur
       if (data.compresseur_compteur != null) {
@@ -1157,8 +1154,7 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
         });
       }
     } catch (e) {
-      console.error('Sync Diagnostic ERREUR:', e);
-      alert('⚠️ Erreur sync Diagnostic : ' + (e.message || e));
+      console.log('Sync Diagnostic non bloquant:', e);
     }
     
     showConfirmation(result, data);
