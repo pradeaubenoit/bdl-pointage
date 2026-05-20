@@ -935,6 +935,11 @@ function renderStats(s) {
   $('stats-semaine').textContent = fmtHM(s.heuresSemaine);
   $('stats-mois').textContent = fmtHM(s.heuresMois);
   $('stats-annee').textContent = fmtHM(s.heuresAnnee);
+  // V4.9.4 — Afficher les heures sup en sous-titre de chaque tuile
+  setSubSup('stats-jour-sub', s.supAujourdhui);
+  setSubSup('stats-semaine-sup-sub', s.supSemaine);
+  setSubSup('stats-mois-sub', s.supMois);
+  setSubSup('stats-annee-sub', s.supDepuisDemarrage);
   // Sous-titre semaine : "x/35h" avec warn si dépassé
   const cell = $('stats-semaine-cell');
   const base = s.baseHebdo || 35;
@@ -956,6 +961,37 @@ function fmtHM(h) {
   const hh = Math.floor(h);
   const mm = Math.round((h - hh) * 60);
   return hh + 'h' + String(mm).padStart(2, '0');
+}
+
+// V4.9.4 — Affichage des heures sup en sous-titre
+function fmtSup(supHeures) {
+  if (!supHeures || supHeures <= 0) return '';
+  return 'Dont +' + fmtHM(supHeures) + ' en sup';
+}
+
+// V4.9.4 — Helper : créer ou mettre à jour le sous-titre sup dans une tuile
+function setSubSup(elementId, supHeures) {
+  var el = document.getElementById(elementId);
+  if (!el) {
+    // L'élément n'existe pas encore : on le crée dans la bonne tuile
+    var parentMap = {
+      'stats-jour-sub':         'stats-jour',
+      'stats-semaine-sup-sub':  'stats-semaine',
+      'stats-mois-sub':         'stats-mois',
+      'stats-annee-sub':        'stats-annee'
+    };
+    var parentId = parentMap[elementId];
+    if (!parentId) return;
+    var parentEl = document.getElementById(parentId);
+    if (!parentEl) return;
+    el = document.createElement('div');
+    el.id = elementId;
+    el.className = 'sub';
+    el.style.color = '#B8742A';
+    el.style.fontWeight = '500';
+    parentEl.parentNode.appendChild(el);
+  }
+  el.textContent = fmtSup(supHeures);
 }
 
 // ============================================================
