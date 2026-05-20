@@ -1154,7 +1154,8 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
         });
       }
     } catch (e) {
-      console.log('Sync Diagnostic non bloquant:', e);
+      console.error('Sync Diagnostic ERREUR:', e);
+      alert('⚠️ Erreur sync Diagnostic : ' + (e.message || e));
     }
     
     showConfirmation(result, data);
