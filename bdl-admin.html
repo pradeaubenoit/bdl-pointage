@@ -935,6 +935,10 @@ tr:hover { background: var(--bg-sunken); }
         <div class="kpi-value" id="pilotKpiFluides">—</div>
       </div>
       <div class="kpi-card">
+        <div class="kpi-label">⚡ Coût EDF</div>
+        <div class="kpi-value" id="pilotKpiEdf">—</div>
+      </div>
+      <div class="kpi-card">
         <div class="kpi-label">📊 Coût/kg moyen</div>
         <div class="kpi-value" id="pilotKpiCoutKg">—</div>
       </div>
@@ -961,11 +965,12 @@ tr:hover { background: var(--bg-sunken); }
             <th>Coût/kg</th>
             <th>💧 L/kg</th>
             <th>🔥 Gaz/kg</th>
+            <th>⚡ kWh/kg</th>
             <th>vs moyenne</th>
           </tr>
         </thead>
         <tbody id="pilotageTbody">
-          <tr><td colspan="11" class="empty-state">Chargement…</td></tr>
+<tr><td colspan="12" class="empty-state">Chargement…</td></tr>
         </tbody>
       </table>
     </div>
@@ -1895,7 +1900,7 @@ async function loadDashboard(month) {
 
   const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
   const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
-  const cuveTonnes = Number(state.parametres.cuve_gaz_pleine_tonnes) || 12.5;
+  const cuveTonnes = Number(state.parametres.cuve_gaz_tonnes) || 12.5;
 
   const cout_eau = totals.eau * prixEau;
   const cout_gaz = totals.gaz_pct / 100 * cuveTonnes * prixGaz;
@@ -1984,7 +1989,7 @@ async function computeMonthTrend(month, currentCoutKg) {
     }, { kg: 0, eau: 0, gaz_pct: 0 });
     const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
     const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
-    const cuveTonnes = Number(state.parametres.cuve_gaz_pleine_tonnes) || 12.5;
+    const cuveTonnes = Number(state.parametres.cuve_gaz_tonnes) || 12.5;
     const prevCout = (totals.eau * prixEau + totals.gaz_pct / 100 * cuveTonnes * prixGaz);
     const prevCoutKg = totals.kg > 0 ? prevCout / totals.kg : 0;
     const el = document.getElementById('heroVsMonth');
@@ -2032,7 +2037,7 @@ async function renderEvolutionChart(currentMonth) {
     }, { kg: 0, eau: 0, gaz_pct: 0 });
     const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
     const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
-    const cuveTonnes = Number(state.parametres.cuve_gaz_pleine_tonnes) || 12.5;
+    const cuveTonnes = Number(state.parametres.cuve_gaz_tonnes) || 12.5;
     const cout = tot.eau * prixEau + tot.gaz_pct / 100 * cuveTonnes * prixGaz;
     const coutKg = tot.kg > 0 ? cout / tot.kg : 0;
     datapoints.push({ month: mo, value: coutKg });
@@ -2178,7 +2183,7 @@ async function loadProductionMonth(month) {
   }, { kg: 0, eau: 0, gaz: 0, compr: 0, transferts: 0 });
   const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
   const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
-  const cuveTonnes = Number(state.parametres.cuve_gaz_pleine_tonnes) || 12.5;
+  const cuveTonnes = Number(state.parametres.cuve_gaz_tonnes) || 12.5;
 
   document.getElementById('prodMonthTotals').innerHTML = `
     <div class="stat">
@@ -2655,7 +2660,7 @@ function renderReglages() {
     { cle: 'prix_eau_m3', label: 'Prix de l\'eau (réseau)', unit: '€/m³', step: 0.01 },
     { cle: 'prix_gaz_tonne', label: 'Prix du gaz propane', unit: '€/tonne', step: 1 },
     { cle: 'kg_par_transfert', label: 'Conversion linge', unit: 'kg/transfert', step: 1 },
-    { cle: 'cuve_gaz_pleine_tonnes', label: 'Capacité cuve gaz', unit: 'tonnes', step: 0.5 },
+    { cle: 'cuve_gaz_tonnes', label: 'Capacité cuve gaz', unit: 'tonnes', step: 0.5 },
     { cle: 'cout_kg_cible', label: 'Cible coût/kg', unit: '€/kg', step: 0.01 },
     { cle: 'marge_brute_cible_pct', label: 'Cible marge brute', unit: '%', step: 1 },
     { cle: 'alerte_eau_seuil_pct', label: 'Seuil alerte eau', unit: '%', step: 5 },
@@ -3947,6 +3952,11 @@ function renderPilotageKpi(data) {
   });
   document.getElementById('pilotKpiPersonnel').textContent = Math.round(totalPers).toLocaleString('fr-FR') + ' €';
   document.getElementById('pilotKpiFluides').textContent = Math.round(totalFluides).toLocaleString('fr-FR') + ' €';
+  // V4.9.3 — Coût EDF du mois
+  let totalEdf = 0;
+  (data.jours || []).forEach(j => { totalEdf += j.cout_edf || 0; });
+  const edfEl = document.getElementById('pilotKpiEdf');
+  if (edfEl) edfEl.textContent = Math.round(totalEdf).toLocaleString('fr-FR') + ' €';
   document.getElementById('pilotKpiCoutKg').innerHTML = data.cout_kg_moyen != null
     ? `${data.cout_kg_moyen.toFixed(4)} €/kg`
     : '—';
@@ -3989,9 +3999,12 @@ function renderPilotageTable(data) {
     let recordGaz = data.record_gaz_pctkg
       ? `🔥 Record bas gaz : <strong>${data.record_gaz_pctkg.toFixed(3)} ‰/kg</strong>${data.record_gaz_date ? ' (le ' + data.record_gaz_date + ')' : ''}`
       : '';
+    let recordEdf = data.record_edf_kwhkg
+      ? `⚡ Record bas EDF : <strong>${data.record_edf_kwhkg.toFixed(3)} kWh/kg</strong>${data.record_edf_date ? ' (le ' + data.record_edf_date + ')' : ''}`
+      : '';
     recordsInfo = `<tr style="background:rgba(16,185,129,0.08);font-size:13px">
-      <td colspan="11" style="padding:10px;text-align:center">
-        🏆 <strong>Records bas historiques (12 mois)</strong> · ${recordEau} · ${recordGaz}
+      <td colspan="12" style="padding:10px;text-align:center">
+        🏆 <strong>Records bas historiques (12 mois)</strong> · ${recordEau} · ${recordGaz} · ${recordEdf}
         ${data.historique_mois_analyses ? '<br><span style="color:var(--text-soft);font-size:12px">Calculé sur ' + data.historique_mois_analyses + ' jours de production</span>' : ''}
       </td>
     </tr>`;
@@ -4030,7 +4043,7 @@ function renderPilotageTable(data) {
       eauHtml = `<span style="color:${color};font-weight:500" title="Écart vs record bas${ecartLabel}">${icon} ${j.eau_lkg.toFixed(2)}</span>`;
     }
 
-    // V4.7 — Gaz/kg avec couleur selon niveau
+   // V4.7 — Gaz/kg avec couleur selon niveau
     let gazHtml = '—';
     if (j.gaz_pctkg != null) {
       const color = colorForNiveau(j.niveau_gaz);
@@ -4040,7 +4053,16 @@ function renderPilotageTable(data) {
         : '';
       gazHtml = `<span style="color:${color};font-weight:500" title="Écart vs record bas${ecartLabel}">${icon} ${j.gaz_pctkg.toFixed(3)}</span>`;
     }
-
+    // V4.9.3 — EDF kWh/kg avec couleur selon niveau
+    let edfHtml = '—';
+    if (j.edf_kwhkg != null) {
+      const color = colorForNiveau(j.niveau_edf);
+      const icon = iconForNiveau(j.niveau_edf);
+      const ecartLabel = j.ecart_edf_vs_record != null
+        ? ` (${j.ecart_edf_vs_record >= 0 ? '+' : ''}${j.ecart_edf_vs_record.toFixed(1)}% / record)`
+        : '';
+      edfHtml = `<span style="color:${color};font-weight:500" title="Écart vs record bas${ecartLabel}">${icon} ${j.edf_kwhkg.toFixed(3)}</span>`;
+    }
     return `<tr style="${rowStyle}">
       <td><strong>${j.date}</strong></td>
       <td>${j.jour || '—'}</td>
@@ -4052,6 +4074,7 @@ function renderPilotageTable(data) {
       <td>${coutKg}</td>
       <td>${eauHtml}</td>
       <td>${gazHtml}</td>
+      <td>${edfHtml}</td>
       <td>${ecartHtml}</td>
     </tr>`;
   }).join('');
