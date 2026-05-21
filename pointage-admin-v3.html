@@ -457,7 +457,7 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-si
 </div>
 
 <footer>
-  <span>BdL · Admin Pointage v1</span>
+  <span>BdL · Admin Pointage v4.9.6</span>
   <span id="api-version">—</span>
 </footer>
 
@@ -845,7 +845,6 @@ async function renderReport() {
   try {
     const d = await apiGet('monthlyReport', { month });
     currentReport = d;
-    // V4.9.5 — Ajout d'une 4ème tuile avec les retraits du mois
     const retraitsTotMois = (d.totaux.retraitsMois) || 0;
     totauxWrap.innerHTML = `<div class="rpt-totaux">
       <div class="rpt-tot-cell"><div class="lbl">${d.monthLabel} — Heures totales</div><div class="v">${fmtHours(d.totaux.heuresTotal)}</div></div>
@@ -853,7 +852,6 @@ async function renderReport() {
       <div class="rpt-tot-cell"><div class="lbl">Retraits du mois (paye+récup)</div><div class="v" style="color:var(--ok)">${fmtHours(retraitsTotMois)}</div></div>
       <div class="rpt-tot-cell"><div class="lbl">Coût total masse salariale</div><div class="v">${fmtEUR(d.totaux.coutTotal)}</div></div>
     </div>`;
-    // V4.9.5 — Nouvelles colonnes : Retraits + Solde + Action
     thead.innerHTML = `<tr>
       <th>Salarié</th><th>Rôle</th>
       <th class="num">Jours</th><th class="num">Heures</th>
@@ -870,11 +868,6 @@ async function renderReport() {
       const anomalies = r.anomalies && r.anomalies.length ?
         `<span class="anomaly">⚠ Jours impair (oubli départ ?) : ${r.anomalies.map(fmtDateFR).join(', ')}</span>` : '';
       const retraitsMois = (r.retraitsMois && r.retraitsMois.total) || 0;
-      const retraitsTotal = (r.retraitsTotal && r.retraitsTotal.total) || 0;
-      // Pour calculer le solde global, on a besoin des sup générées totales. On approxime ici en
-      // appelant getSoldeSup_ via le bouton "détail" si besoin. Pour l'affichage rapide,
-      // on récupère le solde via getSoldeSup côté backend (un seul call par salarié serait coûteux,
-      // donc on affiche juste le total des retraits du mois et un bouton "détail solde").
       return `<tr data-emp-id="${e.id}">
         <td>
           <div class="name name-clickable" onclick="window.toggleDetailSalarie('${e.id}', '${e.prenom} ${e.nom}')" style="cursor:pointer;color:#1F4A47;text-decoration:underline;text-decoration-style:dotted">${e.prenom} ${e.nom} 📊</div>
@@ -886,7 +879,7 @@ async function renderReport() {
         <td class="num">${fmtHours(r.heuresNormales)}</td>
         <td class="num ${r.heuresSup>0?'warn':''}">${fmtHours(r.heuresSup)}</td>
         <td class="num ${retraitsMois>0?'ok':''}">${retraitsMois>0?fmtHours(retraitsMois):'—'}</td>
-        <td class="num" id="solde-${e.id}" style="color:var(--ink-3)"><em>charger</em></td>
+        <td class="num" id="solde-${e.id}" style="color:var(--ink-3)"><em>…</em></td>
         <td class="num">${fmtEUR(r.coutTotal)}</td>
         <td><button class="btn-retrait" onclick="window.openRetraitModal('${e.id}', '${e.prenom.replace(/'/g,"\\'")} ${e.nom.replace(/'/g,"\\'")}')">− Retirer</button></td>
       </tr>
@@ -906,17 +899,55 @@ async function renderReport() {
       <td class="num">${fmtEUR(d.totaux.coutTotal)}</td>
       <td></td>
     </tr>`;
-    // V4.9.5 — Charger les soldes globaux en arrière-plan (un appel par salarié)
+    // V4.9.6 — Charger TOUS les soldes en UN seul appel (au lieu de N appels)
     loadAllSoldes(d.report);
-    // V4.9.5 — Charger l'historique des opérations du mois
     loadOpsMonth(month);
   } catch (e) {
     totauxWrap.innerHTML = `<div style="padding:20px;color:var(--bad)">Erreur : ${e.message}</div>`;
   }
 }
 
-// V4.9.5 — Charger les soldes globaux (sup générées - retraits) en arrière-plan
+// V4.9.6 — OPTIMISÉ : 1 seul appel API pour tous les soldes au lieu de N appels
 async function loadAllSoldes(reportList) {
+  // Marquer toutes les cellules comme "en cours de chargement"
+  reportList.forEach(function(r) {
+    const cell = document.getElementById('solde-' + r.employee.id);
+    if (cell) cell.innerHTML = '<em style="color:var(--ink-3)">…</em>';
+  });
+  try {
+    const d = await apiGet('getAllSoldesSup');
+    if (!d.ok || !d.soldes) {
+      // Fallback : si le backend n'a pas encore la nouvelle route, on retombe sur l'ancien mode
+      console.warn('getAllSoldesSup non disponible — fallback mode séquentiel');
+      return loadAllSoldesLegacy(reportList);
+    }
+    // Remplir toutes les cellules d'un coup
+    reportList.forEach(function(r) {
+      const id = r.employee.id;
+      const cell = document.getElementById('solde-' + id);
+      if (!cell) return;
+      const s = d.soldes[id];
+      if (!s) {
+        cell.innerHTML = '<span style="color:var(--ink-3)">—</span>';
+        return;
+      }
+      const solde = s.solde;
+      const color = solde < 0 ? 'var(--bad)' : (solde > 0 ? 'var(--warn)' : 'var(--ink-3)');
+      const title = 'Généré : ' + fmtHours(s.supGenerees) +
+                    ' · Payé : ' + fmtHours(s.supPayees) +
+                    ' · Récup : ' + fmtHours(s.supRecuperees) +
+                    ' · Solde : ' + fmtHours(s.solde);
+      cell.innerHTML = '<span style="color:' + color + ';font-weight:500" title="' +
+                       title.replace(/"/g, '&quot;') + '">' + fmtHours(solde) + '</span>';
+    });
+  } catch (e) {
+    console.warn('Erreur getAllSoldesSup, fallback séquentiel : ' + e.message);
+    return loadAllSoldesLegacy(reportList);
+  }
+}
+
+// V4.9.5 — Ancien mode (fallback de secours uniquement)
+async function loadAllSoldesLegacy(reportList) {
   for (const r of reportList) {
     const id = r.employee.id;
     const cell = document.getElementById('solde-' + id);
@@ -926,8 +957,10 @@ async function loadAllSoldes(reportList) {
       if (s.ok) {
         const solde = s.solde;
         const color = solde < 0 ? 'var(--bad)' : (solde > 0 ? 'var(--warn)' : 'var(--ink-3)');
-        const title = `Généré : ${fmtHours(s.supGenerees)}\nPayé : ${fmtHours(s.supPayees)}\nRécup : ${fmtHours(s.supRecuperees)}\nSolde : ${fmtHours(s.solde)}`;
-        cell.innerHTML = `<span style="color:${color};font-weight:500" title="${title.replace(/"/g,'&quot;').replace(/\n/g,' · ')}">${fmtHours(solde)}</span>`;
+        const title = 'Généré : ' + fmtHours(s.supGenerees) + ' · Payé : ' + fmtHours(s.supPayees) +
+                      ' · Récup : ' + fmtHours(s.supRecuperees) + ' · Solde : ' + fmtHours(s.solde);
+        cell.innerHTML = '<span style="color:' + color + ';font-weight:500" title="' +
+                         title.replace(/"/g, '&quot;') + '">' + fmtHours(solde) + '</span>';
       } else {
         cell.innerHTML = '<span style="color:var(--ink-3)">—</span>';
       }
@@ -966,7 +999,7 @@ async function loadOpsMonth(month) {
       try {
         await apiPost({ action: 'deleteOperationSup', id: id });
         toast('Retrait annulé', 'success');
-        renderReport(); // recharge tout
+        renderReport();
       } catch (e) {
         toast('Erreur : ' + e.message, 'error');
       }
@@ -986,7 +1019,6 @@ window.openRetraitModal = async function(empId, empName) {
   $('mode-paye').checked = true;
   $('retrait-solde-info').innerHTML = '<span class="spinner-inline"></span> Chargement du solde…';
   $('modal-retrait').classList.add('show');
-  // Charger le solde actuel
   try {
     const s = await apiGet('getSoldeSup', { empId: empId });
     if (s.ok) {
@@ -1025,7 +1057,7 @@ $('btn-save-retrait').addEventListener('click', async () => {
     await apiPost({ action: 'addOperationSup', empId, date, heures, mode, note });
     toast('✓ Retrait enregistré', 'success');
     $('modal-retrait').classList.remove('show');
-    renderReport(); // recharge le rapport pour mettre à jour les soldes
+    renderReport();
   } catch (e) {
     toast('Erreur : ' + e.message, 'error');
   }
@@ -1041,7 +1073,6 @@ window.toggleDetailSalarie = async function(empId, empName) {
     return;
   }
   
-  // Fermer les autres détails ouverts
   document.querySelectorAll('.detail-row').forEach(function(r) {
     r.style.display = 'none';
   });
