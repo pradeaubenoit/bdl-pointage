@@ -842,8 +842,27 @@ tr:hover { background: var(--bg-sunken); }
         </span>
       </div>
     </div>
-
-    <!-- V4.8 — SUIVI BUDGETS FLUIDES -->
+    <!-- V4.9.10 — Ratio Personnel / CA -->
+    <div class="card" id="ratioPersonnelCaCard" style="margin:24px 0;padding:20px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:28px">👥</span>
+          <div>
+            <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-faint)">Ratio Personnel / CA</div>
+            <div style="font-size:13px;color:var(--ink-soft);margin-top:2px" id="ratioPersCaSubtitle">—</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div id="ratioPersCaValue" style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;letter-spacing:-0.01em;line-height:1">—</div>
+          <div id="ratioPersCaCible" style="font-size:12px;color:var(--ink-faint);margin-top:4px">Cible : —</div>
+        </div>
+      </div>
+      <div style="background:var(--bg-sunken);border-radius:100px;height:10px;overflow:hidden;margin-bottom:8px">
+        <div id="ratioPersCaBar" style="height:100%;width:0%;background:#7DA77A;border-radius:100px;transition:width 0.5s,background 0.3s"></div>
+      </div>
+      <div id="ratioPersCaStatus" style="font-size:13px;font-weight:600">—</div>    
+      </div>
+      <!-- V4.8 — SUIVI BUDGETS FLUIDES -->
     <div style="margin:24px 0">
       <h2 style="font-size:20px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
         💰 <span>Suivi budgets fluides</span>
@@ -1962,7 +1981,10 @@ async function loadDashboard(month) {
 
   // V4.9.9 — Charger les anomalies du mois (en parallèle, asynchrone)
   loadAnomaliesMonth(month);
-
+  
+// V4.9.10 — Charger le ratio Personnel / CA (en parallèle, asynchrone)
+  loadRatioPersonnelCa(month);
+  
   const prod = await loadProductionMonthData(month);
   const records = prod.production || [];
 
@@ -2761,6 +2783,7 @@ function renderReglages() {
     { cle: 'cuve_gaz_tonnes', label: 'Capacité cuve gaz', unit: 'tonnes', step: 0.5 },
     { cle: 'cout_kg_cible', label: 'Cible coût/kg', unit: '€/kg', step: 0.01 },
     { cle: 'marge_brute_cible_pct', label: 'Cible marge brute', unit: '%', step: 1 },
+    { cle: 'ratio_personnel_ca_cible_pct', label: 'Cible ratio Personnel/CA', unit: '%', step: 1 },    
     { cle: 'alerte_eau_seuil_pct', label: 'Seuil alerte eau', unit: '%', step: 5 },
     { cle: 'alerte_gaz_seuil_pct', label: 'Seuil alerte gaz', unit: '%', step: 5 },
     { cle: 'alerte_compresseur_seuil_pct', label: 'Seuil alerte compresseur', unit: '%', step: 5 },
@@ -2942,6 +2965,70 @@ function renderBudgetCard(fluide, data) {
   `;
 }
 
+// ============================================================
+// V4.9.10 — RATIO PERSONNEL / CA
+// ============================================================
+async function loadRatioPersonnelCa(month) {
+  const card = document.getElementById('ratioPersonnelCaCard');
+  if (!card) return;
+  try {
+    const resp = await callApi('getCoutCompletMonth', { month: month });
+    const charges = (resp && resp.charges) || {};
+    const personnel = Number(charges.personnel) || 0;
+    const ca = Number(charges.ca) || 0;
+    renderRatioPersonnelCa(personnel, ca);
+  } catch (err) {
+    card.style.display = 'none';
+  }
+}
+
+function renderRatioPersonnelCa(personnel, ca) {
+  const card = document.getElementById('ratioPersonnelCaCard');
+  if (!card) return;
+
+  if (!personnel || !ca) {
+    card.style.display = 'block';
+    document.getElementById('ratioPersCaValue').textContent = '—';
+    document.getElementById('ratioPersCaSubtitle').textContent = 'Saisis Personnel et CA dans Charges pour voir le ratio';
+    document.getElementById('ratioPersCaCible').textContent = '';
+    document.getElementById('ratioPersCaBar').style.width = '0%';
+    document.getElementById('ratioPersCaBar').style.background = '#9ca3af';
+    document.getElementById('ratioPersCaStatus').textContent = '';
+    return;
+  }
+
+  const ratio = (personnel / ca) * 100;
+  const cible = Number(state.parametres.ratio_personnel_ca_cible_pct) || 35;
+
+  let color, icon, statusText;
+  if (ratio <= cible) {
+    color = '#15803d';
+    icon = '✅';
+    statusText = icon + ' Ratio sous contrôle (≤ ' + cible + '%)';
+  } else if (ratio <= cible + 5) {
+    color = '#854d0e';
+    icon = '⚠️';
+    statusText = icon + ' Vigilance : légère dérive (+' + (ratio - cible).toFixed(1) + ' pts)';
+  } else {
+    color = '#991b1b';
+    icon = '🚨';
+    statusText = icon + ' Alerte : dérive importante (+' + (ratio - cible).toFixed(1) + ' pts)';
+  }
+
+  const barWidth = Math.min(100, (ratio / (cible * 2)) * 100);
+
+  card.style.display = 'block';
+  document.getElementById('ratioPersCaValue').textContent = ratio.toFixed(1) + '%';
+  document.getElementById('ratioPersCaValue').style.color = color;
+  document.getElementById('ratioPersCaSubtitle').textContent =
+    fmtEur(personnel) + ' de personnel sur ' + fmtEur(ca) + ' de CA';
+  document.getElementById('ratioPersCaCible').textContent = 'Cible : ≤ ' + cible + '%';
+  document.getElementById('ratioPersCaBar').style.width = barWidth + '%';
+  document.getElementById('ratioPersCaBar').style.background = color;
+  document.getElementById('ratioPersCaStatus').textContent = statusText;
+  document.getElementById('ratioPersCaStatus').style.color = color;
+}
+  
 // ============================================================
 // V4.9.9 — DÉTECTION D'ANOMALIES (eau/gaz/compresseur)
 // ============================================================
