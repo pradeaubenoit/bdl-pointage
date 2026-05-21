@@ -897,10 +897,22 @@ tr:hover { background: var(--bg-sunken); }
       <svg class="chart-svg" id="chartEvolution" viewBox="0 0 800 240" preserveAspectRatio="none"></svg>
     </div>
 
-    <!-- Anomalies récentes -->
-    <div class="card" id="anomaliesCard" style="display:none;">
-      <div class="card-title">⚠️ Anomalies récentes</div>
-      <div id="anomaliesList"></div>
+   <!-- V4.9.9 — Bandeau d'alertes d'anomalies (eau/gaz/compresseur) -->
+    <div class="card" id="anomaliesCard" style="margin-top:24px;padding:0;overflow:hidden">
+      <div id="anomaliesHeader" style="padding:16px 20px;background:#f9fafb;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span id="anomaliesIcon" style="font-size:24px">🔍</span>
+          <div>
+            <div id="anomaliesTitle" style="font-weight:700;font-size:16px;color:var(--ink)">Détection d'anomalies</div>
+            <div id="anomaliesSubtitle" style="font-size:13px;color:var(--ink-soft);margin-top:2px">Chargement…</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" id="btnAnomaliesSettings" style="font-size:12px;padding:6px 12px" title="Régler les seuils de détection">⚙️ Seuils</button>
+          <button class="btn btn-ghost btn-sm" id="btnAnomaliesToggle" style="font-size:12px;padding:6px 12px">📋 Voir le détail</button>
+        </div>
+      </div>
+      <div id="anomaliesList" style="display:none;padding:0"></div>
     </div>
   </section>
 
@@ -1675,7 +1687,70 @@ tr:hover { background: var(--bg-sunken); }
   </div>
 </div>
 
-<!-- MODAL CONFIRMATION -->
+<!-- V4.9.9 — MODAL RÉGLAGES SEUILS ANOMALIES -->
+<div class="modal-backdrop" id="anomaliesSettingsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">⚙️ Seuils de détection</div>
+      <button class="modal-close" onclick="document.getElementById('anomaliesSettingsModal').classList.remove('visible')">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px">
+        Une anomalie est détectée si la consommation par kg dépasse ces seuils <strong>par rapport à la médiane</strong> des derniers jours.
+      </p>
+      <div class="form-row">
+        <div>
+          <div class="form-label">💧 Seuil eau</div>
+          <div class="form-label-meta">Écart % vs médiane</div>
+        </div>
+        <div class="form-input-wrap">
+          <input type="number" class="form-input" id="seuilAnomEau" step="5" min="5" max="100">
+          <span class="form-unit">%</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <div class="form-label">🔥 Seuil gaz</div>
+          <div class="form-label-meta">Écart % vs médiane</div>
+        </div>
+        <div class="form-input-wrap">
+          <input type="number" class="form-input" id="seuilAnomGaz" step="5" min="5" max="100">
+          <span class="form-unit">%</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <div class="form-label">⚙️ Seuil compresseur</div>
+          <div class="form-label-meta">Écart % vs médiane</div>
+        </div>
+        <div class="form-input-wrap">
+          <input type="number" class="form-input" id="seuilAnomCompr" step="5" min="5" max="100">
+          <span class="form-unit">%</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <div class="form-label">📅 Fenêtre de référence</div>
+          <div class="form-label-meta">Nombre de jours pour la médiane</div>
+        </div>
+        <div class="form-input-wrap">
+          <input type="number" class="form-input" id="seuilAnomFenetre" step="5" min="7" max="90">
+          <span class="form-unit">j</span>
+        </div>
+      </div>
+      <div style="padding:12px;background:#dbeafe;border-left:3px solid #3b82f6;border-radius:6px;font-size:12px;color:#1e40af;margin-top:12px">
+        💡 <strong>Seuil bas (20%)</strong> = plus d'alertes, détection précoce.<br>
+        <strong>Seuil haut (40%)</strong> = moins d'alertes, uniquement les vrais dérapages.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="document.getElementById('anomaliesSettingsModal').classList.remove('visible')">Annuler</button>
+      <button class="btn primary" id="btnSaveAnomSeuils">💾 Enregistrer</button>
+    </div>
+  </div>
+</div>
+   
+   <!-- MODAL CONFIRMATION -->
 <div class="modal-backdrop" id="confirmModal">
   <div class="modal">
     <div class="modal-head">
@@ -1882,8 +1957,11 @@ function populateMonthSelectors() {
 async function loadDashboard(month) {
   document.getElementById('dashSubtitle').textContent = 'Mois sélectionné : ' + monthLabel(month);
 
-  // V4.8 — Charger les budgets fluides (en parallèle, asynchrone)
+ // V4.8 — Charger les budgets fluides (en parallèle, asynchrone)
   loadBudgetsFluides(month);
+
+  // V4.9.9 — Charger les anomalies du mois (en parallèle, asynchrone)
+  loadAnomaliesMonth(month);
 
   const prod = await loadProductionMonthData(month);
   const records = prod.production || [];
@@ -2844,7 +2922,213 @@ function renderBudgetCard(fluide, data) {
   `;
 }
 
-window.promptBudget = async function(fluide, label) {
+// ============================================================
+// V4.9.9 — DÉTECTION D'ANOMALIES (eau/gaz/compresseur)
+// ============================================================
+let _anomaliesCurrentMonth = null;
+let _anomaliesData = null;
+
+async function loadAnomaliesMonth(month) {
+  _anomaliesCurrentMonth = month;
+  const subtitleEl = document.getElementById('anomaliesSubtitle');
+  const iconEl = document.getElementById('anomaliesIcon');
+  const headerEl = document.getElementById('anomaliesHeader');
+  if (subtitleEl) subtitleEl.textContent = 'Chargement…';
+  try {
+    const resp = await callApi('getAnomaliesMonth', { month: month });
+    if (!resp.ok) {
+      if (subtitleEl) subtitleEl.textContent = 'Erreur : ' + (resp.error || 'inconnue');
+      return;
+    }
+    _anomaliesData = resp;
+    renderAnomaliesHeader(resp);
+    renderAnomaliesList(resp.anomalies);
+  } catch (err) {
+    if (subtitleEl) subtitleEl.textContent = 'Erreur : ' + err.message;
+  }
+}
+
+function renderAnomaliesHeader(data) {
+  const iconEl = document.getElementById('anomaliesIcon');
+  const titleEl = document.getElementById('anomaliesTitle');
+  const subtitleEl = document.getElementById('anomaliesSubtitle');
+  const headerEl = document.getElementById('anomaliesHeader');
+  if (!iconEl || !titleEl || !subtitleEl || !headerEl) return;
+  
+  const nbTotal = data.count_total;
+  const nbNonAck = data.count_non_ack;
+  const nbCritique = data.count_critique;
+  
+  if (nbTotal === 0) {
+    iconEl.textContent = '✅';
+    titleEl.textContent = 'Aucune anomalie détectée';
+    subtitleEl.textContent = 'Toutes les consommations sont dans la norme ce mois-ci.';
+    headerEl.style.background = '#dcfce7';
+    headerEl.style.borderBottom = '1px solid #86efac';
+  } else if (nbNonAck === 0) {
+    iconEl.textContent = '✅';
+    titleEl.textContent = nbTotal + ' anomalie' + (nbTotal > 1 ? 's' : '') + ' acquittée' + (nbTotal > 1 ? 's' : '');
+    subtitleEl.textContent = 'Toutes les anomalies du mois ont été traitées.';
+    headerEl.style.background = '#dcfce7';
+    headerEl.style.borderBottom = '1px solid #86efac';
+  } else if (nbCritique > 0) {
+    iconEl.textContent = '🚨';
+    titleEl.textContent = nbNonAck + ' anomalie' + (nbNonAck > 1 ? 's' : '') + ' à traiter';
+    subtitleEl.textContent = 'Dont ' + nbCritique + ' critique' + (nbCritique > 1 ? 's' : '') + '. Cliquer "Voir le détail" pour examiner.';
+    headerEl.style.background = '#fee2e2';
+    headerEl.style.borderBottom = '1px solid #fca5a5';
+  } else {
+    iconEl.textContent = '⚠️';
+    titleEl.textContent = nbNonAck + ' anomalie' + (nbNonAck > 1 ? 's' : '') + ' à traiter';
+    subtitleEl.textContent = 'Écarts détectés par rapport à la médiane des 30 derniers jours.';
+    headerEl.style.background = '#fef9c3';
+    headerEl.style.borderBottom = '1px solid #fde047';
+  }
+}
+
+function renderAnomaliesList(anomalies) {
+  const listEl = document.getElementById('anomaliesList');
+  if (!listEl) return;
+  
+  if (!anomalies || anomalies.length === 0) {
+    listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--ink-faint);font-size:13px">Aucune anomalie détectée ce mois.</div>';
+    return;
+  }
+  
+  const iconMap = { eau: '💧', gaz: '🔥', compresseur: '⚙️' };
+  const niveauColorMap = {
+    critique: { bg: '#fee2e2', border: '#ef4444', text: '#991b1b', label: '🚨 CRITIQUE' },
+    alerte: { bg: '#fef9c3', border: '#eab308', text: '#854d0e', label: '⚠️ ALERTE' },
+    attention: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af', label: '👁 ATTENTION' }
+  };
+  
+  listEl.innerHTML = anomalies.map(function(a) {
+    const colors = niveauColorMap[a.niveau] || niveauColorMap.attention;
+    const mesureIcon = iconMap[a.mesure] || '📊';
+    const ackBadge = a.ack 
+      ? (a.ack === 'normal' 
+          ? '<span style="background:#dcfce7;color:#15803d;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-left:8px">✅ Normal (nouvelle norme)</span>'
+          : '<span style="background:#fee2e2;color:#991b1b;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-left:8px">🔧 Problème à corriger</span>')
+      : '';
+    const ackButtons = a.ack
+      ? '<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 10px" onclick="window.ackAnomalie(\'' + a.id + '\', \'reset\')" title="Remettre en attente de traitement">🔄 Reset</button>'
+      : '<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 10px" onclick="window.ackAnomalie(\'' + a.id + '\', \'normal\')" title="Cette consommation est devenue la nouvelle norme">✅ Normal</button>' +
+        '<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 10px;color:#991b1b" onclick="window.ackAnomalie(\'' + a.id + '\', \'probleme\')" title="C\'est un vrai problème à corriger">🔧 Problème</button>';
+    
+    const opacity = a.ack ? '0.65' : '1';
+    
+    return '<div style="padding:14px 20px;border-bottom:1px solid var(--border);background:' + (a.ack ? '#fafafa' : 'white') + ';opacity:' + opacity + '">' +
+      '<div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">' +
+        '<div style="flex-shrink:0;width:50px;text-align:center">' +
+          '<div style="font-size:20px">' + mesureIcon + '</div>' +
+          '<div style="font-size:10px;color:var(--ink-faint);font-weight:600;text-transform:uppercase;margin-top:2px">' + a.mesure + '</div>' +
+        '</div>' +
+        '<div style="flex:1;min-width:200px">' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
+            '<strong style="font-size:14px">' + a.jour_travail + ' ' + fmtDate(a.date_travail) + '</strong>' +
+            '<span style="background:' + colors.bg + ';color:' + colors.text + ';padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700">' + colors.label + '</span>' +
+            '<span style="font-family:monospace;font-size:13px;font-weight:600;color:' + colors.text + '">' + (a.ecart_pct > 0 ? '+' : '') + a.ecart_pct + '%</span>' +
+            ackBadge +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">' + a.message + '</div>' +
+          '<div style="font-size:11px;color:var(--ink-faint);font-family:monospace">Ratio observé : ' + a.ratio + ' ' + a.unite + ' · Médiane référence : ' + a.moyenne + ' ' + a.unite + ' · Tonnage : ' + a.kg + ' kg</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start">' + ackButtons + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// V4.9.9 — Ouvrir le modal de réglages des seuils
+async function openAnomaliesSettingsModal() {
+  try {
+    const resp = await callApi('getAnomaliesParams');
+    if (!resp.ok) {
+      toast('Erreur chargement seuils : ' + (resp.error || ''), 'error');
+      return;
+    }
+    const p = resp.params;
+    document.getElementById('seuilAnomEau').value = p.alerte_eau_seuil_pct;
+    document.getElementById('seuilAnomGaz').value = p.alerte_gaz_seuil_pct;
+    document.getElementById('seuilAnomCompr').value = p.alerte_compresseur_seuil_pct;
+    document.getElementById('seuilAnomFenetre').value = p.fenetre_moyenne_jours;
+    document.getElementById('anomaliesSettingsModal').classList.add('visible');
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+}
+
+async function saveAnomaliesSettings() {
+  const seuilEau = Number(document.getElementById('seuilAnomEau').value);
+  const seuilGaz = Number(document.getElementById('seuilAnomGaz').value);
+  const seuilCompr = Number(document.getElementById('seuilAnomCompr').value);
+  const fenetre = Number(document.getElementById('seuilAnomFenetre').value);
+  if (!seuilEau || !seuilGaz || !seuilCompr || !fenetre) {
+    toast('Tous les seuils doivent être renseignés', 'error');
+    return;
+  }
+  try {
+    await Promise.all([
+      callApi('updateParametre', { cle: 'alerte_eau_seuil_pct', valeur: seuilEau }),
+      callApi('updateParametre', { cle: 'alerte_gaz_seuil_pct', valeur: seuilGaz }),
+      callApi('updateParametre', { cle: 'alerte_compresseur_seuil_pct', valeur: seuilCompr }),
+      callApi('updateParametre', { cle: 'fenetre_moyenne_jours', valeur: fenetre })
+    ]);
+    state.parametres.alerte_eau_seuil_pct = seuilEau;
+    state.parametres.alerte_gaz_seuil_pct = seuilGaz;
+    state.parametres.alerte_compresseur_seuil_pct = seuilCompr;
+    state.parametres.fenetre_moyenne_jours = fenetre;
+    toast('✅ Seuils enregistrés', 'success');
+    document.getElementById('anomaliesSettingsModal').classList.remove('visible');
+    if (_anomaliesCurrentMonth) loadAnomaliesMonth(_anomaliesCurrentMonth);
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const btnSettings = document.getElementById('btnAnomaliesSettings');
+  if (btnSettings) btnSettings.addEventListener('click', openAnomaliesSettingsModal);
+  const btnSave = document.getElementById('btnSaveAnomSeuils');
+  if (btnSave) btnSave.addEventListener('click', saveAnomaliesSettings);
+});
+
+window.ackAnomalie = async function(id, ack) {
+  try {
+    const resp = await callApi('ackAnomalie', { id: id, ack: ack });
+    if (resp.error) {
+      toast('Erreur : ' + resp.error, 'error');
+      return;
+    }
+    if (ack === 'reset') toast('Anomalie remise en attente', 'success');
+    else if (ack === 'normal') toast('Anomalie marquée comme normale', 'success');
+    else toast('Anomalie marquée comme problème', 'success');
+    // Recharger
+    if (_anomaliesCurrentMonth) loadAnomaliesMonth(_anomaliesCurrentMonth);
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+};
+
+// Brancher le bouton "Voir le détail" (toggle de la liste)
+document.addEventListener('DOMContentLoaded', function() {
+  const btnToggle = document.getElementById('btnAnomaliesToggle');
+  if (btnToggle) {
+    btnToggle.addEventListener('click', function() {
+      const list = document.getElementById('anomaliesList');
+      if (!list) return;
+      if (list.style.display === 'none') {
+        list.style.display = 'block';
+        btnToggle.innerHTML = '📕 Masquer le détail';
+      } else {
+        list.style.display = 'none';
+        btnToggle.innerHTML = '📋 Voir le détail';
+      }
+    });
+  }
+});
+  
+  window.promptBudget = async function(fluide, label) {
   const current = prompt(`Budget annuel ${label} (en €) :\n\nLaisse vide ou 0 pour désactiver le suivi.`);
   if (current === null) return; // annulé
   const value = Number(current) || 0;
