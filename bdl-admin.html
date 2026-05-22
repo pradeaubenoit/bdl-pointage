@@ -1052,10 +1052,11 @@ tr:hover { background: var(--bg-sunken); }
               <th>Heures</th>
               <th>Statut</th>
               <th>Actions</th>
+              <th>Réf. arrivée</th>
             </tr>
           </thead>
           <tbody id="pointagesTbody">
-            <tr><td colspan="5" class="empty-state">Chargement…</td></tr>
+            <tr><td colspan="6" class="empty-state">Chargement…</td></tr>
           </tbody>
         </table>
       </div>
@@ -4518,6 +4519,81 @@ function renderPilotageTable(data) {
   }).join('');
 }
 
+// ============================================================
+// ============================================================
+// V4.9.12 — HEURE DE RÉFÉRENCE D'ARRIVÉE (par salarié + jour)
+// ============================================================
+function buildHeuresRefOptions(selected) {
+  var opts = '<option value="">— Aucune réf. —</option>';
+  for (var h = 4; h <= 17; h++) {
+    for (var mi = 0; mi < 4; mi++) {
+      var m = mi * 15;
+      if (h === 17 && m > 0) break;
+      var hh = (h < 10 ? '0' : '') + h;
+      var mm = (m < 10 ? '0' : '') + m;
+      var val = hh + ':' + mm;
+      var sel = (selected === val) ? ' selected' : '';
+      opts += '<option value="' + val + '"' + sel + '>' + val + '</option>';
+    }
+  }
+  return opts;
+}
+
+window.setHeureRefSalarie = async function(empId, dateISO, heure, selectEl) {
+  if (selectEl) selectEl.disabled = true;
+  try {
+    const resp = await callApi('setHeureReference', { empId: empId, date: dateISO, heure: heure });
+    if (resp && resp.error) {
+      toast('Erreur : ' + resp.error, 'error');
+    } else {
+      toast(heure ? ('Réf. ' + heure + ' enregistrée') : 'Référence retirée', 'success');
+      const di = document.getElementById('pointagesDate');
+      if (di && di.value) loadPointagesJour(di.value);
+    }
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  } finally {
+    if (selectEl) selectEl.disabled = false;
+  }
+};
+
+function injecterColonneRef() {
+  const di = document.getElementById('pointagesDate');
+  const dateISO = (di && di.value) || '';
+  if (!dateISO) return;
+  callApi('getHeuresReference', { date: dateISO }).then(function(resp) {
+    const refMap = (resp && resp.heures_ref) || {};
+    const tbody = document.getElementById('pointagesTbody');
+    if (!tbody) return;
+    tbody.querySelectorAll('tr').forEach(function(tr) {
+      if (tr.querySelector('td[colspan]')) return;
+      if (tr.querySelector('.cell-ref-arrivee')) return;
+      var empId = null;
+      const btn = tr.querySelector('button[onclick*="prefillModalPointage"]');
+      if (btn) {
+        const mm = btn.getAttribute('onclick').match(/prefillModalPointage\('([^']+)'/);
+        if (mm) empId = mm[1];
+      }
+      const td = document.createElement('td');
+      td.className = 'cell-ref-arrivee';
+      if (empId) {
+        td.innerHTML = '<select style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white" onchange="window.setHeureRefSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' + buildHeuresRefOptions(refMap[empId] || '') + '</select>';
+      } else {
+        td.innerHTML = '—';
+      }
+      tr.appendChild(td);
+    });
+  }).catch(function(){});
+}
+
+if (typeof loadPointagesJour === 'function') {
+  const _origLoadPtj = loadPointagesJour;
+  loadPointagesJour = function(date) {
+    const r = _origLoadPtj.apply(this, arguments);
+    setTimeout(injecterColonneRef, 700);
+    return r;
+  };
+}
 // ============================================================
 // GO
 // ============================================================
