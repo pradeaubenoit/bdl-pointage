@@ -4557,14 +4557,21 @@ window.setHeureRefSalarie = async function(empId, dateISO, heure, selectEl) {
   }
 };
 
-function injecterColonneRef() {
+function injecterColonneRef(tentative) {
+  tentative = tentative || 0;
   const di = document.getElementById('pointagesDate');
   const dateISO = (di && di.value) || '';
   if (!dateISO) return;
+  const tbody = document.getElementById('pointagesTbody');
+  if (!tbody) return;
+  const hasRealRows = tbody.querySelector('button[onclick*="prefillModalPointage"]');
+  const stillLoading = tbody.textContent.indexOf('Chargement') !== -1;
+  if ((!hasRealRows || stillLoading) && tentative < 15) {
+    setTimeout(function() { injecterColonneRef(tentative + 1); }, 400);
+    return;
+  }
   callApi('getHeuresReference', { date: dateISO }).then(function(resp) {
     const refMap = (resp && resp.heures_ref) || {};
-    const tbody = document.getElementById('pointagesTbody');
-    if (!tbody) return;
     tbody.querySelectorAll('tr').forEach(function(tr) {
       if (tr.querySelector('td[colspan]')) return;
       if (tr.querySelector('.cell-ref-arrivee')) return;
@@ -4590,7 +4597,7 @@ if (typeof loadPointagesJour === 'function') {
   const _origLoadPtj = loadPointagesJour;
   loadPointagesJour = function(date) {
     const r = _origLoadPtj.apply(this, arguments);
-    setTimeout(injecterColonneRef, 700);
+    setTimeout(function(){ injecterColonneRef(0); }, 300);
     return r;
   };
 }
