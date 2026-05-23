@@ -4557,7 +4557,41 @@ window.setHeureRefSalarie = async function(empId, dateISO, heure, selectEl) {
   }
 };
 
-function injecterColonneRef(tentative) {
+  function buildAbsenceOptions(selected) {
+  var opts = [
+    ['', '— Non qualifié —'],
+    ['conge', '🏖️ Congé'],
+    ['maladie', '🤒 Maladie'],
+    ['injustifiee', '⚠️ Absence injustifiée']
+  ];
+  return opts.map(function(o) {
+    var sel = (selected === o[0]) ? ' selected' : '';
+    return '<option value="' + o[0] + '"' + sel + '>' + o[1] + '</option>';
+  }).join('');
+}
+
+window.setAbsenceSalarie = async function(empId, dateISO, type, selectEl) {
+  var nbInput = selectEl.parentNode.querySelector('.abs-nbjours');
+  var nbJours = nbInput ? (Number(nbInput.value) || 1) : 1;
+  if (selectEl) selectEl.disabled = true;
+  try {
+    if (!type) {
+      await callApi('deleteAbsence', { empId: empId, date: dateISO });
+      toast('Absence retirée', 'success');
+    } else {
+      const resp = await callApi('setAbsence', { empId: empId, date: dateISO, type: type, nbJours: nbJours });
+      if (resp && resp.error) { toast('Erreur : ' + resp.error, 'error'); }
+      else { toast('Absence enregistrée (' + (resp.nb || 1) + ' j)', 'success'); }
+    }
+    const di = document.getElementById('pointagesDate');
+    if (di && di.value) loadPointagesJour(di.value);
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  } finally {
+    if (selectEl) selectEl.disabled = false;
+  }
+};
+  function injecterColonneRef(tentative) {
   tentative = tentative || 0;
   const di = document.getElementById('pointagesDate');
   const dateISO = (di && di.value) || '';
@@ -4570,8 +4604,12 @@ function injecterColonneRef(tentative) {
     setTimeout(function() { injecterColonneRef(tentative + 1); }, 400);
     return;
   }
-  callApi('getHeuresReference', { date: dateISO }).then(function(resp) {
-    const refMap = (resp && resp.heures_ref) || {};
+ Promise.all([
+    callApi('getHeuresReference', { date: dateISO }),
+    callApi('getAbsences', { date: dateISO })
+  ]).then(function(results) {
+    const refMap = (results[0] && results[0].heures_ref) || {};
+    const absMap = (results[1] && results[1].absences) || {};
     tbody.querySelectorAll('tr').forEach(function(tr) {
       if (tr.querySelector('td[colspan]')) return;
       if (tr.querySelector('.cell-ref-arrivee')) return;
@@ -4583,16 +4621,26 @@ function injecterColonneRef(tentative) {
       }
       const td = document.createElement('td');
       td.className = 'cell-ref-arrivee';
-      if (empId) {
-        td.innerHTML = '<select style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white" onchange="window.setHeureRefSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' + buildHeuresRefOptions(refMap[empId] || '') + '</select>';
-      } else {
+      if (!empId) {
         td.innerHTML = '—';
+        tr.appendChild(td);
+        return;
+      }
+      const sansScan = tr.textContent.indexOf('Aucun scan') !== -1;
+      if (sansScan) {
+        const selStyle = 'padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white';
+        td.innerHTML =
+          '<select style="' + selStyle + '" onchange="window.setAbsenceSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' +
+          buildAbsenceOptions(absMap[empId] || '') + '</select>' +
+          '<input type="number" class="abs-nbjours" min="1" max="60" value="1" title="Nombre de jours" style="width:48px;margin-left:6px;padding:6px 4px;border-radius:6px;border:1px solid var(--border);font-size:13px">';
+      } else {
+        td.innerHTML = '<select style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white" onchange="window.setHeureRefSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' + buildHeuresRefOptions(refMap[empId] || '') + '</select>';
       }
       tr.appendChild(td);
     });
   }).catch(function(){});
 }
-
+  
 if (typeof loadPointagesJour === 'function') {
   const _origLoadPtj = loadPointagesJour;
   loadPointagesJour = function(date) {
