@@ -893,8 +893,7 @@ async function renderReport() {
       <td class="num">—</td>
       <td class="num">${fmtHours(d.totaux.heuresTotal)}</td>
       <td class="num">${fmtHours(d.totaux.heuresTotal - d.totaux.heuresSup)}</td>
-      <td class="num warn">${fmtHours(d.totaux.heuresSup)}</td>
-      <td class="num ok">${fmtHours(retraitsTotMois)}</td>
+      <td class="num ${d.totaux.heuresSupNet<0?'bad':'warn'}">${fmtHours(d.totaux.heuresSupNet!=null?d.totaux.heuresSupNet:d.totaux.heuresSup)}${d.totaux.heuresInjustifiees>0?`<br><span style="font-size:11px;color:var(--ink-3)">${fmtHours(d.totaux.heuresSup)} −${fmtHours(d.totaux.heuresInjustifiees)} inj.</span>`:''}</td>      <td class="num ok">${fmtHours(retraitsTotMois)}</td>
       <td class="num">—</td>
       <td class="num">${fmtEUR(d.totaux.coutTotal)}</td>
       <td></td>
