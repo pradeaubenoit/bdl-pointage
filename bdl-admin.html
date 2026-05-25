@@ -4633,10 +4633,28 @@ window.setAbsenceSalarie = async function(empId, dateISO, type, selectEl) {
           '<select style="' + selStyle + '" onchange="window.setAbsenceSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' +
           buildAbsenceOptions(absMap[empId] || '') + '</select>' +
           '<input type="number" class="abs-nbjours" min="1" max="60" value="1" title="Nombre de jours" style="width:48px;margin-left:6px;padding:6px 4px;border-radius:6px;border:1px solid var(--border);font-size:13px">';
-      } else {
-        td.innerHTML = '<select style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white" onchange="window.setHeureRefSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' + buildHeuresRefOptions(refMap[empId] || '') + '</select>';
+} else {
+        var selectRefHtml = '<select style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white" onchange="window.setHeureRefSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' + buildHeuresRefOptions(refMap[empId] || '') + '</select>';
+        var ref = refMap[empId] || '';
+        var badgeEcart = '';
+        var m1er = tr.querySelector('td:nth-child(2)') ? (tr.querySelector('td:nth-child(2)').textContent.match(/(\d{1,2}):(\d{2})/)) : null;
+        if (ref && m1er) {
+          var refParts = ref.split(':');
+          var minutesRef = Number(refParts[0]) * 60 + Number(refParts[1]);
+          var minutesScan = Number(m1er[1]) * 60 + Number(m1er[2]);
+          var ecart = minutesScan - minutesRef;
+          if (Math.abs(ecart) > 45) {
+            var signe = ecart > 0 ? '+' : '−';
+            var absEcart = Math.abs(ecart);
+            var hh = Math.floor(absEcart / 60);
+            var mm = absEcart % 60;
+            var ecartTxt = signe + (hh > 0 ? hh + 'h' + (mm < 10 ? '0' : '') + mm : mm + ' min');
+            badgeEcart = '<div style="margin-top:4px;font-size:11px;color:#9a3412;font-weight:600">⏰ ' + ecartTxt + ' vs réf</div>';
+          }
+        }
+        td.innerHTML = selectRefHtml + badgeEcart;
       }
-      tr.appendChild(td);
+        tr.appendChild(td);
     });
   }).catch(function(){});
 }
