@@ -718,6 +718,10 @@ body {
   <div class="change-date-link">
     <button type="button" id="changeDateBtn">📅 Changer la date</button>
   </div>
+
+  <div class="change-date-link" style="margin-top:8px">
+    <button type="button" id="diagBtn">🔍 Relevé diagnostic (contrôle fuite)</button>
+  </div>
 </form>
 
 <!-- RECENT DAYS -->
@@ -760,6 +764,31 @@ body {
     <div class="modal-actions" style="padding: 0;">
       <button class="modal-btn primary" onclick="confirmDateChange()">Valider</button>
       <button class="modal-btn secondary" onclick="closeDateModal()">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RELEVÉ DIAGNOSTIC (point intra-journée) -->
+<div class="modal-backdrop" id="diagModal" style="align-items: center;">
+  <div class="date-picker-modal">
+    <h3>🔍 Relevé diagnostic</h3>
+    <p style="font-size:13px;color:var(--ink-faint);margin:0 0 12px">Ajoute un point dans la journée (ex. contrôle de fuite). N'affecte pas le relevé du matin.</p>
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Type de compteur</label>
+    <select id="diagType" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+      <option value="eau">💧 Eau</option>
+      <option value="gaz">🔥 Gaz (% cuve)</option>
+      <option value="compresseur">⚙️ Compresseur (h)</option>
+      <option value="edf">⚡ EDF (index)</option>
+    </select>
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Valeur relevée</label>
+    <input type="text" inputmode="decimal" id="diagValeur" placeholder="ex: 10985" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Heure</label>
+    <input type="time" id="diagHeure" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Note (optionnel)</label>
+    <input type="text" id="diagNote" placeholder="ex: contrôle fuite 14h" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+    <div class="modal-actions" style="padding: 0;">
+      <button class="modal-btn primary" id="diagSaveBtn">Enregistrer le relevé</button>
+      <button class="modal-btn secondary" onclick="document.getElementById('diagModal').classList.remove('visible')">Annuler</button>
     </div>
   </div>
 </div>
@@ -1276,6 +1305,46 @@ function closeModal() {
 document.getElementById('changeDateBtn').addEventListener('click', () => {
   document.getElementById('datePickerInput').value = state.dateTravail;
   document.getElementById('dateModal').classList.add('visible');
+});
+
+// POINT 2 — Relevé diagnostic ponctuel (point intra-journée)
+document.getElementById('diagBtn').addEventListener('click', () => {
+  const now = new Date();
+  document.getElementById('diagHeure').value =
+    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('diagValeur').value = '';
+  document.getElementById('diagNote').value = '';
+  document.getElementById('diagModal').classList.add('visible');
+});
+
+document.getElementById('diagSaveBtn').addEventListener('click', async function() {
+  const btn = this;
+  const type = document.getElementById('diagType').value;
+  const valeurRaw = document.getElementById('diagValeur').value.replace(',', '.').trim();
+  const heure = document.getElementById('diagHeure').value;
+  const note = document.getElementById('diagNote').value.trim();
+  if (!valeurRaw) { alert('Saisis une valeur'); return; }
+  if (!heure) { alert('Saisis une heure'); return; }
+  const valeur = Number(valeurRaw);
+  if (isNaN(valeur)) { alert('Valeur invalide'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Envoi…';
+  try {
+    await callApi('addReleveDiagnostic', {
+      type: type,
+      date: state.dateTravail,
+      heure: heure,
+      valeur_compteur: valeur,
+      note: note || 'Relevé diagnostic'
+    });
+    document.getElementById('diagModal').classList.remove('visible');
+    toast('Relevé diagnostic enregistré');
+  } catch (err) {
+    alert('Erreur : ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer le relevé';
+  }
 });
 
 function closeDateModal() {
