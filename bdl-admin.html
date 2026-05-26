@@ -4583,16 +4583,50 @@ window.setHeureRefSalarie = async function(empId, dateISO, heure, selectEl) {
   }).join('');
 }
 
+window.voirNoteAbsence = async function(empId, dateISO) {
+  var noteActuelle = '';
+  try {
+    var r = await callApi('getNoteAbsence', { empId: empId, date: dateISO });
+    noteActuelle = (r && r.note) ? r.note : '';
+  } catch (e) {}
+  var saisie = window.prompt('Note de l\'absence injustifiée :', noteActuelle);
+  if (saisie === null) return; // annulé
+  try {
+    await callApi('setAbsence', { empId: empId, date: dateISO, type: 'injustifiee', nbJours: 1, note: saisie.trim() });
+    toast('Note enregistrée', 'success');
+    const di = document.getElementById('pointagesDate');
+    if (di && di.value) loadPointagesJour(di.value);
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
+};
+
 window.setAbsenceSalarie = async function(empId, dateISO, type, selectEl) {
   var nbInput = selectEl.parentNode.querySelector('.abs-nbjours');
   var nbJours = nbInput ? (Number(nbInput.value) || 1) : 1;
+  // POINT 1 — si absence injustifiée, demander une note (motif/souvenir)
+  var note = '';
+  if (type === 'injustifiee') {
+    var noteActuelle = '';
+    try {
+      var r = await callApi('getNoteAbsence', { empId: empId, date: dateISO });
+      noteActuelle = (r && r.note) ? r.note : '';
+    } catch (e) {}
+    var saisie = window.prompt('Note pour cette absence injustifiée (motif, contexte) :', noteActuelle);
+    if (saisie === null) {
+      // Annulé : on remet le select sur sa valeur précédente sans rien enregistrer
+      if (selectEl) selectEl.value = noteActuelle ? 'injustifiee' : (selectEl.dataset.prev || '');
+      return;
+    }
+    note = saisie.trim();
+  }
   if (selectEl) selectEl.disabled = true;
   try {
     if (!type) {
       await callApi('deleteAbsence', { empId: empId, date: dateISO });
       toast('Absence retirée', 'success');
     } else {
-      const resp = await callApi('setAbsence', { empId: empId, date: dateISO, type: type, nbJours: nbJours });
+      const resp = await callApi('setAbsence', { empId: empId, date: dateISO, type: type, nbJours: nbJours, note: note });
       if (resp && resp.error) { toast('Erreur : ' + resp.error, 'error'); }
       else { toast('Absence enregistrée (' + (resp.nb || 1) + ' j)', 'success'); }
     }
@@ -4642,10 +4676,15 @@ window.setAbsenceSalarie = async function(empId, dateISO, type, selectEl) {
       const sansScan = tr.textContent.indexOf('Aucun scan') !== -1;
       if (sansScan) {
         const selStyle = 'padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white';
+        var typeAbsCourant = absMap[empId] || '';
+        var iconeNote = (typeAbsCourant === 'injustifiee')
+          ? '<button type="button" title="Voir / modifier la note" onclick="window.voirNoteAbsence(\'' + empId + '\',\'' + dateISO + '\')" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;font-size:13px">📝</button>'
+          : '';
         td.innerHTML =
           '<select style="' + selStyle + '" onchange="window.setAbsenceSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' +
           buildAbsenceOptions(absMap[empId] || '') + '</select>' +
-          '<input type="number" class="abs-nbjours" min="1" max="60" value="1" title="Nombre de jours" style="width:48px;margin-left:6px;padding:6px 4px;border-radius:6px;border:1px solid var(--border);font-size:13px">';
+          '<input type="number" class="abs-nbjours" min="1" max="60" value="1" title="Nombre de jours" style="width:48px;margin-left:6px;padding:6px 4px;border-radius:6px;border:1px solid var(--border);font-size:13px">' +
+          iconeNote;
 } else {
         var selectRefHtml = '<select style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white" onchange="window.setHeureRefSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' + buildHeuresRefOptions(refMap[empId] || '') + '</select>';
         var ref = refMap[empId] || '';
