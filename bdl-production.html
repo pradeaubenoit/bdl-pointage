@@ -1314,6 +1314,11 @@ document.getElementById('diagBtn').addEventListener('click', () => {
     String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   document.getElementById('diagValeur').value = '';
   document.getElementById('diagNote').value = '';
+  // Date du relevé diagnostic = AUJOURD'HUI réel (pas la date de production = veille)
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  document.getElementById('diagModal').dataset.dateJour = yyyy + '-' + mm + '-' + dd;
   document.getElementById('diagModal').classList.add('visible');
 });
 
@@ -1330,9 +1335,10 @@ document.getElementById('diagSaveBtn').addEventListener('click', async function(
   btn.disabled = true;
   btn.textContent = 'Envoi…';
   try {
+    const dateJour = document.getElementById('diagModal').dataset.dateJour;
     await callApi('addReleveDiagnostic', {
       type: type,
-      date: state.dateTravail,
+      date: dateJour,
       heure: heure,
       valeur_compteur: valeur,
       note: note || 'Relevé diagnostic'
