@@ -767,7 +767,8 @@ body {
     </div>
   </div>
 </div>
-  <!-- MODAL RELEVÉ DIAGNOSTIC GROUPÉ (photo complète à l'instant T) -->
+
+<!-- MODAL RELEVÉ DIAGNOSTIC GROUPÉ (photo complète à l'instant T) -->
 <div class="modal-backdrop" id="diagModal" style="align-items: center;">
   <div class="date-picker-modal">
     <h3>🔍 Relevé diagnostic</h3>
@@ -800,7 +801,7 @@ body {
     </div>
   </div>
 </div>
-  
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1320,12 +1321,17 @@ document.getElementById('changeDateBtn').addEventListener('click', () => {
   document.getElementById('dateModal').classList.add('visible');
 });
 
-// POINT 2 — Relevé diagnostic ponctuel (point intra-journée)
+// POINT 2 — Relevé diagnostic GROUPÉ (photo complète à l'instant T)
 document.getElementById('diagBtn').addEventListener('click', () => {
   const now = new Date();
   document.getElementById('diagHeure').value =
     String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  document.getElementById('diagValeur').value = '';
+  // Vider tous les champs
+  document.getElementById('diagTunnel').value = '';
+  document.getElementById('diagEau').value = '';
+  document.getElementById('diagGaz').value = '';
+  document.getElementById('diagEdf').value = '';
+  document.getElementById('diagCompr').value = '';
   document.getElementById('diagNote').value = '';
   // Date du relevé diagnostic = AUJOURD'HUI réel (pas la date de production = veille)
   const yyyy = now.getFullYear();
@@ -1337,27 +1343,44 @@ document.getElementById('diagBtn').addEventListener('click', () => {
 
 document.getElementById('diagSaveBtn').addEventListener('click', async function() {
   const btn = this;
-  const type = document.getElementById('diagType').value;
-  const valeurRaw = document.getElementById('diagValeur').value.replace(',', '.').trim();
   const heure = document.getElementById('diagHeure').value;
   const note = document.getElementById('diagNote').value.trim();
-  if (!valeurRaw) { alert('Saisis une valeur'); return; }
+  // Lire les champs (chacun optionnel). type interne = clé attendue par addReleveDiagnostic
+  const champs = [
+    { type: 'tunnel',      el: 'diagTunnel' },
+    { type: 'eau',         el: 'diagEau' },
+    { type: 'gaz',         el: 'diagGaz' },
+    { type: 'edf',         el: 'diagEdf' },
+    { type: 'compresseur', el: 'diagCompr' }
+  ];
+  // Construire la liste des relevés réellement saisis
+  const aEnvoyer = [];
+  for (const c of champs) {
+    const raw = document.getElementById(c.el).value.replace(',', '.').trim();
+    if (raw === '') continue;
+    const v = Number(raw);
+    if (isNaN(v)) { alert('Valeur invalide pour ' + c.type); return; }
+    aEnvoyer.push({ type: c.type, valeur: v });
+  }
+  if (aEnvoyer.length === 0) { alert('Saisis au moins un compteur'); return; }
   if (!heure) { alert('Saisis une heure'); return; }
-  const valeur = Number(valeurRaw);
-  if (isNaN(valeur)) { alert('Valeur invalide'); return; }
   btn.disabled = true;
   btn.textContent = 'Envoi…';
+  const dateJour = document.getElementById('diagModal').dataset.dateJour;
   try {
-    const dateJour = document.getElementById('diagModal').dataset.dateJour;
-    await callApi('addReleveDiagnostic', {
-      type: type,
-      date: dateJour,
-      heure: heure,
-      valeur_compteur: valeur,
-      note: note || 'Relevé diagnostic'
-    });
+    // Envoi séquentiel : un relevé par compteur, TOUS à la même heure et même date
+    // (c'est ce qui fait coïncider les tranches pour l'analyse croisée)
+    for (const r of aEnvoyer) {
+      await callApi('addReleveDiagnostic', {
+        type: r.type,
+        date: dateJour,
+        heure: heure,
+        valeur_compteur: r.valeur,
+        note: note || 'Relevé diagnostic groupé'
+      });
+    }
     document.getElementById('diagModal').classList.remove('visible');
-    toast('Relevé diagnostic enregistré');
+    toast(aEnvoyer.length + ' relevé(s) enregistré(s)');
   } catch (err) {
     alert('Erreur : ' + err.message);
   } finally {
