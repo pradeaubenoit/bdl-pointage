@@ -1253,6 +1253,32 @@ tr:hover { background: var(--bg-sunken); }
         </table>
       </div>
     </div>
+
+    <!-- Section TUNNEL (transferts) -->
+    <div style="margin-bottom:24px">
+      <h2 style="font-size:18px;display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        ⚙️ <span>Relevés TRANSFERTS tunnel du jour</span>
+        <span id="diagnosticTunnelCount" style="font-size:13px;color:var(--text-soft);font-weight:normal"></span>
+      </h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Heure</th>
+              <th>Compteur (transferts)</th>
+              <th>Δ Transferts</th>
+              <th>Durée</th>
+              <th>📊 Tonnage tranche (kg)</th>
+              <th>Note</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="diagnosticTunnelTbody">
+            <tr><td colspan="7" class="empty-state">Aucun relevé</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </section>
 
   <!-- Modal Ajouter Relevé -->
@@ -3349,6 +3375,7 @@ async function loadRelevesJour(date) {
   const tbodyGaz = document.getElementById('diagnosticGazTbody');
   const tbodyEdf = document.getElementById('diagnosticEdfTbody');
   const tbodyCompr = document.getElementById('diagnosticComprTbody');
+  const tbodyTunnel = document.getElementById('diagnosticTunnelTbody');
   
   tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
   tbodyGaz.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
@@ -3369,11 +3396,13 @@ async function loadRelevesJour(date) {
     document.getElementById('diagnosticGazCount').textContent = '· ' + (resp.par_type.gaz || []).length + ' relevés';
     document.getElementById('diagnosticEdfCount').textContent = '· ' + (resp.par_type.edf || []).length + ' relevés';
     document.getElementById('diagnosticComprCount').textContent = '· ' + (resp.par_type.compresseur || []).length + ' relevés';
+    document.getElementById('diagnosticTunnelCount').textContent = '· ' + (resp.par_type.tunnel || []).length + ' relevés';
     
     renderRelevesTable(tbodyEau, resp.par_type.eau || [], 'eau');
     renderRelevesTable(tbodyGaz, resp.par_type.gaz || [], 'gaz');
     renderRelevesTable(tbodyEdf, resp.par_type.edf || [], 'edf');
     renderRelevesTable(tbodyCompr, resp.par_type.compresseur || [], 'compresseur');
+    renderRelevesTable(tbodyTunnel, resp.par_type.tunnel || [], 'tunnel');
   } catch (err) {
     tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur: ' + err.message + '</td></tr>';
     tbodyGaz.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
@@ -3395,10 +3424,28 @@ function renderRelevesTable(tbody, releves, type) {
     let rowStyle = '';
     
     if (i > 0 && r.debit_par_heure !== undefined) {
-      const unite = type === 'eau' ? 'm³' : (type === 'gaz' ? '%' : (type === 'edf' ? 'kWh' : 'h'));
+      const unite = type === 'eau' ? 'm³' : (type === 'gaz' ? '%' : (type === 'edf' ? 'kWh' : (type === 'tunnel' ? 'transferts' : 'h')));
       deltaHtml = `<strong>+${r.delta_compteur}</strong> ${unite}`;
       dureeHtml = `${r.duree_h.toFixed(1)} h`;
-      
+
+      // TUNNEL : la colonne "débit" affiche le TONNAGE de la tranche (transferts × 35 kg)
+      if (type === 'tunnel') {
+        const kgParTransfert = 35;
+        const tonnageTranche = Math.round(r.delta_compteur * kgParTransfert);
+        debitHtml = `<strong style="color:#1f4a47">📦 ${tonnageTranche.toLocaleString('fr-FR')} kg</strong>`;
+        return `<tr style="">
+          <td><strong>${r.heure}</strong></td>
+          <td>${r.valeur_compteur.toLocaleString('fr-FR')}</td>
+          <td>${deltaHtml}</td>
+          <td>${dureeHtml}</td>
+          <td>${debitHtml}</td>
+          <td style="font-size:13px">${r.note || '—'}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="window.deleteReleve('${r.id}')" title="Supprimer">🗑️</button>
+          </td>
+        </tr>`;
+      }
+
       // Couleur selon débit (à ajuster avec l'expérience)
       const debit = r.debit_par_heure;
       let color = '#15803d';
