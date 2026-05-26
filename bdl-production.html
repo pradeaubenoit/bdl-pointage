@@ -767,32 +767,40 @@ body {
     </div>
   </div>
 </div>
-
-<!-- MODAL RELEVÉ DIAGNOSTIC (point intra-journée) -->
+  <!-- MODAL RELEVÉ DIAGNOSTIC GROUPÉ (photo complète à l'instant T) -->
 <div class="modal-backdrop" id="diagModal" style="align-items: center;">
   <div class="date-picker-modal">
     <h3>🔍 Relevé diagnostic</h3>
-    <p style="font-size:13px;color:var(--ink-faint);margin:0 0 12px">Ajoute un point dans la journée (ex. contrôle de fuite). N'affecte pas le relevé du matin.</p>
-    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Type de compteur</label>
-    <select id="diagType" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
-      <option value="eau">💧 Eau</option>
-      <option value="gaz">🔥 Gaz (% cuve)</option>
-      <option value="compresseur">⚙️ Compresseur (h)</option>
-      <option value="edf">⚡ EDF (index)</option>
-    </select>
-    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Valeur relevée</label>
-    <input type="text" inputmode="decimal" id="diagValeur" placeholder="ex: 10985" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+    <p style="font-size:13px;color:var(--ink-faint);margin:0 0 12px">Note d'un coup tous les compteurs que tu lis maintenant, à la même heure. Laisse vide ceux que tu ne relèves pas. N'affecte pas le relevé du matin.</p>
+
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">⚙️ Transferts tunnel <span style="font-weight:400;color:var(--ink-faint)">(compteur depuis ce matin)</span></label>
+    <input type="text" inputmode="decimal" id="diagTunnel" placeholder="ex: 180" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">💧 Eau <span style="font-weight:400;color:var(--ink-faint)">(index compteur)</span></label>
+    <input type="text" inputmode="decimal" id="diagEau" placeholder="ex: 10985" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">🔥 Gaz <span style="font-weight:400;color:var(--ink-faint)">(% cuve)</span></label>
+    <input type="text" inputmode="decimal" id="diagGaz" placeholder="ex: 62" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">⚡ EDF <span style="font-weight:400;color:var(--ink-faint)">(index compteur)</span></label>
+    <input type="text" inputmode="decimal" id="diagEdf" placeholder="ex: 2336461" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">🌀 Compresseur <span style="font-weight:400;color:var(--ink-faint)">(index heures)</span></label>
+    <input type="text" inputmode="decimal" id="diagCompr" placeholder="ex: 17982" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+
     <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Heure</label>
     <input type="time" id="diagHeure" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+
     <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Note (optionnel)</label>
     <input type="text" id="diagNote" placeholder="ex: contrôle fuite 14h" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:16px;margin-bottom:12px">
+
     <div class="modal-actions" style="padding: 0;">
       <button class="modal-btn primary" id="diagSaveBtn">Enregistrer le relevé</button>
       <button class="modal-btn secondary" onclick="document.getElementById('diagModal').classList.remove('visible')">Annuler</button>
     </div>
   </div>
 </div>
-
+  
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
