@@ -1148,6 +1148,9 @@ tr:hover { background: var(--bg-sunken); }
       Le système calcule automatiquement le <strong>débit en m³/h entre chaque relevé</strong> pour identifier les anomalies et vérifier si l'intervention a fonctionné.
     </div>
 
+    <!-- Encart Analyse Diagnostic (auto, non bloquant) -->
+    <div id="analyseDiagnosticEncart" style="display:none;margin-bottom:20px;padding:16px 18px;border-radius:12px;line-height:1.6;font-size:14px;white-space:pre-wrap"></div>
+
     <!-- Section EAU -->
     <div style="margin-bottom:24px">
       <h2 style="font-size:18px;display:flex;align-items:center;gap:8px;margin-bottom:12px">
@@ -3301,10 +3304,44 @@ async function loadDiagnosticSection() {
   }
   
   loadRelevesJour(dateInput.value);
-  
+
+  // Analyse Diagnostic auto (en arrière-plan, non bloquant)
+  lancerAnalyseDiagnostic();
+
   dateInput.onchange = () => loadRelevesJour(dateInput.value);
   document.getElementById('btnAjouterReleve').onclick = openModalReleve;
   document.getElementById('btnSaveReleve').onclick = saveReleveDiagnostic;
+}
+
+async function lancerAnalyseDiagnostic() {
+  const encart = document.getElementById('analyseDiagnosticEncart');
+  if (!encart) return;
+  encart.style.display = 'block';
+  encart.style.background = '#f1f5f9';
+  encart.style.border = '1px solid #cbd5e1';
+  encart.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:#475569"><div class="spinner-mini"></div> Analyse de l\'état actuel…</div>';
+  try {
+    const resp = await callApi('analyseDiagnostic', { jours: 3 });
+    if (resp && resp.ok && resp.analyse) {
+      // Couleur de l'encart selon le verdict détecté dans le texte
+      const t = resp.analyse;
+      let bg = '#f0fdf4', border = '#86efac', titre = '#15803d';
+      if (t.indexOf('⚠️') !== -1 || t.indexOf('VÉRIFIER') !== -1) { bg = '#fef2f2'; border = '#fca5a5'; titre = '#b91c1c'; }
+      else if (t.indexOf('👏') !== -1 || t.indexOf('ÉCONOMIE') !== -1) { bg = '#eff6ff'; border = '#93c5fd'; titre = '#1d4ed8'; }
+      encart.style.background = bg;
+      encart.style.border = '1px solid ' + border;
+      const meta = resp.periode
+        ? '<div style="font-size:11px;color:var(--ink-faint);margin-top:12px;padding-top:8px;border-top:1px solid ' + border + '">📅 Référence ' +
+          resp.periode.debut + ' → ' + resp.periode.fin + ' · ' + (resp.nb_jours_donnees || 0) + ' jours de données</div>'
+        : '';
+      encart.innerHTML = '<div style="font-weight:700;font-size:15px;margin-bottom:8px;color:' + titre + '">🔍 Analyse Diagnostic</div>' +
+        '<div>' + t.replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>' + meta;
+    } else {
+      encart.style.display = 'none'; // pas d'analyse dispo : on n'encombre pas
+    }
+  } catch (err) {
+    encart.style.display = 'none'; // erreur silencieuse : non bloquant
+  }
 }
 
 async function loadRelevesJour(date) {
