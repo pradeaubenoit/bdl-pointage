@@ -3562,6 +3562,7 @@ async function loadPointagesJour(date) {
     }
     
     // Stats
+    const nbAbsNQ = resp.nb_absences_non_qualifiees || 0;
     stats.innerHTML = `
       <div class="card" style="padding:12px;flex:1">
         <div style="color:var(--text-soft);font-size:13px">Présents maintenant</div>
@@ -3570,6 +3571,10 @@ async function loadPointagesJour(date) {
       <div class="card" style="padding:12px;flex:1;${resp.nb_anomalies > 0 ? 'border-left:4px solid #ef4444' : ''}">
         <div style="color:var(--text-soft);font-size:13px">Anomalies (oublis)</div>
         <div style="font-size:24px;font-weight:600;color:${resp.nb_anomalies > 0 ? '#ef4444' : '#6b7280'}">${resp.nb_anomalies}</div>
+      </div>
+      <div class="card" style="padding:12px;flex:1;${nbAbsNQ > 0 ? 'border-left:4px solid #d97706' : ''}">
+        <div style="color:var(--text-soft);font-size:13px">⚠️ Anomalie pointage</div>
+        <div style="font-size:24px;font-weight:600;color:${nbAbsNQ > 0 ? '#d97706' : '#6b7280'}">${nbAbsNQ}</div>
       </div>
     `;
     
@@ -3619,11 +3624,19 @@ async function loadPointagesJour(date) {
       html += `<tr><td colspan="5" style="background:#f9fafb;font-weight:600;padding:8px">Salariés sans pointage (${salariesSansScans.length})</td></tr>`;
       salariesSansScans.forEach(p => {
         const emp = p.employee;
-        html += `<tr style="color:var(--text-soft)">
+        const anq = p.est_absence_non_qualifiee;
+        const rowStyle = anq ? 'background:rgba(217,119,6,0.06)' : 'color:var(--text-soft)';
+        const labelsAbs = { conge: '🏖️ Congé', maladie: '🤒 Maladie', injustifiee: '⚠️ Injustifiée' };
+        const statut = anq
+          ? '<span style="background:#fef3c7;color:#92400e;padding:4px 8px;border-radius:6px;font-size:12px;font-weight:600">⚠️ Anomalie pointage</span>'
+          : (p.abs_type
+              ? '<span style="color:var(--text-soft);font-size:12px">' + (labelsAbs[p.abs_type] || p.abs_type) + '</span>'
+              : '<span style="color:var(--text-soft);font-size:12px">Absent / Repos</span>');
+        html += `<tr style="${rowStyle}">
           <td>${emp.prenom} ${emp.nom}</td>
           <td><em>Aucun scan</em></td>
           <td>—</td>
-          <td><span style="color:var(--text-soft);font-size:12px">Absent / Repos</span></td>
+          <td>${statut}</td>
           <td>
             <button class="btn btn-ghost btn-sm" onclick="prefillModalPointage('${emp.id}', '${resp.date}')">➕ Ajouter scan</button>
           </td>
