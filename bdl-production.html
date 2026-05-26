@@ -1141,12 +1141,17 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
     try {
       const now = new Date();
       const heureNow = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+      // Date du JOUR RÉEL pour le Diagnostic (le point du matin = départ du jour en cours,
+      // PAS la veille qui sert pour la conso de production)
+      const dateDiagJour = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0');
       
       // Eau
       if (data.eau_compteur != null) {
         await callApi('addReleveDiagnostic', {
           type: 'eau',
-          date: data.date_travail,
+          date: dateDiagJour,
           heure: heureNow,
           valeur_compteur: data.eau_compteur,
           note: 'Saisie matin'
@@ -1156,7 +1161,7 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
       if (data.gaz_cuve_pct != null) {
         await callApi('addReleveDiagnostic', {
           type: 'gaz',
-          date: data.date_travail,
+          date: dateDiagJour,
           heure: heureNow,
           valeur_compteur: data.gaz_cuve_pct,
           note: 'Saisie matin'
@@ -1166,7 +1171,7 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
       if (data.compresseur_compteur != null) {
         await callApi('addReleveDiagnostic', {
           type: 'compresseur',
-          date: data.date_travail,
+          date: dateDiagJour,
           heure: heureNow,
           valeur_compteur: data.compresseur_compteur,
           note: 'Saisie matin'
@@ -1176,7 +1181,7 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
       if (data.edf != null) {
         await callApi('addReleveDiagnostic', {
           type: 'edf',
-          date: data.date_travail,
+          date: dateDiagJour,
           heure: heureNow,
           valeur_compteur: data.edf,
           note: 'Saisie matin'
