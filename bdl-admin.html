@@ -1225,6 +1225,31 @@ tr:hover { background: var(--bg-sunken); }
         </table>
       </div>
     </div>
+
+    <div style="margin-bottom:24px">
+      <h2 style="font-size:18px;display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        ⚙️ <span>Relevés COMPRESSEUR du jour</span>
+        <span id="diagnosticComprCount" style="font-size:13px;color:var(--text-soft);font-weight:normal"></span>
+      </h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Heure</th>
+              <th>Compteur (h)</th>
+              <th>Δ Conso</th>
+              <th>Durée</th>
+              <th>📊 Débit (h/h)</th>
+              <th>Note</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="diagnosticComprTbody">
+            <tr><td colspan="7" class="empty-state">Aucun relevé</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </section>
 
   <!-- Modal Ajouter Relevé -->
@@ -3286,10 +3311,12 @@ async function loadRelevesJour(date) {
   const tbodyEau = document.getElementById('diagnosticEauTbody');
   const tbodyGaz = document.getElementById('diagnosticGazTbody');
   const tbodyEdf = document.getElementById('diagnosticEdfTbody');
+  const tbodyCompr = document.getElementById('diagnosticComprTbody');
   
   tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
   tbodyGaz.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
   tbodyEdf.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
+  tbodyCompr.innerHTML = '<tr><td colspan="7" class="empty-state">Chargement…</td></tr>';
   
   try {
     const resp = await callApi('getRelevesDiagnostic', { date: date });
@@ -3297,20 +3324,24 @@ async function loadRelevesJour(date) {
       tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
       tbodyGaz.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
       tbodyEdf.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
+      tbodyCompr.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
       return;
     }
     
     document.getElementById('diagnosticEauCount').textContent = '· ' + (resp.par_type.eau || []).length + ' relevés';
     document.getElementById('diagnosticGazCount').textContent = '· ' + (resp.par_type.gaz || []).length + ' relevés';
     document.getElementById('diagnosticEdfCount').textContent = '· ' + (resp.par_type.edf || []).length + ' relevés';
+    document.getElementById('diagnosticComprCount').textContent = '· ' + (resp.par_type.compresseur || []).length + ' relevés';
     
     renderRelevesTable(tbodyEau, resp.par_type.eau || [], 'eau');
     renderRelevesTable(tbodyGaz, resp.par_type.gaz || [], 'gaz');
     renderRelevesTable(tbodyEdf, resp.par_type.edf || [], 'edf');
+    renderRelevesTable(tbodyCompr, resp.par_type.compresseur || [], 'compresseur');
   } catch (err) {
     tbodyEau.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur: ' + err.message + '</td></tr>';
     tbodyGaz.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
     tbodyEdf.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
+    tbodyCompr.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur</td></tr>';
   }
 }
 
@@ -3327,7 +3358,7 @@ function renderRelevesTable(tbody, releves, type) {
     let rowStyle = '';
     
     if (i > 0 && r.debit_par_heure !== undefined) {
-      const unite = type === 'eau' ? 'm³' : (type === 'gaz' ? '%' : (type === 'edf' ? 'kWh' : ''));
+      const unite = type === 'eau' ? 'm³' : (type === 'gaz' ? '%' : (type === 'edf' ? 'kWh' : 'h'));
       deltaHtml = `<strong>+${r.delta_compteur}</strong> ${unite}`;
       dureeHtml = `${r.duree_h.toFixed(1)} h`;
       
