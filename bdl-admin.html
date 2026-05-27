@@ -1050,6 +1050,7 @@ tr:hover { background: var(--bg-sunken); }
     <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px">
       <button class="btn" id="btnVueJour" style="background:#1F4A47;color:white" onclick="window.switchVuePointages('jour')">📋 Vue Jour</button>
       <button class="btn btn-ghost" id="btnVueCalendrier" onclick="window.switchVuePointages('calendrier')">📅 Calendrier du mois</button>
+      <button class="btn btn-ghost" id="btnVueHeuresSup" onclick="window.switchVuePointages('heuressup')">💶 Heures sup</button>
     </div>
 
     <!-- Vue JOUR (par défaut) -->
@@ -1105,7 +1106,87 @@ tr:hover { background: var(--bg-sunken); }
         </table>
       </div>
     </div>
+
+    <!-- V4.9.16 — Vue HEURES SUP (soldes + déductions paie/récup) -->
+    <div id="vuePointagesHeuresSup" style="display:none">
+      <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.6">
+        <div style="font-weight:600;margin-bottom:4px">💡 Gestion des heures supplémentaires (depuis le 15/05/2026)</div>
+        <div style="color:var(--text-soft)">
+          <strong>Générées</strong> = heures sup calculées automatiquement (au-delà de 7h/jour + samedi/dimanche).
+          Quand la compta en règle une partie, clique <strong>Déduire</strong> et saisis le nombre payé (ou récupéré).
+          Le <strong>solde restant</strong> se reporte au mois suivant.
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Salarié</th>
+              <th style="text-align:right">Générées</th>
+              <th style="text-align:right">Payées</th>
+              <th style="text-align:right">Récupérées</th>
+              <th style="text-align:right">Reste à régler</th>
+              <th style="text-align:center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="heuresSupTbody">
+            <tr><td colspan="6" class="empty-state">Chargement…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Historique des déductions -->
+      <div class="section-subtitle" style="margin-top:24px">Historique des déductions</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Salarié</th>
+              <th style="text-align:right">Heures</th>
+              <th>Type</th>
+              <th>Note</th>
+              <th style="text-align:center">Action</th>
+            </tr>
+          </thead>
+          <tbody id="heuresSupHistoTbody">
+            <tr><td colspan="6" class="empty-state">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </section>
+
+  <!-- V4.9.16 — Modal Déduire heures sup -->
+  <div id="modalDeduireSup" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;padding:24px;border-radius:12px;max-width:440px;width:90%">
+      <h2 style="margin-top:0">💶 Déduire des heures sup</h2>
+      <p style="color:var(--text-soft);font-size:14px" id="modalDeduireInfo">—</p>
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Nombre d'heures :</label>
+        <input type="number" id="modalDeduireHeures" step="0.5" min="0" placeholder="Ex : 30" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:15px">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Type :</label>
+        <select id="modalDeduireMode" style="width:100%;padding:10px;border-radius:6px;border:1px solid var(--border);font-size:15px">
+          <option value="paye">💶 Payées (paie)</option>
+          <option value="recup">🛌 Récupérées (repos)</option>
+        </select>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Date :</label>
+        <input type="date" id="modalDeduireDate" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;margin-bottom:4px;font-weight:600">Note (facultatif) :</label>
+        <input type="text" id="modalDeduireNote" placeholder="Ex : paie mai 2026" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border)">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="window.fermerModalDeduire()">Annuler</button>
+        <button class="btn btn-primary" onclick="window.validerDeduireSup()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal Ajouter Pointage -->
   <div id="modalPointage" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
@@ -3873,34 +3954,149 @@ window.deletePointage = async function(id) {
 window.switchVuePointages = function(vue) {
   const vueJour = document.getElementById('vuePointagesJour');
   const vueCal = document.getElementById('vuePointagesCalendrier');
+  const vueSup = document.getElementById('vuePointagesHeuresSup');
   const btnJour = document.getElementById('btnVueJour');
   const btnCal = document.getElementById('btnVueCalendrier');
-  
+  const btnSup = document.getElementById('btnVueHeuresSup');
+
+  // Réinitialise les 3 boutons en "ghost" et masque les 3 vues
+  [btnJour, btnCal, btnSup].forEach(function(b) {
+    if (b) { b.style.background = ''; b.style.color = ''; b.classList.add('btn-ghost'); }
+  });
+  vueJour.style.display = 'none';
+  vueCal.style.display = 'none';
+  if (vueSup) vueSup.style.display = 'none';
+
+  function activer(btn) {
+    btn.style.background = '#1F4A47';
+    btn.style.color = 'white';
+    btn.classList.remove('btn-ghost');
+  }
+
   if (vue === 'jour') {
     vueJour.style.display = 'block';
-    vueCal.style.display = 'none';
-    btnJour.style.background = '#1F4A47';
-    btnJour.style.color = 'white';
-    btnJour.classList.remove('btn-ghost');
-    btnCal.style.background = '';
-    btnCal.style.color = '';
-    btnCal.classList.add('btn-ghost');
+    activer(btnJour);
+  } else if (vue === 'heuressup') {
+    if (vueSup) vueSup.style.display = 'block';
+    activer(btnSup);
+    loadHeuresSup();
   } else {
-    vueJour.style.display = 'none';
     vueCal.style.display = 'block';
-    btnCal.style.background = '#1F4A47';
-    btnCal.style.color = 'white';
-    btnCal.classList.remove('btn-ghost');
-    btnJour.style.background = '';
-    btnJour.style.color = '';
-    btnJour.classList.add('btn-ghost');
-    
+    activer(btnCal);
     const moisInput = document.getElementById('calendrierMois');
     if (!moisInput.value) {
       moisInput.value = new Date().toISOString().slice(0, 7);
     }
     loadCalendrierHeures(moisInput.value);
     moisInput.onchange = function() { loadCalendrierHeures(moisInput.value); };
+  }
+};
+
+// V4.9.16 — Chargement des soldes heures sup (tous salariés) + historique
+async function loadHeuresSup() {
+  const tbody = document.getElementById('heuresSupTbody');
+  const histoTbody = document.getElementById('heuresSupHistoTbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Chargement…</td></tr>';
+  try {
+    const [soldesResp, salariesResp] = await Promise.all([
+      callApi('getAllSoldesSup'),
+      callApi('salaries')
+    ]);
+    const soldes = (soldesResp && soldesResp.soldes) || {};
+    const salaries = (salariesResp && salariesResp.salaries) || [];
+    // Index nom par id
+    const nomParId = {};
+    salaries.forEach(function(s) {
+      nomParId[s.id] = ((s.prenom || '') + ' ' + (s.nom || '')).trim() || s.id;
+    });
+    // Garder les salariés actifs ayant un solde calculé
+    const lignes = salaries.filter(function(s) { return s.actif; }).map(function(s) {
+      const sd = soldes[s.id] || { supGenerees: 0, supPayees: 0, supRecuperees: 0, solde: 0 };
+      return { id: s.id, nom: nomParId[s.id], sd: sd };
+    });
+    if (lignes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aucun salarié actif</td></tr>';
+    } else {
+      tbody.innerHTML = lignes.map(function(l) {
+        const reste = l.sd.solde || 0;
+        const resteColor = reste > 0 ? '#f59e0b' : '#10b981';
+        return '<tr>' +
+          '<td><strong>' + l.nom + '</strong></td>' +
+          '<td style="text-align:right">' + (l.sd.supGenerees || 0).toFixed(1) + ' h</td>' +
+          '<td style="text-align:right">' + (l.sd.supPayees || 0).toFixed(1) + ' h</td>' +
+          '<td style="text-align:right">' + (l.sd.supRecuperees || 0).toFixed(1) + ' h</td>' +
+          '<td style="text-align:right;font-weight:700;color:' + resteColor + '">' + reste.toFixed(1) + ' h</td>' +
+          '<td style="text-align:center"><button class="btn btn-primary" style="padding:5px 12px;font-size:13px" onclick="window.ouvrirModalDeduire(\'' + l.id + '\',\'' + l.nom.replace(/'/g, "\\'") + '\',' + reste.toFixed(1) + ')">💶 Déduire</button></td>' +
+          '</tr>';
+      }).join('');
+    }
+    // Historique des déductions (toutes opérations)
+    const opsResp = await callApi('getOperationsSup');
+    const ops = (opsResp && opsResp.operations) || [];
+    if (ops.length === 0) {
+      histoTbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aucune déduction enregistrée</td></tr>';
+    } else {
+      histoTbody.innerHTML = ops.map(function(o) {
+        const nom = o.employee ? ((o.employee.prenom || '') + ' ' + (o.employee.nom || '')).trim() : (nomParId[o.empId] || o.empId);
+        const typeLabel = o.mode === 'recup' ? '🛌 Récup' : '💶 Payé';
+        return '<tr>' +
+          '<td>' + o.date + '</td>' +
+          '<td>' + nom + '</td>' +
+          '<td style="text-align:right">' + (o.heures || 0).toFixed(1) + ' h</td>' +
+          '<td>' + typeLabel + '</td>' +
+          '<td style="color:var(--text-soft);font-size:13px">' + (o.note || '') + '</td>' +
+          '<td style="text-align:center"><button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;color:#ef4444" onclick="window.supprimerDeduction(\'' + o.id + '\')">🗑️ Annuler</button></td>' +
+          '</tr>';
+      }).join('');
+    }
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Erreur : ' + e.message + '</td></tr>';
+  }
+}
+
+window.ouvrirModalDeduire = function(empId, nom, reste) {
+  document.getElementById('modalDeduireInfo').textContent = nom + ' — reste à régler : ' + reste.toFixed(1) + ' h';
+  document.getElementById('modalDeduireHeures').value = '';
+  document.getElementById('modalDeduireMode').value = 'paye';
+  document.getElementById('modalDeduireDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('modalDeduireNote').value = '';
+  document.getElementById('modalDeduireModal_empId') || (function() {
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.id = 'modalDeduireModal_empId';
+    document.getElementById('modalDeduireSup').appendChild(h);
+  })();
+  document.getElementById('modalDeduireModal_empId').value = empId;
+  document.getElementById('modalDeduireSup').style.display = 'flex';
+};
+
+window.fermerModalDeduire = function() {
+  document.getElementById('modalDeduireSup').style.display = 'none';
+};
+
+window.validerDeduireSup = async function() {
+  const empId = document.getElementById('modalDeduireModal_empId').value;
+  const heures = Number(document.getElementById('modalDeduireHeures').value);
+  const mode = document.getElementById('modalDeduireMode').value;
+  const date = document.getElementById('modalDeduireDate').value;
+  const note = document.getElementById('modalDeduireNote').value;
+  if (!heures || heures <= 0) { alert('Saisis un nombre d\'heures valide.'); return; }
+  if (!date) { alert('Choisis une date.'); return; }
+  try {
+    await callApi('addOperationSup', { empId: empId, heures: heures, mode: mode, date: date, note: note });
+    window.fermerModalDeduire();
+    loadHeuresSup();
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+  }
+};
+
+window.supprimerDeduction = async function(id) {
+  if (!confirm('Annuler cette déduction ? Les heures reviendront au solde.')) return;
+  try {
+    await callApi('deleteOperationSup', { id: id });
+    loadHeuresSup();
+  } catch (e) {
+    alert('Erreur : ' + e.message);
   }
 };
 
