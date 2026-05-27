@@ -368,6 +368,12 @@ body {
   font-family: 'JetBrains Mono', monospace;
   font-weight: 600;
 }
+.recent-idx {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  font-weight: 400;
+}
 .recent-warn {
   color: var(--warning);
   font-size: 14px;
@@ -990,9 +996,10 @@ function renderRecent(items) {
   list.innerHTML = items.map(p => {
     const stats = [];
     if (p.kg) stats.push('<span class="recent-stat"><span class="recent-stat-value">' + fmtNum(p.kg) + '</span> kg</span>');
-    if (p.eau_m3 != null) stats.push('<span class="recent-stat">💧 <span class="recent-stat-value">' + fmtNum(p.eau_m3, 1) + '</span> m³</span>');
-    if (p.gaz_pct != null) stats.push('<span class="recent-stat">🔥 <span class="recent-stat-value">' + fmtNum(p.gaz_pct, 1) + '</span>%</span>');
-    if (p.compresseur_h != null) stats.push('<span class="recent-stat">⚙️ <span class="recent-stat-value">' + fmtNum(p.compresseur_h, 1) + '</span>h</span>');
+    if (p.eau_m3 != null) stats.push('<span class="recent-stat">💧 <span class="recent-stat-value">' + fmtNum(p.eau_m3, 1) + '</span> m³' + (p.eau_compteur != null ? ' <span class="recent-idx">(idx ' + fmtNum(p.eau_compteur, 1) + ')</span>' : '') + '</span>');
+    if (p.gaz_pct != null) stats.push('<span class="recent-stat">🔥 <span class="recent-stat-value">' + fmtNum(p.gaz_pct, 1) + '</span>%' + (p.gaz_cuve_pct != null ? ' <span class="recent-idx">(cuve ' + fmtNum(p.gaz_cuve_pct, 1) + '%)</span>' : '') + '</span>');
+    if (p.compresseur_h != null) stats.push('<span class="recent-stat">⚙️ <span class="recent-stat-value">' + fmtNum(p.compresseur_h, 1) + '</span>h' + (p.compresseur_compteur != null ? ' <span class="recent-idx">(idx ' + fmtNum(p.compresseur_compteur, 1) + ')</span>' : '') + '</span>');
+    if (p.edf_kwh != null) stats.push('<span class="recent-stat">⚡ <span class="recent-stat-value">' + fmtNum(p.edf_kwh, 0) + '</span> kWh' + (p.edf != null ? ' <span class="recent-idx">(idx ' + fmtNum(p.edf, 0) + ')</span>' : '') + '</span>');
     return `<div class="recent-item">
       <div class="recent-day">${p.jour_travail} ${fmtDateShort(p.date_travail)}</div>
       <div class="recent-stats">${stats.join('')}</div>
