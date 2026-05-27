@@ -991,6 +991,21 @@ tr:hover { background: var(--bg-sunken); }
 
     <!-- Tableau journalier -->
     <div class="section-subtitle" style="margin-top: 16px;">Détail jour par jour</div>
+    <!-- V4.9.16 — Légende des pastilles (couleurs = écart vs MOYENNE du mois, pas le budget) -->
+    <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.6">
+      <div style="font-weight:600;margin-bottom:6px">💡 Comment lire les pastilles couleur (eau / gaz / EDF)</div>
+      <div style="margin-bottom:8px">
+        <span style="white-space:nowrap">🟢 <strong>Vert</strong> : sous la moyenne du mois (bien)</span> &nbsp;·&nbsp;
+        <span style="white-space:nowrap">🟠 <strong>Orange</strong> : un peu au-dessus (+10 à +20 %)</span> &nbsp;·&nbsp;
+        <span style="white-space:nowrap">🔴 <strong>Rouge</strong> : nettement au-dessus (plus de +20 %)</span>
+      </div>
+      <div style="color:var(--text-soft)">
+        Ces couleurs comparent chaque jour à <strong>ta moyenne du mois</strong> (ta régularité au quotidien) —
+        <strong>elles ne mesurent pas le budget</strong>. Pour savoir si tu es dans ton budget, regarde le
+        « Suivi budgets fluides » sur le Tableau de bord. Un jour peut être rouge (plus que ta moyenne)
+        tout en restant largement dans le budget.
+      </div>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
