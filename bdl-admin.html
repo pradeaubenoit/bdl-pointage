@@ -4949,7 +4949,7 @@ window.setAbsenceSalarie = async function(empId, dateISO, type, selectEl) {
   if (selectEl) selectEl.disabled = true;
   try {
     if (!type) {
-      await callApi('deleteAbsence', { empId: empId, date: dateISO });
+      await callApi('deleteAbsencePlage', { empId: empId, date: dateISO });
       toast('Absence retirée', 'success');
     } else {
       const resp = await callApi('setAbsenceRemplace', { empId: empId, date: dateISO, type: type, nbJours: nbJours, note: note });
