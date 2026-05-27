@@ -4952,7 +4952,7 @@ window.setAbsenceSalarie = async function(empId, dateISO, type, selectEl) {
       await callApi('deleteAbsence', { empId: empId, date: dateISO });
       toast('Absence retirée', 'success');
     } else {
-      const resp = await callApi('setAbsence', { empId: empId, date: dateISO, type: type, nbJours: nbJours, note: note });
+      const resp = await callApi('setAbsenceRemplace', { empId: empId, date: dateISO, type: type, nbJours: nbJours, note: note });
       if (resp && resp.error) { toast('Erreur : ' + resp.error, 'error'); }
       else { toast('Absence enregistrée (' + (resp.nb || 1) + ' j)', 'success'); }
     }
@@ -4962,6 +4962,39 @@ window.setAbsenceSalarie = async function(empId, dateISO, type, selectEl) {
     toast('Erreur : ' + err.message, 'error');
   } finally {
     if (selectEl) selectEl.disabled = false;
+  }
+};
+
+// V4.9.17 — Réactif sur le champ "nombre de jours" : si une absence est déjà
+// qualifiée (type choisi dans le select voisin), changer le nombre recrée
+// proprement l'absence sur N jours (route setAbsenceRemplace). Peu importe l'ordre.
+window.changerNbJoursAbsence = async function(empId, dateISO, nbInput) {
+  var td = nbInput.parentNode;
+  var selectEl = td ? td.querySelector('select') : null;
+  var type = selectEl ? selectEl.value : '';
+  // Pas de type choisi → rien à faire (le nombre seul ne crée pas d'absence)
+  if (!type) return;
+  var nbJours = Number(nbInput.value) || 1;
+  if (nbJours < 1) { nbInput.value = 1; nbJours = 1; }
+  // Récupérer la note existante (pour ne pas la perdre sur une injustifiée)
+  var note = '';
+  if (type === 'injustifiee') {
+    try {
+      var r = await callApi('getNoteAbsence', { empId: empId, date: dateISO });
+      note = (r && r.note) ? r.note : '';
+    } catch (e) {}
+  }
+  nbInput.disabled = true;
+  try {
+    const resp = await callApi('setAbsenceRemplace', { empId: empId, date: dateISO, type: type, nbJours: nbJours, note: note });
+    if (resp && resp.error) { toast('Erreur : ' + resp.error, 'error'); }
+    else { toast('Absence mise à jour (' + (resp.nb || 1) + ' j)', 'success'); }
+    const di = document.getElementById('pointagesDate');
+    if (di && di.value) loadPointagesJour(di.value);
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  } finally {
+    nbInput.disabled = false;
   }
 };
   function injecterColonneRef(tentative) {
@@ -5009,7 +5042,7 @@ window.setAbsenceSalarie = async function(empId, dateISO, type, selectEl) {
         td.innerHTML =
           '<select style="' + selStyle + '" onchange="window.setAbsenceSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' +
           buildAbsenceOptions(absMap[empId] || '') + '</select>' +
-          '<input type="number" class="abs-nbjours" min="1" max="60" value="1" title="Nombre de jours" style="width:48px;margin-left:6px;padding:6px 4px;border-radius:6px;border:1px solid var(--border);font-size:13px">' +
+          '<input type="number" class="abs-nbjours" min="1" max="60" value="1" title="Nombre de jours" onchange="window.changerNbJoursAbsence(\'' + empId + '\',\'' + dateISO + '\',this)" style="width:48px;margin-left:6px;padding:6px 4px;border-radius:6px;border:1px solid var(--border);font-size:13px">' +
           iconeNote;
 } else {
         var selectRefHtml = '<select style="padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white" onchange="window.setHeureRefSalarie(\'' + empId + '\',\'' + dateISO + '\',this.value,this)">' + buildHeuresRefOptions(refMap[empId] || '') + '</select>';
