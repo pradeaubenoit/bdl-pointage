@@ -2269,19 +2269,14 @@ async function computeMonthTrend(month, currentCoutKg) {
   const prevDate = new Date(y, m - 2, 1);
   const prevMonth = prevDate.getFullYear() + '-' + ('0' + (prevDate.getMonth() + 1)).slice(-2);
   try {
-    const prevProd = await loadProductionMonthData(prevMonth);
-    const records = prevProd.production || [];
-    const totals = records.reduce((acc, r) => {
-      acc.kg += r.kg || 0;
-      acc.eau += r.eau_m3 || 0;
-      acc.gaz_pct += r.gaz_pct || 0;
-      return acc;
-    }, { kg: 0, eau: 0, gaz_pct: 0 });
-    const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
-    const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
-    const cuveTonnes = Number(state.parametres.cuve_gaz_tonnes) || 12.5;
-    const prevCout = (totals.eau * prixEau + totals.gaz_pct / 100 * cuveTonnes * prixGaz);
-    const prevCoutKg = totals.kg > 0 ? prevCout / totals.kg : 0;
+    // V4.9.22 — Comparer le COÛT COMPLET du mois précédent (même méthode que la
+    // carte héro), et non plus le coût "fluides seuls". Sinon on comparait
+    // 0,92 €/kg (complet) à ~0,04 €/kg (avril fluides) = +2112% absurde.
+    var prevCoutKg = 0;
+    try {
+      const ccPrev = await callApi('getCoutCompletMonth', { month: prevMonth });
+      if (ccPrev && ccPrev.cout_kg_complet != null) prevCoutKg = Number(ccPrev.cout_kg_complet);
+    } catch (e) { /* pas de données mois précédent */ }
     const el = document.getElementById('heroVsMonth');
     const text = document.getElementById('heroTrendText');
     const icon = document.getElementById('heroTrendIcon');
