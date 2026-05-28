@@ -3186,7 +3186,7 @@ function renderRatioPersonnelCa(masseSalariale, pointeProjete, pointeReel, jours
   document.getElementById('persPointeText').textContent =
     'Pointé (production) ' + fmtEur(pointeProjete) + ' · ' + pct.toFixed(0) + '%';
   document.getElementById('persResteText').textContent =
-    'Reste (chauffeurs + cadres) ' + fmtEur(reste) + ' · ' + (100 - pct).toFixed(0) + '%';
+    'Reste (non pointé) ' + fmtEur(reste) + ' · ' + (100 - pct).toFixed(0) + '%';
 
   let note = '';
   if (joursPointes > 0 && joursMois > joursPointes) {
