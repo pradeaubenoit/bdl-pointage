@@ -857,9 +857,10 @@ tr:hover { background: var(--bg-sunken); }
           <div id="persBudgetLabel" style="font-size:12px;color:var(--ink-faint);margin-top:4px">Masse salariale du mois</div>
         </div>
       </div>
-      <!-- Barre empilée : pointé (vert) + reste (gris) -->
+      <!-- Barre empilée : pointé (vert) + reste (jaune) = masse salariale -->
       <div style="display:flex;background:var(--bg-sunken);border-radius:100px;height:16px;overflow:hidden;margin-bottom:10px">
         <div id="persBarPointe" style="height:100%;width:0%;background:#7DA77A;transition:width 0.5s"></div>
+        <div id="persBarReste" style="height:100%;width:0%;background:#E6B549;transition:width 0.5s"></div>
       </div>
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px">
         <span style="display:flex;align-items:center;gap:6px">
@@ -867,7 +868,7 @@ tr:hover { background: var(--bg-sunken); }
           <span id="persPointeText">Pointé —</span>
         </span>
         <span style="display:flex;align-items:center;gap:6px">
-          <span style="width:10px;height:10px;border-radius:3px;background:var(--bg-sunken);border:1px solid var(--line);display:inline-block"></span>
+          <span style="width:10px;height:10px;border-radius:3px;background:#E6B549;display:inline-block"></span>
           <span id="persResteText">Reste —</span>
         </span>
       </div>
@@ -3170,6 +3171,7 @@ function renderRatioPersonnelCa(masseSalariale, pointeProjete, pointeReel, jours
     document.getElementById('persBudgetValue').textContent = '—';
     document.getElementById('persSubtitle').textContent = 'Saisis la masse salariale dans Charges';
     document.getElementById('persBarPointe').style.width = '0%';
+    document.getElementById('persBarReste').style.width = '0%';
     document.getElementById('persPointeText').textContent = 'Pointé —';
     document.getElementById('persResteText').textContent = 'Reste —';
     document.getElementById('persNote').textContent = '';
@@ -3178,11 +3180,13 @@ function renderRatioPersonnelCa(masseSalariale, pointeProjete, pointeReel, jours
 
   const pct = Math.max(0, Math.min(100, (pointeProjete / masseSalariale) * 100));
   const reste = Math.max(0, masseSalariale - pointeProjete);
+  const pctReste = Math.max(0, Math.min(100 - pct, (reste / masseSalariale) * 100));
 
   document.getElementById('persBudgetValue').textContent = fmtEur(masseSalariale);
   document.getElementById('persSubtitle').textContent =
     'Part couverte par les pointages : ' + pct.toFixed(0) + '%';
   document.getElementById('persBarPointe').style.width = pct + '%';
+  document.getElementById('persBarReste').style.width = pctReste + '%';
   document.getElementById('persPointeText').textContent =
     'Pointé (production) ' + fmtEur(pointeProjete) + ' · ' + pct.toFixed(0) + '%';
   document.getElementById('persResteText').textContent =
