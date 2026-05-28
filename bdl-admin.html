@@ -842,25 +842,36 @@ tr:hover { background: var(--bg-sunken); }
         </span>
       </div>
     </div>
-    <!-- V4.9.10 — Ratio Personnel / CA -->
+    <!-- V4.9.23 — Carte PERSONNEL : pointé vs masse salariale -->
     <div class="card" id="ratioPersonnelCaCard" style="margin:24px 0;padding:20px;display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:12px">
           <span style="font-size:28px">👥</span>
           <div>
-            <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-faint)">Ratio Personnel / CA</div>
-            <div style="font-size:13px;color:var(--ink-soft);margin-top:2px" id="ratioPersCaSubtitle">—</div>
+            <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-faint)">Personnel</div>
+            <div style="font-size:13px;color:var(--ink-soft);margin-top:2px" id="persSubtitle">—</div>
           </div>
         </div>
         <div style="text-align:right">
-          <div id="ratioPersCaValue" style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;letter-spacing:-0.01em;line-height:1">—</div>
-          <div id="ratioPersCaCible" style="font-size:12px;color:var(--ink-faint);margin-top:4px">Cible : —</div>
+          <div id="persBudgetValue" style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;letter-spacing:-0.01em;line-height:1">—</div>
+          <div id="persBudgetLabel" style="font-size:12px;color:var(--ink-faint);margin-top:4px">Masse salariale du mois</div>
         </div>
       </div>
-      <div style="background:var(--bg-sunken);border-radius:100px;height:10px;overflow:hidden;margin-bottom:8px">
-        <div id="ratioPersCaBar" style="height:100%;width:0%;background:#7DA77A;border-radius:100px;transition:width 0.5s,background 0.3s"></div>
+      <!-- Barre empilée : pointé (vert) + reste (gris) -->
+      <div style="display:flex;background:var(--bg-sunken);border-radius:100px;height:16px;overflow:hidden;margin-bottom:10px">
+        <div id="persBarPointe" style="height:100%;width:0%;background:#7DA77A;transition:width 0.5s"></div>
       </div>
-      <div id="ratioPersCaStatus" style="font-size:13px;font-weight:600">—</div>    
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px">
+        <span style="display:flex;align-items:center;gap:6px">
+          <span style="width:10px;height:10px;border-radius:3px;background:#7DA77A;display:inline-block"></span>
+          <span id="persPointeText">Pointé —</span>
+        </span>
+        <span style="display:flex;align-items:center;gap:6px">
+          <span style="width:10px;height:10px;border-radius:3px;background:var(--bg-sunken);border:1px solid var(--line);display:inline-block"></span>
+          <span id="persResteText">Reste —</span>
+        </span>
+      </div>
+      <div id="persNote" style="font-size:12px;color:var(--ink-faint);margin-top:10px"></div>
       </div>
       <!-- V4.8 — SUIVI BUDGETS FLUIDES -->
     <div style="margin:24px 0">
@@ -3131,7 +3142,7 @@ function renderBudgetCard(fluide, data) {
 }
 
 // ============================================================
-// V4.9.10 — RATIO PERSONNEL / CA
+// V4.9.23 — CARTE PERSONNEL (pointé vs masse salariale)
 // ============================================================
 async function loadRatioPersonnelCa(month) {
   const card = document.getElementById('ratioPersonnelCaCard');
@@ -3139,59 +3150,52 @@ async function loadRatioPersonnelCa(month) {
   try {
     const resp = await callApi('getCoutCompletMonth', { month: month });
     const charges = (resp && resp.charges) || {};
-    const personnel = Number(charges.personnel) || 0;
-    const ca = Number(charges.ca) || 0;
-    renderRatioPersonnelCa(personnel, ca);
+    const masseSalariale = Number(charges.personnel) || 0;
+    const pointeProjete = Number(resp && resp.cout_personnel_pointe) || 0;
+    const pointeReel = Number(resp && resp.cout_personnel_pointe_reel) || 0;
+    const joursPointes = Number(resp && resp.jours_pointes) || 0;
+    const joursMois = Number(resp && resp.jours_ouvrables_mois) || 0;
+    renderRatioPersonnelCa(masseSalariale, pointeProjete, pointeReel, joursPointes, joursMois);
   } catch (err) {
     card.style.display = 'none';
   }
 }
 
-function renderRatioPersonnelCa(personnel, ca) {
+function renderRatioPersonnelCa(masseSalariale, pointeProjete, pointeReel, joursPointes, joursMois) {
   const card = document.getElementById('ratioPersonnelCaCard');
   if (!card) return;
+  card.style.display = 'block';
 
-  if (!personnel || !ca) {
-    card.style.display = 'block';
-    document.getElementById('ratioPersCaValue').textContent = '—';
-    document.getElementById('ratioPersCaSubtitle').textContent = 'Saisis Personnel et CA dans Charges pour voir le ratio';
-    document.getElementById('ratioPersCaCible').textContent = '';
-    document.getElementById('ratioPersCaBar').style.width = '0%';
-    document.getElementById('ratioPersCaBar').style.background = '#9ca3af';
-    document.getElementById('ratioPersCaStatus').textContent = '';
+  if (!masseSalariale) {
+    document.getElementById('persBudgetValue').textContent = '—';
+    document.getElementById('persSubtitle').textContent = 'Saisis la masse salariale dans Charges';
+    document.getElementById('persBarPointe').style.width = '0%';
+    document.getElementById('persPointeText').textContent = 'Pointé —';
+    document.getElementById('persResteText').textContent = 'Reste —';
+    document.getElementById('persNote').textContent = '';
     return;
   }
 
-  const ratio = (personnel / ca) * 100;
-  const cible = Number(state.parametres.ratio_personnel_ca_cible_pct) || 35;
+  const pct = Math.max(0, Math.min(100, (pointeProjete / masseSalariale) * 100));
+  const reste = Math.max(0, masseSalariale - pointeProjete);
 
-  let color, icon, statusText;
-  if (ratio <= cible) {
-    color = '#15803d';
-    icon = '✅';
-    statusText = icon + ' Ratio sous contrôle (≤ ' + cible + '%)';
-  } else if (ratio <= cible + 5) {
-    color = '#854d0e';
-    icon = '⚠️';
-    statusText = icon + ' Vigilance : légère dérive (+' + (ratio - cible).toFixed(1) + ' pts)';
-  } else {
-    color = '#991b1b';
-    icon = '🚨';
-    statusText = icon + ' Alerte : dérive importante (+' + (ratio - cible).toFixed(1) + ' pts)';
+  document.getElementById('persBudgetValue').textContent = fmtEur(masseSalariale);
+  document.getElementById('persSubtitle').textContent =
+    'Part couverte par les pointages : ' + pct.toFixed(0) + '%';
+  document.getElementById('persBarPointe').style.width = pct + '%';
+  document.getElementById('persPointeText').textContent =
+    'Pointé (production) ' + fmtEur(pointeProjete) + ' · ' + pct.toFixed(0) + '%';
+  document.getElementById('persResteText').textContent =
+    'Reste (chauffeurs + cadres) ' + fmtEur(reste) + ' · ' + (100 - pct).toFixed(0) + '%';
+
+  let note = '';
+  if (joursPointes > 0 && joursMois > joursPointes) {
+    note = '📊 Pointé projeté sur le mois (' + joursPointes + '/' + joursMois +
+      ' jours pointés · réel à ce jour : ' + fmtEur(pointeReel) + ')';
+  } else if (joursPointes > 0) {
+    note = '📊 ' + joursPointes + ' jours pointés ce mois';
   }
-
-  const barWidth = Math.min(100, (ratio / (cible * 2)) * 100);
-
-  card.style.display = 'block';
-  document.getElementById('ratioPersCaValue').textContent = ratio.toFixed(1) + '%';
-  document.getElementById('ratioPersCaValue').style.color = color;
-  document.getElementById('ratioPersCaSubtitle').textContent =
-    fmtEur(personnel) + ' de personnel sur ' + fmtEur(ca) + ' de CA';
-  document.getElementById('ratioPersCaCible').textContent = 'Cible : ≤ ' + cible + '%';
-  document.getElementById('ratioPersCaBar').style.width = barWidth + '%';
-  document.getElementById('ratioPersCaBar').style.background = color;
-  document.getElementById('ratioPersCaStatus').textContent = statusText;
-  document.getElementById('ratioPersCaStatus').style.color = color;
+  document.getElementById('persNote').textContent = note;
 }
   
 // ============================================================
