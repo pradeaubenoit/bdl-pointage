@@ -874,6 +874,25 @@ tr:hover { background: var(--bg-sunken); }
       </div>
       <div id="persNote" style="font-size:12px;color:var(--ink-faint);margin-top:10px"></div>
       </div>
+      <!-- V4.9.24 — Carré ratio masse salariale / CA -->
+      <div class="card" id="ratioMasseCaCard" style="margin:24px 0;padding:20px;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:28px">📊</span>
+            <div>
+              <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600;color:var(--ink-faint)">Masse salariale / CA</div>
+              <div style="font-size:13px;color:var(--ink-soft);margin-top:2px" id="ratioMasseCaSub">—</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="text-align:right">
+              <div id="ratioMasseCaValue" style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;letter-spacing:-0.01em;line-height:1">—</div>
+              <div id="ratioMasseCaSeuil" style="font-size:12px;color:var(--ink-faint);margin-top:4px;cursor:pointer" onclick="editSeuilMasseCa()">Seuil : — % ✏️</div>
+            </div>
+          </div>
+        </div>
+        <div id="ratioMasseCaStatus" style="font-size:13px;font-weight:600;margin-top:12px">—</div>
+      </div>
       <!-- V4.8 — SUIVI BUDGETS FLUIDES -->
     <div style="margin:24px 0">
       <h2 style="font-size:20px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
@@ -3157,6 +3176,9 @@ async function loadRatioPersonnelCa(month) {
     const joursPointes = Number(resp && resp.jours_pointes) || 0;
     const joursMois = Number(resp && resp.jours_ouvrables_mois) || 0;
     renderRatioPersonnelCa(masseSalariale, pointeProjete, pointeReel, joursPointes, joursMois);
+    // V4.9.24 — alimente aussi le carré ratio masse salariale / CA
+    const caMois = Number(resp && resp.ca) || 0;
+    renderRatioMasseCa(masseSalariale, caMois);
   } catch (err) {
     card.style.display = 'none';
   }
@@ -3200,6 +3222,64 @@ function renderRatioPersonnelCa(masseSalariale, pointeProjete, pointeReel, jours
     note = '📊 ' + joursPointes + ' jours pointés ce mois';
   }
   document.getElementById('persNote').textContent = note;
+}
+
+// V4.9.24 — CARRÉ RATIO MASSE SALARIALE / CA
+function renderRatioMasseCa(masseSalariale, ca) {
+  const card = document.getElementById('ratioMasseCaCard');
+  if (!card) return;
+  const seuil = Number(state.parametres.seuil_masse_salariale_pct) || 30;
+
+  if (!masseSalariale || !ca) {
+    card.style.display = 'block';
+    document.getElementById('ratioMasseCaValue').textContent = '—';
+    document.getElementById('ratioMasseCaValue').style.color = 'var(--ink)';
+    document.getElementById('ratioMasseCaSub').textContent = 'Saisis Personnel et CA dans Charges';
+    document.getElementById('ratioMasseCaSeuil').textContent = 'Seuil : ' + seuil + ' % ✏️';
+    document.getElementById('ratioMasseCaStatus').textContent = '';
+    return;
+  }
+
+  const ratio = masseSalariale / ca * 100;
+  const seuilMontant = ca * seuil / 100;
+  const ecart = seuilMontant - masseSalariale;
+
+  let color, statusText;
+  if (ratio <= seuil) {
+    color = '#15803d';
+    statusText = '🟢 Sous le seuil de ' + seuil + '% · marge avant dépassement : ' + fmtEur(ecart);
+  } else {
+    color = '#991b1b';
+    statusText = '🔴 Au-dessus du seuil de ' + seuil + '% · dépassement : ' + fmtEur(-ecart) +
+      ' (+' + (ratio - seuil).toFixed(1) + ' pts)';
+  }
+
+  card.style.display = 'block';
+  document.getElementById('ratioMasseCaValue').textContent = ratio.toFixed(1) + '%';
+  document.getElementById('ratioMasseCaValue').style.color = color;
+  document.getElementById('ratioMasseCaSub').textContent =
+    fmtEur(masseSalariale) + ' de masse salariale sur ' + fmtEur(ca) + ' de CA';
+  document.getElementById('ratioMasseCaSeuil').textContent = 'Seuil : ' + seuil + ' % ✏️';
+  document.getElementById('ratioMasseCaStatus').textContent = statusText;
+  document.getElementById('ratioMasseCaStatus').style.color = color;
+}
+
+async function editSeuilMasseCa() {
+  const actuel = Number(state.parametres.seuil_masse_salariale_pct) || 30;
+  const saisie = window.prompt('Seuil masse salariale / CA (en %) :\n\nAu-delà de ce seuil, l\'indicateur passe en rouge.', actuel);
+  if (saisie === null) return;
+  const v = parseFloat(String(saisie).replace(',', '.'));
+  if (isNaN(v) || v <= 0 || v > 100) {
+    alert('Valeur invalide. Entre un pourcentage entre 1 et 100.');
+    return;
+  }
+  try {
+    await callApi('updateParametre', { cle: 'seuil_masse_salariale_pct', valeur: v });
+    state.parametres.seuil_masse_salariale_pct = v;
+    loadRatioPersonnelCa(state.currentMonth);
+  } catch (e) {
+    alert('Impossible d\'enregistrer le seuil.');
+  }
 }
   
 // ============================================================
@@ -5098,4 +5178,3 @@ init();
 </script>
 </body>
 </html>
-
