@@ -826,7 +826,7 @@ tr:hover { background: var(--bg-sunken); }
 
     <!-- Hero Coût/kg -->
     <div class="hero-card">
-      <div class="hero-label">Coût au kg estimé · fluides uniquement</div>
+      <div class="hero-label">Coût au kg complet · tout compris</div>
       <div class="hero-value">
         <span id="heroCoutKg">—</span>
         <span class="unit">€/kg</span>
@@ -2164,8 +2164,18 @@ async function loadDashboard(month) {
 
   const cout_eau = totals.eau * prixEau;
   const cout_gaz = totals.gaz_pct / 100 * cuveTonnes * prixGaz;
-  const cout_total = cout_eau + cout_gaz;
-  const cout_kg = totals.kg > 0 ? cout_total / totals.kg : 0;
+
+  // V4.9.22 — La carte héro affiche désormais le COÛT/KG COMPLET (tout compris :
+  // personnel + fluides + EDF + toutes charges), calculé côté serveur par
+  // getCoutCompletMonth_ (avec report auto des charges + projection tonnage pour
+  // le mois en cours). Fini le "fluides seuls" trompeur (0,06 €/kg).
+  let cout_kg = 0;
+  try {
+    const ccHero = await callApi('getCoutCompletMonth', { month: month });
+    if (ccHero && ccHero.cout_kg_complet != null) {
+      cout_kg = Number(ccHero.cout_kg_complet);
+    }
+  } catch (e) { /* si indisponible, cout_kg reste 0 */ }
   const cible = Number(state.parametres.cout_kg_cible) || 1.50;
 
   // HERO
