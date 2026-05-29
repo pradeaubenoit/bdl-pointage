@@ -1152,56 +1152,25 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
 
     const result = await callApi('saveProduction', data);
     
-    // V4.8 — Synchronisation automatique avec Releves_Diagnostic
-    // Pour avoir l'heure précise et la vue intra-jour
+    //// V4.9.26 — Synchronisation matin IDEMPOTENTE (un seul "Saisie matin"/jour)
     try {
       const now = new Date();
       const heureNow = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-      // Date du JOUR RÉEL pour le Diagnostic (le point du matin = départ du jour en cours,
-      // PAS la veille qui sert pour la conso de production)
       const dateDiagJour = now.getFullYear() + '-' +
         String(now.getMonth() + 1).padStart(2, '0') + '-' +
         String(now.getDate()).padStart(2, '0');
-      
-      // Eau
+
       if (data.eau_compteur != null) {
-        await callApi('addReleveDiagnostic', {
-          type: 'eau',
-          date: dateDiagJour,
-          heure: heureNow,
-          valeur_compteur: data.eau_compteur,
-          note: 'Saisie matin'
-        });
+        await callApi('setReleveMatin', { type: 'eau', date: dateDiagJour, heure: heureNow, valeur_compteur: data.eau_compteur });
       }
-      // Gaz
       if (data.gaz_cuve_pct != null) {
-        await callApi('addReleveDiagnostic', {
-          type: 'gaz',
-          date: dateDiagJour,
-          heure: heureNow,
-          valeur_compteur: data.gaz_cuve_pct,
-          note: 'Saisie matin'
-        });
+        await callApi('setReleveMatin', { type: 'gaz', date: dateDiagJour, heure: heureNow, valeur_compteur: data.gaz_cuve_pct });
       }
-      // Compresseur
       if (data.compresseur_compteur != null) {
-        await callApi('addReleveDiagnostic', {
-          type: 'compresseur',
-          date: dateDiagJour,
-          heure: heureNow,
-          valeur_compteur: data.compresseur_compteur,
-          note: 'Saisie matin'
-        });
+        await callApi('setReleveMatin', { type: 'compresseur', date: dateDiagJour, heure: heureNow, valeur_compteur: data.compresseur_compteur });
       }
-      // V4.9 — EDF (index total)
       if (data.edf != null) {
-        await callApi('addReleveDiagnostic', {
-          type: 'edf',
-          date: dateDiagJour,
-          heure: heureNow,
-          valeur_compteur: data.edf,
-          note: 'Saisie matin'
-        });
+        await callApi('setReleveMatin', { type: 'edf', date: dateDiagJour, heure: heureNow, valeur_compteur: data.edf });
       }
     } catch (e) {
       console.log('Sync Diagnostic non bloquant:', e);
