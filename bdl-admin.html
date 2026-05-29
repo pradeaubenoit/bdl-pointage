@@ -5174,7 +5174,194 @@ if (typeof loadPointagesJour === 'function') {
 // ============================================================
 // GO
 // ============================================================
-init();
+
+  // ============================================================
+// PALIER 1 — SCORING DES SEMAINES (auto-injecté : onglet + tableau + modale)
+// UN SEUL bloc à coller, juste avant le "init();" final.
+// Classe (couleurs/terciles) UNIQUEMENT les semaines à perso pointé ;
+// grise les autres (données incomplètes).
+// ============================================================
+(function () {
+  if (document.getElementById('section-scoring')) return; // déjà injecté
+
+  var tabsInner = document.querySelector('.tabs-inner');
+  if (tabsInner) {
+    var tabBtn = document.createElement('button');
+    tabBtn.className = 'tab';
+    tabBtn.setAttribute('data-tab', 'scoring');
+    tabBtn.textContent = '🏆 Scoring semaines';
+    tabBtn.addEventListener('click', function () {
+      if (typeof switchTab === 'function') switchTab('scoring');
+      loadScoringSection();
+    });
+    tabsInner.appendChild(tabBtn);
+  }
+
+  var container = document.querySelector('.container');
+  if (container) {
+    var sec = document.createElement('section');
+    sec.className = 'section';
+    sec.id = 'section-scoring';
+    sec.innerHTML =
+      '<div class="section-header">' +
+        '<div>' +
+          '<h1 class="section-title">🏆 Scoring des semaines</h1>' +
+          '<div class="section-subtitle">8 dernières semaines · classées sur le coût variable maîtrisable / kg (personnel pointé + énergie)</div>' +
+        '</div>' +
+        '<div class="season-toggle">' +
+          '<button id="scoringSaison_toutes" class="active" onclick="setScoringSaison(\'\')">Toutes</button>' +
+          '<button id="scoringSaison_basse" onclick="setScoringSaison(\'basse\')">Basse</button>' +
+          '<button id="scoringSaison_haute" onclick="setScoringSaison(\'haute\')">Haute</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="margin-bottom:12px;font-size:13px;line-height:1.6;background:var(--bg-sunken)">' +
+        '<div style="font-weight:600;margin-bottom:4px">💡 Comment lire ce tableau</div>' +
+        '🟢 / 🟠 / 🔴 sur la colonne <strong>€/kg variable</strong> = classement relatif des semaines comparables (perso pointé), recalculé à chaque filtre. Les semaines <strong>grisées</strong> n\'ont pas de pointage personnel → non classées. Le <strong>€/kg complet</strong> est indicatif : <span id="scoringMethodo">—</span>' +
+      '</div>' +
+      '<div class="table-wrap"><table><thead><tr>' +
+        '<th>Semaine</th><th>Saison</th>' +
+        '<th class="td-num">Tonnage</th><th class="td-num">H. sup</th>' +
+        '<th class="td-num">👥 €/kg</th><th class="td-num">⚡💧 €/kg</th>' +
+        '<th class="td-num">€/kg variable</th><th class="td-num">€/kg complet (i)</th><th></th>' +
+      '</tr></thead><tbody id="scoringTbody">' +
+        '<tr><td colspan="9" class="empty-state">Chargement…</td></tr>' +
+      '</tbody></table></div>';
+    container.appendChild(sec);
+  }
+
+  var modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.id = 'scoringDetailModal';
+  modal.innerHTML =
+    '<div class="modal">' +
+      '<div class="modal-head"><div class="modal-title">Détail de la semaine</div>' +
+        '<button class="modal-close" onclick="closeScoringDetail()">×</button></div>' +
+      '<div class="modal-body" id="scoringDetailBody"></div>' +
+      '<div class="modal-footer"><button class="btn ghost" onclick="closeScoringDetail()">Fermer</button></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+})();
+
+var _scoringData = null;
+var _scoringSaisonFiltre = '';
+
+async function loadScoringSection() {
+  var tbody = document.getElementById('scoringTbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9"><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
+  try {
+    var resp = await callApi('getWeeklyScoring', { weeks: 8 });
+    if (!resp || !resp.ok) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + ((resp && resp.error) || 'inconnue') + '</td></tr>';
+      return;
+    }
+    _scoringData = resp;
+    var noteEl = document.getElementById('scoringMethodo');
+    if (noteEl && resp.complet_note) noteEl.textContent = resp.complet_note;
+    renderScoring();
+  } catch (err) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + err.message + '</td></tr>';
+  }
+}
+
+function setScoringSaison(saison) {
+  _scoringSaisonFiltre = saison || '';
+  ['toutes', 'haute', 'basse'].forEach(function (s) {
+    var b = document.getElementById('scoringSaison_' + s);
+    if (b) b.classList.toggle('active', (s === 'toutes' ? '' : s) === _scoringSaisonFiltre);
+  });
+  var bh = document.getElementById('scoringSaison_haute');
+  if (bh) bh.classList.add('haute');
+  renderScoring();
+}
+
+function _scoringTerciles(values) {
+  var v = values.filter(function (x) { return x != null && !isNaN(x); }).sort(function (a, b) { return a - b; });
+  if (v.length < 3) return null;
+  return { t1: v[Math.floor(v.length / 3)], t2: v[Math.floor(2 * v.length / 3)] };
+}
+function _scoringColor(val, th) {
+  if (th == null || val == null) return null;
+  if (val <= th.t1) return { bg: 'var(--success-soft)', fg: 'var(--success)' };
+  if (val <= th.t2) return { bg: 'var(--warning-soft)', fg: 'var(--warning)' };
+  return { bg: 'var(--danger-soft)', fg: 'var(--danger)' };
+}
+
+function renderScoring() {
+  var tbody = document.getElementById('scoringTbody');
+  if (!tbody || !_scoringData) return;
+  var rows = (_scoringData.semaines || []).slice();
+  if (_scoringSaisonFiltre) rows = rows.filter(function (r) { return r.saison === _scoringSaisonFiltre; });
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Aucune semaine pour ce filtre.</td></tr>';
+    return;
+  }
+  // Terciles UNIQUEMENT sur les semaines comparables (perso pointé)
+  var comparables = rows.filter(function (r) { return r.jours_pointes > 0 && r.cout_variable_kg != null; });
+  var th = _scoringTerciles(comparables.map(function (r) { return r.cout_variable_kg; }));
+  tbody.innerHTML = rows.map(function (r) {
+    var classable = r.jours_pointes > 0 && r.cout_variable_kg != null;
+    var rowStyle = classable ? '' : ' style="color:var(--ink-faint)"';
+    var col = classable ? _scoringColor(r.cout_variable_kg, th) : null;
+    var styleVar = col
+      ? ' style="background:' + col.bg + ';color:' + col.fg + ';font-weight:700"'
+      : (classable ? '' : ' style="color:var(--ink-faint)"');
+    var saisonBadge = '<span class="badge ' + (r.saison || 'basse') + '">' + (r.saison || '—') + '</span>';
+    var note = '';
+    if (r.partielle) note += ' <span style="color:var(--ink-faint);font-size:11px">(en cours)</span>';
+    if (!classable) note += ' <span style="color:var(--ink-faint);font-size:11px">· perso non pointé</span>';
+    var variableTxt = r.cout_variable_kg != null ? fmtNum(r.cout_variable_kg, 4) : '—';
+    var completTxt = r.cout_complet_kg != null ? fmtNum(r.cout_complet_kg, 4) : '—';
+    var persoTxt = r.cout_personnel_kg != null ? fmtNum(r.cout_personnel_kg, 4) : '—';
+    var energieTxt = r.cout_energie_kg != null ? fmtNum(r.cout_energie_kg, 4) : '—';
+    return '<tr' + rowStyle + '>' +
+      '<td class="td-mono"><strong>' + r.semaine + '</strong>' + note + '<div style="font-size:11px;color:var(--ink-faint)">' + fmtDateShort(r.date_debut) + ' → ' + fmtDateShort(r.date_fin) + '</div></td>' +
+      '<td>' + saisonBadge + '</td>' +
+      '<td class="td-num td-mono">' + (r.tonnage_kg ? fmtNum(r.tonnage_kg) + ' kg' : '—') + '</td>' +
+      '<td class="td-num td-mono">' + fmtNum(r.heures_sup, 1) + ' h</td>' +
+      '<td class="td-num td-mono">' + persoTxt + '</td>' +
+      '<td class="td-num td-mono">' + energieTxt + '</td>' +
+      '<td class="td-num td-mono"' + styleVar + '>' + variableTxt + '</td>' +
+      '<td class="td-num td-mono" style="color:var(--ink-faint)">' + completTxt + '</td>' +
+      '<td><button class="btn ghost" style="padding:6px 12px;font-size:12px" onclick="openScoringDetail(\'' + r.semaine + '\')">Voir détail</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+window.openScoringDetail = function (semaine) {
+  if (!_scoringData) return;
+  var r = (_scoringData.semaines || []).find(function (x) { return x.semaine === semaine; });
+  if (!r) return;
+  var prix = _scoringData.prix || {};
+  var energie = r.cout_energie || 0;
+  var body = document.getElementById('scoringDetailBody');
+  body.innerHTML =
+    '<p style="margin-bottom:12px">Semaine <strong>' + r.semaine + '</strong> · ' +
+    '<span class="badge ' + (r.saison || 'basse') + '">' + (r.saison || '—') + '</span> · ' +
+    fmtDate(r.date_debut) + ' → ' + fmtDate(r.date_fin) +
+    (r.partielle ? ' <em style="color:var(--ink-faint)">(en cours)</em>' : '') + '</p>' +
+    '<div class="stat-grid" style="margin-bottom:12px">' +
+    '<div class="stat"><div class="stat-label">Tonnage</div><div class="stat-value">' + fmtNum(r.tonnage_kg) + ' kg</div></div>' +
+    '<div class="stat"><div class="stat-label">Heures sup</div><div class="stat-value">' + fmtNum(r.heures_sup, 1) + ' h</div></div>' +
+    '<div class="stat"><div class="stat-label">Jours pointés / prod</div><div class="stat-value">' + r.jours_pointes + ' / ' + r.jours_prod + '</div></div>' +
+    '</div>' +
+    '<table style="width:100%;font-size:13px;margin-bottom:8px">' +
+    '<tr><td>👥 Personnel (réel)</td><td class="td-num td-mono">' + fmtEur(r.cout_personnel) + '</td><td class="td-num td-mono">' + (r.cout_personnel_kg != null ? fmtNum(r.cout_personnel_kg, 4) + ' €/kg' : '—') + '</td></tr>' +
+    '<tr><td>💧 Eau</td><td class="td-num td-mono">' + fmtEur(r.cout_eau) + '</td><td></td></tr>' +
+    '<tr><td>🔥 Gaz</td><td class="td-num td-mono">' + fmtEur(r.cout_gaz) + '</td><td></td></tr>' +
+    '<tr><td>⚡ EDF</td><td class="td-num td-mono">' + fmtEur(r.cout_edf) + '</td><td></td></tr>' +
+    '<tr style="border-top:1px solid var(--border)"><td>Énergie totale</td><td class="td-num td-mono">' + fmtEur(energie) + '</td><td class="td-num td-mono">' + (r.cout_energie_kg != null ? fmtNum(r.cout_energie_kg, 4) + ' €/kg' : '—') + '</td></tr>' +
+    '<tr style="border-top:2px solid var(--border)"><td><strong>Coût variable maîtrisable</strong></td><td class="td-num td-mono"><strong>' + fmtEur(r.cout_variable) + '</strong></td><td class="td-num td-mono"><strong>' + (r.cout_variable_kg != null ? fmtNum(r.cout_variable_kg, 4) + ' €/kg' : '—') + '</strong></td></tr>' +
+    '<tr><td style="color:var(--ink-faint)">Coût complet (indicatif)</td><td></td><td class="td-num td-mono" style="color:var(--ink-faint)">' + (r.cout_complet_kg != null ? fmtNum(r.cout_complet_kg, 4) + ' €/kg' : '—') + '</td></tr>' +
+    '</table>' +
+    '<div style="font-size:11px;color:var(--ink-faint)">Prix appliqués : eau ' + (prix.eau_m3 || '—') + ' €/m³ · gaz ' + (prix.gaz_tonne || '—') + ' €/t · EDF ' + (prix.edf_kwh || '—') + ' €/kWh · coef sup ×' + (_scoringData.coef_heures_sup || '—') + '</div>';
+  document.getElementById('scoringDetailModal').classList.add('visible');
+};
+function closeScoringDetail() {
+  var m = document.getElementById('scoringDetailModal');
+  if (m) m.classList.remove('visible');
+}
+
+  init();
 </script>
 </body>
 </html>
