@@ -5361,6 +5361,233 @@ function closeScoringDetail() {
   if (m) m.classList.remove('visible');
 }
 
+  // ============================================================
+// V1 PLANNING — onglet de saisie (grille horaires)
+// Auto-injecté : onglet 📅 Planning + section. UN SEUL bloc à coller,
+// juste avant le "init();" final de bdl-admin.html.
+// Saisie début→fin par salarié/jour, pré-remplissage depuis pointages,
+// enregistrement, tri par solde d'heures sup.
+// ============================================================
+(function () {
+  if (document.getElementById('section-planning')) return;
+
+  var tabsInner = document.querySelector('.tabs-inner');
+  if (tabsInner) {
+    var b = document.createElement('button');
+    b.className = 'tab';
+    b.setAttribute('data-tab', 'planning');
+    b.textContent = '📅 Planning';
+    b.addEventListener('click', function () {
+      if (typeof switchTab === 'function') switchTab('planning');
+      loadPlanningSection();
+    });
+    tabsInner.appendChild(b);
+  }
+
+  var container = document.querySelector('.container');
+  if (container) {
+    var sec = document.createElement('section');
+    sec.className = 'section';
+    sec.id = 'section-planning';
+    sec.innerHTML =
+      '<div class="section-header">' +
+        '<div>' +
+          '<h1 class="section-title">📅 Planning</h1>' +
+          '<div class="section-subtitle">Horaires par salarié · pré-remplis depuis les pointages, ajustables</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+          '<div class="select-wrap"><select id="planSemaine"></select></div>' +
+          '<span class="badge" id="planSaison">—</span>' +
+          '<button class="btn ghost" id="planBtnSeed">↻ Pré-remplir depuis pointages</button>' +
+          '<button class="btn primary" id="planBtnSave">💾 Enregistrer</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="margin-bottom:12px;font-size:13px;line-height:1.6;background:var(--bg-sunken)">' +
+        '<div style="font-weight:600;margin-bottom:4px">💡 À savoir</div>' +
+        'Le pré-remplissage prend le <strong>1er scan</strong> (arrivée) et le <strong>dernier scan</strong> (départ) de la semaine précédente : c\'est l\'<strong>amplitude de présence</strong>, à ajuster (pauses, oublis). « Enregistrer » écrase la semaine affichée.' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">' +
+        '<span style="font-size:13px;color:var(--ink-soft)">Trier :</span>' +
+        '<button class="btn ghost" id="planSortRole" style="padding:6px 12px;font-size:12px">Par rôle</button>' +
+        '<button class="btn ghost" id="planSortSup" style="padding:6px 12px;font-size:12px">Heures sup (moins → plus)</button>' +
+      '</div>' +
+      '<div class="table-wrap"><table><thead id="planThead"></thead>' +
+        '<tbody id="planTbody"><tr><td colspan="9" class="empty-state">Chargement…</td></tr></tbody>' +
+      '</table></div>';
+    container.appendChild(sec);
+  }
+})();
+
+var _planData = null;
+var _planSort = 'role';
+var JP_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+
+function _planIsoWeekStr(d) {
+  var date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  var day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  var yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  var weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return date.getUTCFullYear() + '-W' + String(weekNo).padStart(2, '0');
+}
+
+function _planFillSemaineSelector() {
+  var sel = document.getElementById('planSemaine');
+  if (!sel || sel.options.length) return;
+  var opts = [];
+  var now = new Date();
+  for (var k = 2; k >= -6; k--) {
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + k * 7);
+    opts.push(_planIsoWeekStr(d));
+  }
+  var courant = _planIsoWeekStr(now);
+  sel.innerHTML = opts.map(function (w) {
+    return '<option value="' + w + '"' + (w === courant ? ' selected' : '') + '>' + w + (w === courant ? ' (en cours)' : '') + '</option>';
+  }).join('');
+  sel.addEventListener('change', function () { loadPlanningSection(); });
+}
+
+async function loadPlanningSection() {
+  _planFillSemaineSelector();
+  var sel = document.getElementById('planSemaine');
+  var semaine = sel ? sel.value : _planIsoWeekStr(new Date());
+  var tbody = document.getElementById('planTbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9"><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
+  try {
+    var resp = await callApi('getPlanningSemaine', { semaine: semaine });
+    if (!resp || !resp.ok) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + ((resp && resp.error) || 'inconnue') + '</td></tr>';
+      return;
+    }
+    _planData = resp;
+    var sb = document.getElementById('planSaison');
+    if (sb) { sb.textContent = resp.saison; sb.className = 'badge ' + resp.saison; }
+    renderPlanning();
+  } catch (err) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + err.message + '</td></tr>';
+  }
+}
+
+function _planRows() {
+  var rows = (_planData.planning || []).slice();
+  if (_planSort === 'sup') {
+    rows.sort(function (a, b) { return (a.solde_sup || 0) - (b.solde_sup || 0); });
+  } else {
+    rows.sort(function (a, b) {
+      var r = (a.role || '').localeCompare(b.role || '');
+      return r !== 0 ? r : (a.prenom || '').localeCompare(b.prenom || '');
+    });
+  }
+  return rows;
+}
+
+function _planHeuresCell(c) {
+  if (!c || !c.debut || !c.fin) return 0;
+  var d = c.debut.split(':'), f = c.fin.split(':');
+  var min = (Number(f[0]) * 60 + Number(f[1])) - (Number(d[0]) * 60 + Number(d[1]));
+  return min > 0 ? min / 60 : 0;
+}
+
+function renderPlanning() {
+  if (!_planData) return;
+  var nbJours = _planData.nb_jours || 6;
+  var thead = document.getElementById('planThead');
+  var tbody = document.getElementById('planTbody');
+
+  var ths = '<tr><th>Salarié</th>';
+  for (var j = 0; j < nbJours; j++) {
+    var sat = (j === 5) ? ' style="background:var(--accent);color:#fff"' : '';
+    ths += '<th class="td-num"' + sat + '>' + JP_LABELS[j] + '</th>';
+  }
+  ths += '<th class="td-num">Total</th><th class="td-num">Solde sup</th></tr>';
+  thead.innerHTML = ths;
+
+  var rows = _planRows();
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="' + (nbJours + 3) + '" class="empty-state">Aucun salarié actif.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(function (r) {
+    var total = 0;
+    var cells = '';
+    for (var j = 0; j < nbJours; j++) {
+      var c = r.jours[j] || { debut: '', fin: '' };
+      total += _planHeuresCell(c);
+      cells +=
+        '<td class="td-num" style="white-space:nowrap">' +
+          '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="d" value="' + (c.debut || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px">' +
+          '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="f" value="' + (c.fin || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px;margin-top:3px">' +
+        '</td>';
+    }
+    var supColor = (r.solde_sup || 0) > 0 ? 'var(--warning)' : 'var(--success)';
+    return '<tr>' +
+      '<td><div style="font-weight:600">' + r.prenom + ' ' + r.nom + '</div><div style="font-size:11px;color:var(--ink-faint)">' + (r.role || '') + '</div></td>' +
+      cells +
+      '<td class="td-num td-mono">' + (Math.round(total * 10) / 10) + ' h</td>' +
+      '<td class="td-num td-mono" style="color:' + supColor + ';font-weight:600">' + (Math.round((r.solde_sup || 0) * 10) / 10) + ' h</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function _planCollect() {
+  var map = {};
+  (_planData.planning || []).forEach(function (r) {
+    map[r.empId] = { empId: r.empId, jours: [] };
+    for (var j = 0; j < 6; j++) map[r.empId].jours[j] = { debut: '', fin: '' };
+  });
+  document.querySelectorAll('.plan-input').forEach(function (inp) {
+    var emp = inp.getAttribute('data-emp');
+    var j = Number(inp.getAttribute('data-jour'));
+    var bound = inp.getAttribute('data-bound');
+    if (!map[emp]) { map[emp] = { empId: emp, jours: [] }; for (var k = 0; k < 6; k++) map[emp].jours[k] = { debut: '', fin: '' }; }
+    if (bound === 'd') map[emp].jours[j].debut = inp.value || '';
+    else map[emp].jours[j].fin = inp.value || '';
+  });
+  return Object.keys(map).map(function (id) { return map[id]; });
+}
+
+function _planApplyToData(seedPlanning) {
+  var byId = {};
+  seedPlanning.forEach(function (p) { byId[p.empId] = p.jours; });
+  (_planData.planning || []).forEach(function (r) {
+    if (byId[r.empId]) r.jours = byId[r.empId];
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var sSeed = document.getElementById('planBtnSeed');
+  var sSave = document.getElementById('planBtnSave');
+  var sRole = document.getElementById('planSortRole');
+  var sSup = document.getElementById('planSortSup');
+  if (sSeed) sSeed.addEventListener('click', planSeed);
+  if (sSave) sSave.addEventListener('click', planSave);
+  if (sRole) sRole.addEventListener('click', function () { _planSort = 'role'; renderPlanning(); });
+  if (sSup) sSup.addEventListener('click', function () { _planSort = 'sup'; renderPlanning(); });
+});
+
+async function planSeed() {
+  if (!_planData) return;
+  if (!confirm('Pré-remplir depuis les pointages de la semaine précédente ?\nLes valeurs actuelles non enregistrées seront remplacées.')) return;
+  try {
+    var resp = await callApi('seedPlanningPointages', { semaine: _planData.semaine });
+    if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || ''), 'error'); return; }
+    _planApplyToData(resp.planning || []);
+    renderPlanning();
+    toast('Pré-rempli depuis ' + resp.source_semaine, 'success');
+  } catch (err) { toast('Erreur : ' + err.message, 'error'); }
+}
+
+async function planSave() {
+  if (!_planData) return;
+  var arr = _planCollect();
+  try {
+    var resp = await callApi('savePlanningSemaine', { semaine: _planData.semaine, planning: JSON.stringify(arr) });
+    if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || ''), 'error'); return; }
+    toast('Planning enregistré (' + resp.lignes + ' créneaux)', 'success');
+    loadPlanningSection();
+  } catch (err) { toast('Erreur : ' + err.message, 'error'); }
+}
   init();
 </script>
 </body>
