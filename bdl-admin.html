@@ -5604,6 +5604,78 @@ async function planSave() {
   }
 }
 
+ 
+// ============================================================
+// PLANNING — couleurs par rôle (équipe). À coller juste avant init().
+// Redéfinit renderPlanning avec fond teinté + bord + rôle coloré.
+// Purement visuel, aucune autre logique modifiée.
+// ============================================================
+function _planRoleColor(role) {
+  var r = String(role || '').toLowerCase().trim();
+  var map = {
+    'laveur':            { c: '#2D6E8F', bg: '#E7F1F6' },
+    'conditionnement':   { c: '#2E6B3E', bg: '#E8F2E9' },
+    'manutentionnaire':  { c: '#B8742A', bg: '#FAEEDD' },
+    'calandre':          { c: '#1F7A6E', bg: '#E3F1EE' },
+    'cadre':             { c: '#6B4FA3', bg: '#EEE9F6' },
+    'administratif':     { c: '#7A6A55', bg: '#F1ECE2' },
+    'agent_maintenance': { c: '#A53A36', bg: '#FBE9E8' },
+    'livraison':         { c: '#C25A2A', bg: '#FBEADF' },
+    'chauffeur':         { c: '#C25A2A', bg: '#FBEADF' }
+  };
+  if (map[r]) return map[r];
+  var pal = [
+    { c: '#2D6E8F', bg: '#E7F1F6' }, { c: '#2E6B3E', bg: '#E8F2E9' },
+    { c: '#B8742A', bg: '#FAEEDD' }, { c: '#6B4FA3', bg: '#EEE9F6' },
+    { c: '#1F7A6E', bg: '#E3F1EE' }, { c: '#A53A36', bg: '#FBE9E8' }
+  ];
+  var h = 0; for (var i = 0; i < r.length; i++) h = (h * 31 + r.charCodeAt(i)) >>> 0;
+  return pal[h % pal.length];
+}
+
+renderPlanning = function () {
+  if (!_planData) return;
+  var nbJours = _planData.nb_jours || 6;
+  var thead = document.getElementById('planThead');
+  var tbody = document.getElementById('planTbody');
+
+  var ths = '<tr><th>Salarié</th>';
+  for (var j = 0; j < nbJours; j++) {
+    var sat = (j === 5) ? ' style="background:var(--accent);color:#fff"' : '';
+    ths += '<th class="td-num"' + sat + '>' + JP_LABELS[j] + '</th>';
+  }
+  ths += '<th class="td-num">Total</th><th class="td-num">Solde sup</th></tr>';
+  thead.innerHTML = ths;
+
+  var rows = _planRows();
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="' + (nbJours + 3) + '" class="empty-state">Aucun salarié actif.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(function (r) {
+    var col = _planRoleColor(r.role);
+    var total = 0;
+    var cells = '';
+    for (var j = 0; j < nbJours; j++) {
+      var c = r.jours[j] || { debut: '', fin: '' };
+      total += _planHeuresCell(c);
+      cells +=
+        '<td class="td-num" style="white-space:nowrap">' +
+          '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="d" value="' + (c.debut || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px;background:#fff">' +
+          '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="f" value="' + (c.fin || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px;margin-top:3px;background:#fff">' +
+        '</td>';
+    }
+    var supColor = (r.solde_sup || 0) > 0 ? 'var(--warning)' : 'var(--success)';
+    return '<tr style="background:' + col.bg + '">' +
+      '<td style="border-left:4px solid ' + col.c + '"><div style="font-weight:600">' + r.prenom + ' ' + r.nom + '</div><div style="font-size:11px;color:' + col.c + ';font-weight:600">' + (r.role || '') + '</div></td>' +
+      cells +
+      '<td class="td-num td-mono">' + (Math.round(total * 10) / 10) + ' h</td>' +
+      '<td class="td-num td-mono" style="color:' + supColor + ';font-weight:600">' + (Math.round((r.solde_sup || 0) * 10) / 10) + ' h</td>' +
+      '</tr>';
+  }).join('');
+};
+  
   init();
 </script>
 </body>
