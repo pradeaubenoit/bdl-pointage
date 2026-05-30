@@ -5933,6 +5933,100 @@ renderPlanning = function () {
   }).join('');
 };
   
+// ============================================================
+// PLANNING — bouton 🤖 Réorganiser (absences) + fenêtre résultat.
+// À coller juste avant init(). Ajoute un bandeau dans l'onglet Planning :
+// choix du jour + "Ce jour" / "La semaine" → appelle reorganiserAbsence
+// et affiche la proposition de Claude dans une fenêtre.
+// ============================================================
+(function () {
+  function injectReorgBar() {
+    var sec = document.getElementById('section-planning');
+    if (!sec || document.getElementById('reorgBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'reorgBar';
+    bar.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:var(--bg-sunken);border-radius:8px';
+    bar.innerHTML =
+      '<span style="font-size:13px;color:var(--ink-soft);font-weight:600">🤖 Réorganiser une absence :</span>' +
+      '<div class="select-wrap"><select id="reorgJour"></select></div>' +
+      '<button class="btn ghost" id="reorgBtnJour" style="padding:6px 12px;font-size:12px">Ce jour</button>' +
+      '<button class="btn ghost" id="reorgBtnSemaine" style="padding:6px 12px;font-size:12px">La semaine</button>';
+    var tw = sec.querySelector('.table-wrap');
+    if (tw) sec.insertBefore(bar, tw); else sec.appendChild(bar);
+    document.getElementById('reorgBtnJour').addEventListener('click', function () { reorgRun('jour'); });
+    document.getElementById('reorgBtnSemaine').addEventListener('click', function () { reorgRun('semaine'); });
+    reorgFillJours();
+  }
+  injectReorgBar();
+  var tabBtn = document.querySelector('.tab[data-tab="planning"]');
+  if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectReorgBar, 60); setTimeout(reorgFillJours, 400); });
+})();
+
+function reorgFillJours() {
+  var sel = document.getElementById('reorgJour');
+  if (!sel) return;
+  var nb = (_planData && _planData.nb_jours) || 6;
+  var labels = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  var cur = sel.value;
+  var html = '';
+  for (var j = 0; j < nb; j++) html += '<option value="' + j + '">' + labels[j] + '</option>';
+  sel.innerHTML = html;
+  if (cur !== '' && Number(cur) < nb) sel.value = cur;
+}
+
+function _reorgMd(t) {
+  var s = String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  s = s.replace(/^### (.*)$/gm, '<div style="font-weight:600;font-size:14px;margin:12px 0 4px">$1</div>');
+  s = s.replace(/^## (.*)$/gm, '<div style="font-weight:600;font-size:15px;margin:14px 0 6px">$1</div>');
+  s = s.replace(/^# (.*)$/gm, '<div style="font-weight:600;font-size:16px;margin:14px 0 6px">$1</div>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/^\s*[-*] (.*)$/gm, '<div style="padding-left:16px;position:relative;margin:2px 0"><span style="position:absolute;left:2px">•</span>$1</div>');
+  s = s.replace(/\n/g, '<br>');
+  return s;
+}
+
+function reorgShow(html) {
+  var ov = document.getElementById('reorgOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'reorgOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML =
+      '<div class="card" style="max-width:680px;width:100%;max-height:82vh;overflow:auto">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+          '<div style="font-weight:600;font-size:16px">🤖 Proposition de réorganisation</div>' +
+          '<button class="btn ghost" id="reorgClose" style="padding:4px 10px;font-size:12px">Fermer</button>' +
+        '</div>' +
+        '<div id="reorgBody" style="font-size:14px;line-height:1.6"></div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    document.getElementById('reorgClose').addEventListener('click', function () { ov.remove(); });
+  }
+  document.getElementById('reorgBody').innerHTML = html;
+}
+
+async function reorgRun(scope) {
+  if (!_planData) { if (typeof toast === 'function') toast("Charge d'abord le planning", 'error'); return; }
+  var semaine = _planData.semaine;
+  var jour = 0;
+  var sel = document.getElementById('reorgJour');
+  if (sel) jour = Number(sel.value) || 0;
+  reorgShow('<div style="display:flex;align-items:center;gap:10px;color:var(--ink-soft)"><div class="spinner-mini"></div> Claude analyse ' + (scope === 'jour' ? 'la journée' : 'la semaine') + '… (quelques secondes)</div>');
+  try {
+    var resp = await callApi('reorganiserAbsence', { semaine: semaine, scope: scope, jour: jour });
+    var body = document.getElementById('reorgBody');
+    if (!resp || (!resp.ok && !resp.analyse)) {
+      if (body) body.innerHTML = 'Erreur : ' + ((resp && resp.error) || 'inconnue');
+      return;
+    }
+    if (body) body.innerHTML = _reorgMd(resp.analyse || '(réponse vide)');
+  } catch (err) {
+    var b = document.getElementById('reorgBody');
+    if (b) b.innerHTML = 'Erreur : ' + err.message;
+  }
+}
+  
   init();
 </script>
 </body>
