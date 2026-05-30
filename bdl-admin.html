@@ -5812,6 +5812,20 @@ window.polySave = async function (empId) {
   }
 };
 
+  
+  // ============================================================
+// EN-TÊTES FIGÉS — partout. À coller juste avant init().
+// Chaque .table-wrap défile en interne (vertical + horizontal) et
+// l'en-tête (thead th) reste collé en haut. Purement visuel.
+// ============================================================
+(function () {
+  var st = document.createElement('style');
+  st.textContent =
+    '.table-wrap{max-height:72vh;overflow:auto}' +
+    'thead th{position:sticky;top:0;background:var(--bg-sunken);z-index:5}';
+  document.head.appendChild(st);
+})();
+
   init();
 </script>
 </body>
