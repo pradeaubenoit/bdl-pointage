@@ -5581,13 +5581,29 @@ async function planSeed() {
 async function planSave() {
   if (!_planData) return;
   var arr = _planCollect();
+  var btn = document.getElementById('planBtnSave');
+  if (btn) btn.disabled = true;
+  var okCount = 0, total = arr.length;
   try {
-    var resp = await callApi('savePlanningSemaine', { semaine: _planData.semaine, planning: JSON.stringify(arr) });
-    if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || ''), 'error'); return; }
-    toast('Planning enregistré (' + resp.lignes + ' créneaux)', 'success');
+    for (var i = 0; i < arr.length; i++) {
+      var p = arr[i];
+      if (btn) btn.textContent = '💾 ' + (i + 1) + '/' + total + '…';
+      var resp = await callApi('savePlanningEmp', {
+        semaine: _planData.semaine,
+        empId: p.empId,
+        jours: JSON.stringify(p.jours)
+      });
+      if (resp && resp.ok) okCount++;
+    }
+    toast('Planning enregistré (' + okCount + '/' + total + ' salariés)', 'success');
     loadPlanningSection();
-  } catch (err) { toast('Erreur : ' + err.message, 'error'); }
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '💾 Enregistrer'; }
+  }
 }
+
   init();
 </script>
 </body>
