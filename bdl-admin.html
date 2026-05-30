@@ -6027,6 +6027,120 @@ async function reorgRun(scope) {
   }
 }
   
+  
+// ============================================================
+// RÉF. SAMEDI — onglet 🗓️ (heure d'arrivée de référence du samedi).
+// Auto-injecté. UN SEUL bloc, à coller juste avant init().
+// Une heure par salarié, enregistrée individuellement. Sert au calcul
+// d'anomalies du samedi (haute saison).
+// ============================================================
+(function () {
+  if (document.getElementById('section-refsamedi')) return;
+
+  var tabsInner = document.querySelector('.tabs-inner');
+  if (tabsInner) {
+    var b = document.createElement('button');
+    b.className = 'tab';
+    b.setAttribute('data-tab', 'refsamedi');
+    b.textContent = '🗓️ Réf. samedi';
+    b.addEventListener('click', function () {
+      if (typeof switchTab === 'function') switchTab('refsamedi');
+      loadRefSamediSection();
+    });
+    tabsInner.appendChild(b);
+  }
+
+  var container = document.querySelector('.container');
+  if (container) {
+    var sec = document.createElement('section');
+    sec.className = 'section';
+    sec.id = 'section-refsamedi';
+    sec.innerHTML =
+      '<div class="section-header">' +
+        '<div>' +
+          '<h1 class="section-title">🗓️ Référence d\'arrivée — samedi</h1>' +
+          '<div class="section-subtitle">Heure d\'arrivée de référence propre au samedi (haute saison). Différente des autres jours.</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="margin-bottom:12px;font-size:13px;line-height:1.6;background:var(--bg-sunken)">' +
+        '<div style="font-weight:600;margin-bottom:4px">💡 À savoir</div>' +
+        'Cette heure ne s\'applique qu\'aux <strong>samedis en haute saison</strong>. Laisse <strong>vide</strong> pour un salarié qui ne travaille pas le samedi (aucune anomalie ne sera calculée). Hors haute saison, le samedi est ignoré.' +
+      '</div>' +
+      '<div class="table-wrap"><table><thead id="rsThead"></thead>' +
+        '<tbody id="rsTbody"><tr><td class="empty-state">Chargement…</td></tr></tbody>' +
+      '</table></div>';
+    container.appendChild(sec);
+  }
+})();
+
+var _rsData = null;
+
+async function loadRefSamediSection() {
+  var tbody = document.getElementById('rsTbody');
+  if (tbody) tbody.innerHTML = '<tr><td><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
+  try {
+    var resp = await callApi('getRefSamedi');
+    if (!resp || !resp.ok) {
+      if (tbody) tbody.innerHTML = '<tr><td class="empty-state">Erreur : ' + ((resp && resp.error) || 'inconnue') + '</td></tr>';
+      return;
+    }
+    _rsData = resp;
+    renderRefSamedi();
+  } catch (err) {
+    if (tbody) tbody.innerHTML = '<tr><td class="empty-state">Erreur : ' + err.message + '</td></tr>';
+  }
+}
+
+function renderRefSamedi() {
+  if (!_rsData) return;
+  var thead = document.getElementById('rsThead');
+  var tbody = document.getElementById('rsTbody');
+  thead.innerHTML = '<tr><th style="min-width:180px">Salarié</th><th style="text-align:center">Réf. arrivée samedi</th><th style="text-align:center;min-width:120px"></th></tr>';
+
+  var salaries = (_rsData.salaries || []).slice().sort(function (a, b) {
+    return (a.prenom || '').localeCompare(b.prenom || '');
+  });
+  var heures = _rsData.heures || {};
+  if (salaries.length === 0) {
+    tbody.innerHTML = '<tr><td class="empty-state">Aucun salarié actif.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = salaries.map(function (s) {
+    var h = heures[s.id] || '';
+    return '<tr>' +
+      '<td><div style="font-weight:600">' + s.prenom + ' ' + s.nom + '</div><div style="font-size:11px;color:var(--ink-faint)">' + (s.role || '') + '</div></td>' +
+      '<td style="text-align:center"><input type="time" id="rs-' + s.id + '" value="' + h + '" ' +
+        'onchange="rsMark(\'' + s.id + '\')" ' +
+        'style="width:100px;padding:5px 6px;border:0.5px solid var(--border-strong);border-radius:6px;font-family:JetBrains Mono,monospace;font-size:13px"></td>' +
+      '<td style="text-align:center"><button class="btn ghost" id="rsbtn-' + s.id + '" style="padding:6px 12px;font-size:12px" onclick="rsSave(\'' + s.id + '\')">Enregistrer</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+window.rsMark = function (empId) {
+  var btn = document.getElementById('rsbtn-' + empId);
+  if (btn) { btn.classList.remove('ghost'); btn.classList.add('primary'); btn.textContent = '💾 Enregistrer'; }
+};
+
+window.rsSave = async function (empId) {
+  var inp = document.getElementById('rs-' + empId);
+  var h = inp ? (inp.value || '') : '';
+  var btn = document.getElementById('rsbtn-' + empId);
+  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+  try {
+    var resp = await callApi('setRefSamedi', { empId: empId, heure: h });
+    if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || ''), 'error'); return; }
+    if (_rsData.heures) { if (h) _rsData.heures[empId] = h; else delete _rsData.heures[empId]; }
+    toast(h ? ('Réf samedi enregistrée : ' + h) : 'Réf samedi effacée', 'success');
+    if (btn) { btn.classList.remove('primary'); btn.classList.add('ghost'); btn.textContent = 'Enregistrer'; }
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+  
   init();
 </script>
 </body>
