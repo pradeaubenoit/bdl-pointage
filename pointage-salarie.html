@@ -1045,7 +1045,154 @@ function init() {
   }, 30000);
 }
 
-init();
+
+// ============================================================
+// APP SALARIÉ — "Ma semaine" (planning) + "Signaler une absence/souci"
+// À coller juste AVANT la ligne finale init(); de pointage-salarie.html.
+// Réutilise config, apiGet, apiPost, $, toast déjà définis dans le fichier.
+// ============================================================
+(function () {
+  // ---- styles ----
+  var st = document.createElement('style');
+  st.textContent =
+    '.masem{padding-top:18px;border-top:1px solid var(--line);margin-bottom:8px}' +
+    '.masem .lbl{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:500;margin-bottom:10px}' +
+    '.masem-day{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border:1px solid var(--line);margin-bottom:6px;background:var(--paper)}' +
+    '.masem-day.today{border:1.5px solid var(--accent);background:var(--accent-soft)}' +
+    '.masem-day .j{font-size:13px;color:var(--ink-2);font-weight:500}' +
+    '.masem-day.today .j{color:var(--accent)}' +
+    '.masem-day .h{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--ink);font-weight:500}' +
+    '.masem-day .abs{font-size:12px;font-weight:600;color:var(--bad)}' +
+    '.masem-day .off{font-size:12px;color:var(--ink-3)}' +
+    '.btn-sig{width:100%;margin-top:10px;padding:14px;background:var(--paper);color:var(--ink);border:1.5px solid var(--ink);font-family:inherit;font-size:15px;font-weight:500;cursor:pointer}' +
+    '.btn-sig:active{transform:translateY(1px)}' +
+    '.sig-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;display:none;align-items:flex-end;justify-content:center}' +
+    '.sig-ov.show{display:flex}' +
+    '.sig-card{background:var(--paper);width:100%;max-width:520px;padding:22px 22px calc(22px + env(safe-area-inset-bottom));border-top:2px solid var(--ink)}' +
+    '.sig-card h3{font-family:"Instrument Serif",serif;font-size:26px;font-weight:400;margin-bottom:14px}' +
+    '.sig-card label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);font-weight:500;margin:12px 0 5px}' +
+    '.sig-card select,.sig-card textarea{width:100%;padding:11px;border:1px solid var(--line);background:#fff;font-family:inherit;font-size:15px;border-radius:0}' +
+    '.sig-card textarea{min-height:70px;resize:vertical}' +
+    '.sig-actions{display:flex;gap:10px;margin-top:18px}' +
+    '.sig-actions button{flex:1;padding:14px;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;border:none}' +
+    '.sig-send{background:var(--accent);color:var(--paper)}' +
+    '.sig-cancel-b{background:transparent;color:var(--ink-2);border:1px solid var(--line) !important}';
+  document.head.appendChild(st);
+
+  // ---- section "Ma semaine" insérée après la grille de stats ----
+  var sec = document.createElement('div');
+  sec.className = 'masem';
+  sec.id = 'masem';
+  sec.innerHTML =
+    '<div class="lbl">Ma semaine</div>' +
+    '<div id="masem-list"><div style="color:var(--ink-3);font-size:13px">Chargement…</div></div>' +
+    '<button class="btn-sig" id="btn-sig">Signaler une absence / un souci</button>';
+  var anchor = document.getElementById('stats-grid');
+  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(sec, anchor.nextSibling);
+  else { var m = document.getElementById('main'); if (m) m.appendChild(sec); }
+
+  // ---- modal de signalement ----
+  var ov = document.createElement('div');
+  ov.className = 'sig-ov';
+  ov.id = 'sig-ov';
+  ov.innerHTML =
+    '<div class="sig-card">' +
+      '<h3>Signaler une absence / un souci</h3>' +
+      '<label>Jour concerné</label><select id="sig-date"></select>' +
+      '<label>Motif</label><select id="sig-motif">' +
+        '<option value="Maladie">Maladie</option>' +
+        '<option value="Congé / perso">Congé / perso</option>' +
+        '<option value="Retard">Retard</option>' +
+        '<option value="Autre">Autre</option>' +
+      '</select>' +
+      '<label>Commentaire (optionnel)</label><textarea id="sig-comment" placeholder="Précise si besoin…"></textarea>' +
+      '<div class="sig-actions">' +
+        '<button class="sig-cancel-b" id="sig-cancel">Annuler</button>' +
+        '<button class="sig-send" id="sig-send">Envoyer</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+
+  document.getElementById('btn-sig').addEventListener('click', openSig);
+  document.getElementById('sig-cancel').addEventListener('click', function () { ov.classList.remove('show'); });
+  ov.addEventListener('click', function (e) { if (e.target === ov) ov.classList.remove('show'); });
+  document.getElementById('sig-send').addEventListener('click', sendSig);
+
+  loadMaSemaine();
+})();
+
+var _maSemaine = null;
+
+function _absLabelSal(t) {
+  var s = String(t || '').toLowerCase();
+  if (s.indexOf('malad') !== -1) return 'Maladie';
+  if (s.indexOf('cong') !== -1) return 'Congé';
+  if (s.indexOf('injust') !== -1) return 'Absent';
+  return 'Absent';
+}
+
+async function loadMaSemaine() {
+  if (!config || !config.empId || !config.apiUrl) return;
+  var list = document.getElementById('masem-list');
+  try {
+    var r = await apiGet('getMonPlanning', { empId: config.empId });
+    if (!r || !r.ok) { if (list) list.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Planning indisponible.</div>'; return; }
+    _maSemaine = r;
+    var todayISO = new Date().toISOString().slice(0, 10);
+    list.innerHTML = (r.jours || []).map(function (d) {
+      var jourTxt = d.jour + ' ' + (d.date ? d.date.slice(8, 10) : '');
+      var right;
+      if (d.absence) right = '<span class="abs">' + _absLabelSal(d.absence) + '</span>';
+      else if (d.debut && d.fin) right = '<span class="h">' + d.debut + ' – ' + d.fin + '</span>';
+      else right = '<span class="off">—</span>';
+      var today = (d.date === todayISO) ? ' today' : '';
+      return '<div class="masem-day' + today + '"><span class="j">' + jourTxt + '</span>' + right + '</div>';
+    }).join('');
+    // remplir le menu des jours du signalement
+    var sel = document.getElementById('sig-date');
+    if (sel) sel.innerHTML = (r.jours || []).map(function (d) {
+      return '<option value="' + d.date + '">' + d.jour + ' ' + (d.date ? d.date.slice(8, 10) : '') + '</option>';
+    }).join('');
+  } catch (e) {
+    if (list) list.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Planning indisponible.</div>';
+  }
+}
+
+function openSig() {
+  var ov = document.getElementById('sig-ov');
+  // par défaut, sélectionner aujourd'hui si présent dans la semaine
+  var sel = document.getElementById('sig-date');
+  if (sel && _maSemaine) {
+    var todayISO = new Date().toISOString().slice(0, 10);
+    for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].value === todayISO) { sel.selectedIndex = i; break; } }
+  }
+  ov.classList.add('show');
+}
+
+async function sendSig() {
+  var btn = document.getElementById('sig-send');
+  var date = document.getElementById('sig-date').value;
+  var motif = document.getElementById('sig-motif').value;
+  var comment = document.getElementById('sig-comment').value || '';
+  if (!date) { toast('Choisis un jour', 'error'); return; }
+  btn.disabled = true; btn.textContent = 'Envoi…';
+  try {
+    var r = await apiPost({ action: 'creerSignalement', empId: config.empId, date: date, motif: motif, commentaire: comment });
+    if (r && r.ok) {
+      toast('✓ Signalement envoyé à la direction', 'success');
+      document.getElementById('sig-comment').value = '';
+      document.getElementById('sig-ov').classList.remove('show');
+    } else {
+      toast('Erreur : ' + ((r && r.error) || 'envoi impossible'), 'error');
+    }
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Envoyer';
+  }
+}
+  
+  init();
 </script>
 </body>
 </html>
