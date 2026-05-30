@@ -5676,6 +5676,142 @@ renderPlanning = function () {
   }).join('');
 };
   
+  
+  // ============================================================
+// POLYVALENCE — onglet 🧩 (grille compétences salariés × postes)
+// Auto-injecté. UN SEUL bloc, à coller juste avant init().
+// Cases à cocher ; bouton Enregistrer PAR salarié (URL courte, fiable).
+// Lit la liste des postes depuis le serveur (source unique).
+// ============================================================
+(function () {
+  if (document.getElementById('section-polyvalence')) return;
+
+  var tabsInner = document.querySelector('.tabs-inner');
+  if (tabsInner) {
+    var b = document.createElement('button');
+    b.className = 'tab';
+    b.setAttribute('data-tab', 'polyvalence');
+    b.textContent = '🧩 Polyvalence';
+    b.addEventListener('click', function () {
+      if (typeof switchTab === 'function') switchTab('polyvalence');
+      loadPolyvalenceSection();
+    });
+    tabsInner.appendChild(b);
+  }
+
+  var container = document.querySelector('.container');
+  if (container) {
+    var sec = document.createElement('section');
+    sec.className = 'section';
+    sec.id = 'section-polyvalence';
+    sec.innerHTML =
+      '<div class="section-header">' +
+        '<div>' +
+          '<h1 class="section-title">🧩 Polyvalence</h1>' +
+          '<div class="section-subtitle">Compétences validées par salarié (formations internes) · coche les postes que chacun sait tenir</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="margin-bottom:12px;font-size:13px;line-height:1.6;background:var(--bg-sunken)">' +
+        '<div style="font-weight:600;margin-bottom:4px">💡 À savoir</div>' +
+        'Coche les postes que le salarié <strong>sait réellement tenir</strong>. Clique <strong>Enregistrer</strong> sur sa ligne (l\'enregistrement est par salarié). Ces compétences serviront à Claude pour proposer des remplacements en cas d\'absence.' +
+      '</div>' +
+      '<div class="table-wrap"><table><thead id="polyThead"></thead>' +
+        '<tbody id="polyTbody"><tr><td class="empty-state">Chargement…</td></tr></tbody>' +
+      '</table></div>';
+    container.appendChild(sec);
+  }
+})();
+
+var _polyData = null;
+var _polyDirty = {}; // empId -> true si modifié non enregistré
+
+async function loadPolyvalenceSection() {
+  var tbody = document.getElementById('polyTbody');
+  if (tbody) tbody.innerHTML = '<tr><td><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
+  try {
+    var resp = await callApi('getCompetences');
+    if (!resp || !resp.ok) {
+      if (tbody) tbody.innerHTML = '<tr><td class="empty-state">Erreur : ' + ((resp && resp.error) || 'inconnue') + '</td></tr>';
+      return;
+    }
+    _polyData = resp;
+    _polyDirty = {};
+    renderPolyvalence();
+  } catch (err) {
+    if (tbody) tbody.innerHTML = '<tr><td class="empty-state">Erreur : ' + err.message + '</td></tr>';
+  }
+}
+
+function renderPolyvalence() {
+  if (!_polyData) return;
+  var postes = _polyData.postes || [];
+  var thead = document.getElementById('polyThead');
+  var tbody = document.getElementById('polyTbody');
+
+  var ths = '<tr><th style="min-width:150px">Salarié</th>';
+  postes.forEach(function (p) {
+    ths += '<th style="text-align:center;font-size:10px;vertical-align:bottom;min-width:64px">' + p + '</th>';
+  });
+  ths += '<th style="text-align:center;min-width:110px"></th></tr>';
+  thead.innerHTML = ths;
+
+  var salaries = (_polyData.salaries || []).slice().sort(function (a, b) {
+    return (a.prenom || '').localeCompare(b.prenom || '');
+  });
+  if (salaries.length === 0) {
+    tbody.innerHTML = '<tr><td class="empty-state">Aucun salarié actif.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = salaries.map(function (s) {
+    var mesComp = (_polyData.competences && _polyData.competences[s.id]) || [];
+    var tds = '';
+    postes.forEach(function (p, idx) {
+      var checked = mesComp.indexOf(p) !== -1 ? ' checked' : '';
+      tds += '<td style="text-align:center">' +
+        '<input type="checkbox" class="poly-chk" data-emp="' + s.id + '" data-poste-idx="' + idx + '"' + checked +
+        ' onchange="polyMark(\'' + s.id + '\')" style="width:18px;height:18px;cursor:pointer">' +
+        '</td>';
+    });
+    return '<tr id="polyrow-' + s.id + '">' +
+      '<td><div style="font-weight:600">' + s.prenom + ' ' + s.nom + '</div><div style="font-size:11px;color:var(--ink-faint)">' + (s.role || '') + '</div></td>' +
+      tds +
+      '<td style="text-align:center"><button class="btn ghost" id="polybtn-' + s.id + '" style="padding:6px 12px;font-size:12px" onclick="polySave(\'' + s.id + '\')">Enregistrer</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+window.polyMark = function (empId) {
+  _polyDirty[empId] = true;
+  var btn = document.getElementById('polybtn-' + empId);
+  if (btn) { btn.classList.remove('ghost'); btn.classList.add('primary'); btn.textContent = '💾 Enregistrer'; }
+};
+
+window.polySave = async function (empId) {
+  var postes = _polyData.postes || [];
+  var coches = [];
+  document.querySelectorAll('.poly-chk[data-emp="' + empId + '"]').forEach(function (chk) {
+    if (chk.checked) {
+      var idx = Number(chk.getAttribute('data-poste-idx'));
+      if (postes[idx]) coches.push(postes[idx]);
+    }
+  });
+  var btn = document.getElementById('polybtn-' + empId);
+  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+  try {
+    var resp = await callApi('saveCompetencesEmp', { empId: empId, postes: JSON.stringify(coches) });
+    if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || ''), 'error'); return; }
+    if (_polyData.competences) _polyData.competences[empId] = coches;
+    _polyDirty[empId] = false;
+    toast(resp.nb + ' compétence(s) enregistrée(s)', 'success');
+    if (btn) { btn.classList.remove('primary'); btn.classList.add('ghost'); btn.textContent = 'Enregistrer'; }
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
   init();
 </script>
 </body>
