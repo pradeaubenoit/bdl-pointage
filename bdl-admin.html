@@ -5826,6 +5826,113 @@ window.polySave = async function (empId) {
   document.head.appendChild(st);
 })();
 
+  
+// ============================================================
+// PLANNING — affichage des ABSENCES (à coller juste avant init()).
+// Étend loadPlanningSection (charge aussi les absences) et redéfinit
+// renderPlanning (couleurs par rôle + cases d'absence). Réutilise
+// _planRoleColor / _planRows / _planHeuresCell / JP_LABELS déjà définis.
+// ============================================================
+function _planAbsLabel(t) {
+  var s = String(t || '').toLowerCase();
+  if (s.indexOf('cong') !== -1) return 'Congé';
+  if (s.indexOf('malad') !== -1) return 'Maladie';
+  if (s.indexOf('injust') !== -1) return 'Injust.';
+  return t ? String(t) : 'Absent';
+}
+function _planAbsColor(t) {
+  var s = String(t || '').toLowerCase();
+  if (s.indexOf('malad') !== -1) return { c: '#A53A36', bg: '#FBE9E8' };
+  if (s.indexOf('injust') !== -1) return { c: '#B5641A', bg: '#FBEFDD' };
+  return { c: '#3E6BA8', bg: '#E9F0FA' }; // congé / autre
+}
+
+loadPlanningSection = async function () {
+  _planFillSemaineSelector();
+  var sel = document.getElementById('planSemaine');
+  var semaine = sel ? sel.value : _planIsoWeekStr(new Date());
+  var tbody = document.getElementById('planTbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9"><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
+  try {
+    var resp = await callApi('getPlanningSemaine', { semaine: semaine });
+    if (!resp || !resp.ok) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + ((resp && resp.error) || 'inconnue') + '</td></tr>';
+      return;
+    }
+    _planData = resp;
+    var sb = document.getElementById('planSaison');
+    if (sb) { sb.textContent = resp.saison; sb.className = 'badge ' + resp.saison; }
+    try {
+      var ab = await callApi('getAbsencesSemaine', { semaine: semaine });
+      _planData.absences = (ab && ab.ok) ? (ab.absences || {}) : {};
+    } catch (e) { _planData.absences = {}; }
+    renderPlanning();
+  } catch (err) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + err.message + '</td></tr>';
+  }
+};
+
+renderPlanning = function () {
+  if (!_planData) return;
+  var nbJours = _planData.nb_jours || 6;
+  var abs = _planData.absences || {};
+  var thead = document.getElementById('planThead');
+  var tbody = document.getElementById('planTbody');
+
+  var ths = '<tr><th>Salarié</th>';
+  for (var j = 0; j < nbJours; j++) {
+    var sat = (j === 5) ? ' style="background:var(--accent);color:#fff"' : '';
+    ths += '<th class="td-num"' + sat + '>' + JP_LABELS[j] + '</th>';
+  }
+  ths += '<th class="td-num">Total</th><th class="td-num">Solde sup</th></tr>';
+  thead.innerHTML = ths;
+
+  var rows = _planRows();
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="' + (nbJours + 3) + '" class="empty-state">Aucun salarié actif.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(function (r) {
+    var col = _planRoleColor(r.role);
+    var mesAbs = abs[r.empId] || {};
+    var joursAbs = [];
+    var total = 0;
+    var cells = '';
+    for (var j = 0; j < nbJours; j++) {
+      var c = r.jours[j] || { debut: '', fin: '' };
+      var aType = mesAbs[j];
+      if (aType) {
+        var ac = _planAbsColor(aType);
+        joursAbs.push(JP_LABELS[j]);
+        cells +=
+          '<td class="td-num" style="white-space:nowrap;background:' + ac.bg + '">' +
+            '<div style="font-size:11px;font-weight:700;color:' + ac.c + ';text-align:center;padding:6px 2px">● ' + _planAbsLabel(aType) + '</div>' +
+            '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="d" value="' + (c.debut || '') + '" style="display:none">' +
+            '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="f" value="' + (c.fin || '') + '" style="display:none">' +
+          '</td>';
+      } else {
+        total += _planHeuresCell(c);
+        cells +=
+          '<td class="td-num" style="white-space:nowrap">' +
+            '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="d" value="' + (c.debut || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px;background:#fff">' +
+            '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="f" value="' + (c.fin || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px;margin-top:3px;background:#fff">' +
+          '</td>';
+      }
+    }
+    var supColor = (r.solde_sup || 0) > 0 ? 'var(--warning)' : 'var(--success)';
+    var absNote = joursAbs.length
+      ? '<div style="font-size:11px;color:#A53A36;font-weight:700;margin-top:2px">🔴 Absent : ' + joursAbs.join(', ') + '</div>'
+      : '';
+    return '<tr style="background:' + col.bg + '">' +
+      '<td style="border-left:4px solid ' + col.c + '"><div style="font-weight:600">' + r.prenom + ' ' + r.nom + '</div><div style="font-size:11px;color:' + col.c + ';font-weight:600">' + (r.role || '') + '</div>' + absNote + '</td>' +
+      cells +
+      '<td class="td-num td-mono">' + (Math.round(total * 10) / 10) + ' h</td>' +
+      '<td class="td-num td-mono" style="color:' + supColor + ';font-weight:600">' + (Math.round((r.solde_sup || 0) * 10) / 10) + ' h</td>' +
+      '</tr>';
+  }).join('');
+};
+  
   init();
 </script>
 </body>
