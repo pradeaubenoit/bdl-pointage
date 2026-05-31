@@ -6334,6 +6334,148 @@ function affRenderModal(emp, jour, horaire, plages) {
 }
   
 
+  
+// ============================================================
+// PLANNING — VUE BARRES (timeline postes du jour, toute l'équipe).
+// À coller juste avant init(), APRÈS le bloc affectations (réutilise
+// _affPostes, _affData, _planData, callApi, getAffectationsSemaine).
+// Ajoute un bandeau "Vue barres" + une zone SVG sous le tableau.
+// ============================================================
+var _barJour = 0;
+var _barColors = {};
+var _BAR_PALETTE = ['#185FA5', '#1D9E75', '#BA7517', '#534AB7', '#993C1D', '#993556', '#0F6E56', '#5F5E5A', '#3B6D11'];
+
+(function () {
+  function injectBarBar() {
+    var sec = document.getElementById('section-planning');
+    if (!sec || document.getElementById('barBar')) return;
+    var box = document.createElement('div');
+    box.id = 'barBox';
+    box.innerHTML =
+      '<div id="barBar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 10px;padding:10px 12px;background:var(--bg-sunken);border-radius:8px">' +
+        '<span style="font-size:13px;color:var(--ink-soft);font-weight:600">📊 Vue barres — postes du jour :</span>' +
+        '<div class="select-wrap"><select id="barJour"></select></div>' +
+        '<button class="btn ghost" id="barRefresh" style="padding:6px 12px;font-size:12px">Afficher</button>' +
+      '</div>' +
+      '<div id="barWrap" style="overflow-x:auto"></div>';
+    sec.appendChild(box);
+    document.getElementById('barRefresh').addEventListener('click', barRender);
+    document.getElementById('barJour').addEventListener('change', barRender);
+    barFillJours();
+  }
+  injectBarBar();
+  var tabBtn = document.querySelector('.tab[data-tab="planning"]');
+  if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectBarBar, 80); setTimeout(barFillJours, 600); });
+})();
+
+function barFillJours() {
+  var sel = document.getElementById('barJour');
+  if (!sel || !_planData) return;
+  var labels = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  var nb = _planData.nb_jours || 6;
+  if (sel.options.length === nb) return;
+  var cur = sel.value;
+  sel.innerHTML = '';
+  for (var j = 0; j < nb; j++) sel.innerHTML += '<option value="' + j + '">' + labels[j] + '</option>';
+  if (cur) sel.value = cur;
+}
+
+function _barColor(poste) {
+  if (!poste) return '#B4B2A9';
+  var idx = _affPostes.indexOf(poste);
+  if (idx < 0) idx = Math.abs(poste.split('').reduce(function (a, c) { return a + c.charCodeAt(0); }, 0)) % _BAR_PALETTE.length;
+  return _BAR_PALETTE[idx % _BAR_PALETTE.length];
+}
+function _barMin(s) { var m = String(s || '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; }
+
+async function barRender() {
+  var wrap = document.getElementById('barWrap');
+  if (!_planData) { if (wrap) wrap.innerHTML = '<div style="color:var(--ink-faint);font-size:13px;padding:8px">Charge le planning.</div>'; return; }
+  var sel = document.getElementById('barJour');
+  _barJour = sel ? Number(sel.value || 0) : 0;
+
+  if (wrap) wrap.innerHTML = '<div style="color:var(--ink-faint);font-size:13px;padding:8px">Chargement…</div>';
+  try {
+    var a = await callApi('getAffectationsSemaine', { semaine: _planData.semaine });
+    _affData = (a && a.ok) ? (a.affectations || {}) : {};
+  } catch (e) {}
+
+  var rows = (_planData.planning || []).filter(function (r) {
+    var h = r.jours[_barJour];
+    var aff = _affData[r.empId] && _affData[r.empId][_barJour];
+    return (h && h.debut && h.fin) || (aff && aff.length);
+  }).sort(function (a, b) { return (a.role || '').localeCompare(b.role || ''); });
+
+  if (rows.length === 0) { wrap.innerHTML = '<div style="color:var(--ink-faint);font-size:13px;padding:8px">Personne de planifié ce jour.</div>'; return; }
+
+  // bornes horaires
+  var minH = 24 * 60, maxH = 0;
+  rows.forEach(function (r) {
+    var h = r.jours[_barJour] || {};
+    var d = _barMin(h.debut), f = _barMin(h.fin);
+    if (d != null) minH = Math.min(minH, d);
+    if (f != null) maxH = Math.max(maxH, f);
+    var aff = (_affData[r.empId] && _affData[r.empId][_barJour]) || [];
+    aff.forEach(function (p) { var pd = _barMin(p.debut), pf = _barMin(p.fin); if (pd != null) minH = Math.min(minH, pd); if (pf != null) maxH = Math.max(maxH, pf); });
+  });
+  minH = Math.floor(minH / 60) * 60; maxH = Math.ceil(maxH / 60) * 60;
+  if (maxH <= minH) { maxH = minH + 60; }
+
+  var L = 150, R = 30, W = 880, top = 40, rh = 30, barH = 18;
+  var plotW = W - L - R;
+  var spanMin = maxH - minH;
+  var x = function (min) { return L + (min - minH) / spanMin * plotW; };
+  var H = top + rows.length * rh + 70;
+
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" style="min-width:' + W + 'px;font-family:Bricolage Grotesque,sans-serif">';
+  // axe heures
+  for (var hh = minH; hh <= maxH; hh += 60) {
+    var xx = x(hh);
+    svg += '<line x1="' + xx + '" y1="' + (top - 6) + '" x2="' + xx + '" y2="' + (top + rows.length * rh) + '" stroke="#9b958a" stroke-opacity="0.15"/>';
+    svg += '<text x="' + xx + '" y="' + (top - 10) + '" font-size="10" fill="#8A877E" text-anchor="middle">' + (hh / 60) + 'h</text>';
+  }
+  // lignes salariés
+  rows.forEach(function (r, i) {
+    var y = top + i * rh;
+    var nom = (r.prenom + ' ' + r.nom).trim();
+    if (nom.length > 20) nom = nom.slice(0, 19) + '…';
+    svg += '<text x="8" y="' + (y + barH - 4) + '" font-size="11" fill="#15140F">' + nom + '</text>';
+    var aff = (_affData[r.empId] && _affData[r.empId][_barJour]) || [];
+    if (aff.length) {
+      aff.forEach(function (p) {
+        var pd = _barMin(p.debut), pf = _barMin(p.fin);
+        if (pd == null || pf == null || pf <= pd) return;
+        var col = _barColor(p.poste);
+        svg += '<rect x="' + x(pd) + '" y="' + y + '" width="' + (x(pf) - x(pd)) + '" height="' + barH + '" rx="3" fill="' + col + '"/>';
+        var lbl = (p.poste || '').slice(0, 14);
+        if (x(pf) - x(pd) > 56 && lbl) svg += '<text x="' + (x(pd) + 5) + '" y="' + (y + barH - 5) + '" font-size="9.5" fill="#fff">' + lbl + '</text>';
+      });
+    } else {
+      // pas d'affectation : barre grise = horaire global, "non affecté"
+      var h = r.jours[_barJour] || {};
+      var d = _barMin(h.debut), f = _barMin(h.fin);
+      if (d != null && f != null && f > d) {
+        svg += '<rect x="' + x(d) + '" y="' + y + '" width="' + (x(f) - x(d)) + '" height="' + barH + '" rx="3" fill="#D3D1C7"/>';
+        if (x(f) - x(d) > 70) svg += '<text x="' + (x(d) + 5) + '" y="' + (y + barH - 5) + '" font-size="9.5" fill="#5F5E5A">non affecté</text>';
+      }
+    }
+  });
+
+  // légende
+  var ly = top + rows.length * rh + 24;
+  svg += '<text x="8" y="' + ly + '" font-size="10" fill="#8A877E">Postes :</text>';
+  var lx = 64;
+  _affPostes.forEach(function (p) {
+    svg += '<rect x="' + lx + '" y="' + (ly - 9) + '" width="10" height="10" rx="2" fill="' + _barColor(p) + '"/>';
+    svg += '<text x="' + (lx + 14) + '" y="' + ly + '" font-size="9.5" fill="#5F5E5A">' + p + '</text>';
+    lx += 16 + (p.length * 5.4) + 14;
+    if (lx > W - 120) { lx = 64; ly += 16; }
+  });
+
+  svg += '</svg>';
+  wrap.innerHTML = svg;
+}
+  
   init();
 </script>
 </body>
