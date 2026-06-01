@@ -1193,6 +1193,90 @@ async function sendSig() {
 }
   
   
+  
+// ============================================================
+// APP SALARIÉ — POSTES dans "Ma semaine" (mini-barres + heure/poste).
+// À coller juste AVANT init(), APRÈS le bloc "Ma semaine" existant.
+// Réécrit loadMaSemaine() (la dernière définition prime) pour afficher
+// sous chaque jour les postes affectés. Rien à supprimer.
+// ============================================================
+(function () {
+  var st = document.createElement('style');
+  st.textContent =
+    '.msd{border:1px solid var(--line);background:var(--paper);margin-bottom:6px;padding:9px 10px}' +
+    '.msd.today{border:1.5px solid var(--accent);background:var(--accent-soft)}' +
+    '.msd-head{display:flex;justify-content:space-between;align-items:center}' +
+    '.msd-head .j{font-size:13px;color:var(--ink-2);font-weight:500}' +
+    '.msd.today .j{color:var(--accent)}' +
+    '.msd-head .h{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--ink);font-weight:500}' +
+    '.msd-head .abs{font-size:12px;font-weight:600;color:var(--bad)}' +
+    '.msd-head .off{font-size:12px;color:var(--ink-3)}' +
+    '.msd-bar{display:flex;height:9px;border-radius:4px;overflow:hidden;margin:9px 0 7px}' +
+    '.msd-seg{height:100%}' +
+    '.msd-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);margin:3px 0}' +
+    '.msd-dot{width:10px;height:10px;border-radius:2px;flex:0 0 auto}' +
+    '.msd-time{font-family:"JetBrains Mono",monospace;color:var(--ink);min-width:94px}' +
+    '.msd-none{font-size:11px;color:var(--ink-3);margin-top:6px;font-style:italic}';
+  document.head.appendChild(st);
+})();
+
+var _MS_POSTES = ['Engagement Calandre', 'Engagement Tunnel', 'Engagement laveuse', 'Expédition éponge', 'Expédition armée', 'Expédition hôtel', 'Pliage à table', 'Évacuation séchoir', 'Navette', 'Maintenance', 'Administratif'];
+var _MS_PAL = ['#185FA5', '#1D9E75', '#BA7517', '#534AB7', '#993C1D', '#993556', '#0F6E56', '#5F5E5A', '#3B6D11'];
+function _msColor(poste) {
+  if (!poste) return '#B4B2A9';
+  var i = _MS_POSTES.indexOf(poste);
+  if (i < 0) i = Math.abs(poste.split('').reduce(function (a, c) { return a + c.charCodeAt(0); }, 0)) % _MS_PAL.length;
+  return _MS_PAL[i % _MS_PAL.length];
+}
+function _msMin(s) { var m = String(s || '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; }
+
+async function loadMaSemaine() {
+  if (!config || !config.empId || !config.apiUrl) return;
+  var list = document.getElementById('masem-list');
+  try {
+    var r = await apiGet('getMonPlanning', { empId: config.empId });
+    if (!r || !r.ok) { if (list) list.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Planning indisponible.</div>'; return; }
+    _maSemaine = r;
+    var todayISO = new Date().toISOString().slice(0, 10);
+    list.innerHTML = (r.jours || []).map(function (d) {
+      var jourTxt = d.jour + ' ' + (d.date ? d.date.slice(8, 10) : '');
+      var right;
+      if (d.absence) right = '<span class="abs">' + _absLabelSal(d.absence) + '</span>';
+      else if (d.debut && d.fin) right = '<span class="h">' + d.debut + ' – ' + d.fin + '</span>';
+      else right = '<span class="off">—</span>';
+      var today = (d.date === todayISO) ? ' today' : '';
+
+      var postesHtml = '';
+      var postes = (d.postes || []).filter(function (p) { return p.debut && p.fin; });
+      if (!d.absence && postes.length) {
+        var mn = 24 * 60, mx = 0;
+        postes.forEach(function (p) { var a = _msMin(p.debut), b = _msMin(p.fin); if (a != null) mn = Math.min(mn, a); if (b != null) mx = Math.max(mx, b); });
+        var span = Math.max(1, mx - mn);
+        var bar = '<div class="msd-bar">' + postes.map(function (p) {
+          var a = _msMin(p.debut), b = _msMin(p.fin);
+          var w = ((b - a) / span * 100).toFixed(2);
+          return '<div class="msd-seg" style="width:' + w + '%;background:' + _msColor(p.poste) + '"></div>';
+        }).join('') + '</div>';
+        var lines = postes.map(function (p) {
+          return '<div class="msd-line"><span class="msd-dot" style="background:' + _msColor(p.poste) + '"></span><span class="msd-time">' + p.debut + '–' + p.fin + '</span><span>' + (p.poste || '') + '</span></div>';
+        }).join('');
+        postesHtml = bar + lines;
+      } else if (!d.absence && d.debut && d.fin) {
+        postesHtml = '<div class="msd-none">Poste non précisé</div>';
+      }
+
+      return '<div class="msd' + today + '"><div class="msd-head"><span class="j">' + jourTxt + '</span>' + right + '</div>' + postesHtml + '</div>';
+    }).join('');
+
+    var sel = document.getElementById('sig-date');
+    if (sel) sel.innerHTML = (r.jours || []).map(function (d) {
+      return '<option value="' + d.date + '">' + d.jour + ' ' + (d.date ? d.date.slice(8, 10) : '') + '</option>';
+    }).join('');
+  } catch (e) {
+    if (list) list.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Planning indisponible.</div>';
+  }
+}
+  
   init();
 </script>
 </body>
