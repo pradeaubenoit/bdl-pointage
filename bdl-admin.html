@@ -6511,6 +6511,83 @@ async function barRender() {
   });
 })();
   
+  
+// ============================================================
+// PLANNING — Étendre le sélecteur de semaines (+8) + bouton "Reproduire"
+// À coller juste avant init() dans bdl-admin.html, APRÈS le bloc Planning.
+// Redéfinit _planFillSemaineSelector (la dernière définition prime) pour
+// proposer jusqu'à W+8, et ajoute un bouton qui reproduit la semaine
+// affichée sur les 8 suivantes (route reproduirePlanningSemaines).
+// ============================================================
+
+// 1) Sélecteur étendu : de +8 semaines à -8 semaines
+function _planFillSemaineSelector() {
+  var sel = document.getElementById('planSemaine');
+  if (!sel || sel.options.length) return;
+  var opts = [];
+  var now = new Date();
+  for (var k = 8; k >= -8; k--) {
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + k * 7);
+    opts.push(_planIsoWeekStr(d));
+  }
+  var courant = _planIsoWeekStr(now);
+  sel.innerHTML = opts.map(function (w) {
+    return '<option value="' + w + '"' + (w === courant ? ' selected' : '') + '>' + w + (w === courant ? ' (en cours)' : '') + '</option>';
+  }).join('');
+  sel.addEventListener('change', function () { loadPlanningSection(); });
+}
+
+// 2) Bouton "Reproduire sur 8 semaines"
+(function () {
+  function injectReproBtn() {
+    if (document.getElementById('planBtnRepro')) return;
+    var save = document.getElementById('planBtnSave');
+    if (!save || !save.parentNode) return;
+    var b = document.createElement('button');
+    b.className = 'btn ghost';
+    b.id = 'planBtnRepro';
+    b.textContent = '📋 Reproduire sur 8 sem.';
+    b.addEventListener('click', planReproduire);
+    save.parentNode.insertBefore(b, save);
+  }
+  injectReproBtn();
+  var tab = document.querySelector('.tab[data-tab="planning"]');
+  if (tab) tab.addEventListener('click', function () { setTimeout(injectReproBtn, 80); });
+})();
+
+async function planReproduire() {
+  if (!_planData || !_planData.semaine) { toast("Charge d'abord une semaine", 'error'); return; }
+  var sem = _planData.semaine;
+  if (!confirm('Reproduire le planning de ' + sem + ' (horaires + postes) sur les 8 semaines suivantes ?\n\nLes semaines qui ont déjà un planning ne seront PAS touchées.')) return;
+  var btn = document.getElementById('planBtnRepro');
+  if (btn) { btn.disabled = true; btn.textContent = 'Copie…'; }
+  try {
+    var resp = await callApi('reproduirePlanningSemaines', { semaine: sem, nb: 8 });
+    if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || 'inconnue'), 'error'); return; }
+
+    if (resp.existantes && resp.existantes.length) {
+      var ok2 = confirm(
+        resp.nb_remplies + ' semaine(s) créée(s).\n\n' +
+        resp.existantes.length + ' semaine(s) ont déjà un planning :\n' + resp.existantes.join(', ') + '\n\n' +
+        'Veux-tu aussi les ÉCRASER avec ' + sem + ' ?'
+      );
+      if (ok2) {
+        var resp2 = await callApi('reproduirePlanningSemaines', { semaine: sem, nb: 8, forcer: 1 });
+        if (resp2 && resp2.ok) toast('✓ Reproduit sur ' + resp2.nb_remplies + ' semaines (écrasement)', 'success');
+        else toast('Erreur : ' + ((resp2 && resp2.error) || ''), 'error');
+      } else {
+        toast('✓ ' + resp.nb_remplies + ' semaine(s) créée(s) · ' + resp.existantes.length + ' conservée(s)', 'success');
+      }
+    } else {
+      toast('✓ Reproduit sur ' + resp.nb_remplies + ' semaines', 'success');
+    }
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📋 Reproduire sur 8 sem.'; }
+  }
+}
+  
   init();
 </script>
 </body>
