@@ -5481,10 +5481,10 @@ function _planRows() {
   return rows;
 }
 
-function _planHeuresCell(c) {
-  if (!c || !c.debut || !c.fin) return 0;
+function _planHeuresCell(c, j) 
+{  if (!c || !c.debut || !c.fin) return 0;
   var d = c.debut.split(':'), f = c.fin.split(':');
-  var min = (Number(f[0]) * 60 + Number(f[1])) - (Number(d[0]) * 60 + Number(d[1]));
+var min = (Number(f[0]) * 60 + Number(f[1])) - (Number(d[0]) * 60 + Number(d[1])); if (j !== 5 && min > 0) min -= 20; 
   return min > 0 ? min / 60 : 0;
 }
 
@@ -5513,8 +5513,8 @@ function renderPlanning() {
     var cells = '';
     for (var j = 0; j < nbJours; j++) {
       var c = r.jours[j] || { debut: '', fin: '' };
-      total += _planHeuresCell(c);
-      cells +=
+total += _planHeuresCell(c, j);
+ cells +=
         '<td class="td-num" style="white-space:nowrap">' +
           '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="d" value="' + (c.debut || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px">' +
           '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="f" value="' + (c.fin || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px;margin-top:3px">' +
