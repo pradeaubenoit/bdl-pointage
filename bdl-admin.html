@@ -5659,7 +5659,7 @@ renderPlanning = function () {
     var cells = '';
     for (var j = 0; j < nbJours; j++) {
       var c = r.jours[j] || { debut: '', fin: '' };
-      total += _planHeuresCell(c);
+      
       cells +=
         '<td class="td-num" style="white-space:nowrap">' +
           '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="d" value="' + (c.debut || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px;background:#fff">' +
@@ -5912,7 +5912,7 @@ renderPlanning = function () {
             '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="f" value="' + (c.fin || '') + '" style="display:none">' +
           '</td>';
       } else {
-        total += _planHeuresCell(c);
+        total += _planHeuresCell(c, j);
         cells +=
           '<td class="td-num" style="white-space:nowrap">' +
             '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="d" value="' + (c.debut || '') + '" style="width:84px;padding:3px 4px;border:0.5px solid var(--border-strong);border-radius:5px;font-family:JetBrains Mono,monospace;font-size:12px;background:#fff">' +
