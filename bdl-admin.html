@@ -6476,6 +6476,41 @@ async function barRender() {
   wrap.innerHTML = svg;
 }
   
+  
+// ============================================================
+// PLANNING — auto-calcul de la FIN quand on change un DÉBUT (Lun→Ven).
+// À coller juste avant init(). Quand tu modifies une case "début"
+// (data-bound="d") d'un jour Lun→Ven, la case "fin" (data-bound="f")
+// du même salarié/jour se met à début + 7h20. Samedi (jour 5) exclu.
+// Écoute global (delegation) → marche même après re-rendu du tableau.
+// ============================================================
+(function () {
+  function plus7h20(hhmm) {
+    var m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return '';
+    var total = Number(m[1]) * 60 + Number(m[2]) + 440; // 7h + 20 min
+    if (total >= 1440) total = 1439;
+    var hh = Math.floor(total / 60), mm = total % 60;
+    return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    if (!el || !el.classList || !el.classList.contains('plan-input')) return;
+    if (el.getAttribute('data-bound') !== 'd') return;           // uniquement les "début"
+    var jour = Number(el.getAttribute('data-jour'));
+    if (jour === 5) return;                                       // samedi : pas de fin auto
+    if (!el.value) return;                                        // début vidé : on ne touche pas
+    var emp = el.getAttribute('data-emp');
+    var fin = document.querySelector('.plan-input[data-emp="' + emp + '"][data-jour="' + jour + '"][data-bound="f"]');
+    if (fin) {
+      fin.value = plus7h20(el.value);
+      // notifier un éventuel recalcul de total
+      fin.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+})();
+  
   init();
 </script>
 </body>
