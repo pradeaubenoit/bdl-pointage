@@ -490,7 +490,7 @@ footer {
         <div class="v" id="stats-mois">—</div>
       </div>
       <div class="stat-cell year">
-        <div class="lbl" id="stats-annee-lbl">Démarrage du système : 15/05/2026</div>
+        <div class="lbl" id="stats-annee-lbl">Heures sup depuis le 15/05/2026</div>
         <div class="v" id="stats-annee">—</div>
       </div>
     </div>
@@ -934,7 +934,7 @@ function renderStats(s) {
   $('stats-jour').textContent = fmtHM(s.heuresAujourdhui);
   $('stats-semaine').textContent = fmtHM(s.heuresSemaine);
   $('stats-mois').textContent = fmtHM(s.heuresMois);
-  $('stats-annee').textContent = fmtHM(s.heuresAnnee);
+  $('stats-annee').textContent = fmtHM(s.supDepuisDemarrage);
   // V4.9.4 — Afficher les heures sup en sous-titre de chaque tuile
   setSubSup('stats-jour-sub', s.supAujourdhui);
   setSubSup('stats-semaine-sup-sub', s.supSemaine);
@@ -943,8 +943,7 @@ function renderStats(s) {
     var moisSubEl = document.getElementById('stats-mois-sub');
     if (moisSubEl) moisSubEl.textContent += ' · −' + s.nbJoursInjustifies + 'j abs.';
   }
-  
-  setSubSup('stats-annee-sub', s.supDepuisDemarrage);
+
   // Sous-titre semaine : "x/35h" avec warn si dépassé
   const cell = $('stats-semaine-cell');
   const base = s.baseHebdo || 35;
@@ -957,8 +956,8 @@ function renderStats(s) {
   }
   // Labels dynamiques
   if (s.moisLabel) $('stats-mois-lbl').textContent = s.moisLabel;
-  // Date de démarrage du système (hard-codée — affichée en haut du cumul "annuel")
-  $('stats-annee-lbl').textContent = 'Démarrage du système : 15/05/2026';
+  // Tuile noire : uniquement les heures sup depuis le démarrage du système
+  $('stats-annee-lbl').textContent = 'Heures sup depuis le 15/05/2026';
 }
 
 function fmtHM(h) {
