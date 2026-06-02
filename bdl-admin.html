@@ -1023,22 +1023,22 @@ tr:hover { background: var(--bg-sunken); }
     <!-- Tableau journalier -->
     <div class="section-subtitle" style="margin-top: 16px;">Détail jour par jour</div>
     <!-- V4.9.16 — Légende des pastilles (couleurs = écart vs MOYENNE du mois, pas le budget) -->
-    <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.6">
+ <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;line-height:1.6">
       <div style="font-weight:600;margin-bottom:6px">💡 Comment lire les pastilles couleur (eau / gaz / EDF)</div>
       <div style="margin-bottom:8px">
-        <span style="white-space:nowrap">🟢 <strong>Vert</strong> : sous la moyenne du mois (bien)</span> &nbsp;·&nbsp;
-        <span style="white-space:nowrap">🟠 <strong>Orange</strong> : un peu au-dessus (+10 à +20 %)</span> &nbsp;·&nbsp;
-        <span style="white-space:nowrap">🔴 <strong>Rouge</strong> : nettement au-dessus (plus de +20 %)</span>
+        <span style="white-space:nowrap">🟢 <strong>Vert</strong> : dans le budget (bien)</span> &nbsp;·&nbsp;
+        <span style="white-space:nowrap">🟠 <strong>Orange</strong> : un peu au-dessus du plafond (+10 à +20 %)</span> &nbsp;·&nbsp;
+        <span style="white-space:nowrap">🔴 <strong>Rouge</strong> : nettement au-dessus du plafond (plus de +20 %)</span>
       </div>
       <div style="color:var(--text-soft)">
-        Ces couleurs comparent chaque jour à <strong>ta moyenne du mois</strong> (ta régularité au quotidien) —
-        <strong>elles ne mesurent pas le budget</strong>. Pour savoir si tu es dans ton budget, regarde le
-        « Suivi budgets fluides » sur le Tableau de bord. Un jour peut être rouge (plus que ta moyenne)
-        tout en restant largement dans le budget.
+        Ces couleurs comparent le coût/kg de chaque jour à un <strong>plafond issu de ton budget</strong>
+        (budget annuel du fluide ÷ tonnage annuel). 🟢 vert = ce jour est dans le rythme du budget ;
+        🟠/🔴 = au-dessus du plafond, donc trop cher au kg. Le repère est <strong>fixe</strong> : il alerte
+        dès le 1ᵉʳ jour saisi, même si le mois est encore peu rempli.
       </div>
-    </div>
+   </div>
     <div class="table-wrap">
-      <table>
+      <table>        
         <thead>
           <tr>
             <th>Date</th>
@@ -1052,8 +1052,8 @@ tr:hover { background: var(--bg-sunken); }
             <th>💧 L/kg</th>
             <th>🔥 Gaz/kg</th>
             <th>⚡ kWh/kg</th>
-            <th>vs moyenne</th>
-          </tr>
+            <th>vs budget</th>                
+      </tr>
         </thead>
         <tbody id="pilotageTbody">
 <tr><td colspan="12" class="empty-state">Chargement…</td></tr>
@@ -6724,6 +6724,90 @@ async function planReproduire() {
   document.addEventListener('DOMContentLoaded', function () { setTimeout(injectReportUI, 300); });
   var _bs = document.getElementById('btnVueHeuresSup');
   if (_bs) _bs.addEventListener('click', function () { setTimeout(injectReportUI, 150); });
+})();
+  
+  
+// ============================================================
+// PLANNING — Assistant « 💬 Demander à Claude » (question libre)
+// Bloc auto-injecté, à coller juste avant init() dans bdl-admin.html.
+// Ajoute en haut de l'onglet Planning une zone de question libre qui
+// interroge l'assistant (route serveur assistantPlanning) : questions
+// rétrospectives (« hier a bien tourné ? heures sup justifiées ? »)
+// ou prospectives (« qui mettre demain à tel poste ? »).
+// Réutilise _reorgMd (rendu markdown), _planIsoWeekStr, callApi, toast.
+// ============================================================
+(function () {
+  function _hierISO() {
+    var d = new Date(Date.now() - 86400000);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  function injectAskClaude() {
+    var sec = document.getElementById('section-planning');
+    if (!sec || document.getElementById('askClaudeBox')) return;
+    var box = document.createElement('div');
+    box.id = 'askClaudeBox';
+    box.className = 'card';
+    box.style.cssText = 'margin-bottom:14px;border:1px solid rgba(31,74,71,0.25);background:rgba(31,74,71,0.04)';
+    box.innerHTML =
+      '<div style="font-weight:700;font-size:15px;margin-bottom:4px">💬 Demander à Claude</div>' +
+      '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Pose une question sur l\'organisation — rétrospective (hier a-t-il bien tourné ?) ou pour demain (qui mettre à tel poste ?). Claude répond à partir de tes données réelles. C\'est un conseil à valider, pas une consigne.</div>' +
+      '<textarea id="askClaudeQ" rows="3" placeholder="Ex : Hier a-t-il bien tourné ? Les heures sup étaient-elles justifiées par la prod ? Propose une orga avec moins d\'heures sup.&#10;Ou : Demain il me manque 1 personne à l\'engagement Calandre 1, qui je mets ?" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-family:inherit;font-size:14px;resize:vertical;background:#fff"></textarea>' +
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">' +
+        '<label style="font-size:12px;color:var(--ink-soft)">Jour analysé :</label>' +
+        '<input type="date" id="askClaudeDate" style="padding:6px 8px;border:1px solid var(--border-strong);border-radius:6px;font-size:13px;background:#fff">' +
+        '<button class="btn primary" id="askClaudeBtn" style="margin-left:auto">💬 Demander à Claude</button>' +
+      '</div>' +
+      '<div id="askClaudeRep" style="display:none;margin-top:12px;padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:10px;font-size:14px;line-height:1.6"></div>';
+    var header = sec.querySelector('.section-header');
+    if (header && header.nextSibling) sec.insertBefore(box, header.nextSibling);
+    else sec.insertBefore(box, sec.firstChild);
+    var di = document.getElementById('askClaudeDate');
+    if (di && !di.value) di.value = _hierISO();
+    document.getElementById('askClaudeBtn').addEventListener('click', askClaudeRun);
+  }
+
+  window.askClaudeRun = async function () {
+    var q = (document.getElementById('askClaudeQ').value || '').trim();
+    var rep = document.getElementById('askClaudeRep');
+    if (!q) { toast('Écris une question d\'abord', 'error'); return; }
+    var semaine = (typeof _planData !== 'undefined' && _planData && _planData.semaine)
+      ? _planData.semaine
+      : (typeof _planIsoWeekStr === 'function' ? _planIsoWeekStr(new Date()) : '');
+    var date = (document.getElementById('askClaudeDate') || {}).value || '';
+    var btn = document.getElementById('askClaudeBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Claude réfléchit…'; }
+    rep.style.display = 'block';
+    rep.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:var(--ink-soft)"><div class="spinner-mini"></div> Claude analyse tes données…</div>';
+    try {
+      var params = { question: q, semaine: semaine };
+      if (date) params.date = date;
+      var resp = await callApi('assistantPlanning', params);
+      if (!resp || (!resp.ok && !resp.reponse)) {
+        rep.innerHTML = '<div style="color:#991b1b">⚠️ ' + ((resp && resp.error) || 'Réponse vide') + '</div>';
+        return;
+      }
+      var rendu = (typeof _reorgMd === 'function')
+        ? _reorgMd(resp.reponse)
+        : String(resp.reponse).replace(/</g, '&lt;').replace(/\n/g, '<br>');
+      var meta = '';
+      if (resp.jour_analyse) {
+        meta = '<div style="font-size:11px;color:var(--ink-faint);margin-top:12px;padding-top:8px;border-top:1px solid var(--border)">📅 Jour analysé : ' +
+          resp.jour_analyse +
+          (resp.total_sup_jour != null ? ' · ' + resp.total_sup_jour + ' h sup ce jour' : '') +
+          ' · conseil à valider par ton jugement</div>';
+      }
+      rep.innerHTML = rendu + meta;
+    } catch (err) {
+      rep.innerHTML = '<div style="color:#991b1b">⚠️ Erreur : ' + err.message + '</div>';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💬 Demander à Claude'; }
+    }
+  };
+
+  injectAskClaude();
+  var tabBtn = document.querySelector('.tab[data-tab="planning"]');
+  if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectAskClaude, 80); });
 })();
   
   init();
