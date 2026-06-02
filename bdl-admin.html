@@ -6810,6 +6810,68 @@ async function planReproduire() {
   if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectAskClaude, 80); });
 })();
   
+  
+// ============================================================
+// PLANNING — bouton « Reproduire les postes d'un jour sur la semaine »
+// Bloc auto-injecté, à coller juste avant init() dans bdl-admin.html.
+// Copie les postes (affectations) d'un jour choisi sur les autres jours
+// de la même semaine. Route serveur : reproduireAffectationsJourSemaine.
+// Réutilise callApi, toast, _planData, _planIsoWeekStr, barRender.
+// ============================================================
+(function () {
+  var JLAB = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+
+  function injectReproAffBar() {
+    var sec = document.getElementById('section-planning');
+    if (!sec || document.getElementById('reproAffBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'reproAffBar';
+    bar.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:var(--bg-sunken);border-radius:8px';
+    bar.innerHTML =
+      '<span style="font-size:13px;color:var(--ink-soft);font-weight:600">📋 Reproduire les postes du</span>' +
+      '<div class="select-wrap"><select id="reproAffJour"></select></div>' +
+      '<span style="font-size:13px;color:var(--ink-soft)">sur toute la semaine</span>' +
+      '<button class="btn primary" id="reproAffBtn" style="padding:6px 14px;font-size:12px">Reproduire</button>';
+    var barBox = document.getElementById('barBox');
+    if (barBox) sec.insertBefore(bar, barBox);
+    else { var tw = sec.querySelector('.table-wrap'); if (tw) sec.insertBefore(bar, tw); else sec.appendChild(bar); }
+
+    var sel = document.getElementById('reproAffJour');
+    var nb = (typeof _planData !== 'undefined' && _planData && _planData.nb_jours) ? _planData.nb_jours : 6;
+    var html = '';
+    for (var j = 0; j < nb; j++) html += '<option value="' + j + '">' + JLAB[j] + '</option>';
+    sel.innerHTML = html;
+    document.getElementById('reproAffBtn').addEventListener('click', reproAffRun);
+  }
+
+  window.reproAffRun = async function () {
+    var semaine = (typeof _planData !== 'undefined' && _planData && _planData.semaine)
+      ? _planData.semaine
+      : (typeof _planIsoWeekStr === 'function' ? _planIsoWeekStr(new Date()) : '');
+    if (!semaine) { toast('Charge d\'abord le planning', 'error'); return; }
+    var sel = document.getElementById('reproAffJour');
+    var jSrc = sel ? Number(sel.value) : 0;
+    var label = JLAB[jSrc] || ('jour ' + jSrc);
+    if (!confirm('Copier les postes du ' + label + ' sur tous les autres jours de la semaine ' + semaine + ' ?\n\n⚠️ Les postes actuels des autres jours seront remplacés.\n(Les jours où une personne ne travaille pas sont ignorés.)')) return;
+    var btn = document.getElementById('reproAffBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Copie…'; }
+    try {
+      var resp = await callApi('reproduireAffectationsJourSemaine', { semaine: semaine, jourSource: jSrc });
+      if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || 'inconnue'), 'error'); return; }
+      toast('✓ Postes du ' + label + ' copiés sur ' + (resp.jours_cibles ? resp.jours_cibles.length : '?') + ' jour(s) · ' + resp.nb_salaries + ' salariés', 'success');
+      if (typeof barRender === 'function') barRender();
+    } catch (e) {
+      toast('Erreur : ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Reproduire'; }
+    }
+  };
+
+  injectReproAffBar();
+  var tabBtn = document.querySelector('.tab[data-tab="planning"]');
+  if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectReproAffBar, 90); });
+})();
+  
   init();
 </script>
 </body>
