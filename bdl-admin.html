@@ -6872,6 +6872,71 @@ async function planReproduire() {
   if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectReproAffBar, 90); });
 })();
   
+  
+// ============================================================
+// PLANNING — bouton « Dupliquer vers la semaine suivante »
+// Bloc auto-injecté, à coller juste avant init() dans bdl-admin.html.
+// Copie horaires + postes de la semaine affichée vers la suivante
+// (sert à créer la "Semaine B" du roulement à partir de la "Semaine A").
+// Route serveur : dupliquerSemaineVersSuivante. Réutilise callApi, toast,
+// _planData, _planIsoWeekStr.
+// ============================================================
+(function () {
+  function _semaineSuivanteLabel(sem) {
+    var m = String(sem || '').match(/^(\d{4})-W(\d{1,2})$/);
+    if (!m) return '(suivante)';
+    var y = +m[1], w = +m[2] + 1;
+    if (w > 52) { w = 1; y += 1; }
+    return y + '-W' + ('0' + w).slice(-2);
+  }
+
+  function injectDupBtn() {
+    var sec = document.getElementById('section-planning');
+    if (!sec || document.getElementById('dupSemBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'dupSemBar';
+    bar.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:rgba(31,74,71,0.05);border:1px solid rgba(31,74,71,0.18);border-radius:8px';
+    bar.innerHTML =
+      '<span style="font-size:13px;color:var(--ink-soft)">🔁 <strong>Roulement</strong> — créer la semaine B :</span>' +
+      '<button class="btn" id="dupSemBtn" style="padding:6px 14px;font-size:12px">📄 Dupliquer cette semaine vers la suivante</button>' +
+      '<span id="dupSemHint" style="font-size:12px;color:var(--ink-faint)"></span>';
+    var asst = document.getElementById('askClaudeBox');
+    if (asst && asst.parentNode === sec) sec.insertBefore(bar, asst);
+    else {
+      var header = sec.querySelector('.section-header');
+      if (header && header.nextSibling) sec.insertBefore(bar, header.nextSibling);
+      else sec.insertBefore(bar, sec.firstChild);
+    }
+    document.getElementById('dupSemBtn').addEventListener('click', dupSemRun);
+  }
+
+  window.dupSemRun = async function () {
+    var semaine = (typeof _planData !== 'undefined' && _planData && _planData.semaine)
+      ? _planData.semaine
+      : (typeof _planIsoWeekStr === 'function' ? _planIsoWeekStr(new Date()) : '');
+    if (!semaine) { toast('Charge d\'abord le planning', 'error'); return; }
+    var cible = _semaineSuivanteLabel(semaine);
+    if (!confirm('Copier TOUTE la semaine ' + semaine + ' (horaires + postes) vers ' + cible + ' ?\n\n⚠️ Ce qui existe déjà sur ' + cible + ' sera remplacé.\n\nEnsuite tu pourras sélectionner ' + cible + ' dans le menu et modifier les personnes en roulement pour en faire ta semaine B.')) return;
+    var btn = document.getElementById('dupSemBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Copie…'; }
+    try {
+      var resp = await callApi('dupliquerSemaineVersSuivante', { semaine: semaine });
+      if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || 'inconnue'), 'error'); return; }
+      toast('✓ ' + resp.semaine_cible + ' créée (' + resp.lignes_horaires + ' horaires, ' + resp.lignes_postes + ' postes)', 'success');
+      var hint = document.getElementById('dupSemHint');
+      if (hint) hint.textContent = '→ Sélectionne ' + resp.semaine_cible + ' dans le menu en haut pour en faire ta semaine B.';
+    } catch (e) {
+      toast('Erreur : ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📄 Dupliquer cette semaine vers la suivante'; }
+    }
+  };
+
+  injectDupBtn();
+  var tabBtn = document.querySelector('.tab[data-tab="planning"]');
+  if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectDupBtn, 70); });
+})();
+  
   init();
 </script>
 </body>
