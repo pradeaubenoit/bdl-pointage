@@ -7055,6 +7055,67 @@ async function planReproduire() {
   setInterval(tick, 400);
 })();
   
+  
+// ============================================================
+// PLANNING — bouton « 🔁 Reproduction alternée A/B » (roulement)
+// Bloc auto-injecté, à coller juste avant init() dans bdl-admin.html.
+// Semaine A = semaine affichée ; Semaine B = la suivante. Remplit les
+// 8 semaines suivantes en alternance A,B,A,B… Route : reproduireAlternee.
+// Réutilise callApi, toast, _planData, _planIsoWeekStr.
+// ============================================================
+(function () {
+  function semSuiv(sem) {
+    var m = String(sem || '').match(/^(\d{4})-W(\d{1,2})$/);
+    if (!m) return null;
+    var y = +m[1], w = +m[2] + 1;
+    if (w > 52) { w = 1; y += 1; }
+    return y + '-W' + ('0' + w).slice(-2);
+  }
+
+  function injectAltBar() {
+    var sec = document.getElementById('section-planning');
+    if (!sec || document.getElementById('altBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'altBar';
+    bar.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:rgba(31,74,71,0.07);border:1px solid rgba(31,74,71,0.25);border-radius:8px';
+    bar.innerHTML =
+      '<span style="font-size:13px;color:var(--ink-soft)">🔁 <strong>Roulement</strong> — reproduire en alternance (cette semaine = A, la suivante = B) sur 8 semaines :</span>' +
+      '<button class="btn primary" id="altBtn" style="padding:6px 14px;font-size:12px">Reproduire A/B</button>' +
+      '<span id="altHint" style="font-size:12px;color:var(--ink-faint)"></span>';
+    var anchor = document.getElementById('dupSemBar') || document.getElementById('recalBar') || document.getElementById('reproAffBar');
+    if (anchor && anchor.parentNode === sec) sec.insertBefore(bar, anchor.nextSibling);
+    else { var bb = document.getElementById('barBox'); if (bb) sec.insertBefore(bar, bb); else sec.appendChild(bar); }
+    document.getElementById('altBtn').addEventListener('click', altRun);
+  }
+
+  window.altRun = async function () {
+    var A = (typeof _planData !== 'undefined' && _planData && _planData.semaine)
+      ? _planData.semaine
+      : (typeof _planIsoWeekStr === 'function' ? _planIsoWeekStr(new Date()) : '');
+    if (!A) { toast('Charge d\'abord le planning', 'error'); return; }
+    var B = semSuiv(A);
+    if (!B) { toast('Semaine invalide', 'error'); return; }
+    if (!confirm('Roulement — reproduction alternée :\n\nSemaine A = ' + A + ' (cette semaine)\nSemaine B = ' + B + ' (la suivante)\n\nLes 8 semaines suivantes seront remplies en alternance A, B, A, B…\n\n⚠️ Leur contenu actuel sera remplacé. A et B ne sont pas touchées.')) return;
+    var btn = document.getElementById('altBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Reproduction…'; }
+    try {
+      var resp = await callApi('reproduireAlternee', { semaineA: A, semaineB: B, nbSemaines: 8 });
+      if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || 'inconnue'), 'error'); return; }
+      toast('✓ ' + resp.nb_semaines + ' semaines remplies en alternance A/B', 'success');
+      var hint = document.getElementById('altHint');
+      if (hint) hint.textContent = '→ ' + (resp.semaines_remplies || []).join(', ');
+    } catch (e) {
+      toast('Erreur : ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Reproduire A/B'; }
+    }
+  };
+
+  injectAltBar();
+  var tabBtn = document.querySelector('.tab[data-tab="planning"]');
+  if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectAltBar, 80); });
+})();
+  
   init();
 </script>
 </body>
