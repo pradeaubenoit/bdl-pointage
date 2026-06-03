@@ -6994,6 +6994,38 @@ async function planReproduire() {
   if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectRecalBar, 80); });
 })();
   
+  
+// ============================================================
+// PLANNING — Rafraîchissement automatique de la Vue barres
+// Bloc auto-injecté, à coller juste avant init() dans bdl-admin.html.
+// Problème résolu : au chargement, le menu de jour de la Vue barres est
+// vide, et au changement de semaine la Vue barres ne se met pas à jour
+// (il fallait sortir/revenir). Ce veilleur surveille la semaine chargée
+// (_planData.semaine) ; dès qu'elle apparaît ou change, il re-remplit le
+// menu de jour (barFillJours) et redessine la Vue barres (barRender).
+// ============================================================
+(function () {
+  var _lastSemSeen = null;
+
+  function refreshBarsIfNeeded() {
+    if (typeof _planData === 'undefined' || !_planData || !_planData.semaine) return;
+    var sec = document.getElementById('section-planning');
+    if (!sec) return;
+    if (_planData.semaine === _lastSemSeen) return; // rien de neuf
+    _lastSemSeen = _planData.semaine;
+    // Re-remplir le menu de jour puis redessiner les barres
+    try { if (typeof barFillJours === 'function') barFillJours(); } catch (e) {}
+    try { if (typeof barRender === 'function') barRender(); } catch (e) {}
+  }
+
+  // Veille légère : vérifie ~2x/seconde si la semaine chargée a changé.
+  setInterval(refreshBarsIfNeeded, 500);
+
+  // Coup d'envoi rapide à l'ouverture de l'onglet Planning.
+  var tabBtn = document.querySelector('.tab[data-tab="planning"]');
+  if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(refreshBarsIfNeeded, 120); });
+})();
+  
   init();
 </script>
 </body>
