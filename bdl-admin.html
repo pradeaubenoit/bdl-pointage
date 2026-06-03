@@ -7026,6 +7026,35 @@ async function planReproduire() {
   if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(refreshBarsIfNeeded, 120); });
 })();
   
+  
+// ============================================================
+// PLANNING — Veilleur Vue barres (version corrigée)
+// Remplit le menu de jour + redessine la Vue barres :
+//   - dès que le menu de jour est présent mais VIDE (1er affichage), et
+//   - à chaque changement de semaine.
+// Plus besoin de sortir/revenir pour forcer l'affichage.
+// (Si l'ancien veilleur est encore collé, ce n'est pas grave : celui-ci
+//  prend le relais et fait le travail.)
+// ============================================================
+(function () {
+  var _lastSemV = null;
+
+  function tick() {
+    if (typeof _planData === 'undefined' || !_planData || !_planData.semaine) return;
+    if (!document.getElementById('section-planning')) return;
+    var sel = document.getElementById('barJour');
+    if (!sel) return; // la Vue barres n'est pas encore injectée
+    var vide = (sel.options.length === 0);
+    var change = (_planData.semaine !== _lastSemV);
+    if (!vide && !change) return;
+    _lastSemV = _planData.semaine;
+    try { if (typeof barFillJours === 'function') barFillJours(); } catch (e) {}
+    try { if (typeof barRender === 'function') barRender(); } catch (e) {}
+  }
+
+  setInterval(tick, 400);
+})();
+  
   init();
 </script>
 </body>
