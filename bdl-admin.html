@@ -7116,6 +7116,34 @@ async function planReproduire() {
   if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectAltBar, 80); });
 })();
   
+  
+// ============================================================
+// PLANNING — Veilleur de semaine (rafraîchit la grille)
+// Bloc auto-injecté, à coller juste avant init() dans bdl-admin.html.
+// Problème résolu : quand on change de semaine dans le menu, la grille
+// des horaires ne se recharge pas toujours (il fallait sortir/revenir).
+// Ce veilleur compare la semaine choisie (#planSemaine) à la semaine
+// chargée (_planData.semaine) ; si elles diffèrent, il appelle
+// loadPlanningSection() qui recharge la grille ET met à jour _planData
+// (ce qui déclenche aussi le rafraîchissement de la Vue barres).
+// ============================================================
+(function () {
+  var _reqSem = null;
+
+  function tick() {
+    if (!document.getElementById('section-planning')) return;
+    var sel = document.getElementById('planSemaine');
+    if (!sel || !sel.value) return;
+    var loaded = (typeof _planData !== 'undefined' && _planData && _planData.semaine) ? _planData.semaine : null;
+    if (sel.value === loaded) { _reqSem = null; return; }   // déjà à jour
+    if (sel.value === _reqSem) return;                       // chargement déjà demandé pour cette semaine
+    _reqSem = sel.value;
+    try { if (typeof loadPlanningSection === 'function') loadPlanningSection(); } catch (e) {}
+  }
+
+  setInterval(tick, 500);
+})();
+  
   init();
 </script>
 </body>
