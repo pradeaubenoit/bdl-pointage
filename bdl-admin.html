@@ -6937,6 +6937,63 @@ async function planReproduire() {
   if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectDupBtn, 70); });
 })();
   
+  
+// ============================================================
+// PLANNING — bouton « 🔧 Recaler les postes sur les horaires »
+// Bloc auto-injecté, à coller juste avant init() dans bdl-admin.html.
+// Replace les postes de la semaine affichée sur les heures de travail
+// réelles de chaque personne. Route : recalerAffectationsSurHoraires.
+// Réutilise callApi, toast, _planData, _planIsoWeekStr, barRender.
+// ============================================================
+(function () {
+  function injectRecalBar() {
+    var sec = document.getElementById('section-planning');
+    if (!sec || document.getElementById('recalBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'recalBar';
+    bar.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:rgba(124,92,252,0.06);border:1px solid rgba(124,92,252,0.22);border-radius:8px';
+    bar.innerHTML =
+      '<span style="font-size:13px;color:var(--ink-soft)">🔧 Caler les postes sur les heures réelles de travail :</span>' +
+      '<button class="btn" id="recalBtn" style="padding:6px 14px;font-size:12px">Recaler les postes sur les horaires</button>' +
+      '<span id="recalHint" style="font-size:12px;color:var(--ink-faint)"></span>';
+    var dup = document.getElementById('dupSemBar');
+    var repro = document.getElementById('reproAffBar');
+    var anchor = repro || dup;
+    if (anchor && anchor.parentNode === sec) sec.insertBefore(bar, anchor);
+    else {
+      var barBox = document.getElementById('barBox');
+      if (barBox) sec.insertBefore(bar, barBox); else sec.appendChild(bar);
+    }
+    document.getElementById('recalBtn').addEventListener('click', recalRun);
+  }
+
+  window.recalRun = async function () {
+    var semaine = (typeof _planData !== 'undefined' && _planData && _planData.semaine)
+      ? _planData.semaine
+      : (typeof _planIsoWeekStr === 'function' ? _planIsoWeekStr(new Date()) : '');
+    if (!semaine) { toast('Charge d\'abord le planning', 'error'); return; }
+    if (!confirm('Recaler les postes sur les horaires de la semaine ' + semaine + ' ?\n\nChaque poste sera placé sur les heures de travail de la personne (1 poste = toute la plage ; plusieurs postes = répartis dans la plage).')) return;
+    var btn = document.getElementById('recalBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Recalage…'; }
+    try {
+      var resp = await callApi('recalerAffectationsSurHoraires', { semaine: semaine });
+      if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || 'inconnue'), 'error'); return; }
+      toast('✓ ' + (resp.recales || 0) + ' poste(s) recalé(s) sur ' + semaine, 'success');
+      var hint = document.getElementById('recalHint');
+      if (hint) hint.textContent = '→ ' + (resp.recales || 0) + ' recalés. Va dans la Vue barres pour vérifier.';
+      if (typeof barRender === 'function') barRender();
+    } catch (e) {
+      toast('Erreur : ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Recaler les postes sur les horaires'; }
+    }
+  };
+
+  injectRecalBar();
+  var tabBtn = document.querySelector('.tab[data-tab="planning"]');
+  if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(injectRecalBar, 80); });
+})();
+  
   init();
 </script>
 </body>
