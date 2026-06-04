@@ -7552,6 +7552,32 @@ async function planReproduire() {
   };
   callApi._cached = true;
 })();  
+  
+// ============================================================
+// PERF — Graphique 12 mois chargé EN PARALLÈLE (au lieu de mois par mois)
+// Pré-charge les 12 mois ensemble dans le cache, puis laisse le tracé
+// d'origine les relire : il les trouve déjà prêts → bien plus rapide.
+// ============================================================
+(function () {
+  if (typeof renderEvolutionChart !== 'function' || renderEvolutionChart._parallel) return;
+  var _orig = renderEvolutionChart;
+  renderEvolutionChart = async function (currentMonth) {
+    try {
+      var parts = String(currentMonth || '').split('-').map(Number);
+      var y = parts[0], m = parts[1];
+      var months = [];
+      for (var i = 11; i >= 0; i--) {
+        var d = new Date(y, m - 1 - i, 1);
+        months.push(d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2));
+      }
+      await Promise.all(months.map(function (mo) {
+        return loadProductionMonthData(mo).catch(function () { return null; });
+      }));
+    } catch (e) { /* en cas de souci, le tracé d'origine se débrouille */ }
+    return _orig.call(this, currentMonth);
+  };
+  renderEvolutionChart._parallel = true;
+})();  
   init();
 </script>
 </body>
