@@ -7146,31 +7146,61 @@ async function planReproduire() {
   
   
 // ============================================================
-// COUPURES — affichage + saisie dans la grille du planning (Pas 2)
+  // COUPURES — affichage + saisie dans la grille du planning (Pas 2)
+// ============================================================
 // Bloc auto-injecté, à coller JUSTE AVANT init() dans bdl-admin.html.
+// (v3 — la coupure repousse la FIN de journée à l'affichage.)
 //
-// Sous chaque case-jour qui a un horaire, un petit ✂️ :
+// Logique :
+//   • L'horaire STOCKÉ reste le NET de travail (ex. 8:00–16:00 = 8h).
+//   • Une coupure (pause, ex. 12:00–14:00) DÉCALE la fin AFFICHÉE de la
+//     durée de pause  ->  l'utilisateur voit 8:00–18:00 (8h travail + 2h pause).
+//   • Au moment d'ENREGISTRER, on retire la pause de la fin -> on stocke le NET.
+//     Donc duplication / roulement A/B recopient le net : aucun double décalage.
+//   • Le Total reste juste (heures travaillées), car il est calculé sur le net.
+//
+// Sous chaque case-jour, un petit ✂️ :
 //   • coupure posée   -> "✂️ 12:00–14:00" (violet, cliquable)
 //   • pas de coupure  -> "✂️" estompé (cliquable pour en poser une)
 // Clic -> mini-saisie (format 12:00-14:00 ; vide = retirer la coupure).
-// Stockage via getCoupuresSemaine / saveCoupureJour (serveur, Pas 1).
-//
-// On NE MODIFIE PAS renderPlanning : on l'enrobe pour repeindre après coup.
-// _coupData est exposé en window._coupData pour la Vue barres (Pas 3).
+// Stockage via getCoupuresSemaine / saveCoupureJour (serveur).
+// _coupData exposé en window._coupData pour la Vue barres (Pas 3).
 // ============================================================
 (function () {
-  var _coupData = {};      // empId -> jour -> {debut,fin}
-  var _coupWeek = null;    // semaine actuellement chargée
+  var _coupData = {};      // empId -> jour -> {debut,fin}  (la PAUSE)
+  var _coupWeek = null;
   window._coupData = _coupData;
 
-  // --- enrober renderPlanning : original puis peinture des ✂️ ---
+  // ---- helpers heures ----
+  function _hm2min(s) { var m = String(s || '').match(/^(\d{1,2}):(\d{2})$/); return m ? (Number(m[1]) * 60 + Number(m[2])) : null; }
+  function _min2hm(t) { if (t == null) return ''; if (t < 0) t = 0; if (t > 1439) t = 1439; var h = Math.floor(t / 60), mn = t % 60; return (h < 10 ? '0' : '') + h + ':' + (mn < 10 ? '0' : '') + mn; }
+  function _pauseDur(c) { if (!c) return 0; var a = _hm2min(c.debut), b = _hm2min(c.fin); return (a != null && b != null && b > a) ? (b - a) : 0; }
+
+  // ---- enrober renderPlanning : original puis peinture des ✂️ + décalage fin ----
   if (typeof renderPlanning === 'function' && !renderPlanning._coupWrapped) {
     var _origRender = renderPlanning;
-    renderPlanning = function () {
-      _origRender.apply(this, arguments);
-      injectCoupMarkers();
-    };
+    renderPlanning = function () { _origRender.apply(this, arguments); injectCoupMarkers(); };
     renderPlanning._coupWrapped = true;
+  }
+
+  // ---- enrober _planCollect : retirer la pause de la fin -> stocker le NET ----
+  if (typeof _planCollect === 'function' && !_planCollect._coupWrapped) {
+    var _origCollect = _planCollect;
+    _planCollect = function () {
+      var arr = _origCollect();
+      arr.forEach(function (empObj) {
+        (empObj.jours || []).forEach(function (c, j) {
+          var coup = _coupData[empObj.empId] && _coupData[empObj.empId][j];
+          var dur = _pauseDur(coup);
+          if (dur > 0 && c && c.fin) {
+            var net = _hm2min(c.fin);
+            if (net != null) c.fin = _min2hm(net - dur);
+          }
+        });
+      });
+      return arr;
+    };
+    _planCollect._coupWrapped = true;
   }
 
   function injectCoupMarkers() {
@@ -7190,18 +7220,36 @@ async function planReproduire() {
   function fmtPause(c) { return '\u2702\ufe0f ' + c.debut + '\u2013' + c.fin; }
 
   function paintCoup() {
+    var planById = {};
+    (_planData.planning || []).forEach(function (r) { planById[r.empId] = r; });
+
     var ds = document.querySelectorAll('.plan-input[data-bound="d"]');
     Array.prototype.forEach.call(ds, function (din) {
       var emp = din.getAttribute('data-emp');
       var j = Number(din.getAttribute('data-jour'));
       var td = din.parentElement;
       if (!td) return;
-      var fin = td.querySelector('.plan-input[data-bound="f"]');
-      var hasHoraire = !!(din.value && fin && fin.value);
+      var finInput = td.querySelector('.plan-input[data-bound="f"]');
       var coup = _coupData[emp] && _coupData[emp][j];
+      var dur = _pauseDur(coup);
+
+      // --- décalage de la FIN affichée (net + pause) ---
+      if (finInput) {
+        var row = planById[emp];
+        var storedNet = (row && row.jours && row.jours[j] && row.jours[j].fin) ? row.jours[j].fin : '';
+        var net;
+        if (storedNet) { net = storedNet; finInput.removeAttribute('data-net'); }
+        else {
+          var dn = finInput.getAttribute('data-net');
+          if (dn === null) { dn = finInput.value || ''; finInput.setAttribute('data-net', dn); }
+          net = dn;
+        }
+        if (net) finInput.value = (dur > 0) ? _min2hm(_hm2min(net) + dur) : net;
+      }
+
+      // --- marqueur ✂️ (toujours proposé) ---
       var old = td.querySelector('.coup-mark');
       if (old) old.parentNode.removeChild(old);
-      if (!hasHoraire && !coup) return;
       var m = document.createElement('div');
       m.className = 'coup-mark';
       m.setAttribute('data-emp', emp);
@@ -7214,7 +7262,7 @@ async function planReproduire() {
     });
   }
 
-  // --- clic délégué sur les ✂️ ---
+  // ---- clic délégué sur les ✂️ ----
   if (!window._coupClickBound) {
     window._coupClickBound = true;
     document.addEventListener('click', function (e) {
@@ -7228,18 +7276,14 @@ async function planReproduire() {
     var arr = (_planData.planning || []).filter(function (x) { return x.empId === emp; });
     return arr[0] ? (arr[0].prenom + ' ' + arr[0].nom).trim() : emp;
   }
-
-  function _pad2(hhmm) {
-    var m = hhmm.match(/^(\d{1,2}):(\d{2})$/); if (!m) return hhmm;
-    var h = m[1]; if (h.length === 1) h = '0' + h; return h + ':' + m[2];
-  }
+  function _pad2(hhmm) { var m = hhmm.match(/^(\d{1,2}):(\d{2})$/); if (!m) return hhmm; var h = m[1]; if (h.length === 1) h = '0' + h; return h + ':' + m[2]; }
 
   function coupEdit(emp, j) {
     var lbls = (typeof JP_LABELS !== 'undefined') ? JP_LABELS : ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
     var ex = (_coupData[emp] && _coupData[emp][j]) ? _coupData[emp][j] : null;
     var cur = ex ? (ex.debut + '-' + ex.fin) : '';
     var v = prompt('Coupure (pause du milieu) \u2014 ' + empName(emp) + ' \u00b7 ' + (lbls[j] || ('J' + j)) +
-      '\n\nFormat : 12:00-14:00\nLaisse vide pour retirer la coupure.', cur);
+      '\n\nFormat : 12:00-14:00\nLaisse vide pour retirer la coupure.\n\n(La fin de journ\u00e9e sera repouss\u00e9e de la dur\u00e9e de la pause.)', cur);
     if (v === null) return;
     v = String(v).trim();
     var debut = '', fin = '';
@@ -7255,7 +7299,7 @@ async function planReproduire() {
         if (debut && fin) {
           if (!_coupData[emp]) _coupData[emp] = {};
           _coupData[emp][j] = { debut: debut, fin: fin };
-          if (typeof toast === 'function') toast('Coupure pos\u00e9e', 'success');
+          if (typeof toast === 'function') toast('Coupure pos\u00e9e \u2014 fin repouss\u00e9e', 'success');
         } else {
           if (_coupData[emp]) delete _coupData[emp][j];
           if (typeof toast === 'function') toast('Coupure retir\u00e9e', 'success');
@@ -7266,7 +7310,7 @@ async function planReproduire() {
       .catch(function (err) { if (typeof toast === 'function') toast('Erreur : ' + err.message, 'error'); });
   }
 })();
-  
+
   init();
 </script>
 </body>
