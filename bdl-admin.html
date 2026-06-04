@@ -7518,6 +7518,40 @@ async function planReproduire() {
   setInterval(refreshBadge, 90000);
 })();  
  
+  
+// ============================================================
+// PERF — Mémoire-cache des lectures API (90 s)
+// Les lectures (get*, salaries) sont gardées en mémoire : appels en
+// double fusionnés + retours d'onglet instantanés. Toute écriture
+// (save/update/delete/add/set/envoyer…) vide le cache → données fraîches.
+// ============================================================
+(function () {
+  if (typeof callApi !== 'function' || callApi._cached) return;
+  var _inner = callApi;
+  var _cache = {};
+  var TTL = 90000; // 90 secondes
+
+  function isWrite(a) {
+    return /^(save|update|delete|add|set|envoyer|marquer|repondre|ack|seed|reproduire|dupliquer|recaler|sortie|supprimer|creer|addOperation|deleteOperation)/i.test(String(a || ''));
+  }
+  function isReadable(a) {
+    a = String(a || '');
+    return a === 'salaries' || /^get/.test(a);
+  }
+
+  callApi = function (action, params) {
+    if (isWrite(action)) { _cache = {}; return _inner(action, params); }
+    if (!isReadable(action)) return _inner(action, params);
+    var k = action + '|' + JSON.stringify(params || {});
+    var hit = _cache[k];
+    if (hit && (Date.now() - hit.t) < TTL) return hit.p;
+    var p = _inner(action, params);
+    _cache[k] = { t: Date.now(), p: p };
+    p.catch(function () { if (_cache[k] && _cache[k].p === p) delete _cache[k]; });
+    return p;
+  };
+  callApi._cached = true;
+})();  
   init();
 </script>
 </body>
