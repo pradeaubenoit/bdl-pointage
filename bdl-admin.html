@@ -7420,7 +7420,7 @@ async function planReproduire() {
     document.body.appendChild(ov);
 
     var sel = card.querySelector('#bdl-msg-dest');
-   api('getAllSalaries', {}).then(function(r){ var og=document.createElement('option'); og.value='ALL'; og.textContent='📢 Tous le personnel'; sel.appendChild(og); ((r&&r.salaries)||[]).filter(function(e){return e.actif!==false;}).sort(function(a,b){return ((a.prenom||'')+(a.nom||'')).localeCompare((b.prenom||'')+(b.nom||''));}).forEach(function(d){ var o=document.createElement('option'); o.value=d.id; o.textContent=((d.prenom||'')+' '+(d.nom||'')).trim()||d.id; sel.appendChild(o); }); }).catch(function(){ DEST_TEST.forEach(function(d){ var o=document.createElement('option'); o.value=d.id; o.textContent=d.label; sel.appendChild(o); }); });
+   api('salaries', {}).then(function(r){ var og=document.createElement('option'); og.value='ALL'; og.textContent='📢 Tous le personnel'; sel.appendChild(og); ((r&&r.salaries)||[]).filter(function(e){return e.actif!==false;}).sort(function(a,b){return ((a.prenom||'')+(a.nom||'')).localeCompare((b.prenom||'')+(b.nom||''));}).forEach(function(d){ var o=document.createElement('option'); o.value=d.id; o.textContent=((d.prenom||'')+' '+(d.nom||'')).trim()||d.id; sel.appendChild(o); }); }).catch(function(){ DEST_TEST.forEach(function(d){ var o=document.createElement('option'); o.value=d.id; o.textContent=d.label; sel.appendChild(o); }); });
     card.querySelector('#bdl-msg-close').addEventListener('click', closePanel);
     card.querySelector('#bdl-msg-send').addEventListener('click', sendMessage);
     return ov;
