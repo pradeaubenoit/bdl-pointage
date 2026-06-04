@@ -1275,7 +1275,9 @@ async function loadMaSemaine() {
     if (list) list.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Planning indisponible.</div>';
   }
 }
-// ============================================================
+
+  init();
+  // ============================================================
 // MESSAGERIE salarié (Étape 2) — message BLOQUANT à l'ouverture + réponse
 // À coller JUSTE AVANT </script> dans pointage-salarie.html
 // ============================================================
@@ -1338,8 +1340,6 @@ async function loadMaSemaine() {
   else document.addEventListener('DOMContentLoaded', lancer);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) showMessagesBloquants(); });
 })();  
-  
-  init();
-</script>
+  </script>
 </body>
 </html>
