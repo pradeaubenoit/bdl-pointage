@@ -1134,7 +1134,7 @@ async function loadMaSemaine() {
   if (!config || !config.empId || !config.apiUrl) return;
   var list = document.getElementById('masem-list');
   try {
-    var r = await apiGet('getMonPlanning', { empId: config.empId });
+    var r = await apiGet('getMesPlanning', { empId: config.empId });
     if (!r || !r.ok) { if (list) list.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Planning indisponible.</div>'; return; }
     _maSemaine = r;
     var todayISO = new Date().toISOString().slice(0, 10);
