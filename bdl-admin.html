@@ -7329,6 +7329,38 @@ async function planReproduire() {
     }
   }, 500);
 })();
+  
+// ============================================================
+// PERF — Sérialise les appels API (limite la concurrence à 2)
+// ============================================================
+(function () {
+  if (typeof callApi !== 'function' || callApi._serialized) return;
+  var _orig = callApi;
+  var _queue = [];
+  var _running = 0;
+  var MAX = 2;
+
+  function runJob(job) {
+    _orig(job.action, job.params).then(
+      function (r) { _running--; job.resolve(r); pump(); },
+      function (e) { _running--; job.reject(e); pump(); }
+    );
+  }
+  function pump() {
+    while (_running < MAX && _queue.length) {
+      _running++;
+      runJob(_queue.shift());
+    }
+  }
+
+  callApi = function (action, params) {
+    return new Promise(function (resolve, reject) {
+      _queue.push({ action: action, params: params, resolve: resolve, reject: reject });
+      pump();
+    });
+  };
+  callApi._serialized = true;
+})();  
   init();
 </script>
 </body>
