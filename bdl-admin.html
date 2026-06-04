@@ -7313,6 +7313,22 @@ async function planReproduire() {
 
   
 // ============================================================
+  
+// ============================================================
+// PLANNING — Veilleur "Affecter les postes" (remplit le menu des jours)
+// ============================================================
+(function () {
+  setInterval(function () {
+    if (typeof _planData === 'undefined' || !_planData) return;
+    var selJ = document.getElementById('affJour');
+    var selE = document.getElementById('affEmp');
+    var needJ = selJ && selJ.options.length === 0;
+    var needE = selE && selE.options.length <= 1;
+    if ((needJ || needE) && typeof affFillSelectors === 'function') {
+      affFillSelectors();
+    }
+  }, 500);
+})();
   init();
 </script>
 </body>
