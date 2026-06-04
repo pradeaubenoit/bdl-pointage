@@ -1275,6 +1275,69 @@ async function loadMaSemaine() {
     if (list) list.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Planning indisponible.</div>';
   }
 }
+// ============================================================
+// MESSAGERIE salarié (Étape 2) — message BLOQUANT à l'ouverture + réponse
+// À coller JUSTE AVANT </script> dans pointage-salarie.html
+// ============================================================
+(function () {
+  function _esc(s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+
+  function showMessagesBloquants() {
+    if (typeof config === 'undefined' || !config || !config.empId || !config.apiUrl) return;
+    if (document.getElementById('bdl-msg-overlay')) return;
+    if (typeof apiGet !== 'function') return;
+    apiGet('getMessagesSalarie', { empId: config.empId }).then(function (resp) {
+      if (!resp || !resp.ok || !resp.messages || !resp.messages.length) return;
+      afficherModal(resp.messages);
+    }).catch(function () {});
+  }
+
+  function afficherModal(messages) {
+    if (document.getElementById('bdl-msg-overlay')) return;
+    var ids = messages.map(function (m) { return m.id; });
+    var dernier = messages[messages.length - 1].id;
+
+    var ov = document.createElement('div');
+    ov.id = 'bdl-msg-overlay';
+    ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(20,40,35,.92);display:flex;align-items:center;justify-content:center;padding:18px;';
+
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:16px;max-width:480px;width:100%;max-height:88vh;overflow:auto;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.3);';
+
+    var html = '<div style="font-size:20px;font-weight:800;margin-bottom:4px">\uD83D\uDCE2 Message de la direction</div>' +
+      '<div style="font-size:13px;color:#667;margin-bottom:14px">Merci de lire avant de continuer.</div>';
+    messages.forEach(function (m) {
+      var d = '';
+      try { if (m.created) d = new Date(m.created).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+      html += '<div style="background:#f4f6f5;border-left:4px solid #1f5f4f;border-radius:8px;padding:12px 14px;margin-bottom:10px">' +
+        '<div style="white-space:pre-wrap;font-size:15px;line-height:1.45">' + _esc(m.texte) + '</div>' +
+        (d ? '<div style="font-size:11px;color:#889;margin-top:6px">' + d + '</div>' : '') +
+        '</div>';
+    });
+    html += '<textarea id="bdl-msg-reponse" placeholder="R\u00e9pondre (facultatif)\u2026" ' +
+      'style="width:100%;min-height:64px;border:1px solid #ccd;border-radius:8px;padding:10px;font-size:15px;font-family:inherit;box-sizing:border-box"></textarea>' +
+      '<button id="bdl-msg-vu" style="margin-top:12px;width:100%;background:#1f5f4f;color:#fff;border:0;border-radius:10px;padding:14px;font-size:16px;font-weight:700;cursor:pointer">J\'ai vu</button>';
+    box.innerHTML = html;
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+
+    document.getElementById('bdl-msg-vu').addEventListener('click', function () {
+      var btn = this; btn.disabled = true; btn.textContent = 'Envoi\u2026';
+      var rep = (document.getElementById('bdl-msg-reponse').value || '').trim();
+      var tasks = ids.map(function (id) { return apiGet('marquerMessageLu', { messageId: id, empId: config.empId }).catch(function () {}); });
+      if (rep) tasks.push(apiGet('repondreMessage', { empId: config.empId, parent: dernier, texte: rep }).catch(function () {}));
+      Promise.all(tasks).then(function () {
+        if (ov.parentNode) ov.parentNode.removeChild(ov);
+        if (typeof toast === 'function') toast(rep ? 'Message lu, r\u00e9ponse envoy\u00e9e' : 'Message lu', 'success');
+      });
+    });
+  }
+
+  function lancer() { setTimeout(showMessagesBloquants, 800); }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') lancer();
+  else document.addEventListener('DOMContentLoaded', lancer);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) showMessagesBloquants(); });
+})();  
   
   init();
 </script>
