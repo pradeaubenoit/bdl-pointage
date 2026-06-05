@@ -5578,7 +5578,32 @@ async function planSeed() {
   } catch (err) { toast('Erreur : ' + err.message, 'error'); }
 }
 
-async function planSave() {
+async function planSaveEmp(empId) {
+  if (!_planData) return;
+  var arr = _planCollect();
+  var p = null;
+  for (var i = 0; i < arr.length; i++) {
+    if (String(arr[i].empId) === String(empId)) { p = arr[i]; break; }
+  }
+  if (!p) { toast('Salarié introuvable dans la grille', 'error'); return; }
+  var b = document.getElementById('planSaveEmp_' + empId);
+  if (b) { b.disabled = true; b.textContent = '⏳'; }
+  try {
+    var resp = await callApi('savePlanningEmp', {
+      semaine: _planData.semaine,
+      empId: p.empId,
+      jours: JSON.stringify(p.jours)
+    });
+    if (resp && resp.ok) { toast('Ligne enregistrée ✓', 'success'); }
+    else { toast('Échec : ' + ((resp && resp.error) || '?'), 'error'); }
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  } finally {
+    if (b) { b.disabled = false; b.textContent = '💾'; }
+  }
+}
+  
+  async function planSave() {
   if (!_planData) return;
   var arr = _planCollect();
   var btn = document.getElementById('planBtnSave');
@@ -5925,7 +5950,7 @@ renderPlanning = function () {
       ? '<div style="font-size:11px;color:#A53A36;font-weight:700;margin-top:2px">🔴 Absent : ' + joursAbs.join(', ') + '</div>'
       : '';
     return '<tr style="background:' + col.bg + '">' +
-      '<td style="border-left:4px solid ' + col.c + '"><div style="font-weight:600">' + r.prenom + ' ' + r.nom + '</div><div style="font-size:11px;color:' + col.c + ';font-weight:600">' + (r.role || '') + '</div>' + absNote + '</td>' +
+'<td style="border-left:4px solid ' + col.c + '"><div style="font-weight:600">' + r.prenom + ' ' + r.nom + '</div><div style="font-size:11px;color:' + col.c + ';font-weight:600">' + (r.role || '') + '</div><button id="planSaveEmp_' + r.empId + '" onclick="planSaveEmp(\'' + r.empId + '\')" title="Enregistrer ce salarié" style="margin-top:4px;font-size:13px;padding:2px 8px;border:1px solid var(--border-strong);border-radius:5px;background:#fff;cursor:pointer">💾</button></td>' +
       cells +
       '<td class="td-num td-mono">' + (Math.round(total * 10) / 10) + ' h</td>' +
       '<td class="td-num td-mono" style="color:' + supColor + ';font-weight:600">' + (Math.round((r.solde_sup || 0) * 10) / 10) + ' h</td>' +
