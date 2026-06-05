@@ -7578,6 +7578,90 @@ async function planReproduire() {
   };
   renderEvolutionChart._parallel = true;
 })();  
+  
+// ============================================================
+// PERF — Graphique 12 mois via UN SEUL appel (getEvolution12)
+// Remplace les 12 allers-retours par un seul. Redéfinit
+// renderEvolutionChart (la dernière déf. prime). Tracé identique.
+// ============================================================
+(function () {
+  if (typeof renderEvolutionChart === 'function' && renderEvolutionChart._fromEndpoint) return;
+  renderEvolutionChart = async function (currentMonth) {
+    const svg = document.getElementById('chartEvolution');
+    if (!svg) return;
+    let mois = [];
+    try {
+      const resp = await callApi('getEvolution12', { month: currentMonth });
+      mois = (resp && resp.mois) || [];
+    } catch (e) { mois = []; }
+
+    const prixEau = Number(state.parametres.prix_eau_m3) || 5.70;
+    const prixGaz = Number(state.parametres.prix_gaz_tonne) || 795;
+    const cuveTonnes = Number(state.parametres.cuve_gaz_tonnes) || 12.5;
+    const datapoints = mois.map(function (t) {
+      const cout = (t.eau_m3 || 0) * prixEau + (t.gaz_pct || 0) / 100 * cuveTonnes * prixGaz;
+      const coutKg = (t.kg || 0) > 0 ? cout / t.kg : 0;
+      return { month: t.month, value: coutKg };
+    });
+
+    const w = 800, h = 240, pad = { top: 20, right: 20, bottom: 30, left: 50 };
+    const validPoints = datapoints.filter(p => p.value > 0);
+    if (validPoints.length === 0) {
+      svg.innerHTML = '<text x="400" y="120" text-anchor="middle" fill="#8A877E" font-size="14">Pas assez de données</text>';
+      return;
+    }
+    const maxVal = Math.max(...validPoints.map(p => p.value)) * 1.2;
+    const cible = Number(state.parametres.cout_kg_cible) || 1.50;
+    const innerW = w - pad.left - pad.right;
+    const innerH = h - pad.top - pad.bottom;
+    const xStep = innerW / (datapoints.length - 1 || 1);
+    function xPos(i) { return pad.left + i * xStep; }
+    function yPos(v) { return pad.top + innerH - (v / maxVal * innerH); }
+    let grid = '';
+    for (let i = 0; i <= 4; i++) {
+      const yv = (maxVal / 4) * i;
+      const yp = yPos(yv);
+      grid += `<line x1="${pad.left}" y1="${yp}" x2="${w - pad.right}" y2="${yp}" />`;
+      grid += `<text x="${pad.left - 8}" y="${yp + 4}" text-anchor="end" fill="#8A877E" font-size="10" font-family="JetBrains Mono">${yv.toFixed(3)}</text>`;
+    }
+    const cibleY = yPos(cible);
+    const cibleLine = cible <= maxVal ? `<line class="chart-target" x1="${pad.left}" y1="${cibleY}" x2="${w - pad.right}" y2="${cibleY}"/>
+      <text x="${w - pad.right - 4}" y="${cibleY - 4}" text-anchor="end" fill="#2E6B3E" font-size="10" font-family="JetBrains Mono">cible ${cible.toFixed(2)}</text>` : '';
+    const validInOrder = datapoints.map((p, i) => p.value > 0 ? { x: xPos(i), y: yPos(p.value) } : null);
+    let pathD = '';
+    let started = false;
+    validInOrder.forEach((pt, i) => {
+      if (!pt) return;
+      pathD += (started ? ' L ' : 'M ') + pt.x + ' ' + pt.y;
+      started = true;
+    });
+    let areaD = pathD;
+    const firstValid = validInOrder.findIndex(p => p);
+    const lastValid = validInOrder.length - 1 - [...validInOrder].reverse().findIndex(p => p);
+    if (firstValid >= 0 && lastValid >= 0 && firstValid < lastValid) {
+      areaD += ` L ${xPos(lastValid)} ${pad.top + innerH} L ${xPos(firstValid)} ${pad.top + innerH} Z`;
+    }
+    let dots = '', xLabels = '';
+    datapoints.forEach((p, i) => {
+      if (p.value > 0) {
+        dots += `<circle class="chart-dot" cx="${xPos(i)}" cy="${yPos(p.value)}" r="4"/>`;
+        dots += `<title>${monthLabel(p.month)} : ${p.value.toFixed(4)} €/kg</title>`;
+      }
+      if (i === 0 || i === datapoints.length - 1 || i % 2 === 0) {
+        xLabels += `<text x="${xPos(i)}" y="${h - pad.bottom + 16}" text-anchor="middle" fill="#8A877E" font-size="10" font-family="JetBrains Mono">${p.month.slice(5)}/${p.month.slice(2, 4)}</text>`;
+      }
+    });
+    svg.innerHTML = `
+      <g class="chart-grid">${grid}</g>
+      ${cibleLine}
+      <path class="chart-area" d="${areaD}"/>
+      <path class="chart-line" d="${pathD}"/>
+      ${dots}
+      ${xLabels}
+    `;
+  };
+  renderEvolutionChart._fromEndpoint = true;
+})();  
   init();
 </script>
 </body>
