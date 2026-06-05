@@ -7795,6 +7795,48 @@ async function planReproduire() {
   }
   setInterval(injecter, 1500);
 })();  
+  
+(function () {
+  function lancerABC() {
+    if (!_planData || !_planData.semaine) { toast('Ouvre d\'abord une semaine de planning', 'error'); return; }
+    var A = _planData.semaine;
+    var nbStr = prompt('Reproduire le cycle A/B/C.\n\nA (semaine affichée) = ' + A + '\nB = la semaine suivante, C = encore la suivante.\n\nSur combien de semaines APRÈS C reproduire le cycle ?', '6');
+    if (nbStr === null) return;
+    var nb = parseInt(nbStr, 10);
+    if (!nb || nb < 1) { toast('Nombre invalide', 'error'); return; }
+    if (!confirm('OK pour poser le cycle A/B/C sur ' + nb + ' semaines après ' + A + ' ?\n\n(Les semaines déjà saisies ne seront PAS touchées.)')) return;
+    var btn = document.getElementById('abcBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '🔁 …'; }
+    callApi('reproduireABC', { semaineA: A, nb: nb }).then(function (r) {
+      if (btn) { btn.disabled = false; btn.textContent = '🔁 A/B/C'; }
+      if (r && r.ok) {
+        toast((r.remplies || []).length + ' semaines remplies', 'success');
+        alert('A=' + r.semaineA + '   B=' + r.semaineB + '   C=' + r.semaineC + '\n\nRemplies :\n' + (r.remplies || []).join('\n') + ((r.ignorees || []).length ? ('\n\nIgnorées (déjà saisies) :\n' + r.ignorees.join('\n')) : ''));
+        if (typeof loadPlanningSection === 'function') loadPlanningSection();
+      } else {
+        toast('Échec : ' + ((r && r.error) || '?'), 'error');
+      }
+    }).catch(function (e) {
+      if (btn) { btn.disabled = false; btn.textContent = '🔁 A/B/C'; }
+      toast('Erreur : ' + e.message, 'error');
+    });
+  }
+  window.lancerReproABC = lancerABC;
+
+  function injecterABC() {
+    var save = document.getElementById('planBtnSave');
+    if (!save || document.getElementById('abcBtn')) return;
+    var b = document.createElement('button');
+    b.id = 'abcBtn';
+    b.className = save.className;
+    b.textContent = '🔁 A/B/C';
+    b.style.marginLeft = '8px';
+    b.title = 'Reproduire le cycle A/B/C sur les semaines suivantes';
+    b.addEventListener('click', lancerABC);
+    save.parentNode.insertBefore(b, save.nextSibling);
+  }
+  setInterval(injecterABC, 1500);
+})();  
   init();
 </script>
 </body>
