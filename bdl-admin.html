@@ -7740,6 +7740,61 @@ async function planReproduire() {
     header.appendChild(btn);
   }
 })();  
+  
+(function () {
+  var POSTE_ROULEMENT = 'Engagement Calandre 1';
+
+  function ouvrirEquite() {
+    var ov = document.getElementById('equiteOverlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'equiteOverlay';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
+      ov.addEventListener('click', function (e) { if (e.target === ov) ov.style.display = 'none'; });
+      ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:520px;width:100%;max-height:85vh;overflow:auto;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.25)">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
+          '<div style="font-weight:700;font-size:16px">⚖️ Équité après-midi — ' + POSTE_ROULEMENT + '</div>' +
+          '<button id="equiteClose" style="border:1px solid #ccc;border-radius:8px;background:#fff;padding:4px 10px;cursor:pointer">Fermer</button>' +
+        '</div>' +
+        '<div style="font-size:12px;color:#666;margin-bottom:12px">Du moins d\'après-midis au plus : en haut = à qui c\'est le tour.</div>' +
+        '<div id="equiteBody">Chargement…</div>' +
+      '</div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#equiteClose').addEventListener('click', function () { ov.style.display = 'none'; });
+    }
+    ov.style.display = 'flex';
+    var body = ov.querySelector('#equiteBody');
+    body.innerHTML = 'Chargement…';
+    callApi('getRoulementAprem', { poste: POSTE_ROULEMENT }).then(function (r) {
+      if (!r || !r.ok) { body.innerHTML = 'Erreur de chargement.'; return; }
+      var lignes = (r.salaries || []).map(function (s, i) {
+        var tour = (i === 0) ? ' 👈 au tour' : '';
+        return '<tr style="border-bottom:1px solid #eee">' +
+          '<td style="padding:6px 4px">' + (s.nom || s.empId) + tour + '</td>' +
+          '<td style="padding:6px 4px;text-align:center;font-weight:700">' + s.nb_aprem + '</td>' +
+          '<td style="padding:6px 4px;text-align:center;color:#888;font-size:12px">' + (s.derniere_aprem || '—') + '</td>' +
+        '</tr>';
+      }).join('');
+      body.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:14px">' +
+        '<tr style="text-align:left;color:#888;font-size:12px"><th style="padding:4px">Salarié</th><th style="padding:4px;text-align:center">Aprèm</th><th style="padding:4px;text-align:center">Dernière</th></tr>' +
+        lignes + '</table>';
+    }).catch(function (e) { body.innerHTML = 'Erreur : ' + e.message; });
+  }
+  window.ouvrirEquiteAprem = ouvrirEquite;
+
+  function injecter() {
+    var save = document.getElementById('planBtnSave');
+    if (!save || document.getElementById('equiteBtn')) return;
+    var b = document.createElement('button');
+    b.id = 'equiteBtn';
+    b.className = save.className;
+    b.textContent = '⚖️ Équité aprèm';
+    b.style.marginLeft = '8px';
+    b.addEventListener('click', ouvrirEquite);
+    save.parentNode.insertBefore(b, save.nextSibling);
+  }
+  setInterval(injecter, 1500);
+})();  
   init();
 </script>
 </body>
