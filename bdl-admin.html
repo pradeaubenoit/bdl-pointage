@@ -6755,7 +6755,7 @@ async function planReproduire() {
       '<textarea id="askClaudeQ" rows="3" placeholder="Ex : Hier a-t-il bien tourné ? Les heures sup étaient-elles justifiées par la prod ? Propose une orga avec moins d\'heures sup.&#10;Ou : Demain il me manque 1 personne à l\'engagement Calandre 1, qui je mets ?" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-family:inherit;font-size:14px;resize:vertical;background:#fff"></textarea>' +
       '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">' +
         '<label style="font-size:12px;color:var(--ink-soft)">Jour analysé :</label>' +
-        '<input type="date" id="askClaudeDate" style="padding:6px 8px;border:1px solid var(--border-strong);border-radius:6px;font-size:13px;background:#fff">' +
+        '<input type="date" id="askClaudeDate" value="' + (function(){var _d=new Date();return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');})() + '" style="padding:6px 8px;border:1px solid var(--border-strong);border-radius:6px;font-size:13px;background:#fff">' +
         '<button class="btn primary" id="askClaudeBtn" style="margin-left:auto">💬 Demander à Claude</button>' +
       '</div>' +
       '<div id="askClaudeRep" style="display:none;margin-top:12px;padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:10px;font-size:14px;line-height:1.6"></div>';
