@@ -7662,6 +7662,59 @@ async function planReproduire() {
   };
   renderEvolutionChart._fromEndpoint = true;
 })();  
+  
+// ============================================================
+// PERF — Scoring gardé en mémoire pour la session (réouverture instantanée)
+// Le scoring est lourd à calculer. Une fois chargé, on le réaffiche
+// instantanément quand tu reviens sur l'onglet (plus de recalcul).
+// Bouton "↻ Recalculer" pour forcer du frais quand tu veux.
+// ============================================================
+(function () {
+  if (window._scoringSessionPatch) return;
+  window._scoringSessionPatch = true;
+
+  loadScoringSection = async function () {
+    if (typeof _scoringData !== 'undefined' && _scoringData) {
+      injectScoringRefreshBtn();
+      renderScoring();
+      return;
+    }
+    var tbody = document.getElementById('scoringTbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9"><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
+    try {
+      var resp = await callApi('getWeeklyScoring', { weeks: 8 });
+      if (!resp || !resp.ok) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + ((resp && resp.error) || 'inconnue') + '</td></tr>';
+        return;
+      }
+      _scoringData = resp;
+      var noteEl = document.getElementById('scoringMethodo');
+      if (noteEl && resp.complet_note) noteEl.textContent = resp.complet_note;
+      injectScoringRefreshBtn();
+      renderScoring();
+    } catch (err) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + err.message + '</td></tr>';
+    }
+  };
+
+  function injectScoringRefreshBtn() {
+    var sec = document.getElementById('section-scoring');
+    if (!sec || document.getElementById('scoringRefreshBtn')) return;
+    var header = sec.querySelector('.section-header');
+    if (!header) return;
+    var btn = document.createElement('button');
+    btn.id = 'scoringRefreshBtn';
+    btn.className = 'btn ghost';
+    btn.style.cssText = 'padding:6px 12px;font-size:12px;margin-left:8px';
+    btn.textContent = '↻ Recalculer';
+    btn.title = 'Forcer un recalcul (sinon le scoring reste celui de cette session)';
+    btn.addEventListener('click', function () {
+      _scoringData = null;
+      loadScoringSection();
+    });
+    header.appendChild(btn);
+  }
+})();  
   init();
 </script>
 </body>
