@@ -1940,6 +1940,16 @@ tr:hover { background: var(--bg-sunken); }
       </div>
       <div class="form-row">
         <div>
+<div class="form-label">💧 Seuil eau (m³/jour)</div>
+          <div class="form-label-meta">Alerte si dépassé (vanne / fuite)</div>
+        </div>
+        <div class="form-input-wrap">
+          <input type="number" class="form-input" id="seuilEauM3Abs" step="1" min="5" max="200">
+          <span class="form-unit">m³</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
           <div class="form-label">📅 Fenêtre de référence</div>
           <div class="form-label-meta">Nombre de jours pour la médiane</div>
         </div>
@@ -3414,6 +3424,7 @@ async function openAnomaliesSettingsModal() {
     document.getElementById('seuilAnomGaz').value = p.alerte_gaz_seuil_pct;
     document.getElementById('seuilAnomCompr').value = p.alerte_compresseur_seuil_pct;
     document.getElementById('seuilAnomFenetre').value = p.fenetre_moyenne_jours;
+    document.getElementById('seuilEauM3Abs').value = p.alerte_eau_m3_abs || 15;
     document.getElementById('anomaliesSettingsModal').classList.add('visible');
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
@@ -3425,6 +3436,7 @@ async function saveAnomaliesSettings() {
   const seuilGaz = Number(document.getElementById('seuilAnomGaz').value);
   const seuilCompr = Number(document.getElementById('seuilAnomCompr').value);
   const fenetre = Number(document.getElementById('seuilAnomFenetre').value);
+  const seuilEauM3 = Number(document.getElementById('seuilEauM3Abs').value);
   if (!seuilEau || !seuilGaz || !seuilCompr || !fenetre) {
     toast('Tous les seuils doivent être renseignés', 'error');
     return;
@@ -3434,7 +3446,8 @@ async function saveAnomaliesSettings() {
       callApi('updateParametre', { cle: 'alerte_eau_seuil_pct', valeur: seuilEau }),
       callApi('updateParametre', { cle: 'alerte_gaz_seuil_pct', valeur: seuilGaz }),
       callApi('updateParametre', { cle: 'alerte_compresseur_seuil_pct', valeur: seuilCompr }),
-      callApi('updateParametre', { cle: 'fenetre_moyenne_jours', valeur: fenetre })
+callApi('updateParametre', { cle: 'fenetre_moyenne_jours', valeur: fenetre }),
+      callApi('updateParametre', { cle: 'alerte_eau_m3_abs', valeur: seuilEauM3 || 15 })
     ]);
     state.parametres.alerte_eau_seuil_pct = seuilEau;
     state.parametres.alerte_gaz_seuil_pct = seuilGaz;
