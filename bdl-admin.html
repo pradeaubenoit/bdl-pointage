@@ -6595,7 +6595,7 @@ function _planFillSemaineSelector() {
 
 async function planReproduire() {
   if (!_planData || !_planData.semaine) { toast("Charge d'abord une semaine", 'error'); return; }
-  var sem = _planData.semaine;
+  var sem = (function(){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-((d.getDay()+6)%7));var w1=new Date(d.getFullYear(),0,4);var wk=1+Math.round(((d-w1)/86400000-3+((w1.getDay()+6)%7))/7);return d.getFullYear()+'-W'+(wk<10?'0'+wk:wk);})();
   if (!confirm('Reproduire le planning de ' + sem + ' (horaires + postes) sur les 8 semaines suivantes ?\n\nLes semaines qui ont déjà un planning ne seront PAS touchées.')) return;
   var btn = document.getElementById('planBtnRepro');
   if (btn) { btn.disabled = true; btn.textContent = 'Copie…'; }
