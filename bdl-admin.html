@@ -7850,6 +7850,50 @@ async function planReproduire() {
   }
   setInterval(injecterABC, 1500);
 })();  
+  
+// ============================================================
+// BOUTON "📢 Diffuser aux salariés" (à coller juste avant init())
+// Diffuse la semaine affichée + la suivante (brouillon -> diffusé).
+// ============================================================
+window.diffuserSemaine = async function () {
+  if (!_planData || !_planData.semaine) {
+    toast("Ouvre d'abord une semaine de planning", 'error');
+    return;
+  }
+  var sem = _planData.semaine;
+  if (!confirm('Diffuser ' + sem + ' (+ la semaine suivante) aux salariés ?\n\nIls verront ces 2 semaines. Tes autres semaines restent invisibles tant que tu ne les diffuses pas.')) {
+    return;
+  }
+  var btn = document.getElementById('diffuserBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '📢 Diffusion…'; }
+  try {
+    var resp = await callApi('diffuserPlanning', { semaine: sem });
+    if (resp && resp.ok) {
+      toast('Diffusé aux salariés : ' + resp.semaines.join(' + ') + ' (' + resp.lignes + ' lignes) ✓', 'success');
+    } else {
+      toast('Erreur diffusion : ' + ((resp && resp.error) || ''), 'error');
+    }
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '📢 Diffuser'; }
+  }
+};
+
+(function injectDiffuserBtn() {
+  setInterval(function () {
+    var save = document.getElementById('planBtnSave');
+    if (!save) return;
+    if (document.getElementById('diffuserBtn')) return;
+    var b = document.createElement('button');
+    b.id = 'diffuserBtn';
+    b.type = 'button';
+    b.innerHTML = '📢 Diffuser';
+    b.onclick = window.diffuserSemaine;
+    b.style.cssText = 'margin-left:8px;padding:8px 14px;border:none;border-radius:8px;background:#1F4E4A;color:#fff;font-weight:600;cursor:pointer;';
+    save.parentNode.insertBefore(b, save.nextSibling);
+  }, 1500);
+})();  
   init();
 </script>
 </body>
