@@ -7991,6 +7991,112 @@ window.validerRoulement = async function () {
     ref.parentNode.insertBefore(bRoul, bFixe.nextSibling);
   }, 1500);
 })();  
+  
+// ============================================================
+// GRAPHIQUE HEURES SUP (évolution par salarié) — sous le planning
+// ============================================================
+window._supColors = ['#1F4E4A','#C0504D','#4F81BD','#9BBB59','#8064A2','#4BACC6','#F79646','#2C4D75','#772C2A','#5F7530','#3F3151','#1A6B75','#E6A03C','#7F6084','#3C7D3C','#B5532F','#777777','#A05195'];
+
+window.renderSupChart = function (data) {
+  var box = document.getElementById('supChartArea');
+  if (!box) return;
+  var sems = data.semaines || [];
+  var series = data.series || [];
+  if (!sems.length || !series.length) { box.innerHTML = '<div class="empty-state">Pas encore de données d\'heures sup.</div>'; return; }
+
+  var W = 820, H = 380, padL = 40, padR = 16, padT = 16, padB = 60;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  var maxV = 0;
+  series.forEach(function (s) { s.valeurs.forEach(function (v) { if (v > maxV) maxV = v; }); });
+  maxV = Math.ceil((maxV || 1) / 5) * 5;
+  var n = sems.length;
+  var x = function (i) { return padL + (n === 1 ? plotW / 2 : plotW * i / (n - 1)); };
+  var y = function (v) { return padT + plotH - (v / maxV) * plotH; };
+
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;font-family:inherit">';
+  for (var g = 0; g <= 5; g++) {
+    var gv = maxV * g / 5; var gy = y(gv);
+    svg += '<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '" stroke="#e5e5e5"/>';
+    svg += '<text x="' + (padL - 6) + '" y="' + (gy + 4) + '" text-anchor="end" font-size="10" fill="#999">' + gv + '</text>';
+  }
+  sems.forEach(function (s, i) {
+    var lab = s.replace('2026-', '');
+    var isLast = (i === n - 1);
+    svg += '<text x="' + x(i) + '" y="' + (H - padB + 16) + '" text-anchor="middle" font-size="10" fill="' + (isLast ? '#C0504D' : '#666') + '">' + lab + (isLast ? '*' : '') + '</text>';
+  });
+  series.forEach(function (s, si) {
+    var col = window._supColors[si % window._supColors.length];
+    var pts = s.valeurs.map(function (v, i) { return x(i) + ',' + y(v); }).join(' ');
+    svg += '<polyline data-emp="' + s.empId + '" fill="none" stroke="' + col + '" stroke-width="2" points="' + pts + '" opacity="0.9"/>';
+    s.valeurs.forEach(function (v, i) {
+      svg += '<circle data-emp="' + s.empId + '" cx="' + x(i) + '" cy="' + y(v) + '" r="2.5" fill="' + col + '"/>';
+    });
+  });
+  svg += '<text x="' + padL + '" y="' + (H - 6) + '" font-size="9" fill="#999">* semaine en cours (partielle)</text>';
+  svg += '</svg>';
+
+  var leg = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">';
+  series.forEach(function (s, si) {
+    var col = window._supColors[si % window._supColors.length];
+    leg += '<span class="suplegend" data-emp="' + s.empId + '" style="cursor:pointer;font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid ' + col + ';color:' + col + '">\u25CF ' + s.nom + '</span>';
+  });
+  leg += '</div>';
+
+  box.innerHTML = svg + leg;
+
+  Array.prototype.forEach.call(box.querySelectorAll('.suplegend'), function (chip) {
+    chip.addEventListener('click', function () {
+      var emp = chip.getAttribute('data-emp');
+      var on = chip.style.opacity !== '0.35';
+      chip.style.opacity = on ? '0.35' : '1';
+      Array.prototype.forEach.call(box.querySelectorAll('[data-emp="' + emp + '"]'), function (el) {
+        if (el.classList && el.classList.contains('suplegend')) return;
+        el.style.display = on ? 'none' : '';
+      });
+    });
+  });
+};
+
+window.loadSupChart = async function () {
+  var box = document.getElementById('supChartArea');
+  if (box) box.innerHTML = '<div class="empty-state">Chargement du graphique…</div>';
+  try {
+    var resp = await callApi('getSerieHeuresSup', {});
+    if (resp && resp.ok) window.renderSupChart(resp);
+    else if (box) box.innerHTML = '<div class="empty-state">Erreur : ' + ((resp && resp.error) || '') + '</div>';
+  } catch (e) {
+    if (box) box.innerHTML = '<div class="empty-state">Erreur : ' + e.message + '</div>';
+  }
+};
+
+(function injectSupChart() {
+  setInterval(function () {
+    var sec = document.getElementById('section-planning');
+    if (!sec) return;
+    if (document.getElementById('supChartCard')) return;
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'supChartCard';
+    card.style.marginTop = '16px';
+    card.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">' +
+        '<div style="font-weight:600">📈 Évolution des heures supplémentaires</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button class="btn ghost" id="supRefresh" style="padding:6px 12px;font-size:12px">↻ Actualiser</button>' +
+          '<button class="btn primary" id="supAnalyse" style="padding:6px 12px;font-size:12px">🤖 Analyse selon Benoît</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="supChartArea"><div class="empty-state">Chargement…</div></div>' +
+      '<div id="supAnalyseArea" style="margin-top:12px"></div>';
+    sec.appendChild(card);
+    document.getElementById('supRefresh').addEventListener('click', window.loadSupChart);
+    document.getElementById('supAnalyse').addEventListener('click', function () {
+      if (window.lancerAnalyseSup) window.lancerAnalyseSup();
+      else document.getElementById('supAnalyseArea').innerHTML = '<div class="empty-state">Analyse à brancher (étape 3).</div>';
+    });
+    window.loadSupChart();
+  }, 1500);
+})();  
   init();
 </script>
 </body>
