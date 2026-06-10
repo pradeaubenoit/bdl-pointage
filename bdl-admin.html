@@ -7894,6 +7894,103 @@ window.diffuserSemaine = async function () {
     save.parentNode.insertBefore(b, save.nextSibling);
   }, 1500);
 })();  
+  
+// ============================================================
+// BOUTONS ROULEMENT / FIXE (sélection multiple) — avant init()
+// Moteur : roulementAuto_. Semaine de base = semaine affichée.
+// ============================================================
+window._roulMode = 'roulement';
+
+window.ouvrirRoulement = async function (mode) {
+  if (!_planData || !_planData.semaine) { toast("Ouvre d'abord une semaine de planning", 'error'); return; }
+  window._roulMode = mode;
+  var ov = document.getElementById('roulOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'roulOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;';
+    ov.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:480px;width:92%;max-height:85vh;overflow:auto;padding:20px;">' +
+      '<h3 id="roulTitre" style="margin:0 0 4px;color:#1F4E4A;"></h3>' +
+      '<p id="roulSousTitre" style="margin:0 0 12px;color:#555;font-size:13px;"></p>' +
+      '<div id="roulListe" style="margin-bottom:12px;"></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">' +
+        '<label style="font-size:13px;color:#333;">Reproduire sur</label>' +
+        '<input id="roulNb" type="number" value="8" min="1" max="52" style="width:64px;padding:6px;border:1px solid #ccc;border-radius:6px;">' +
+        '<span style="font-size:13px;color:#333;">semaines</span>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;">' +
+        '<button onclick="document.getElementById(\'roulOverlay\').remove()" style="padding:8px 14px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;">Annuler</button>' +
+        '<button id="roulValider" style="padding:8px 14px;border:none;border-radius:8px;background:#1F4E4A;color:#fff;font-weight:600;cursor:pointer;">Valider</button>' +
+      '</div>' +
+    '</div>';
+    document.body.appendChild(ov);
+    document.getElementById('roulValider').onclick = window.validerRoulement;
+  } else {
+    ov.style.display = 'flex';
+  }
+  document.getElementById('roulTitre').textContent = (mode === 'fixe') ? '🟦 Horaire fixe' : '🔁 Roulement';
+  document.getElementById('roulSousTitre').textContent = (mode === 'fixe')
+    ? 'Coche les salariés : leur semaine ' + _planData.semaine + ' sera recopiée à l\'identique.'
+    : 'Coche ceux qui tournent (2 = A/B, 3 = A/B/C). Base : ' + _planData.semaine + '.';
+  var liste = document.getElementById('roulListe');
+  liste.innerHTML = 'Chargement…';
+  try {
+    var resp = await callApi('salaries', {});
+    var sals = ((resp && resp.salaries) ? resp.salaries : []).filter(function (s) { return s.actif; });
+    sals.sort(function (a, b) { return (a.prenom + a.nom).localeCompare(b.prenom + b.nom); });
+    liste.innerHTML = sals.map(function (s) {
+      return '<label style="display:block;padding:4px 0;font-size:14px;cursor:pointer;">' +
+        '<input type="checkbox" class="roul-chk" value="' + s.id + '" style="margin-right:8px;">' +
+        (s.prenom + ' ' + s.nom).trim() + '</label>';
+    }).join('') || 'Aucun salarié actif';
+  } catch (e) {
+    liste.innerHTML = 'Erreur chargement salariés';
+  }
+};
+
+window.validerRoulement = async function () {
+  var ids = Array.prototype.slice.call(document.querySelectorAll('.roul-chk:checked')).map(function (c) { return c.value; });
+  if (!ids.length) { toast('Coche au moins un salarié', 'error'); return; }
+  var nb = Number((document.getElementById('roulNb') || {}).value) || 8;
+  var rotate = (window._roulMode !== 'fixe');
+  if (rotate && ids.length < 2) { toast('Pour un roulement, coche au moins 2 salariés', 'error'); return; }
+  var btn = document.getElementById('roulValider');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    var resp = await callApi('roulementAuto', { emps: ids.join(','), semBase: _planData.semaine, nb: nb, rotate: rotate });
+    if (resp && resp.ok) {
+      toast((rotate ? 'Roulement' : 'Horaire fixe') + ' posé sur ' + resp.semaines.length + ' semaines ✓', 'success');
+      var o = document.getElementById('roulOverlay'); if (o) o.remove();
+      if (typeof loadPlanningSection === 'function') loadPlanningSection();
+    } else {
+      toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
+    }
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Valider'; }
+  }
+};
+
+(function injectRoulBtns() {
+  setInterval(function () {
+    var save = document.getElementById('planBtnSave');
+    if (!save) return;
+    if (document.getElementById('roulBtn')) return;
+    var mk = function (id, label, mode) {
+      var b = document.createElement('button');
+      b.id = id; b.type = 'button'; b.textContent = label;
+      b.onclick = function () { window.ouvrirRoulement(mode); };
+      b.style.cssText = 'margin-left:8px;padding:8px 14px;border:none;border-radius:8px;background:#2E7D6B;color:#fff;font-weight:600;cursor:pointer;';
+      return b;
+    };
+    var ref = document.getElementById('diffuserBtn') || save;
+    var bFixe = mk('fixeBtn', '🟦 Horaire fixe', 'fixe');
+    var bRoul = mk('roulBtn', '🔁 Roulement', 'roulement');
+    ref.parentNode.insertBefore(bFixe, ref.nextSibling);
+    ref.parentNode.insertBefore(bRoul, bFixe.nextSibling);
+  }, 1500);
+})();  
   init();
 </script>
 </body>
