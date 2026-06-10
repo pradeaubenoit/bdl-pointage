@@ -8097,6 +8097,22 @@ window.loadSupChart = async function () {
     window.loadSupChart();
   }, 1500);
 })();  
+  
+window.lancerAnalyseSup = async function () {
+  var area = document.getElementById('supAnalyseArea');
+  if (area) area.innerHTML = '<div class="empty-state">🤖 Analyse en cours… (quelques secondes)</div>';
+  try {
+    var resp = await callApi('analyseHeuresSup', {});
+    if (resp && resp.ok) {
+      area.innerHTML = '<div class="card" style="background:var(--bg-sunken);white-space:pre-wrap;font-size:13px;line-height:1.6">' +
+        String(resp.analyse).replace(/</g, '&lt;') + '</div>';
+    } else if (area) {
+      area.innerHTML = '<div class="empty-state">Erreur : ' + ((resp && resp.error) || '') + '</div>';
+    }
+  } catch (e) {
+    if (area) area.innerHTML = '<div class="empty-state">Erreur : ' + e.message + '</div>';
+  }
+};  
   init();
 </script>
 </body>
