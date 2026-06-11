@@ -8113,6 +8113,50 @@ window.lancerAnalyseSup = async function () {
     if (area) area.innerHTML = '<div class="empty-state">Erreur : ' + e.message + '</div>';
   }
 };  
+  
+(function injectReproPosteSalarie() {
+  setInterval(function () {
+    var sec = document.getElementById('section-planning');
+    if (!sec) return;
+    if (document.getElementById('reproPosteSalCard')) return;
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'reproPosteSalCard';
+    card.style.marginTop = '12px';
+    card.innerHTML =
+      '<div style="font-weight:600;margin-bottom:6px">🧩 Reproduire le poste d\'UN salarié sur la semaine</div>' +
+      '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px">Affecte d\'abord le poste sur un jour, puis applique-le à toute la semaine — pour ce salarié uniquement, samedi compris.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+        '<select id="rpsSal" style="padding:6px;border:1px solid #ccc;border-radius:6px;min-width:160px"></select>' +
+        '<select id="rpsJour" style="padding:6px;border:1px solid #ccc;border-radius:6px">' +
+          '<option value="0">depuis Lundi</option><option value="1">depuis Mardi</option><option value="2">depuis Mercredi</option><option value="3">depuis Jeudi</option><option value="4">depuis Vendredi</option><option value="5">depuis Samedi</option>' +
+        '</select>' +
+        '<button class="btn primary" id="rpsBtn" style="padding:6px 12px">→ Toute la semaine (sam. inclus)</button>' +
+      '</div>';
+    sec.appendChild(card);
+    callApi('salaries', {}).then(function (resp) {
+      var sals = ((resp && resp.salaries) ? resp.salaries : []).filter(function (s) { return s.actif; });
+      sals.sort(function (a, b) { return (a.prenom + a.nom).localeCompare(b.prenom + b.nom); });
+      var sel = document.getElementById('rpsSal');
+      if (sel) sel.innerHTML = sals.map(function (s) {
+        return '<option value="' + s.id + '">' + (s.prenom + ' ' + s.nom).trim() + '</option>';
+      }).join('');
+    });
+    document.getElementById('rpsBtn').addEventListener('click', async function () {
+      var btn = document.getElementById('rpsBtn');
+      var emp = document.getElementById('rpsSal').value;
+      var jour = document.getElementById('rpsJour').value;
+      if (!_planData || !_planData.semaine) { toast('Ouvre une semaine de planning', 'error'); return; }
+      btn.disabled = true; var old = btn.textContent; btn.textContent = '…';
+      try {
+        var resp = await callApi('reproduirePostesJourSalarie', { empId: emp, semaine: _planData.semaine, jour: jour });
+        if (resp && resp.ok) { toast('Poste reproduit sur la semaine ✓', 'success'); if (typeof loadPlanningSection === 'function') loadPlanningSection(); }
+        else toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
+      } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+      finally { btn.disabled = false; btn.textContent = old; }
+    });
+  }, 1500);
+})();  
   init();
 </script>
 </body>
