@@ -7464,7 +7464,14 @@ async function planReproduire() {
     return ov;
   }
 
-  function openPanel() { if (panel) return; panel = buildPanel(); loadInbox(); }
+function openPanel() {
+    if (panel) return;
+    panel = buildPanel();
+    loadInbox();
+    api('marquerMessagerieVue', {}).then(function () {
+      refreshBadge();
+    }).catch(function () {});
+  }
   function closePanel() { if (panel && panel.parentNode) panel.parentNode.removeChild(panel); panel = null; refreshBadge(); }
 
   function sendMessage() {
@@ -7546,7 +7553,9 @@ async function planReproduire() {
   function refreshBadge() {
     api('getMessagesAdmin', {}).then(function (r) {
       if (!r || !r.ok) return;
-      var n = (r.reponses ? r.reponses.length : 0) + (r.signalements ? r.signalements.length : 0);
+      var nRep = (r.reponses || []).filter(function (m) { return !m.vu; }).length;
+      var nSig = (r.signalements || []).filter(function (s) { return !s.vu; }).length;
+      var n = nRep + nSig;
       if (n > 0) { badge.textContent = n; badge.style.display = 'block'; } else { badge.style.display = 'none'; }
     }).catch(function () {});
   }
