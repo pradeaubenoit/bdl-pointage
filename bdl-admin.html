@@ -7532,7 +7532,8 @@ function openPanel() {
       html += '<div style="background:#faf7ef;border:1px solid #e6e0d4;border-radius:8px;padding:10px;margin-bottom:8px;">' +
         '<div style="font-size:13px;color:#666;">À ' + esc(m.dest_nom) + ' · ' + fmtDate(m.created) + ' · 👁 ' + (m.nb_lus || 0) + ' lu(s)</div>' +
         '<div>' + esc(m.texte) + '</div>' +
-      '</div>';
+      '<button type="button" class="bdl-env-del" data-id="' + esc(m.id) + '" style="border:none;background:#fbe9e8;color:#A53A36;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;margin-top:6px;">🗑️ Supprimer</button>' +
+        '</div>';
     });
 
     box.innerHTML = html;
@@ -7567,6 +7568,17 @@ function openPanel() {
         if (!confirm('Supprimer ce signalement ?')) return;
         b.disabled = true;
         api('supprimerSignalement', { id: id }).then(function (r) {
+          if (r && r.ok) { loadInbox(); refreshBadge(); }
+          else { alert((r && r.error) || 'Échec de la suppression'); b.disabled = false; }
+        }).catch(function (e) { alert(e.message || 'Erreur'); b.disabled = false; });
+      });
+    });
+  Array.prototype.forEach.call(box.querySelectorAll('.bdl-env-del'), function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-id');
+        if (!confirm('Supprimer ce message envoyé ?')) return;
+        b.disabled = true;
+        api('supprimerMessage', { id: id }).then(function (r) {
           if (r && r.ok) { loadInbox(); refreshBadge(); }
           else { alert((r && r.error) || 'Échec de la suppression'); b.disabled = false; }
         }).catch(function (e) { alert(e.message || 'Erreur'); b.disabled = false; });
