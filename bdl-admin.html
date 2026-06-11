@@ -7512,6 +7512,7 @@ function openPanel() {
         '<div style="font-size:13px;color:#666;">' + esc(m.nom) + ' · ' + fmtDate(m.created) + '</div>' +
         '<div style="margin:4px 0;">' + esc(m.texte) + '</div>' +
         '<button type="button" class="bdl-msg-rep" data-emp="' + esc(m.empId) + '" style="border:none;background:#eee;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;">↩︎ Répondre</button>' +
+        '<button type="button" class="bdl-msg-del" data-id="' + esc(m.id) + '" style="border:none;background:#fbe9e8;color:#A53A36;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;margin-left:6px;">🗑️ Supprimer</button>' +
       '</div>';
     });
 
@@ -7546,6 +7547,17 @@ function openPanel() {
         }
         var ta = document.getElementById('bdl-msg-texte'); if (ta) ta.focus();
         var card = document.getElementById('bdl-msg-card'); if (card) card.scrollTop = 0;
+      });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('.bdl-msg-del'), function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-id');
+        if (!confirm('Supprimer ce message ?')) return;
+        b.disabled = true;
+        api('supprimerMessage', { id: id }).then(function (r) {
+          if (r && r.ok) { loadInbox(); refreshBadge(); }
+          else { alert((r && r.error) || 'Échec de la suppression'); b.disabled = false; }
+        }).catch(function (e) { alert(e.message || 'Erreur'); b.disabled = false; });
       });
     });
   }
