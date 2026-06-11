@@ -8157,6 +8157,34 @@ window.lancerAnalyseSup = async function () {
     });
   }, 1500);
 })();  
+  
+(function injectReproSemBtn() {
+  setInterval(function () {
+    var open = document.getElementById('affOpen');
+    if (!open) return;
+    if (document.getElementById('affReproSem')) return;
+    var b = document.createElement('button');
+    b.className = 'btn ghost';
+    b.id = 'affReproSem';
+    b.style.cssText = 'padding:6px 12px;font-size:12px;margin-left:6px';
+    b.textContent = '→ Toute la semaine (sam. inclus)';
+    b.addEventListener('click', async function () {
+      var emp = (document.getElementById('affEmp') || {}).value;
+      var jour = (document.getElementById('affJour') || {}).value;
+      if (!emp) { toast('Choisis un salarié', 'error'); return; }
+      if (!_planData || !_planData.semaine) { toast('Ouvre une semaine', 'error'); return; }
+      if (!confirm('Appliquer le poste du jour sélectionné à TOUTE la semaine, pour ce salarié uniquement (samedi compris) ?')) return;
+      b.disabled = true; var old = b.textContent; b.textContent = '…';
+      try {
+        var resp = await callApi('reproduirePostesJourSalarie', { empId: emp, semaine: _planData.semaine, jour: jour });
+        if (resp && resp.ok) { toast('Poste appliqué à la semaine ✓', 'success'); if (typeof loadPlanningSection === 'function') loadPlanningSection(); }
+        else toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
+      } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+      finally { b.disabled = false; b.textContent = old; }
+    });
+    open.parentNode.insertBefore(b, open.nextSibling);
+  }, 1500);
+})();  
   init();
 </script>
 </body>
