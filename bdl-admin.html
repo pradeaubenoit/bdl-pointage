@@ -6442,7 +6442,7 @@ async function barRender() {
     var h = r.jours[_barJour];
     var aff = _affData[r.empId] && _affData[r.empId][_barJour];
     return (h && h.debut && h.fin) || (aff && aff.length);
-  }).sort(function (a, b) { return (a.role || '').localeCompare(b.role || ''); });
+  });
 
   if (rows.length === 0) { wrap.innerHTML = '<div style="color:var(--ink-faint);font-size:13px;padding:8px">Personne de planifié ce jour.</div>'; return; }
 
@@ -6459,61 +6459,97 @@ async function barRender() {
   minH = Math.floor(minH / 60) * 60; maxH = Math.ceil(maxH / 60) * 60;
   if (maxH <= minH) { maxH = minH + 60; }
 
-  var L = 150, R = 30, W = 880, top = 40, rh = 30, barH = 18;
-  var plotW = W - L - R;
-  var spanMin = maxH - minH;
-  var x = function (min) { return L + (min - minH) / spanMin * plotW; };
-  var H = top + rows.length * rh + 70;
-
-  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" style="min-width:' + W + 'px;font-family:Bricolage Grotesque,sans-serif">';
-  // axe heures
-  for (var hh = minH; hh <= maxH; hh += 60) {
-    var xx = x(hh);
-    svg += '<line x1="' + xx + '" y1="' + (top - 6) + '" x2="' + xx + '" y2="' + (top + rows.length * rh) + '" stroke="#9b958a" stroke-opacity="0.15"/>';
-    svg += '<text x="' + xx + '" y="' + (top - 10) + '" font-size="10" fill="#8A877E" text-anchor="middle">' + (hh / 60) + 'h</text>';
+  // --- Regroupement par POSTE ---
+  // Chaque salarié est rangé dans le(s) poste(s) qu'il tient ce jour.
+  // S'il fait plusieurs postes, il apparaît dans plusieurs groupes.
+  // Sans affectation -> groupe "Non affecté".
+  var groupes = {};        // poste -> [ {r, segments:[{debut,fin,poste}]} ]
+  var ordrePostes = [];    // pour garder l'ordre d'apparition
+  function ajouterAuGroupe(poste, item) {
+    if (!groupes[poste]) { groupes[poste] = []; ordrePostes.push(poste); }
+    groupes[poste].push(item);
   }
-  // lignes salariés
-  rows.forEach(function (r, i) {
-    var y = top + i * rh;
-    var nom = (r.prenom + ' ' + r.nom).trim();
-    if (nom.length > 20) nom = nom.slice(0, 19) + '…';
-    svg += '<text x="8" y="' + (y + barH - 4) + '" font-size="11" fill="#15140F">' + nom + '</text>';
+  rows.forEach(function (r) {
     var aff = (_affData[r.empId] && _affData[r.empId][_barJour]) || [];
     if (aff.length) {
+      // regrouper les segments du salarié par poste
+      var parPoste = {};
       aff.forEach(function (p) {
         var pd = _barMin(p.debut), pf = _barMin(p.fin);
         if (pd == null || pf == null || pf <= pd) return;
-        var col = _barColor(p.poste);
-        svg += '<rect x="' + x(pd) + '" y="' + y + '" width="' + (x(pf) - x(pd)) + '" height="' + barH + '" rx="3" fill="' + col + '"/>';
-        var lbl = (p.poste || '').slice(0, 14);
-        if (x(pf) - x(pd) > 56 && lbl) svg += '<text x="' + (x(pd) + 5) + '" y="' + (y + barH - 5) + '" font-size="9.5" fill="#fff">' + lbl + '</text>';
+        if (!parPoste[p.poste]) parPoste[p.poste] = [];
+        parPoste[p.poste].push({ d: pd, f: pf, poste: p.poste });
+      });
+      Object.keys(parPoste).forEach(function (poste) {
+        ajouterAuGroupe(poste, { r: r, segs: parPoste[poste], affecte: true });
       });
     } else {
-      // pas d'affectation : barre grise = horaire global, "non affecté"
       var h = r.jours[_barJour] || {};
       var d = _barMin(h.debut), f = _barMin(h.fin);
       if (d != null && f != null && f > d) {
-        svg += '<rect x="' + x(d) + '" y="' + y + '" width="' + (x(f) - x(d)) + '" height="' + barH + '" rx="3" fill="#D3D1C7"/>';
-        if (x(f) - x(d) > 70) svg += '<text x="' + (x(d) + 5) + '" y="' + (y + barH - 5) + '" font-size="9.5" fill="#5F5E5A">non affecté</text>';
+        ajouterAuGroupe('Non affecté', { r: r, segs: [{ d: d, f: f, poste: null }], affecte: false });
       }
     }
   });
 
-  // légende
-  var ly = top + rows.length * rh + 24;
-  svg += '<text x="8" y="' + ly + '" font-size="10" fill="#8A877E">Postes :</text>';
-  var lx = 64;
-  _affPostes.forEach(function (p) {
-    svg += '<rect x="' + lx + '" y="' + (ly - 9) + '" width="10" height="10" rx="2" fill="' + _barColor(p) + '"/>';
-    svg += '<text x="' + (lx + 14) + '" y="' + ly + '" font-size="9.5" fill="#5F5E5A">' + p + '</text>';
-    lx += 16 + (p.length * 5.4) + 14;
-    if (lx > W - 120) { lx = 64; ly += 16; }
+  // postes affectés triés alpha, "Non affecté" toujours en dernier
+  ordrePostes.sort(function (a, b) {
+    if (a === 'Non affecté') return 1;
+    if (b === 'Non affecté') return -1;
+    return a.localeCompare(b);
+  });
+
+  // --- Dimensions : titres + lignes ---
+  var L = 150, R = 30, W = 880, top = 40, rh = 30, barH = 18;
+  var titreH = 26; // hauteur d'un titre de section
+  var plotW = W - L - R;
+  var spanMin = maxH - minH;
+  var x = function (min) { return L + (min - minH) / spanMin * plotW; };
+
+  var totalLignes = 0;
+  ordrePostes.forEach(function (p) { totalLignes += groupes[p].length; });
+  var H = top + ordrePostes.length * titreH + totalLignes * rh + 40;
+
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" style="min-width:' + W + 'px;font-family:Bricolage Grotesque,sans-serif">';
+
+  // axe heures (sur toute la hauteur)
+  for (var hh = minH; hh <= maxH; hh += 60) {
+    var xx = x(hh);
+    svg += '<line x1="' + xx + '" y1="' + (top - 6) + '" x2="' + xx + '" y2="' + (H - 30) + '" stroke="#9b958a" stroke-opacity="0.15"/>';
+    svg += '<text x="' + xx + '" y="' + (top - 10) + '" font-size="10" fill="#8A877E" text-anchor="middle">' + (hh / 60) + 'h</text>';
+  }
+
+  // --- Dessin groupe par groupe ---
+  var yCur = top;
+  ordrePostes.forEach(function (poste) {
+    var membres = groupes[poste];
+    var coul = (poste === 'Non affecté') ? '#D3D1C7' : _barColor(poste);
+    // titre de section
+    svg += '<line x1="8" y1="' + (yCur + 2) + '" x2="' + (W - R) + '" y2="' + (yCur + 2) + '" stroke="#9b958a" stroke-opacity="0.25"/>';
+    svg += '<rect x="8" y="' + (yCur + 8) + '" width="11" height="11" rx="2" fill="' + coul + '"/>';
+    svg += '<text x="24" y="' + (yCur + 18) + '" font-size="12.5" font-weight="700" fill="#15140F">' + poste + ' (' + membres.length + ')</text>';
+    yCur += titreH;
+    // lignes des membres
+    membres.forEach(function (item) {
+      var r = item.r;
+      var y = yCur;
+      var nom = (r.prenom + ' ' + r.nom).trim();
+      if (nom.length > 20) nom = nom.slice(0, 19) + '…';
+      svg += '<text x="16" y="' + (y + barH - 4) + '" font-size="11" fill="#15140F">' + nom + '</text>';
+      item.segs.forEach(function (seg) {
+        var col = item.affecte ? _barColor(seg.poste) : '#D3D1C7';
+        svg += '<rect x="' + x(seg.d) + '" y="' + y + '" width="' + (x(seg.f) - x(seg.d)) + '" height="' + barH + '" rx="3" fill="' + col + '"/>';
+        var lbl = item.affecte ? (seg.poste || '').slice(0, 14) : 'non affecté';
+        var txtCol = item.affecte ? '#fff' : '#5F5E5A';
+        if (x(seg.f) - x(seg.d) > 56 && lbl) svg += '<text x="' + (x(seg.d) + 5) + '" y="' + (y + barH - 5) + '" font-size="9.5" fill="' + txtCol + '">' + lbl + '</text>';
+      });
+      yCur += rh;
+    });
   });
 
   svg += '</svg>';
   wrap.innerHTML = svg;
-}
-  
+}  
   
 // ============================================================
 // PLANNING — auto-calcul de la FIN quand on change un DÉBUT (Lun→Ven).
