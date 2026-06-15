@@ -8167,6 +8167,155 @@ window.validerSamediAlterne = async function () {
     ref.parentNode.insertBefore(b, ref.nextSibling);
   }, 1500);
 })();
+  // ============================================================
+// PLANNING — Impression 2 semaines (en cours + suivante), groupé par poste
+// Affichage mural A4 paysage. Overlay d'aperçu + @media print (contourne
+// le blocage Safari standalone de window.print/open).
+// Réutilise callApi, _planData, _planIsoWeekStr, lundiDeSemaineISO côté front.
+// ============================================================
+(function injectImprBtn() {
+  // feuille de style d'impression (injectée une seule fois)
+  if (!document.getElementById('imprPlanCss')) {
+    var st = document.createElement('style');
+    st.id = 'imprPlanCss';
+    st.textContent =
+      '@media print {' +
+        'body * { visibility: hidden !important; }' +
+        '#imprPlanOverlay, #imprPlanOverlay * { visibility: visible !important; }' +
+        '#imprPlanOverlay { position: absolute !important; inset: 0 !important; background:#fff !important; padding:0 !important; }' +
+        '#imprPlanBarre { display:none !important; }' +
+        '@page { size: A4 landscape; margin: 10mm; }' +
+        '.impr-sem { page-break-after: always; }' +
+        '.impr-sem:last-child { page-break-after: auto; }' +
+      '}';
+    document.head.appendChild(st);
+  }
+  setInterval(function () {
+    var save = document.getElementById('planBtnSave');
+    if (!save) return;
+    if (document.getElementById('imprPlanBtn')) return;
+    var b = document.createElement('button');
+    b.id = 'imprPlanBtn'; b.type = 'button'; b.textContent = '🖨️ Imprimer 2 semaines';
+    b.onclick = function () { window.imprimerDeuxSemaines(); };
+    b.style.cssText = 'margin-left:8px;padding:8px 14px;border:none;border-radius:8px;background:#2E7D6B;color:#fff;font-weight:600;cursor:pointer;';
+    var ref = document.getElementById('samAltBtn') || document.getElementById('roulBtn') || save;
+    ref.parentNode.insertBefore(b, ref.nextSibling);
+  }, 1500);
+})();
+
+// semaine suivante à partir d'un "2026-W24"
+function _semaineSuivante(isoWeek) {
+  var lundi = (typeof lundiDeSemaineISO_ === 'function') ? null : null;
+  // calcul simple : on prend le lundi via _planIsoWeekStr sur date +7
+  var m = String(isoWeek).match(/^(\d{4})-W(\d{1,2})$/);
+  if (!m) return isoWeek;
+  // reconstruire une date du jeudi de la semaine pour rester dans la bonne année ISO
+  var y = parseInt(m[1], 10), w = parseInt(m[2], 10);
+  var jan4 = new Date(Date.UTC(y, 0, 4));
+  var day = jan4.getUTCDay() || 7;
+  var lundiSem1 = new Date(jan4); lundiSem1.setUTCDate(jan4.getUTCDate() - (day - 1));
+  var lundiCible = new Date(lundiSem1); lundiCible.setUTCDate(lundiSem1.getUTCDate() + (w - 1) * 7 + 7);
+  return _planIsoWeekStr(new Date(lundiCible.getUTCFullYear(), lundiCible.getUTCMonth(), lundiCible.getUTCDate()));
+}
+
+window.imprimerDeuxSemaines = async function () {
+  var semA = (document.getElementById('planSemaine') || {}).value || _planIsoWeekStr(new Date());
+  var semB = _semaineSuivante(semA);
+
+  // overlay
+  var ov = document.getElementById('imprPlanOverlay');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'imprPlanOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:#fff;z-index:99999;overflow:auto;padding:18px 22px;';
+  ov.innerHTML =
+    '<div id="imprPlanBarre" style="position:sticky;top:0;background:#fff;display:flex;gap:10px;justify-content:flex-end;padding-bottom:12px;border-bottom:1px solid #eee;margin-bottom:14px;">' +
+      '<button onclick="window.print()" style="padding:8px 16px;border:none;background:#2E7D6B;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;">🖨️ Imprimer</button>' +
+      '<button onclick="document.getElementById(\'imprPlanOverlay\').remove()" style="padding:8px 14px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer;">Fermer</button>' +
+    '</div>' +
+    '<div id="imprPlanContenu"><div style="color:#888">Chargement des deux semaines…</div></div>';
+  document.body.appendChild(ov);
+
+  try {
+    var contenu = '';
+    contenu += await _construireTableauSemaine(semA, 'Semaine en cours');
+    contenu += await _construireTableauSemaine(semB, 'Semaine suivante');
+    document.getElementById('imprPlanContenu').innerHTML = contenu;
+  } catch (e) {
+    document.getElementById('imprPlanContenu').innerHTML = '<div style="color:#b00">Erreur : ' + e.message + '</div>';
+  }
+};
+
+async function _construireTableauSemaine(semaine, libelle) {
+  var resp = await callApi('getPlanningSemaine', { semaine: semaine });
+  if (!resp || !resp.ok) return '<div style="color:#b00">Erreur semaine ' + semaine + '</div>';
+  var aff = {};
+  try {
+    var a = await callApi('getAffectationsSemaine', { semaine: semaine });
+    aff = (a && a.ok) ? (a.affectations || {}) : {};
+  } catch (e) {}
+
+  var jours = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  var rows = (resp.planning || []).slice();
+
+  // regroupement par poste : on regarde le poste principal de chaque salarié sur la semaine
+  // (poste le plus fréquent dans ses affectations), sinon son rôle, sinon "Divers"
+  function posteSalarie(r) {
+    var compte = {};
+    for (var j = 0; j < 6; j++) {
+      var ll = (aff[r.empId] && aff[r.empId][j]) || [];
+      ll.forEach(function (p) { if (p.poste) compte[p.poste] = (compte[p.poste] || 0) + 1; });
+    }
+    var best = null, bestN = 0;
+    Object.keys(compte).forEach(function (p) { if (compte[p] > bestN) { bestN = compte[p]; best = p; } });
+    return best || r.role || 'Divers';
+  }
+
+  var groupes = {};
+  var ordre = [];
+  rows.forEach(function (r) {
+    var poste = posteSalarie(r);
+    if (!groupes[poste]) { groupes[poste] = []; ordre.push(poste); }
+    groupes[poste].push(r);
+  });
+  ordre.sort(function (a, b) { return a.localeCompare(b); });
+
+  function cell(r, j) {
+    var h = (r.jours && r.jours[j]) || {};
+    if (h.debut && h.fin) return h.debut + '–' + h.fin;
+    return '';
+  }
+
+  var html = '<div class="impr-sem" style="margin-bottom:18px;font-family:Arial,sans-serif">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">' +
+    '<div style="font-size:18px;font-weight:800;color:#15140F">' + libelle + ' — ' + semaine + '</div>' +
+    '<div style="font-size:12px;color:#666">Blanchisserie du Limousin</div>' +
+  '</div>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html += '<thead><tr>' +
+    '<th style="border:1px solid #bbb;background:#1F4E4A;color:#fff;padding:6px 8px;text-align:left;width:200px">Salarié</th>';
+  jours.forEach(function (j) {
+    html += '<th style="border:1px solid #bbb;background:#1F4E4A;color:#fff;padding:6px 8px;text-align:center">' + j + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  ordre.forEach(function (poste) {
+    html += '<tr><td colspan="7" style="border:1px solid #bbb;background:#E8F0EE;font-weight:700;padding:5px 8px;color:#15140F">' + poste + '</td></tr>';
+    groupes[poste].forEach(function (r) {
+      var nom = ((r.prenom || '') + ' ' + (r.nom || '')).trim();
+      html += '<tr>';
+      html += '<td style="border:1px solid #ccc;padding:5px 8px">' + nom + '</td>';
+      for (var j = 0; j < 6; j++) {
+        var v = cell(r, j);
+        html += '<td style="border:1px solid #ccc;padding:5px 6px;text-align:center;' + (v ? '' : 'background:#fafafa;color:#bbb') + '">' + (v || '—') + '</td>';
+      }
+      html += '</tr>';
+    });
+  });
+
+  html += '</tbody></table></div>';
+  return html;
+}
   
 // ============================================================
 // GRAPHIQUE HEURES SUP (évolution par salarié) — sous le planning
