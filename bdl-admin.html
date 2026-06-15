@@ -8071,7 +8071,102 @@ window.validerRoulement = async function () {
     ref.parentNode.insertBefore(bFixe, ref.nextSibling);
     ref.parentNode.insertBefore(bRoul, bFixe.nextSibling);
   }, 1500);
-})();  
+})(); 
+  // ============================================================
+// PLANNING — Bouton « Samedi alterné » (samedi 1 semaine /2, pair ou impair)
+// Calqué sur Horaire fixe / Roulement. Route serveur : samediAlterne.
+// ============================================================
+window.ouvrirSamediAlterne = async function () {
+  var ov = document.getElementById('samAltOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'samAltOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:14px;max-width:440px;width:100%;max-height:88vh;overflow:auto;padding:20px;">' +
+        '<div style="font-weight:800;font-size:18px;margin-bottom:4px;">🟧 Samedi alterné</div>' +
+        '<div id="samAltSous" style="font-size:13px;color:#666;margin-bottom:14px;"></div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">' +
+          '<label style="font-size:13px;">Parité :' +
+            '<select id="samAltParite" style="margin-left:6px;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:14px;">' +
+              '<option value="pair">Semaines paires</option>' +
+              '<option value="impair">Semaines impaires</option>' +
+            '</select>' +
+          '</label>' +
+        '</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">' +
+          '<label style="font-size:13px;">Début :<input type="time" id="samAltDebut" value="06:00" style="margin-left:6px;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:14px;"></label>' +
+          '<label style="font-size:13px;">Fin :<input type="time" id="samAltFin" value="13:00" style="margin-left:6px;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:14px;"></label>' +
+          '<label style="font-size:13px;">Sur :<input type="number" id="samAltNb" value="8" min="1" max="26" style="width:56px;margin-left:6px;padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:14px;"> sem.</label>' +
+        '</div>' +
+        '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">Salariés concernés :</div>' +
+        '<div id="samAltListe" style="border:1px solid #eee;border-radius:8px;padding:10px;max-height:240px;overflow:auto;margin-bottom:14px;">Chargement…</div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+          '<button type="button" onclick="document.getElementById(\'samAltOverlay\').remove()" style="padding:8px 14px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer;">Annuler</button>' +
+          '<button type="button" id="samAltValider" onclick="window.validerSamediAlterne()" style="padding:8px 16px;border:none;background:#E67E22;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;">Valider</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+  } else {
+    ov.style.display = 'flex';
+  }
+  document.getElementById('samAltSous').textContent =
+    'Le samedi sera posé à partir de ' + _planData.semaine + ', une semaine sur deux selon la parité choisie.';
+  var liste = document.getElementById('samAltListe');
+  liste.innerHTML = 'Chargement…';
+  try {
+    var resp = await callApi('salaries', {});
+    var sals = ((resp && resp.salaries) ? resp.salaries : []).filter(function (s) { return s.actif; });
+    sals.sort(function (a, b) { return (a.prenom + a.nom).localeCompare(b.prenom + b.nom); });
+    liste.innerHTML = sals.map(function (s) {
+      return '<label style="display:block;padding:4px 0;font-size:14px;cursor:pointer;">' +
+        '<input type="checkbox" class="samAlt-chk" value="' + s.id + '" style="margin-right:8px;">' +
+        (s.prenom + ' ' + s.nom).trim() + '</label>';
+    }).join('') || 'Aucun salarié actif';
+  } catch (e) {
+    liste.innerHTML = 'Erreur chargement salariés';
+  }
+};
+
+window.validerSamediAlterne = async function () {
+  var ids = Array.prototype.slice.call(document.querySelectorAll('.samAlt-chk:checked')).map(function (c) { return c.value; });
+  if (!ids.length) { toast('Coche au moins un salarié', 'error'); return; }
+  var parite = (document.getElementById('samAltParite') || {}).value || 'pair';
+  var debut = (document.getElementById('samAltDebut') || {}).value || '';
+  var fin = (document.getElementById('samAltFin') || {}).value || '';
+  var nb = Number((document.getElementById('samAltNb') || {}).value) || 8;
+  if (!debut || !fin) { toast('Renseigne l\'horaire début et fin', 'error'); return; }
+  var btn = document.getElementById('samAltValider');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    var resp = await callApi('samediAlterne', { emps: ids.join(','), semBase: _planData.semaine, nb: nb, debut: debut, fin: fin, parite: parite });
+    if (resp && resp.ok) {
+      toast('Samedi alterné posé sur ' + resp.semaines.length + ' samedis (' + resp.parite + ') ✓', 'success');
+      var o = document.getElementById('samAltOverlay'); if (o) o.remove();
+      if (typeof loadPlanningSection === 'function') loadPlanningSection();
+    } else {
+      toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
+    }
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Valider'; }
+  }
+};
+
+(function injectSamAltBtn() {
+  setInterval(function () {
+    var save = document.getElementById('planBtnSave');
+    if (!save) return;
+    if (document.getElementById('samAltBtn')) return;
+    var b = document.createElement('button');
+    b.id = 'samAltBtn'; b.type = 'button'; b.textContent = '🟧 Samedi alterné';
+    b.onclick = function () { window.ouvrirSamediAlterne(); };
+    b.style.cssText = 'margin-left:8px;padding:8px 14px;border:none;border-radius:8px;background:#2E7D6B;color:#fff;font-weight:600;cursor:pointer;';
+    var ref = document.getElementById('roulBtn') || document.getElementById('diffuserBtn') || save;
+    ref.parentNode.insertBefore(b, ref.nextSibling);
+  }, 1500);
+})();
   
 // ============================================================
 // GRAPHIQUE HEURES SUP (évolution par salarié) — sous le planning
