@@ -8510,6 +8510,159 @@ window.lancerAnalyseSup = async function () {
     open.parentNode.insertBefore(b, open.nextSibling);
   }, 1500);
 })();  
+  
+// ============================================================
+// ENTRETIEN — onglet 🧹 (catalogue des tâches d'entretien des postes)
+// Auto-injecté. UN SEUL bloc, à coller juste avant init().
+// Créer une tâche (poste + libellé + type + salariés), lister, supprimer.
+// ============================================================
+(function () {
+  if (document.getElementById('section-entretien')) return;
+  var tabsInner = document.querySelector('.tabs-inner');
+  if (tabsInner) {
+    var b = document.createElement('button');
+    b.className = 'tab';
+    b.setAttribute('data-tab', 'entretien');
+    b.textContent = '🧹 Entretien';
+    b.addEventListener('click', function () {
+      if (typeof switchTab === 'function') switchTab('entretien');
+      loadEntretienSection();
+    });
+    tabsInner.appendChild(b);
+  }
+  var container = document.querySelector('.container');
+  if (container) {
+    var sec = document.createElement('section');
+    sec.className = 'section';
+    sec.id = 'section-entretien';
+    sec.innerHTML =
+      '<div class="section-header">' +
+        '<div>' +
+          '<h1 class="section-title">🧹 Entretien des postes</h1>' +
+          '<div class="section-subtitle">Crée les tâches d\'entretien de chaque poste et affecte les salariés · le roulement et l\'équité viendront ensuite</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="margin-bottom:12px">' +
+        '<div style="font-weight:600;margin-bottom:10px">➕ Nouvelle tâche</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">' +
+          '<label style="font-size:13px">Poste<br><input type="text" id="entPoste" placeholder="ex. Calandre 1" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:160px"></label>' +
+          '<label style="font-size:13px">Tâche<br><input type="text" id="entLibelle" placeholder="ex. Vider le bac à peluches" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:240px"></label>' +
+          '<label style="font-size:13px">Type<br><select id="entType" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px">' +
+            '<option value="simple">Simple (1 personne)</option>' +
+            '<option value="roul2">Roulement 2</option>' +
+            '<option value="roul3">Roulement 3</option>' +
+          '</select></label>' +
+        '</div>' +
+        '<div id="entSalariesZone" style="margin-top:10px;font-size:13px"></div>' +
+        '<div style="margin-top:12px">' +
+          '<button type="button" id="entAjouter" style="padding:8px 16px;border:none;background:#6B5BD4;color:#fff;border-radius:8px;font-weight:700;cursor:pointer">Ajouter la tâche</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="entListe"><div class="empty-state">Chargement…</div></div>';
+    container.appendChild(sec);
+  }
+})();
+
+// Charge la liste des salariés dans la zone d'affectation (cases à cocher)
+window._entSalaries = [];
+async function loadEntretienSalaries() {
+  var zone = document.getElementById('entSalariesZone');
+  if (!zone) return;
+  try {
+    var resp = await callApi('salaries', {});
+    var sals = ((resp && resp.salaries) ? resp.salaries : []).filter(function (s) { return s.actif; });
+    sals.sort(function (a, b) { return (a.prenom + a.nom).localeCompare(b.prenom + b.nom); });
+    window._entSalaries = sals;
+    zone.innerHTML =
+      '<div style="font-weight:600;margin-bottom:6px">Salarié(s) affecté(s) :</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+      sals.map(function (s) {
+        var nom = ((s.prenom || '') + ' ' + (s.nom || '')).trim();
+        return '<label style="font-size:13px;border:1px solid #ddd;border-radius:14px;padding:3px 10px;cursor:pointer">' +
+          '<input type="checkbox" class="ent-sal-chk" value="' + s.id + '" style="margin-right:5px">' + nom + '</label>';
+      }).join('') +
+      '</div>';
+  } catch (e) {
+    zone.innerHTML = '<span style="color:#b00">Erreur chargement salariés</span>';
+  }
+}
+
+// Charge et affiche la liste des tâches, groupées par poste
+async function loadEntretienSection() {
+  if (!document.getElementById('entAjouter')._wired) {
+    document.getElementById('entAjouter')._wired = true;
+    document.getElementById('entAjouter').addEventListener('click', ajouterTacheEntretien);
+    loadEntretienSalaries();
+  }
+  var box = document.getElementById('entListe');
+  if (box) box.innerHTML = '<div class="empty-state">Chargement…</div>';
+  try {
+    var resp = await callApi('getTachesEntretien', {});
+    var taches = (resp && resp.taches) ? resp.taches : [];
+    if (!taches.length) { box.innerHTML = '<div class="empty-state">Aucune tâche pour le moment.</div>'; return; }
+    // groupage par poste
+    var groupes = {}; var ordre = [];
+    taches.forEach(function (t) {
+      if (!groupes[t.poste]) { groupes[t.poste] = []; ordre.push(t.poste); }
+      groupes[t.poste].push(t);
+    });
+    var noms = {};
+    (window._entSalaries || []).forEach(function (s) { noms[s.id] = ((s.prenom || '') + ' ' + (s.nom || '')).trim(); });
+    var html = '';
+    ordre.forEach(function (poste) {
+      html += '<div class="card" style="margin-bottom:10px">' +
+        '<div style="font-weight:700;font-size:15px;margin-bottom:8px;color:#6B5BD4">' + poste + '</div>';
+      groupes[poste].forEach(function (t) {
+        var salNoms = (t.salaries || '').split(',').filter(Boolean).map(function (id) { return noms[id] || id; }).join(', ') || '—';
+        var typeLbl = t.type === 'roul2' ? 'Roulement 2' : (t.type === 'roul3' ? 'Roulement 3' : 'Simple');
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #eee">' +
+          '<div><strong>' + t.libelle + '</strong> · <span style="color:#888;font-size:12px">' + typeLbl + ' · ' + salNoms + '</span></div>' +
+          '<button type="button" onclick="supprimerTacheEntretien(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:16px">🗑️</button>' +
+        '</div>';
+      });
+      html += '</div>';
+    });
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = '<div class="empty-state">Erreur : ' + e.message + '</div>';
+  }
+}
+
+async function ajouterTacheEntretien() {
+  var poste = (document.getElementById('entPoste') || {}).value || '';
+  var libelle = (document.getElementById('entLibelle') || {}).value || '';
+  var type = (document.getElementById('entType') || {}).value || 'simple';
+  poste = poste.trim(); libelle = libelle.trim();
+  if (!poste) { toast('Indique un poste', 'error'); return; }
+  if (!libelle) { toast('Indique la tâche', 'error'); return; }
+  var ids = Array.prototype.slice.call(document.querySelectorAll('.ent-sal-chk:checked')).map(function (c) { return c.value; });
+  var btn = document.getElementById('entAjouter');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    var resp = await callApi('creerTacheEntretien', { poste: poste, libelle: libelle, occurrence: 'tous', type: type, salaries: ids.join(',') });
+    if (resp && resp.ok) {
+      toast('Tâche ajoutée ✓', 'success');
+      document.getElementById('entLibelle').value = '';
+      Array.prototype.forEach.call(document.querySelectorAll('.ent-sal-chk:checked'), function (c) { c.checked = false; });
+      loadEntretienSection();
+    } else {
+      toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
+    }
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Ajouter la tâche'; }
+  }
+}
+
+async function supprimerTacheEntretien(id) {
+  if (!confirm('Supprimer cette tâche ?')) return;
+  try {
+    var resp = await callApi('supprimerTacheEntretien', { id: id });
+    if (resp && resp.ok) { toast('Tâche supprimée', 'success'); loadEntretienSection(); }
+    else toast('Erreur', 'error');
+  } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+}  
   init();
 </script>
 </body>
