@@ -8680,6 +8680,17 @@ async function loadEntretienSection() {
   var poste = (document.getElementById('entPoste') || {}).value || '';
   var libelle = (document.getElementById('entLibelle') || {}).value || '';
   var type = (document.getElementById('entType') || {}).value || 'simple';
+    // Construire la valeur d'occurrence selon le mode + jours choisis
+  var freqMode = (document.getElementById('entFreqMode') || {}).value || 'hebdo';
+  var occurrence = '';
+  if (freqMode === 'hebdo') {
+    var joursCoches = Array.prototype.slice.call(document.querySelectorAll('.ent-freq-jour:checked')).map(function (c) { return c.value; });
+    if (!joursCoches.length) { toast('Coche au moins un jour', 'error'); return; }
+    occurrence = 'hebdo:' + joursCoches.join(',');
+  } else {
+    var jourUnique = (document.getElementById('entFreqJourUnique') || {}).value || '0';
+    occurrence = freqMode + ':' + jourUnique;
+  }
   poste = poste.trim(); libelle = libelle.trim();
   if (!poste) { toast('Indique un poste', 'error'); return; }
   if (!libelle) { toast('Indique la tâche', 'error'); return; }
@@ -8687,7 +8698,7 @@ async function loadEntretienSection() {
   var btn = document.getElementById('entAjouter');
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-    var resp = await callApi('creerTacheEntretien', { poste: poste, libelle: libelle, occurrence: 'tous', type: type, salaries: ids.join(',') });
+var resp = await callApi('creerTacheEntretien', { poste: poste, libelle: libelle, occurrence: occurrence, type: type, salaries: ids.join(',') });
     if (resp && resp.ok) {
       toast('Tâche ajoutée ✓', 'success');
       document.getElementById('entLibelle').value = '';
