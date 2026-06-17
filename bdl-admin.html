@@ -8541,10 +8541,18 @@ window.lancerAnalyseSup = async function () {
           '<h1 class="section-title">🧹 Entretien des postes</h1>' +
           '<div class="section-subtitle">Crée les tâches d\'entretien de chaque poste et affecte les salariés · le roulement et l\'équité viendront ensuite</div>' +
         '</div>' +
+     '</div>' +
+      '<div class="card" style="margin-bottom:12px">' +
+        '<div style="font-weight:600;margin-bottom:10px">🏭 Mes machines</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+          '<input type="text" id="entMachineNom" placeholder="ex. Engagement Calandre 1" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:240px">' +
+          '<button type="button" id="entMachineAdd" style="padding:7px 14px;border:none;background:#2E7D6B;color:#fff;border-radius:8px;font-weight:600;cursor:pointer">Ajouter</button>' +
+        '</div>' +
+        '<div id="entMachinesListe" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px"></div>' +
       '</div>' +
       '<div class="card" style="margin-bottom:12px">' +
         '<div style="font-weight:600;margin-bottom:10px">➕ Nouvelle tâche</div>' +
-        '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">' +
           '<label style="font-size:13px">Poste<br><input type="text" id="entPoste" placeholder="ex. Calandre 1" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:160px"></label>' +
           '<label style="font-size:13px">Tâche<br><input type="text" id="entLibelle" placeholder="ex. Vider le bac à peluches" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:240px"></label>' +
           '<label style="font-size:13px">Type<br><select id="entType" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px">' +
@@ -8633,16 +8641,73 @@ function entRenderFreqJours() {
       '</select></label>';
   }
 }
+  // Bibliothèque de machines : charger, ajouter, supprimer
+window._entMachines = [];
+async function loadEntretienMachines() {
+  var liste = document.getElementById('entMachinesListe');
+  if (!liste) return;
+  try {
+    var resp = await callApi('getMachinesEntretien', {});
+    var machines = (resp && resp.machines) ? resp.machines : [];
+    window._entMachines = machines;
+    if (!machines.length) {
+      liste.innerHTML = '<span style="color:#999;font-size:13px">Aucune machine pour le moment.</span>';
+    } else {
+      liste.innerHTML = machines.map(function (m) {
+        return '<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #ddd;border-radius:14px;padding:3px 10px;font-size:13px">' +
+          m.nom +
+          '<button type="button" onclick="supprimerMachineEntretien(\'' + m.id + '\')" style="border:none;background:none;cursor:pointer;font-size:13px;color:#b00">✕</button>' +
+        '</span>';
+      }).join('');
+    }
+  } catch (e) {
+    liste.innerHTML = '<span style="color:#b00">Erreur chargement machines</span>';
+  }
+}
+
+async function ajouterMachineEntretien() {
+  var inp = document.getElementById('entMachineNom');
+  var nom = (inp ? inp.value : '').trim();
+  if (!nom) { toast('Indique le nom de la machine', 'error'); return; }
+  var btn = document.getElementById('entMachineAdd');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    var resp = await callApi('creerMachineEntretien', { nom: nom });
+    if (resp && resp.ok) {
+      toast('Machine ajoutée ✓', 'success');
+      if (inp) inp.value = '';
+      loadEntretienMachines();
+    } else {
+      toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
+    }
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Ajouter'; }
+  }
+}
+
+async function supprimerMachineEntretien(id) {
+  if (!confirm('Supprimer cette machine ?')) return;
+  try {
+    var resp = await callApi('supprimerMachineEntretien', { id: id });
+    if (resp && resp.ok) { toast('Machine supprimée', 'success'); loadEntretienMachines(); }
+    else toast('Erreur', 'error');
+  } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+}
   // Charge et affiche la liste des tâches, groupées par poste
 async function loadEntretienSection() {
  var btnAdd = document.getElementById('entAjouter');
   if (btnAdd && !btnAdd._wired) {
     btnAdd._wired = true;
     btnAdd.addEventListener('click', ajouterTacheEntretien);
-    loadEntretienSalaries();
+   loadEntretienSalaries();
     var freqMode = document.getElementById('entFreqMode');
     if (freqMode) freqMode.addEventListener('change', entRenderFreqJours);
     entRenderFreqJours();
+    var machBtn = document.getElementById('entMachineAdd');
+    if (machBtn) machBtn.addEventListener('click', ajouterMachineEntretien);
+    loadEntretienMachines();
   }
   var box = document.getElementById('entListe');
   if (box) box.innerHTML = '<div class="empty-state">Chargement…</div>';
