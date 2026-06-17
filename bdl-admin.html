@@ -8546,9 +8546,10 @@ window.lancerAnalyseSup = async function () {
         '<div style="font-weight:600;margin-bottom:10px">🏭 Mes machines</div>' +
         '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
           '<input type="text" id="entMachineNom" placeholder="ex. Engagement Calandre 1" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:240px">' +
-          '<button type="button" id="entMachineAdd" style="padding:7px 14px;border:none;background:#2E7D6B;color:#fff;border-radius:8px;font-weight:600;cursor:pointer">Ajouter</button>' +
+         '<button type="button" id="entMachineAdd" style="padding:7px 14px;border:none;background:#2E7D6B;color:#fff;border-radius:8px;font-weight:600;cursor:pointer">Ajouter</button>' +
+          '<button type="button" id="entMachinesToggle" style="padding:7px 12px;border:1px solid #ccc;background:#fff;border-radius:8px;font-size:14px;cursor:pointer">Voir mes machines ▾</button>' +
         '</div>' +
-        '<div id="entMachinesListe" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px"></div>' +
+        '<div id="entMachinesListe" style="display:none;margin-top:10px;flex-wrap:wrap;gap:6px;border:1px solid #eee;border-radius:8px;padding:10px"></div>' +
       '</div>' +
       '<div class="card" style="margin-bottom:12px">' +
         '<div style="font-weight:600;margin-bottom:10px">➕ Nouvelle tâche</div>' +
@@ -8646,6 +8647,7 @@ window._entMachines = [];
 async function loadEntretienMachines() {
   var liste = document.getElementById('entMachinesListe');
   if (!liste) return;
+  var toggle = document.getElementById('entMachinesToggle');
   try {
     var resp = await callApi('getMachinesEntretien', {});
     var machines = (resp && resp.machines) ? resp.machines : [];
@@ -8653,13 +8655,14 @@ async function loadEntretienMachines() {
     if (!machines.length) {
       liste.innerHTML = '<span style="color:#999;font-size:13px">Aucune machine pour le moment.</span>';
     } else {
-      liste.innerHTML = machines.map(function (m) {
+     liste.innerHTML = machines.map(function (m) {
         return '<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #ddd;border-radius:14px;padding:3px 10px;font-size:13px">' +
           m.nom +
           '<button type="button" onclick="supprimerMachineEntretien(\'' + m.id + '\')" style="border:none;background:none;cursor:pointer;font-size:13px;color:#b00">✕</button>' +
         '</span>';
       }).join('');
     }
+    if (toggle) toggle.textContent = 'Voir mes machines (' + machines.length + ') ▾';
   } catch (e) {
     liste.innerHTML = '<span style="color:#b00">Erreur chargement machines</span>';
   }
@@ -8705,11 +8708,16 @@ async function loadEntretienSection() {
     var freqMode = document.getElementById('entFreqMode');
     if (freqMode) freqMode.addEventListener('change', entRenderFreqJours);
     entRenderFreqJours();
-    var machBtn = document.getElementById('entMachineAdd');
+var machBtn = document.getElementById('entMachineAdd');
     if (machBtn) machBtn.addEventListener('click', ajouterMachineEntretien);
+    var machToggle = document.getElementById('entMachinesToggle');
+    if (machToggle) machToggle.addEventListener('click', function () {
+      var l = document.getElementById('entMachinesListe');
+      if (l) l.style.display = (l.style.display === 'none') ? 'flex' : 'none';
+    });
     loadEntretienMachines();
   }
-  var box = document.getElementById('entListe');
+    var box = document.getElementById('entListe');
   if (box) box.innerHTML = '<div class="empty-state">Chargement…</div>';
   try {
     var resp = await callApi('getTachesEntretien', {});
