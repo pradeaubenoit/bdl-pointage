@@ -8553,8 +8553,12 @@ window.lancerAnalyseSup = async function () {
             '<option value="roul3">Roulement 3</option>' +
           '</select></label>' +
         '</div>' +
-        '<div id="entSalariesZone" style="margin-top:10px;font-size:13px"></div>' +
-        '<div style="margin-top:12px">' +
+'<div id="entSalariesZone" style="margin-top:10px;font-size:13px;position:relative">' +
+          '<div style="font-weight:600;margin-bottom:6px">Salarié(s) affecté(s) :</div>' +
+          '<button type="button" id="entSalBtn" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;font-size:14px;min-width:240px;text-align:left">Choisir les salariés ▾</button>' +
+          '<div id="entSalPanel" style="display:none;position:absolute;z-index:50;margin-top:4px;background:#fff;border:1px solid #ccc;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.15);max-height:280px;overflow:auto;padding:6px;min-width:240px"></div>' +
+        '</div>' +
+      '<div style="margin-top:12px">' +
           '<button type="button" id="entAjouter" style="padding:8px 16px;border:none;background:#6B5BD4;color:#fff;border-radius:8px;font-weight:700;cursor:pointer">Ajouter la tâche</button>' +
         '</div>' +
       '</div>' +
@@ -8563,72 +8567,42 @@ window.lancerAnalyseSup = async function () {
   }
 })();
 
-// Charge la liste des salariés dans la zone d'affectation (cases à cocher)
+// Charge la liste des salariés dans le menu déroulant à cases multiples
 window._entSalaries = [];
 async function loadEntretienSalaries() {
-  var zone = document.getElementById('entSalariesZone');
-  if (!zone) return;
+  var panel = document.getElementById('entSalPanel');
+  var btn = document.getElementById('entSalBtn');
+  if (!panel || !btn) return;
   try {
     var resp = await callApi('salaries', {});
     var sals = ((resp && resp.salaries) ? resp.salaries : []).filter(function (s) { return s.actif; });
     sals.sort(function (a, b) { return (a.prenom + a.nom).localeCompare(b.prenom + b.nom); });
     window._entSalaries = sals;
-    zone.innerHTML =
-      '<div style="font-weight:600;margin-bottom:6px">Salarié(s) affecté(s) :</div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
-      sals.map(function (s) {
-        var nom = ((s.prenom || '') + ' ' + (s.nom || '')).trim();
-        return '<label style="font-size:13px;border:1px solid #ddd;border-radius:14px;padding:3px 10px;cursor:pointer">' +
-          '<input type="checkbox" class="ent-sal-chk" value="' + s.id + '" style="margin-right:5px">' + nom + '</label>';
-      }).join('') +
-      '</div>';
+    panel.innerHTML = sals.map(function (s) {
+      var nom = ((s.prenom || '') + ' ' + (s.nom || '')).trim();
+      return '<label style="display:block;padding:5px 8px;font-size:14px;cursor:pointer;border-radius:6px">' +
+        '<input type="checkbox" class="ent-sal-chk" value="' + s.id + '" style="margin-right:8px">' + nom + '</label>';
+    }).join('');
+    btn.onclick = function (e) {
+      e.stopPropagation();
+      panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
+    };
+    panel.addEventListener('change', function () {
+      var coches = Array.prototype.slice.call(panel.querySelectorAll('.ent-sal-chk:checked'));
+      if (!coches.length) { btn.textContent = 'Choisir les salariés ▾'; return; }
+      var noms = coches.map(function (c) { return c.parentNode.textContent.trim(); });
+      btn.textContent = (noms.length <= 2 ? noms.join(', ') : noms.length + ' salariés sélectionnés') + ' ▾';
+    });
+    document.addEventListener('click', function (e) {
+      if (panel.style.display === 'block' && !panel.contains(e.target) && e.target !== btn) {
+        panel.style.display = 'none';
+      }
+    });
   } catch (e) {
-    zone.innerHTML = '<span style="color:#b00">Erreur chargement salariés</span>';
+    panel.innerHTML = '<span style="color:#b00">Erreur chargement salariés</span>';
   }
 }
-
-// Charge et affiche la liste des tâches, groupées par poste
-async function loadEntretienSection() {
-  if (!document.getElementById('entAjouter')._wired) {
-    document.getElementById('entAjouter')._wired = true;
-    document.getElementById('entAjouter').addEventListener('click', ajouterTacheEntretien);
-    loadEntretienSalaries();
-  }
-  var box = document.getElementById('entListe');
-  if (box) box.innerHTML = '<div class="empty-state">Chargement…</div>';
-  try {
-    var resp = await callApi('getTachesEntretien', {});
-    var taches = (resp && resp.taches) ? resp.taches : [];
-    if (!taches.length) { box.innerHTML = '<div class="empty-state">Aucune tâche pour le moment.</div>'; return; }
-    // groupage par poste
-    var groupes = {}; var ordre = [];
-    taches.forEach(function (t) {
-      if (!groupes[t.poste]) { groupes[t.poste] = []; ordre.push(t.poste); }
-      groupes[t.poste].push(t);
-    });
-    var noms = {};
-    (window._entSalaries || []).forEach(function (s) { noms[s.id] = ((s.prenom || '') + ' ' + (s.nom || '')).trim(); });
-    var html = '';
-    ordre.forEach(function (poste) {
-      html += '<div class="card" style="margin-bottom:10px">' +
-        '<div style="font-weight:700;font-size:15px;margin-bottom:8px;color:#6B5BD4">' + poste + '</div>';
-      groupes[poste].forEach(function (t) {
-        var salNoms = (t.salaries || '').split(',').filter(Boolean).map(function (id) { return noms[id] || id; }).join(', ') || '—';
-        var typeLbl = t.type === 'roul2' ? 'Roulement 2' : (t.type === 'roul3' ? 'Roulement 3' : 'Simple');
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #eee">' +
-          '<div><strong>' + t.libelle + '</strong> · <span style="color:#888;font-size:12px">' + typeLbl + ' · ' + salNoms + '</span></div>' +
-          '<button type="button" onclick="supprimerTacheEntretien(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:16px">🗑️</button>' +
-        '</div>';
-      });
-      html += '</div>';
-    });
-    box.innerHTML = html;
-  } catch (e) {
-    box.innerHTML = '<div class="empty-state">Erreur : ' + e.message + '</div>';
-  }
-}
-
-async function ajouterTacheEntretien() {
+  async function ajouterTacheEntretien() {
   var poste = (document.getElementById('entPoste') || {}).value || '';
   var libelle = (document.getElementById('entLibelle') || {}).value || '';
   var type = (document.getElementById('entType') || {}).value || 'simple';
