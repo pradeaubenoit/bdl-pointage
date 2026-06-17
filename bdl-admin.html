@@ -8553,6 +8553,17 @@ window.lancerAnalyseSup = async function () {
             '<option value="roul3">Roulement 3</option>' +
           '</select></label>' +
         '</div>' +
+        '<div style="margin-top:12px;font-size:13px">' +
+          '<div style="font-weight:600;margin-bottom:6px">Fréquence :</div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">' +
+            '<select id="entFreqMode" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px">' +
+              '<option value="hebdo">Chaque semaine</option>' +
+              '<option value="quinzaine">Tous les 15 jours</option>' +
+              '<option value="mensuel">Une fois par mois</option>' +
+            '</select>' +
+            '<span id="entFreqJours" style="display:flex;flex-wrap:wrap;gap:4px"></span>' +
+          '</div>' +
+        '</div>' +
 '<div id="entSalariesZone" style="margin-top:10px;font-size:13px;position:relative">' +
           '<div style="font-weight:600;margin-bottom:6px">Salarié(s) affecté(s) :</div>' +
           '<button type="button" id="entSalBtn" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;font-size:14px;min-width:240px;text-align:left">Choisir les salariés ▾</button>' +
@@ -8602,13 +8613,36 @@ async function loadEntretienSalaries() {
     panel.innerHTML = '<span style="color:#b00">Erreur chargement salariés</span>';
   }
 }
+  // Gère l'affichage des jours selon le mode de fréquence choisi
+window._entJoursLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+function entRenderFreqJours() {
+  var mode = (document.getElementById('entFreqMode') || {}).value || 'hebdo';
+  var zone = document.getElementById('entFreqJours');
+  if (!zone) return;
+  if (mode === 'hebdo') {
+    zone.innerHTML = window._entJoursLabels.map(function (lab, i) {
+      return '<label style="font-size:12px;border:1px solid #ccc;border-radius:12px;padding:3px 8px;cursor:pointer">' +
+        '<input type="checkbox" class="ent-freq-jour" value="' + i + '" style="margin-right:4px">' + lab + '</label>';
+    }).join('');
+  } else {
+    zone.innerHTML = '<label style="font-size:13px">le ' +
+      '<select id="entFreqJourUnique" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-left:4px">' +
+      window._entJoursLabels.map(function (lab, i) {
+        return '<option value="' + i + '">' + lab + '</option>';
+      }).join('') +
+      '</select></label>';
+  }
+}
   // Charge et affiche la liste des tâches, groupées par poste
 async function loadEntretienSection() {
-  var btnAdd = document.getElementById('entAjouter');
+ var btnAdd = document.getElementById('entAjouter');
   if (btnAdd && !btnAdd._wired) {
     btnAdd._wired = true;
     btnAdd.addEventListener('click', ajouterTacheEntretien);
     loadEntretienSalaries();
+    var freqMode = document.getElementById('entFreqMode');
+    if (freqMode) freqMode.addEventListener('change', entRenderFreqJours);
+    entRenderFreqJours();
   }
   var box = document.getElementById('entListe');
   if (box) box.innerHTML = '<div class="empty-state">Chargement…</div>';
