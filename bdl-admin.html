@@ -8602,6 +8602,46 @@ async function loadEntretienSalaries() {
     panel.innerHTML = '<span style="color:#b00">Erreur chargement salariés</span>';
   }
 }
+  // Charge et affiche la liste des tâches, groupées par poste
+async function loadEntretienSection() {
+  var btnAdd = document.getElementById('entAjouter');
+  if (btnAdd && !btnAdd._wired) {
+    btnAdd._wired = true;
+    btnAdd.addEventListener('click', ajouterTacheEntretien);
+    loadEntretienSalaries();
+  }
+  var box = document.getElementById('entListe');
+  if (box) box.innerHTML = '<div class="empty-state">Chargement…</div>';
+  try {
+    var resp = await callApi('getTachesEntretien', {});
+    var taches = (resp && resp.taches) ? resp.taches : [];
+    if (!taches.length) { box.innerHTML = '<div class="empty-state">Aucune tâche pour le moment.</div>'; return; }
+    var groupes = {}; var ordre = [];
+    taches.forEach(function (t) {
+      if (!groupes[t.poste]) { groupes[t.poste] = []; ordre.push(t.poste); }
+      groupes[t.poste].push(t);
+    });
+    var noms = {};
+    (window._entSalaries || []).forEach(function (s) { noms[s.id] = ((s.prenom || '') + ' ' + (s.nom || '')).trim(); });
+    var html = '';
+    ordre.forEach(function (poste) {
+      html += '<div class="card" style="margin-bottom:10px">' +
+        '<div style="font-weight:700;font-size:15px;margin-bottom:8px;color:#6B5BD4">' + poste + '</div>';
+      groupes[poste].forEach(function (t) {
+        var salNoms = (t.salaries || '').split(',').filter(Boolean).map(function (id) { return noms[id] || id; }).join(', ') || '—';
+        var typeLbl = t.type === 'roul2' ? 'Roulement 2' : (t.type === 'roul3' ? 'Roulement 3' : 'Simple');
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #eee">' +
+          '<div><strong>' + t.libelle + '</strong> · <span style="color:#888;font-size:12px">' + typeLbl + ' · ' + salNoms + '</span></div>' +
+          '<button type="button" onclick="supprimerTacheEntretien(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:16px">🗑️</button>' +
+        '</div>';
+      });
+      html += '</div>';
+    });
+    box.innerHTML = html;
+  } catch (e) {
+    box.innerHTML = '<div class="empty-state">Erreur : ' + e.message + '</div>';
+  }
+}
   async function ajouterTacheEntretien() {
   var poste = (document.getElementById('entPoste') || {}).value || '';
   var libelle = (document.getElementById('entLibelle') || {}).value || '';
