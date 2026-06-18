@@ -8569,12 +8569,13 @@ window.lancerAnalyseSup = async function () {
       '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">' +
 '<label style="font-size:13px">Machine<br><select id="entPoste" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:200px"><option value="">— choisir —</option></select></label>' +
 '<label style="font-size:13px">Tâche<br><select id="entLibelle" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:240px"><option value="">— choisir —</option></select></label>' +
-      '<label style="font-size:13px">Type<br><select id="entType" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px">' +
+ '<label style="font-size:13px">Type<br><select id="entType" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px">' +
             '<option value="simple">Simple (1 personne)</option>' +
             '<option value="roul2">Roulement 2</option>' +
             '<option value="roul3">Roulement 3</option>' +
+            '<option value="roul4">Roulement 4</option>' +
           '</select></label>' +
-        '</div>' +
+      '</div>' +
         '<div style="margin-top:12px;font-size:13px">' +
           '<div style="font-weight:600;margin-bottom:6px">Fréquence :</div>' +
           '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">' +
@@ -8825,7 +8826,7 @@ var machBtn = document.getElementById('entMachineAdd');
         '<div style="font-weight:700;font-size:15px;margin-bottom:8px;color:#6B5BD4">' + poste + '</div>';
       groupes[poste].forEach(function (t) {
         var salNoms = (t.salaries || '').split(',').filter(Boolean).map(function (id) { return noms[id] || id; }).join(', ') || '—';
-        var typeLbl = t.type === 'roul2' ? 'Roulement 2' : (t.type === 'roul3' ? 'Roulement 3' : 'Simple');
+var typeLbl = t.type === 'roul2' ? 'Roulement 2' : (t.type === 'roul3' ? 'Roulement 3' : (t.type === 'roul4' ? 'Roulement 4' : 'Simple'));
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #eee">' +
           '<div><strong>' + t.libelle + '</strong> · <span style="color:#888;font-size:12px">' + typeLbl + ' · ' + salNoms + '</span></div>' +
           '<button type="button" onclick="supprimerTacheEntretien(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:16px">🗑️</button>' +
