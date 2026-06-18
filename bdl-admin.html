@@ -8549,7 +8549,18 @@ window.lancerAnalyseSup = async function () {
          '<button type="button" id="entMachineAdd" style="padding:7px 14px;border:none;background:#2E7D6B;color:#fff;border-radius:8px;font-weight:600;cursor:pointer">Ajouter</button>' +
           '<span style="position:relative;display:inline-block">' +
             '<button type="button" id="entMachinesToggle" style="padding:7px 12px;border:1px solid #ccc;background:#fff;border-radius:8px;font-size:14px;cursor:pointer">Voir mes machines ▾</button>' +
-            '<div id="entMachinesListe" style="display:none;position:absolute;z-index:50;margin-top:4px;background:#fff;border:1px solid #ccc;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.15);max-height:280px;overflow:auto;padding:10px;min-width:240px;flex-direction:column;gap:6px"></div>' +
+    '<div id="entMachinesListe" style="display:none;position:absolute;z-index:50;margin-top:4px;background:#fff;border:1px solid #ccc;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.15);max-height:280px;overflow:auto;padding:10px;min-width:240px;flex-direction:column;gap:6px"></div>' +
+          '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="margin-bottom:12px">' +
+        '<div style="font-weight:600;margin-bottom:10px">🧽 Mes tâches</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+          '<input type="text" id="entTacheBiblioNom" placeholder="ex. Vider le bac à peluches" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:240px">' +
+          '<button type="button" id="entTacheBiblioAdd" style="padding:7px 14px;border:none;background:#2E7D6B;color:#fff;border-radius:8px;font-weight:600;cursor:pointer">Ajouter</button>' +
+          '<span style="position:relative;display:inline-block">' +
+            '<button type="button" id="entTachesBiblioToggle" style="padding:7px 12px;border:1px solid #ccc;background:#fff;border-radius:8px;font-size:14px;cursor:pointer">Voir mes tâches ▾</button>' +
+            '<div id="entTachesBiblioListe" style="display:none;position:absolute;z-index:50;margin-top:4px;background:#fff;border:1px solid #ccc;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.15);max-height:280px;overflow:auto;padding:10px;min-width:240px;flex-direction:column;gap:6px"></div>' +
           '</span>' +
         '</div>' +
       '</div>' +
@@ -8702,11 +8713,69 @@ async function ajouterMachineEntretien() {
   }
 }
 
-async function supprimerMachineEntretien(id) {
-  if (!confirm('Supprimer cette machine ?')) return;
+// Bibliothèque de tâches : charger, ajouter, supprimer
+window._entTachesBiblio = [];
+async function loadTachesBiblio() {
+  var liste = document.getElementById('entTachesBiblioListe');
+  if (!liste) return;
+  var toggle = document.getElementById('entTachesBiblioToggle');
   try {
-    var resp = await callApi('supprimerMachineEntretien', { id: id });
-    if (resp && resp.ok) { toast('Machine supprimée', 'success'); loadEntretienMachines(); }
+    var resp = await callApi('getTachesBiblio', {});
+    var taches = (resp && resp.taches) ? resp.taches : [];
+    window._entTachesBiblio = taches;
+    if (!taches.length) {
+      liste.innerHTML = '<span style="color:#999;font-size:13px">Aucune tâche pour le moment.</span>';
+    } else {
+      liste.innerHTML = taches.map(function (t) {
+        return '<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #ddd;border-radius:14px;padding:3px 10px;font-size:13px">' +
+          t.libelle +
+          '<button type="button" onclick="supprimerTacheBiblio(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:13px;color:#b00">✕</button>' +
+        '</span>';
+      }).join('');
+    }
+    if (toggle) toggle.textContent = 'Voir mes tâches (' + taches.length + ') ▾';
+    // Remplir aussi le menu déroulant "Tâche" du formulaire de création
+    var selTache = document.getElementById('entLibelle');
+    if (selTache && selTache.tagName === 'SELECT') {
+      var valActuelle = selTache.value;
+      selTache.innerHTML = '<option value="">— choisir —</option>' +
+        taches.map(function (t) {
+          return '<option value="' + t.libelle + '">' + t.libelle + '</option>';
+        }).join('');
+      selTache.value = valActuelle;
+    }
+  } catch (e) {
+    liste.innerHTML = '<span style="color:#b00">Erreur chargement tâches</span>';
+  }
+}
+
+async function ajouterTacheBiblio() {
+  var inp = document.getElementById('entTacheBiblioNom');
+  var libelle = (inp ? inp.value : '').trim();
+  if (!libelle) { toast('Indique le nom de la tâche', 'error'); return; }
+  var btn = document.getElementById('entTacheBiblioAdd');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    var resp = await callApi('creerTacheBiblio', { libelle: libelle });
+    if (resp && resp.ok) {
+      toast('Tâche ajoutée ✓', 'success');
+      if (inp) inp.value = '';
+      loadTachesBiblio();
+    } else {
+      toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
+    }
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Ajouter'; }
+  }
+}
+
+async function supprimerTacheBiblio(id) {
+  if (!confirm('Supprimer cette tâche de la bibliothèque ?')) return;
+  try {
+    var resp = await callApi('supprimerTacheBiblio', { id: id });
+    if (resp && resp.ok) { toast('Tâche supprimée', 'success'); loadTachesBiblio(); }
     else toast('Erreur', 'error');
   } catch (e) { toast('Erreur : ' + e.message, 'error'); }
 }
@@ -8728,6 +8797,14 @@ var machBtn = document.getElementById('entMachineAdd');
       if (l) l.style.display = (l.style.display === 'none') ? 'flex' : 'none';
     });
     loadEntretienMachines();
+    var tbBtn = document.getElementById('entTacheBiblioAdd');
+    if (tbBtn) tbBtn.addEventListener('click', ajouterTacheBiblio);
+    var tbToggle = document.getElementById('entTachesBiblioToggle');
+    if (tbToggle) tbToggle.addEventListener('click', function () {
+      var l = document.getElementById('entTachesBiblioListe');
+      if (l) l.style.display = (l.style.display === 'none') ? 'flex' : 'none';
+    });
+    loadTachesBiblio();
   }
     var box = document.getElementById('entListe');
   if (box) box.innerHTML = '<div class="empty-state">Chargement…</div>';
