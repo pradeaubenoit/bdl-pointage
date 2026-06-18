@@ -8556,8 +8556,8 @@ window.lancerAnalyseSup = async function () {
       '<div class="card" style="margin-bottom:12px">' +
         '<div style="font-weight:600;margin-bottom:10px">➕ Nouvelle tâche</div>' +
       '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">' +
-          '<label style="font-size:13px">Poste<br><input type="text" id="entPoste" placeholder="ex. Calandre 1" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:160px"></label>' +
-          '<label style="font-size:13px">Tâche<br><input type="text" id="entLibelle" placeholder="ex. Vider le bac à peluches" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:240px"></label>' +
+'<label style="font-size:13px">Machine<br><select id="entPoste" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:200px"><option value="">— choisir —</option></select></label>' +
+      '<label style="font-size:13px">Tâche<br><input type="text" id="entLibelle" placeholder="ex. Vider le bac à peluches" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;width:240px"></label>' +
           '<label style="font-size:13px">Type<br><select id="entType" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px">' +
             '<option value="simple">Simple (1 personne)</option>' +
             '<option value="roul2">Roulement 2</option>' +
@@ -8665,6 +8665,16 @@ async function loadEntretienMachines() {
       }).join('');
     }
     if (toggle) toggle.textContent = 'Voir mes machines (' + machines.length + ') ▾';
+    // Remplir aussi le menu déroulant "Machine" du formulaire de création
+    var selPoste = document.getElementById('entPoste');
+    if (selPoste) {
+      var valActuelle = selPoste.value;
+      selPoste.innerHTML = '<option value="">— choisir —</option>' +
+        machines.map(function (m) {
+          return '<option value="' + m.nom + '">' + m.nom + '</option>';
+        }).join('');
+      selPoste.value = valActuelle; // garder la sélection si elle existe encore
+    }
   } catch (e) {
     liste.innerHTML = '<span style="color:#b00">Erreur chargement machines</span>';
   }
