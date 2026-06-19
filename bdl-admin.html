@@ -8780,6 +8780,24 @@ async function supprimerTacheBiblio(id) {
     else toast('Erreur', 'error');
   } catch (e) { toast('Erreur : ' + e.message, 'error'); }
 }
+  // Traduit un code d'occurrence (hebdo:0,2,4 / quinzaine:1 / mensuel:3) en texte lisible
+function entFreqLisible(occ) {
+  occ = String(occ || '').trim();
+  if (!occ || occ === 'tous') return 'Tous les jours';
+  var labels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+  var parts = occ.split(':');
+  var mode = parts[0];
+  var val = parts[1] || '';
+  if (mode === 'hebdo') {
+    var jours = val.split(',').filter(function (x) { return x !== ''; }).map(function (i) { return labels[Number(i)] || '?'; });
+    if (!jours.length) return 'Chaque semaine';
+    if (jours.length === 6) return 'Tous les jours';
+    return 'Chaque semaine : ' + jours.join(', ');
+  }
+  if (mode === 'quinzaine') return 'Tous les 15 jours (' + (labels[Number(val)] || '?') + ')';
+  if (mode === 'mensuel') return '1×/mois (' + (labels[Number(val)] || '?') + ')';
+  return occ;
+}
   // Charge et affiche la liste des tâches, groupées par poste
 async function loadEntretienSection() {
  var btnAdd = document.getElementById('entAjouter');
@@ -8827,9 +8845,9 @@ var machBtn = document.getElementById('entMachineAdd');
       groupes[poste].forEach(function (t) {
         var salNoms = (t.salaries || '').split(',').filter(Boolean).map(function (id) { return noms[id] || id; }).join(', ') || '—';
 var typeLbl = t.type === 'roul2' ? 'Roulement 2' : (t.type === 'roul3' ? 'Roulement 3' : (t.type === 'roul4' ? 'Roulement 4' : 'Simple'));
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #eee">' +
-          '<div><strong>' + t.libelle + '</strong> · <span style="color:#888;font-size:12px">' + typeLbl + ' · ' + salNoms + '</span></div>' +
-          '<button type="button" onclick="supprimerTacheEntretien(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:16px">🗑️</button>' +
+html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #eee">' +
+          '<div><strong>' + t.libelle + '</strong> · <span style="color:#888;font-size:12px">' + typeLbl + ' · ' + entFreqLisible(t.occurrence) + ' · ' + salNoms + '</span></div>' +
+        '<button type="button" onclick="supprimerTacheEntretien(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:16px">🗑️</button>' +
         '</div>';
       });
       html += '</div>';
