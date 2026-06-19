@@ -8587,6 +8587,11 @@ window.lancerAnalyseSup = async function () {
             '<span id="entFreqJours" style="display:flex;flex-wrap:wrap;gap:4px"></span>' +
           '</div>' +
         '</div>' +
+        '<div style="margin-top:12px;font-size:13px">' +
+          '<label>Date de démarrage du roulement <span style="color:#999">(optionnel)</span><br>' +
+            '<input type="date" id="entDateDebut" style="padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-top:4px">' +
+          '</label>' +
+        '</div>' +
 '<div id="entSalariesZone" style="margin-top:10px;font-size:13px;position:relative">' +
           '<div style="font-weight:600;margin-bottom:6px">Salarié(s) affecté(s) :</div>' +
           '<button type="button" id="entSalBtn" style="padding:8px 12px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;font-size:14px;min-width:240px;text-align:left">Choisir les salariés ▾</button>' +
@@ -8879,10 +8884,12 @@ html += '<div style="display:flex;justify-content:space-between;align-items:cent
   var btn = document.getElementById('entAjouter');
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-var resp = await callApi('creerTacheEntretien', { poste: poste, libelle: libelle, occurrence: occurrence, type: type, salaries: ids.join(',') });
+var dateDebut = (document.getElementById('entDateDebut') || {}).value || '';
+    var resp = await callApi('creerTacheEntretien', { poste: poste, libelle: libelle, occurrence: occurrence, type: type, salaries: ids.join(','), dateDebut: dateDebut });
     if (resp && resp.ok) {
       toast('Tâche ajoutée ✓', 'success');
       document.getElementById('entLibelle').value = '';
+      if (document.getElementById('entDateDebut')) document.getElementById('entDateDebut').value = '';
       Array.prototype.forEach.call(document.querySelectorAll('.ent-sal-chk:checked'), function (c) { c.checked = false; });
       loadEntretienSection();
     } else {
