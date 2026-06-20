@@ -8888,11 +8888,14 @@ var typeLbl = t.type === 'roul2' ? 'Roulement 2' : (t.type === 'roul3' ? 'Roulem
 var estRoulement = (t.type === 'roul2' || t.type === 'roul3' || t.type === 'roul4');
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #eee">' +
           '<div><strong>' + t.libelle + '</strong> · <span style="color:#888;font-size:12px">' + typeLbl + ' · ' + entFreqLisible(t.occurrence) + ' · ' + salNoms + '</span></div>' +
-          '<div style="display:flex;gap:8px;align-items:center">' +
+'<div style="display:flex;gap:8px;align-items:center">' +
             (estRoulement ? '<button type="button" onclick="afficherRotation(\'' + t.id + '\')" style="border:1px solid #6B5BD4;background:#fff;color:#6B5BD4;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">🔄 Rotation</button>' : '') +
+            (t.statut === 'diffuse'
+              ? '<button type="button" onclick="basculerDiffusion(\'' + t.id + '\',\'brouillon\')" style="border:1px solid #2E7D6B;background:#2E7D6B;color:#fff;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">✓ Diffusée</button>'
+              : '<button type="button" onclick="basculerDiffusion(\'' + t.id + '\',\'diffuse\')" style="border:1px solid #c47f17;background:#fff;color:#c47f17;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">📢 Diffuser</button>') +
             '<button type="button" onclick="supprimerTacheEntretien(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:16px">🗑️</button>' +
           '</div>' +
-        '</div>' +
+          '</div>' +
         '<div id="rotation-' + t.id + '" style="display:none;padding:8px 0;font-size:13px"></div>';
       });
       html += '</div>';
@@ -8949,6 +8952,23 @@ async function supprimerTacheEntretien(id) {
     if (resp && resp.ok) { toast('Tâche supprimée', 'success'); loadEntretienSection(); }
     else toast('Erreur', 'error');
   } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+}  
+async function basculerDiffusion(id, statut) {
+  var msg = (statut === 'diffuse')
+    ? 'Diffuser cette tâche aux salariés concernés ?'
+    : 'Remettre cette tâche en brouillon (invisible pour les salariés) ?';
+  if (!confirm(msg)) return;
+  try {
+    var resp = await callApi('setStatutTacheEntretien', { id: id, statut: statut });
+    if (resp && resp.ok) {
+      toast(statut === 'diffuse' ? 'Tâche diffusée ✓' : 'Remise en brouillon', 'success');
+      loadEntretienSection();
+    } else {
+      toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
+    }
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  }
 }  
   init();
 </script>
