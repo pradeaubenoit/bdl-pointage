@@ -1336,6 +1336,69 @@ async function loadMaSemaine() {
   else document.addEventListener('DOMContentLoaded', lancer);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) showMessagesBloquants(); });
 })();  
-  </script>
+// ============================================================
+// APP SALARIÉ — "Mes tâches d'entretien du jour"
+// Bloc auto-injecté, à coller avant init();
+// Réutilise config, apiGet, variables CSS.
+// ============================================================
+(function () {
+  var st = document.createElement('style');
+  st.textContent =
+    '.entj{padding-top:18px;border-top:1px solid var(--line);margin-bottom:8px}' +
+    '.entj .lbl{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:500;margin-bottom:10px}' +
+    '.entj-task{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);margin-bottom:6px;background:var(--paper)}' +
+    '.entj-task .ic{font-size:18px}' +
+    '.entj-task .txt{flex:1}' +
+    '.entj-task .lib{font-size:14px;color:var(--ink);font-weight:600}' +
+    '.entj-task .pos{font-size:12px;color:var(--ink-3);margin-top:1px}' +
+    '.entj-empty{font-size:13px;color:var(--ink-3);padding:4px 0}';
+  document.head.appendChild(st);
+
+  var sec = document.createElement('div');
+  sec.className = 'entj';
+  sec.id = 'entj';
+  sec.innerHTML =
+    '<div class="lbl">🧹 Mes tâches d\'entretien aujourd\'hui</div>' +
+    '<div id="entj-list"><div class="entj-empty">Chargement…</div></div>';
+
+  // Insérer juste AVANT la section "Ma semaine" si elle existe, sinon après stats-grid
+  var maSem = document.getElementById('masem');
+  if (maSem && maSem.parentNode) {
+    maSem.parentNode.insertBefore(sec, maSem);
+  } else {
+    var anchor = document.getElementById('stats-grid');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(sec, anchor.nextSibling);
+    else { var m = document.getElementById('main'); if (m) m.appendChild(sec); }
+  }
+
+  loadMesTachesEntretien();
+})();
+
+async function loadMesTachesEntretien() {
+  if (!config || !config.empId || !config.apiUrl) return;
+  var list = document.getElementById('entj-list');
+  if (!list) return;
+  try {
+    var r = await apiGet('getTachesDuJourSalarie', { empId: config.empId });
+    if (!r || !r.ok) { list.innerHTML = '<div class="entj-empty">Indisponible.</div>'; return; }
+    var taches = r.taches || [];
+    if (!taches.length) {
+      list.innerHTML = '<div class="entj-empty">Aucune tâche d\'entretien aujourd\'hui ✓</div>';
+      return;
+    }
+    list.innerHTML = taches.map(function (t) {
+      return '<div class="entj-task">' +
+        '<span class="ic">🧹</span>' +
+        '<div class="txt">' +
+          '<div class="lib">' + t.libelle + '</div>' +
+          '<div class="pos">' + t.poste + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div class="entj-empty">Indisponible.</div>';
+  }
+}  
+</script>
 </body>
 </html>
