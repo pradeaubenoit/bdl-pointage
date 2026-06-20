@@ -8803,6 +8803,41 @@ function entFreqLisible(occ) {
   if (mode === 'mensuel') return '1×/mois (' + (labels[Number(val)] || '?') + ')';
   return occ;
 }
+  // Affiche/masque la rotation prévue d'une tâche en roulement
+async function afficherRotation(id) {
+  var zone = document.getElementById('rotation-' + id);
+  if (!zone) return;
+  // si déjà ouvert, on referme
+  if (zone.style.display !== 'none' && zone.innerHTML.trim() !== '') {
+    zone.style.display = 'none';
+    return;
+  }
+  zone.style.display = 'block';
+  zone.innerHTML = '<span style="color:#999">Chargement de la rotation…</span>';
+  try {
+    var resp = await callApi('getRotationTache', { id: id, n: 8 });
+    if (!resp || !resp.ok) {
+      zone.innerHTML = '<span style="color:#b00">' + ((resp && resp.error) || 'Erreur') + '</span>';
+      return;
+    }
+    var occ = resp.occurrences || [];
+    if (!occ.length) { zone.innerHTML = '<span style="color:#999">Aucune occurrence à venir.</span>'; return; }
+    var html = '<div style="background:#f6f5fc;border-radius:8px;padding:10px;margin-top:4px">' +
+      '<div style="font-weight:600;margin-bottom:6px;color:#6B5BD4">Prochaines fois (chacun son tour) :</div>';
+    occ.forEach(function (o) {
+      var dParts = o.date.split('-');
+      var dLisible = dParts[2] + '/' + dParts[1];
+      html += '<div style="padding:2px 0">' +
+        '<span style="display:inline-block;min-width:90px">' + o.jour + ' ' + dLisible + '</span>' +
+        '<strong>' + o.salarieNom + '</strong>' +
+      '</div>';
+    });
+    html += '</div>';
+    zone.innerHTML = html;
+  } catch (e) {
+    zone.innerHTML = '<span style="color:#b00">Erreur : ' + e.message + '</span>';
+  }
+}
   // Charge et affiche la liste des tâches, groupées par poste
 async function loadEntretienSection() {
  var btnAdd = document.getElementById('entAjouter');
@@ -8850,10 +8885,15 @@ var machBtn = document.getElementById('entMachineAdd');
       groupes[poste].forEach(function (t) {
         var salNoms = (t.salaries || '').split(',').filter(Boolean).map(function (id) { return noms[id] || id; }).join(', ') || '—';
 var typeLbl = t.type === 'roul2' ? 'Roulement 2' : (t.type === 'roul3' ? 'Roulement 3' : (t.type === 'roul4' ? 'Roulement 4' : 'Simple'));
-html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #eee">' +
+var estRoulement = (t.type === 'roul2' || t.type === 'roul3' || t.type === 'roul4');
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #eee">' +
           '<div><strong>' + t.libelle + '</strong> · <span style="color:#888;font-size:12px">' + typeLbl + ' · ' + entFreqLisible(t.occurrence) + ' · ' + salNoms + '</span></div>' +
-        '<button type="button" onclick="supprimerTacheEntretien(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:16px">🗑️</button>' +
-        '</div>';
+          '<div style="display:flex;gap:8px;align-items:center">' +
+            (estRoulement ? '<button type="button" onclick="afficherRotation(\'' + t.id + '\')" style="border:1px solid #6B5BD4;background:#fff;color:#6B5BD4;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">🔄 Rotation</button>' : '') +
+            '<button type="button" onclick="supprimerTacheEntretien(\'' + t.id + '\')" style="border:none;background:none;cursor:pointer;font-size:16px">🗑️</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="rotation-' + t.id + '" style="display:none;padding:8px 0;font-size:13px"></div>';
       });
       html += '</div>';
     });
