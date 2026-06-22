@@ -21,10 +21,9 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%}
-  .wrap{max-width:880px;margin:0 auto;padding:14px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 14px}
   h1{font-size:19px;font-weight:600;margin:0}
   .sub{font-size:13px;color:var(--muted)}
-  header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:12px}
   .lab{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--faint);margin-bottom:3px}
   input,select,button{font:inherit;font-size:16px;color:var(--ink)}
   input,select{width:100%;background:var(--card);border:1px solid var(--line2);border-radius:9px;padding:9px 10px;outline:none}
@@ -34,6 +33,16 @@
   button:active{transform:scale(.98)}
   .btn-primary{background:var(--teal);border-color:var(--teal);color:#fff}
   .btn-ghost{padding:7px 9px;border:none;background:transparent;color:var(--faint)}
+
+  /* En-tête collant */
+  .topbar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-top:12px}
+  .head-line{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;padding-bottom:10px}
+  .head-actions{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+  /* Onglets */
+  .tabs{display:flex;gap:6px;padding-bottom:10px}
+  .tab{padding:8px 16px;border-radius:10px;border:1px solid var(--line2);background:var(--card);color:var(--muted);font-weight:500}
+  .tab.active{background:var(--teal);border-color:var(--teal);color:#fff}
+
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
   .row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px}
   .row-top{display:flex;align-items:center;gap:8px}
@@ -69,7 +78,20 @@
   .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
   .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
   .neterr{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber);border-radius:10px;padding:8px 12px;margin:10px 0;font-size:13px;display:none}
-  @media print{.no-print{display:none!important}body{background:#fff}.card,.row,.cli{border-color:#ccc}}
+
+  #view-saisie{padding-top:12px;padding-bottom:96px}
+  #view-plan,#view-reglages{padding-top:12px}
+  .hidden{display:none!important}
+
+  /* Barre d'ajout fixe en bas */
+  #addbar{position:fixed;left:0;right:0;bottom:0;z-index:6;padding:10px 0 14px;background:linear-gradient(to top,var(--bg) 72%,rgba(241,245,246,0));display:none}
+  @media (prefers-color-scheme: dark){#addbar{background:linear-gradient(to top,var(--bg) 72%,rgba(17,24,28,0))}}
+  #addbar.show{display:block}
+  #addbar .inner{max-width:880px;margin:0 auto;padding:0 14px;display:flex;align-items:center;gap:12px}
+  #addbar .sum{font-size:13px;color:var(--muted);white-space:nowrap}
+  #addbar button{flex:1}
+
+  @media print{.no-print{display:none!important}body{background:#fff}.card,.row,.cli{border-color:#ccc}#view-plan{padding-top:0}}
 </style>
 </head>
 <body>
@@ -83,47 +105,75 @@
   <div id="li-err" style="color:var(--danger);font-size:13px;margin-top:10px;display:none"></div>
 </div>
 
-<div id="app" class="wrap" style="display:none">
-  <header>
-    <div>
-      <h1>Plan de travail — lavage</h1>
-      <div class="sub">Saisie de la journée et estimation du temps de travail</div>
+<div id="app" style="display:none">
+
+  <div class="topbar no-print">
+    <div class="wrap">
+      <div class="head-line">
+        <div>
+          <h1>Plan de travail — lavage</h1>
+          <div class="sub">Saisie de la journée et estimation du temps de travail</div>
+        </div>
+        <div class="head-actions">
+          <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
+          <div><span class="lab">Démarrage</span><input type="time" id="start" class="w-auto" value="06:00"></div>
+          <button id="btn-refresh" title="Rafraîchir">Rafraîchir</button>
+          <button id="btn-print">Imprimer</button>
+          <button id="btn-logout" class="btn-ghost">Déconnexion</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-view="saisie">Saisie</button>
+        <button class="tab" data-view="plan">Plan de travail</button>
+        <button class="tab" data-view="reglages">Réglages</button>
+      </div>
     </div>
-    <div class="no-print" style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
-      <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
-      <div><span class="lab">Démarrage</span><input type="time" id="start" class="w-auto" value="06:00"></div>
-      <button id="btn-refresh" title="Rafraîchir">Rafraîchir</button>
-      <button id="btn-reg">Réglages</button>
-      <button id="btn-print">Imprimer</button>
-      <button id="btn-logout" class="btn-ghost">Déconnexion</button>
+  </div>
+
+  <div class="wrap">
+    <div id="neterr" class="neterr">Hors ligne — la base n'a pas répondu. Vos derniers changements ne sont peut-être pas enregistrés.</div>
+
+    <!-- ONGLET SAISIE -->
+    <section id="view-saisie">
+      <div id="rows"></div>
+    </section>
+
+    <!-- ONGLET PLAN DE TRAVAIL -->
+    <section id="view-plan" class="hidden">
+      <div id="results"></div>
+    </section>
+
+    <!-- ONGLET RÉGLAGES -->
+    <section id="view-reglages" class="hidden">
+      <div class="card no-print">
+        <div style="font-weight:600">Codes de lavage</div>
+        <div class="sub" style="margin-top:2px">Entrez le <b>taux de transfert</b> de chaque programme (le nombre de rotations avant que la case avance). La cadence en galettes/heure se calcule toute seule.</div>
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 12px">
+          <span class="lab" style="margin:0">Durée d'une rotation (s)</span>
+          <input type="number" id="rot" class="mono w-auto" style="width:90px" step="0.1" min="1">
+          <span class="sub">à ajuster une fois pour coller à votre machine</span>
+        </div>
+        <div class="reg-head"><span>N° (0–30)</span><span>Libellé</span><span>Taux</span><span>Galettes/h</span><span></span></div>
+        <div id="codes"></div>
+        <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
+        <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+          <button id="btn-restore">Importer les données de cet appareil</button>
+          <div class="sub" style="margin-top:6px">À utiliser sur l'appareil qui contient des saisies locales pour les envoyer dans le cloud.</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="foot">Données partagées via le cloud. Connecté en tant que <span id="who"></span>.</div>
+  </div>
+
+  <!-- Barre d'ajout fixe (onglet Saisie) -->
+  <div id="addbar" class="no-print">
+    <div class="inner">
+      <span class="sum" id="saisie-sum"></span>
+      <button id="btn-add" class="btn-primary">+ Ajouter un client</button>
     </div>
-  </header>
+  </div>
 
-  <div id="neterr" class="neterr">Hors ligne — la base n'a pas répondu. Vos derniers changements ne sont peut-être pas enregistrés.</div>
-
-  <section id="reg" class="card no-print" style="display:none">
-    <div style="font-weight:600">Codes de lavage</div>
-    <div class="sub" style="margin-top:2px">Entrez le <b>taux de transfert</b> de chaque programme (le nombre de rotations avant que la case avance). La cadence en galettes/heure se calcule toute seule.</div>
-    <div style="display:flex;align-items:center;gap:8px;margin:10px 0 12px">
-      <span class="lab" style="margin:0">Durée d'une rotation (s)</span>
-      <input type="number" id="rot" class="mono w-auto" style="width:90px" step="0.1" min="1">
-      <span class="sub">à ajuster une fois pour coller à votre machine</span>
-    </div>
-    <div class="reg-head"><span>N° (0–30)</span><span>Libellé</span><span>Taux</span><span>Galettes/h</span><span></span></div>
-    <div id="codes"></div>
-    <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
-    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
-      <button id="btn-restore">Importer les données de cet appareil</button>
-      <div class="sub" style="margin-top:6px">À utiliser sur l'appareil qui contient des saisies locales pour les envoyer dans le cloud.</div>
-    </div>
-  </section>
-
-  <section id="rows" style="margin-top:12px"></section>
-  <button id="btn-add" class="btn-primary no-print" style="margin-top:2px">+ Ajouter un client</button>
-
-  <section id="results"></section>
-
-  <div class="foot">Données partagées via le cloud. Connecté en tant que <span id="who"></span>.</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -131,7 +181,7 @@
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
-var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null;
+var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, curView='saisie';
 
 var POSTES=[['pliage_table','Pliage à table'],['faxm','FAXM'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
@@ -193,7 +243,19 @@ async function maybeMigrate(){try{if(localStorage.getItem('pdt_synced')==='1')re
 
 function scheduleSavePlan(){pendingSave=true;clearTimeout(saveTimer);saveTimer=setTimeout(function(){savePlan();},700);}
 function scheduleSaveConfig(){clearTimeout(cfgTimer);cfgTimer=setTimeout(function(){saveConfig();},500);}
-function sync(){renderResults();scheduleSavePlan();}
+function updateSummary(){var n=rows.length,g=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);var el=document.getElementById('saisie-sum');if(el)el.textContent=n+' client'+(n>1?'s':'')+' \u00b7 '+g+' galette'+(g>1?'s':'');}
+function sync(){renderResults();updateSummary();scheduleSavePlan();}
+
+function setView(name){
+  curView=name;
+  document.getElementById('view-saisie').classList.toggle('hidden',name!=='saisie');
+  document.getElementById('view-plan').classList.toggle('hidden',name!=='plan');
+  document.getElementById('view-reglages').classList.toggle('hidden',name!=='reglages');
+  document.getElementById('addbar').classList.toggle('show',name==='saisie');
+  var tabs=document.querySelectorAll('.tab');for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('active',tabs[i].getAttribute('data-view')===name);
+  if(name==='plan')renderResults();
+  window.scrollTo({top:0,behavior:'auto'});
+}
 
 function simulerTunnel(){
   var N=CFG.nbStockage+CFG.nbLavage,lavStart=CFG.nbStockage,charges=[],undef=false;
@@ -222,8 +284,13 @@ function makeRow(r,i){
   el.querySelector('.r-info').innerHTML=rowInfo(r);
   return el;
 }
-function renderRows(){var c=document.getElementById('rows');c.innerHTML='';if(rows.length===0){c.innerHTML='<div class="empty">Aucune saisie pour cette journée. Ajoutez un client pour commencer.</div>';return;}rows.forEach(function(r,i){c.appendChild(makeRow(r,i));});}
-function add(){rows.push({id:uid(),client:'',poste:'repassage',machine:'tunnel',code:'',nbTransferts:''});renderRows();sync();}
+function renderRows(){var c=document.getElementById('rows');c.innerHTML='';if(rows.length===0){c.innerHTML='<div class="empty">Aucune saisie pour cette journée. Appuyez sur « + Ajouter un client » pour commencer.</div>';updateSummary();return;}rows.forEach(function(r,i){c.appendChild(makeRow(r,i));});updateSummary();}
+function add(){
+  rows.push({id:uid(),client:'',poste:'repassage',machine:'tunnel',code:'',nbTransferts:''});
+  renderRows();sync();
+  var inp=document.getElementById('rows').querySelectorAll('.r-client');
+  if(inp.length){var last=inp[inp.length-1];last.scrollIntoView({block:'center',behavior:'smooth'});setTimeout(function(){last.focus();},120);}
+}
 function move(id,d){var i=-1;for(var k=0;k<rows.length;k++)if(rows[k].id===id)i=k;var j=i+d;if(i<0||j<0||j>=rows.length)return;var a=rows[i];rows[i]=rows[j];rows[j]=a;renderRows();sync();}
 
 function makeCode(c){var el=document.createElement('div');el.className='reg-row';el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
@@ -241,7 +308,7 @@ function addCode(){codes.push({num:0,lib:'',taux:0});renderCodes();scheduleSaveC
 function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
 function renderResults(){
   var out=document.getElementById('results');
-  if(rows.length===0){out.innerHTML='';return;}
+  if(rows.length===0){out.innerHTML='<div class="empty">Aucune donnée. Saisissez des clients dans l\'onglet « Saisie ».</div>';return;}
   var sim=simulerTunnel();
   var totalG=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
   var N=CFG.nbStockage+CFG.nbLavage;
@@ -249,7 +316,7 @@ function renderResults(){
   rows.forEach(function(r){var nm=(r.client||'').trim()||'(sans nom)';if(!agg[nm])agg[nm]={name:nm,gal:0,postes:{},charg:Infinity,sortie:0,hasTunnel:false,hasLav:false};var A=agg[nm];A.gal+=parseInt(r.nbTransferts)||0;A.postes[r.poste]=true;if(r.machine==='tunnel'){A.hasTunnel=true;var L=sim.lots[r.id];if(L){if(L.charg<A.charg)A.charg=L.charg;if(L.sortie>A.sortie)A.sortie=L.sortie;}}else{A.hasLav=true;}});
   var clients=Object.keys(agg).map(function(k){return agg[k];});
   var prevTot=prevTotals;
-  var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée</div>';
+  var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée — '+esc(curDate)+'</div>';
   h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Durée tunnel',fmtDuree(sim.duree))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
@@ -269,7 +336,7 @@ function renderResults(){
   out.innerHTML=h;
 }
 
-async function refreshFromCloud(){if(pendingSave)return;prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();}
+async function refreshFromCloud(){if(pendingSave)return;prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();}
 
 async function startApp(){
   document.getElementById('login').style.display='none';
@@ -283,7 +350,8 @@ async function startApp(){
   document.getElementById('rot').value=CFG.rotationSec;
   prevTotals=await loadPrevTotals(curDate);
   await loadPlan(curDate);
-  renderCodes();renderRows();renderResults();
+  renderCodes();renderRows();renderResults();updateSummary();
+  setView('saisie');
 }
 async function doLogin(){
   var email=document.getElementById('li-email').value.trim();
@@ -301,8 +369,8 @@ async function init(){
 
 document.getElementById('li-btn').addEventListener('click',doLogin);
 document.getElementById('li-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
-document.getElementById('btn-reg').addEventListener('click',function(){var r=document.getElementById('reg');r.style.display=r.style.display==='none'?'block':'none';});
-document.getElementById('btn-print').addEventListener('click',function(){window.print();});
+var tabBtns=document.querySelectorAll('.tab');for(var ti=0;ti<tabBtns.length;ti++)tabBtns[ti].addEventListener('click',function(){setView(this.getAttribute('data-view'));});
+document.getElementById('btn-print').addEventListener('click',function(){setView('plan');setTimeout(function(){window.print();},150);});
 document.getElementById('btn-refresh').addEventListener('click',refreshFromCloud);
 document.getElementById('btn-logout').addEventListener('click',async function(){await sb.auth.signOut();location.reload();});
 document.getElementById('btn-addcode').addEventListener('click',addCode);
@@ -311,12 +379,12 @@ document.getElementById('btn-restore').addEventListener('click',async function()
   if(!confirm('Envoyer les saisies stockées sur CET appareil vers le cloud ? (à faire sur l\'ordinateur qui a vos données)'))return;
   localStorage.removeItem('pdt_synced');
   var n=await pushLocalToCloud();
-  await loadConfig();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderCodes();renderRows();renderResults();
+  await loadConfig();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderCodes();renderRows();renderResults();updateSummary();
   alert(n>0?('Données envoyées : '+n+' galettes importées dans le cloud.'):'Aucune donnée locale trouvée sur cet appareil.');
 });
 document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;renderResults();scheduleSaveConfig();});
 document.getElementById('rot').addEventListener('input',function(e){CFG.rotationSec=parseFloat(e.target.value)||13.8;renderCodes();renderRows();renderResults();scheduleSaveConfig();});
-document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();});
+document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();});
 window.addEventListener('focus',refreshFromCloud);
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refreshFromCloud();});
 
