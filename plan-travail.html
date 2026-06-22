@@ -68,23 +68,38 @@
   .cad-out{font-size:13px;color:var(--teal);font-variant-numeric:tabular-nums}
   .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
   .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
+  .neterr{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber);border-radius:10px;padding:8px 12px;margin:10px 0;font-size:13px;display:none}
   @media print{.no-print{display:none!important}body{background:#fff}.card,.row,.cli{border-color:#ccc}}
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<div id="login" class="wrap" style="max-width:360px;margin-top:60px;display:none">
+  <h1>Plan de travail — lavage</h1>
+  <div class="sub" style="margin:4px 0 16px">Connectez-vous pour accéder à vos données partagées.</div>
+  <div style="margin-bottom:10px"><span class="lab">Email</span><input type="email" id="li-email" autocomplete="username"></div>
+  <div style="margin-bottom:14px"><span class="lab">Mot de passe</span><input type="password" id="li-pw" autocomplete="current-password"></div>
+  <button id="li-btn" class="btn-primary" style="width:100%">Se connecter</button>
+  <div id="li-err" style="color:var(--danger);font-size:13px;margin-top:10px;display:none"></div>
+</div>
+
+<div id="app" class="wrap" style="display:none">
   <header>
     <div>
       <h1>Plan de travail — lavage</h1>
       <div class="sub">Saisie de la journée et estimation du temps de travail</div>
     </div>
-    <div class="no-print" style="display:flex;align-items:flex-end;gap:8px">
+    <div class="no-print" style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
       <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
       <div><span class="lab">Démarrage</span><input type="time" id="start" class="w-auto" value="06:00"></div>
+      <button id="btn-refresh" title="Rafraîchir">Rafraîchir</button>
       <button id="btn-reg">Réglages</button>
       <button id="btn-print">Imprimer</button>
+      <button id="btn-logout" class="btn-ghost">Déconnexion</button>
     </div>
   </header>
+
+  <div id="neterr" class="neterr">Hors ligne — la base n'a pas répondu. Vos derniers changements ne sont peut-être pas enregistrés. Réessayez dans un instant.</div>
 
   <section id="reg" class="card no-print" style="display:none">
     <div style="font-weight:600">Codes de lavage</div>
@@ -104,10 +119,16 @@
 
   <section id="results"></section>
 
-  <div class="foot">Vos saisies sont enregistrées sur cet appareil, par journée. Changez la date en haut pour une autre journée.</div>
+  <div class="foot">Données partagées via le cloud. Connecté en tant que <span id="who"></span>.</div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
+var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
+var sb=supabase.createClient(SB_URL,SB_KEY);
+var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null;
+
 var POSTES=[['pliage_table','Pliage à table'],['faxm','FAXM'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
 var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8};
@@ -128,11 +149,34 @@ function galParH(c){var s=secParGalette(c);return s>0?Math.round(3600/s):0;}
 function codeByNum(n){n=parseInt(n);for(var i=0;i<codes.length;i++)if(codes[i].num===n)return codes[i];return null;}
 function lbl(arr,id){for(var i=0;i<arr.length;i++)if(arr[i][0]===id)return arr[i][1];return '—';}
 
-function store(){try{localStorage.setItem('pdt_cfg',JSON.stringify(CFG));localStorage.setItem('pdt_codes',JSON.stringify(codes));localStorage.setItem('pdt_plan:'+curDate,JSON.stringify(rows));}catch(e){}}
-function loadGlobal(){try{var c=localStorage.getItem('pdt_cfg');if(c)CFG=Object.assign(CFG,JSON.parse(c));if(!CFG.rotationSec)CFG.rotationSec=13.8;var cd=localStorage.getItem('pdt_codes');if(cd){var p=JSON.parse(cd);if(p&&p.length)codes=p;}}catch(e){}
-  codes.forEach(function(c){if(c.taux==null&&c.tph!=null&&c.tph>0)c.taux=Math.max(1,Math.round(3600/(c.tph*CFG.rotationSec)));if(c.taux==null)c.taux=0;});}
-function loadDay(d){try{var pl=localStorage.getItem('pdt_plan:'+d);rows=pl?JSON.parse(pl):[];}catch(e){rows=[];}}
-function loadPlanFor(d){try{var pl=localStorage.getItem('pdt_plan:'+d);return pl?JSON.parse(pl):[];}catch(e){return [];}}
+function netErr(){var e=document.getElementById('neterr');if(e)e.style.display='block';}
+function netOk(){var e=document.getElementById('neterr');if(e)e.style.display='none';}
+
+async function loadConfig(){
+  try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(d.codes&&d.codes.length)codes=d.codes;return true;}
+    return false;
+  }catch(e){netErr();return false;}
+}
+async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.id,data:{cfg:CFG,codes:codes},updated_at:new Date().toISOString()},{onConflict:'user_id'});netOk();}catch(e){netErr();}}
+async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');rows=(r.data||[]).map(function(x){return {id:uid(),client:x.client||'',poste:x.poste||'repassage',machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};});netOk();}catch(e){rows=[];netErr();}}
+async function savePlan(){pendingSave=true;try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',curDate);if(rows.length){var payload=rows.map(function(r,i){return {user_id:USER.id,date_jour:curDate,ordre:i,client:r.client||'',poste:r.poste||'repassage',machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};});await sb.from('plan_charges').insert(payload);}netOk();}catch(e){netErr();}pendingSave=false;}
+async function loadPrevTotals(date){try{var r=await sb.from('plan_charges').select('client,galettes').eq('user_id',USER.id).eq('date_jour',dateMinus7(date));var t={};(r.data||[]).forEach(function(x){var nm=(x.client||'').trim()||'(sans nom)';t[nm]=(t[nm]||0)+(x.galettes||0);});return t;}catch(e){return {};}}
+
+async function migrateFromLocal(){
+  try{
+    var cd=localStorage.getItem('pdt_codes'),cf=localStorage.getItem('pdt_cfg');
+    if(cf)CFG=Object.assign(CFG,JSON.parse(cf));if(!CFG.rotationSec)CFG.rotationSec=13.8;
+    if(cd){var p=JSON.parse(cd);if(p&&p.length)codes=p;}
+    codes.forEach(function(c){if(c.taux==null&&c.tph!=null&&c.tph>0)c.taux=Math.max(1,Math.round(3600/(c.tph*CFG.rotationSec)));if(c.taux==null)c.taux=0;});
+    await saveConfig();
+    for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('pdt_plan:')===0){var date=k.slice(9);var arr=[];try{arr=JSON.parse(localStorage.getItem(k)||'[]');}catch(e){}if(arr&&arr.length){var payload=arr.map(function(r,idx){return {user_id:USER.id,date_jour:date,ordre:idx,client:r.client||'',poste:r.poste||'repassage',machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};});try{await sb.from('plan_charges').insert(payload);}catch(e){}}}}
+  }catch(e){}
+}
+
+function scheduleSavePlan(){pendingSave=true;clearTimeout(saveTimer);saveTimer=setTimeout(function(){savePlan();},700);}
+function scheduleSaveConfig(){clearTimeout(cfgTimer);cfgTimer=setTimeout(function(){saveConfig();},500);}
+function sync(){renderResults();scheduleSavePlan();}
 
 function simulerTunnel(){
   var N=CFG.nbStockage+CFG.nbLavage,lavStart=CFG.nbStockage,charges=[],undef=false;
@@ -167,15 +211,15 @@ function move(id,d){var i=-1;for(var k=0;k<rows.length;k++)if(rows[k].id===id)i=
 
 function makeCode(c){var el=document.createElement('div');el.className='reg-row';el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
   el.querySelector('.c-num').addEventListener('input',function(e){var n=Math.max(0,Math.min(30,parseInt(e.target.value)||0));e.target.value=String(n);c.num=n;});
-  el.querySelector('.c-num').addEventListener('change',function(){renderRows();renderResults();store();});
+  el.querySelector('.c-num').addEventListener('change',function(){renderRows();renderResults();scheduleSaveConfig();});
   el.querySelector('.c-lib').addEventListener('input',function(e){c.lib=e.target.value;});
-  el.querySelector('.c-lib').addEventListener('change',function(){renderRows();renderResults();store();});
-  el.querySelector('.c-taux').addEventListener('input',function(e){c.taux=Math.max(0,parseInt(e.target.value)||0);el.querySelector('.c-cad').textContent=c.taux>0?galParH(c)+' /h':'—';renderRows();renderResults();store();});
-  el.querySelector('.c-del').addEventListener('click',function(){if(codes.length>1){codes=codes.filter(function(x){return x!==c;});renderCodes();renderRows();renderResults();store();}});
+  el.querySelector('.c-lib').addEventListener('change',function(){renderRows();renderResults();scheduleSaveConfig();});
+  el.querySelector('.c-taux').addEventListener('input',function(e){c.taux=Math.max(0,parseInt(e.target.value)||0);el.querySelector('.c-cad').textContent=c.taux>0?galParH(c)+' /h':'—';renderRows();renderResults();scheduleSaveConfig();});
+  el.querySelector('.c-del').addEventListener('click',function(){if(codes.length>1){codes=codes.filter(function(x){return x!==c;});renderCodes();renderRows();renderResults();scheduleSaveConfig();}});
   return el;
 }
 function renderCodes(){var c=document.getElementById('codes');c.innerHTML='';codes.forEach(function(x){c.appendChild(makeCode(x));});}
-function addCode(){codes.push({num:0,lib:'',taux:0});renderCodes();store();}
+function addCode(){codes.push({num:0,lib:'',taux:0});renderCodes();scheduleSaveConfig();}
 
 function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
 function renderResults(){
@@ -184,20 +228,16 @@ function renderResults(){
   var sim=simulerTunnel();
   var totalG=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
   var N=CFG.nbStockage+CFG.nbLavage;
-
   var agg={};
   rows.forEach(function(r){var nm=(r.client||'').trim()||'(sans nom)';if(!agg[nm])agg[nm]={name:nm,gal:0,postes:{},charg:Infinity,sortie:0,hasTunnel:false,hasLav:false};var A=agg[nm];A.gal+=parseInt(r.nbTransferts)||0;A.postes[r.poste]=true;if(r.machine==='tunnel'){A.hasTunnel=true;var L=sim.lots[r.id];if(L){if(L.charg<A.charg)A.charg=L.charg;if(L.sortie>A.sortie)A.sortie=L.sortie;}}else{A.hasLav=true;}});
   var clients=Object.keys(agg).map(function(k){return agg[k];});
-
-  var prev=loadPlanFor(dateMinus7(curDate));var prevTot={};prev.forEach(function(r){var nm=(r.client||'').trim()||'(sans nom)';prevTot[nm]=(prevTot[nm]||0)+(parseInt(r.nbTransferts)||0);});
-
+  var prevTot=prevTotals;
   var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée</div>';
   h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Durée tunnel',fmtDuree(sim.duree))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
   if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel. Réordonner les clients peut réduire ce temps.</div>';
-
   h+='<div class="sech">Production par client</div>';
   clients.forEach(function(A){
     var line=Object.keys(A.postes).map(function(p){return lbl(POSTES,p);}).join(', ');
@@ -211,21 +251,52 @@ function renderResults(){
   h+='</div>';
   out.innerHTML=h;
 }
-function sync(){store();renderResults();}
 
-loadGlobal();
-loadDay(curDate);
-document.getElementById('date').value=curDate;
-document.getElementById('start').value=CFG.heureDemarrage;
-document.getElementById('rot').value=CFG.rotationSec;
+async function refreshFromCloud(){if(pendingSave)return;prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();}
+
+async function startApp(){
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('who').textContent=(USER&&USER.email)||'';
+  var existed=await loadConfig();
+  if(!existed)await migrateFromLocal();
+  curDate=todayISO();
+  document.getElementById('date').value=curDate;
+  document.getElementById('start').value=CFG.heureDemarrage;
+  document.getElementById('rot').value=CFG.rotationSec;
+  prevTotals=await loadPrevTotals(curDate);
+  await loadPlan(curDate);
+  renderCodes();renderRows();renderResults();
+}
+async function doLogin(){
+  var email=document.getElementById('li-email').value.trim();
+  var pw=document.getElementById('li-pw').value;
+  var err=document.getElementById('li-err');err.style.display='none';
+  var r=await sb.auth.signInWithPassword({email:email,password:pw});
+  if(r.error){err.textContent='Connexion impossible : '+r.error.message;err.style.display='block';return;}
+  var u=await sb.auth.getUser();USER=u.data.user;startApp();
+}
+async function init(){
+  var s=await sb.auth.getSession();
+  if(s.data&&s.data.session){USER=s.data.session.user;startApp();}
+  else{document.getElementById('login').style.display='block';document.getElementById('app').style.display='none';}
+}
+
+document.getElementById('li-btn').addEventListener('click',doLogin);
+document.getElementById('li-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
 document.getElementById('btn-reg').addEventListener('click',function(){var r=document.getElementById('reg');r.style.display=r.style.display==='none'?'block':'none';});
 document.getElementById('btn-print').addEventListener('click',function(){window.print();});
+document.getElementById('btn-refresh').addEventListener('click',refreshFromCloud);
+document.getElementById('btn-logout').addEventListener('click',async function(){await sb.auth.signOut();location.reload();});
 document.getElementById('btn-addcode').addEventListener('click',addCode);
 document.getElementById('btn-add').addEventListener('click',add);
-document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;sync();});
-document.getElementById('rot').addEventListener('input',function(e){CFG.rotationSec=parseFloat(e.target.value)||13.8;renderCodes();renderRows();renderResults();store();});
-document.getElementById('date').addEventListener('change',function(e){curDate=e.target.value||todayISO();loadDay(curDate);renderRows();renderResults();});
-renderCodes();renderRows();renderResults();
+document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;renderResults();scheduleSaveConfig();});
+document.getElementById('rot').addEventListener('input',function(e){CFG.rotationSec=parseFloat(e.target.value)||13.8;renderCodes();renderRows();renderResults();scheduleSaveConfig();});
+document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();});
+window.addEventListener('focus',refreshFromCloud);
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refreshFromCloud();});
+
+init();
 </script>
 </body>
 </html>
