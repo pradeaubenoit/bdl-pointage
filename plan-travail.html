@@ -9,14 +9,14 @@
     --bg:#f1f5f6; --card:#ffffff; --ink:#1e2b32; --muted:#5b6b75; --faint:#8a99a3;
     --line:#e3e9ec; --line2:#cfd8dd; --teal:#0f766e; --teal-bg:#e9f8f3; --teal-line:#bfe7da;
     --amber:#8a5a07; --amber-bg:#fbf2df; --amber-line:#f0d9a8;
-    --info:#1d4ed8; --info-bg:#eaf1fe; --danger:#b3261e;
+    --info:#1d4ed8; --info-bg:#eaf1fe; --danger:#b3261e; --up:#0f766e; --down:#b3261e;
   }
   @media (prefers-color-scheme: dark){
     :root{
       --bg:#11181c; --card:#1a2329; --ink:#e7edf0; --muted:#9fb0ba; --faint:#76858f;
       --line:#2a363d; --line2:#3a4750; --teal:#5dcaa5; --teal-bg:#15302a; --teal-line:#1f4a3f;
       --amber:#f0c570; --amber-bg:#312611; --amber-line:#4a3a18;
-      --info:#7fb0f5; --info-bg:#16243c; --danger:#f0908a;
+      --info:#7fb0f5; --info-bg:#16243c; --danger:#f0908a; --up:#5dcaa5; --down:#f0908a;
     }
   }
   *{box-sizing:border-box}
@@ -34,7 +34,6 @@
   button:active{transform:scale(.98)}
   .btn-primary{background:var(--teal);border-color:var(--teal);color:#fff}
   .btn-ghost{padding:7px 9px;border:none;background:transparent;color:var(--faint)}
-  .btn-ghost:hover{color:var(--ink)}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
   .row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px}
   .row-top{display:flex;align-items:center;gap:8px}
@@ -57,20 +56,18 @@
   .note.warn{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber)}
   .note.err{background:var(--info-bg);border:1px solid var(--line2);color:var(--danger)}
   .sech{font-size:12px;color:var(--faint);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.03em}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  th{text-align:left;font-weight:500;font-size:12px;color:var(--faint);padding:4px 8px 4px 0}
-  td{padding:7px 8px 7px 0;border-top:1px solid var(--line)}
+  .cli{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .cli-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .cli-name{font-weight:600}
+  .cli-gal{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cli-line{font-size:13px;color:var(--muted);margin-top:2px}
+  .cli-delta{font-size:12px;margin-top:4px}
   .mono{font-variant-numeric:tabular-nums}
-  .tscroll{overflow-x:auto}
   .reg-row{display:grid;grid-template-columns:84px 1fr 96px 34px;gap:8px;align-items:center;margin-bottom:7px}
   .reg-head{display:grid;grid-template-columns:84px 1fr 96px 34px;gap:8px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
   .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
   .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
-  @media print{
-    .no-print{display:none!important}
-    body{background:#fff}
-    .card,.row{border-color:#ccc}
-  }
+  @media print{.no-print{display:none!important}body{background:#fff}.card,.row,.cli{border-color:#ccc}}
 </style>
 </head>
 <body>
@@ -90,8 +87,8 @@
 
   <section id="reg" class="card no-print" style="display:none">
     <div style="font-weight:600">Codes de lavage</div>
-    <div class="sub" style="margin-top:2px">Chaque numéro de programme (0 à 30) correspond à un nombre de transferts/heure. Renseignez ici ceux que vous utilisez.</div>
-    <div class="reg-head" style="margin-top:12px"><span>N° (0–30)</span><span>Libellé (optionnel)</span><span>Transf./h</span><span></span></div>
+    <div class="sub" style="margin-top:2px">Chaque numéro de programme (0 à 30) a une cadence en galettes/heure. Renseignez ici ceux que vous utilisez.</div>
+    <div class="reg-head" style="margin-top:12px"><span>N° (0–30)</span><span>Libellé (optionnel)</span><span>Galettes/h</span><span></span></div>
     <div id="codes"></div>
     <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
   </section>
@@ -113,6 +110,7 @@ var rows=[];
 var curDate=todayISO();
 
 function todayISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dateMinus7(iso){var p=iso.split('-').map(Number);var d=new Date(p[0],p[1]-1,p[2]);d.setDate(d.getDate()-7);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function uid(){return 'id'+Math.random().toString(36).slice(2)+Date.now();}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function parseHeure(h){var p=(h||'06:00').split(':').map(Number);return p[0]*3600+p[1]*60;}
@@ -126,25 +124,24 @@ function lbl(arr,id){for(var i=0;i<arr.length;i++)if(arr[i][0]===id)return arr[i
 function store(){try{localStorage.setItem('pdt_cfg',JSON.stringify(CFG));localStorage.setItem('pdt_codes',JSON.stringify(codes));localStorage.setItem('pdt_plan:'+curDate,JSON.stringify(rows));}catch(e){}}
 function loadGlobal(){try{var c=localStorage.getItem('pdt_cfg');if(c)CFG=Object.assign(CFG,JSON.parse(c));var cd=localStorage.getItem('pdt_codes');if(cd){var p=JSON.parse(cd);if(p&&p.length)codes=p;}}catch(e){}}
 function loadDay(d){try{var pl=localStorage.getItem('pdt_plan:'+d);rows=pl?JSON.parse(pl):[];}catch(e){rows=[];}}
+function loadPlanFor(d){try{var pl=localStorage.getItem('pdt_plan:'+d);return pl?JSON.parse(pl):[];}catch(e){return [];}}
 
 function simulerTunnel(){
   var N=CFG.nbStockage+CFG.nbLavage,lavStart=CFG.nbStockage,charges=[],undef=false;
-  rows.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);if(!c&&(parseInt(r.nbTransferts)||0)>0)undef=true;var sec=c?spt(c.tph):0;var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({rowId:r.id,client:r.client,poste:r.poste,sec:sec,tLoad:null,tExit:null});});
+  rows.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);if(!c&&(parseInt(r.nbTransferts)||0)>0)undef=true;var sec=c?spt(c.tph):0;var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({rowId:r.id,sec:sec,tLoad:null,tExit:null});});
   var start=parseHeure(CFG.heureDemarrage),t=start,pos=new Array(N).fill(null),q=charges.slice(),total=charges.length,ex=0,g=0,bMax=0,cMin=Infinity;
   while(total>0&&(ex<total||pos.some(Boolean))){g++;if(g>200000)break;var out=pos[N-1];if(out){out.tExit=t;ex++;}for(var i=N-1;i>0;i--)pos[i]=pos[i-1];pos[0]=q.length?q.shift():null;if(pos[0])pos[0].tLoad=t;var occ=[];for(var i2=lavStart;i2<N;i2++)if(pos[i2])occ.push(pos[i2].sec);var cad;if(occ.length){cad=Math.max.apply(null,occ);bMax=Math.max(bMax,cad);cMin=Math.min(cMin,Math.min.apply(null,occ));}else{var all=pos.filter(Boolean).map(function(c){return c.sec;});cad=all.length?Math.min.apply(null,all):0;}t+=cad;}
   var fin=charges.reduce(function(m,c){return c.tExit!=null?Math.max(m,c.tExit):m;},start);
-  var lots={},postes={};
-  charges.forEach(function(c){if(!lots[c.rowId])lots[c.rowId]={rowId:c.rowId,client:c.client,poste:c.poste,vol:0,charg:Infinity,sortie:0};var L=lots[c.rowId];L.vol++;if(c.tLoad!=null)L.charg=Math.min(L.charg,c.tLoad);if(c.tExit!=null)L.sortie=Math.max(L.sortie,c.tExit);if(!postes[c.poste])postes[c.poste]={poste:c.poste,vol:0,prem:Infinity,der:0};var P=postes[c.poste];P.vol++;if(c.tExit!=null){P.prem=Math.min(P.prem,c.tExit);P.der=Math.max(P.der,c.tExit);}});
-  return{total:total,fin:fin,duree:fin-start,cadMoy:total>0?(fin-start)/total:0,bMax:bMax,cMin:isFinite(cMin)?cMin:0,lots:Object.keys(lots).map(function(k){return lots[k];}),postes:Object.keys(postes).map(function(k){return postes[k];}),undef:undef};
+  var lots={};charges.forEach(function(c){if(!lots[c.rowId])lots[c.rowId]={rowId:c.rowId,charg:Infinity,sortie:0};var L=lots[c.rowId];if(c.tLoad!=null)L.charg=Math.min(L.charg,c.tLoad);if(c.tExit!=null)L.sortie=Math.max(L.sortie,c.tExit);});
+  return{total:total,fin:fin,duree:fin-start,bMax:bMax,cMin:isFinite(cMin)?cMin:0,lots:lots,undef:undef};
 }
-function estimerLaveuse(){var start=parseHeure(CFG.heureDemarrage),t=start,lots=[];rows.forEach(function(r){if(r.machine!=='laveuse')return;var c=codeByNum(r.code);var sec=c?spt(c.tph):0;var n=Math.max(0,parseInt(r.nbTransferts)||0);var d=sec*n;lots.push({client:r.client,poste:r.poste,vol:n,debut:t,fin:t+d,dur:d});t+=d;});return{lots:lots};}
 
-function rowInfo(r){var c=codeByNum(r.code);var s;if(r.code===''||r.code==null)s='Aucun code';else if(c)s='Code '+c.num+(c.lib?' ('+esc(c.lib)+')':'')+' \u2192 '+c.tph+' transf./h \u00b7 1 / '+fmtCad(spt(c.tph));else s='<span style="color:var(--danger)">Code '+esc(r.code)+' non défini — à renseigner dans Réglages</span>';if(r.machine==='laveuse')s+=' \u00b7 <span class="pill">hors séchoirs</span>';return s;}
+function rowInfo(r){var c=codeByNum(r.code);var s;if(r.code===''||r.code==null)s='Aucun code';else if(c)s='Code '+c.num+(c.lib?' ('+esc(c.lib)+')':'')+' \u2192 cadence '+c.tph+' galettes/h';else s='<span style="color:var(--danger)">Code '+esc(r.code)+' non défini — à renseigner dans Réglages</span>';if(r.machine==='laveuse')s+=' \u00b7 <span class="pill">hors séchoirs</span>';return s;}
 function makeRow(r,i){
   var el=document.createElement('div');el.className='row';
   var po=POSTES.map(function(p){return '<option value="'+p[0]+'"'+(r.poste===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');
   var ma=MACHINES.map(function(m){return '<option value="'+m[0]+'"'+(r.machine===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('');
-  el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span><input type="text" class="r-client" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid4"><div><span class="lab">Poste</span><select class="r-poste">'+po+'</select></div><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Transferts</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div class="info r-info"></div>';
+  el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span><input type="text" class="r-client" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid4"><div><span class="lab">Poste</span><select class="r-poste">'+po+'</select></div><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Galettes</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div class="info r-info"></div>';
   el.querySelector('.r-client').addEventListener('input',function(e){r.client=e.target.value;sync();});
   el.querySelector('.r-poste').addEventListener('change',function(e){r.poste=e.target.value;sync();});
   el.querySelector('.r-machine').addEventListener('change',function(e){r.machine=e.target.value;el.querySelector('.r-info').innerHTML=rowInfo(r);sync();});
@@ -176,18 +173,33 @@ function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div 
 function renderResults(){
   var out=document.getElementById('results');
   if(rows.length===0){out.innerHTML='';return;}
-  var sim=simulerTunnel(),lav=estimerLaveuse();
-  var totalT=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
+  var sim=simulerTunnel();
+  var totalG=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
   var N=CFG.nbStockage+CFG.nbLavage;
+
+  var agg={};
+  rows.forEach(function(r){var nm=(r.client||'').trim()||'(sans nom)';if(!agg[nm])agg[nm]={name:nm,gal:0,postes:{},charg:Infinity,sortie:0,hasTunnel:false,hasLav:false};var A=agg[nm];A.gal+=parseInt(r.nbTransferts)||0;A.postes[r.poste]=true;if(r.machine==='tunnel'){A.hasTunnel=true;var L=sim.lots[r.id];if(L){if(L.charg<A.charg)A.charg=L.charg;if(L.sortie>A.sortie)A.sortie=L.sortie;}}else{A.hasLav=true;}});
+  var clients=Object.keys(agg).map(function(k){return agg[k];});
+
+  var prev=loadPlanFor(dateMinus7(curDate));var prevTot={};prev.forEach(function(r){var nm=(r.client||'').trim()||'(sans nom)';prevTot[nm]=(prevTot[nm]||0)+(parseInt(r.nbTransferts)||0);});
+
   var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée</div>';
-  h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Durée tunnel',fmtDuree(sim.duree))+metric('Total transferts',String(totalT))+metric('Cadence moyenne',sim.total?fmtCad(sim.cadMoy):'—')+'</div>';
-  h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'" title="'+(lavc?'Compartiment de lavage':'Case de stockage')+'"></div>';}
-  h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée en '+N+' transferts</span></div>';
-  if(sim.undef)h+='<div class="note err">Certains codes saisis ne sont pas définis dans Réglages — leur temps est ignoré dans le calcul.</div>';
-  if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 transfert / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel. Réordonner les clients peut réduire ce temps.</div>';
-  if(sim.lots.length){h+='<div class="sech">Par client (tunnel)</div><div class="tscroll"><table><thead><tr><th>Client</th><th>Poste</th><th>Vol.</th><th>Chargement</th><th>Sortie</th><th>Durée</th></tr></thead><tbody>';sim.lots.forEach(function(L){h+='<tr><td>'+(esc(L.client)||'—')+'</td><td style="color:var(--muted)">'+lbl(POSTES,L.poste)+'</td><td class="mono">'+L.vol+'</td><td class="mono">'+fmtHHMM(L.charg)+'</td><td class="mono">'+fmtHHMM(L.sortie)+'</td><td class="mono">'+fmtDuree(L.sortie-L.charg)+'</td></tr>';});h+='</tbody></table></div>';}
-  if(sim.postes.length){h+='<div class="sech">Par poste (sorties tunnel)</div><div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">';sim.postes.forEach(function(P){h+='<div class="metric"><div style="font-weight:600">'+lbl(POSTES,P.poste)+'</div><div class="mono" style="font-size:12px;color:var(--muted);margin-top:2px">'+P.vol+' transferts \u00b7 '+fmtHHMM(P.prem)+' \u2192 '+fmtHHMM(P.der)+'</div></div>';});h+='</div>';}
-  if(lav.lots.length){h+='<div class="sech">Laveuse — hors séchoirs (estimation provisoire)</div><div class="tscroll"><table><thead><tr><th>Client</th><th>Poste</th><th>Vol.</th><th>Début</th><th>Fin</th><th>Durée</th></tr></thead><tbody>';lav.lots.forEach(function(L){h+='<tr><td>'+(esc(L.client)||'—')+'</td><td style="color:var(--muted)">'+lbl(POSTES,L.poste)+'</td><td class="mono">'+L.vol+'</td><td class="mono">'+fmtHHMM(L.debut)+'</td><td class="mono">'+fmtHHMM(L.fin)+'</td><td class="mono">'+fmtDuree(L.dur)+'</td></tr>';});h+='</tbody></table></div>';}
+  h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Durée tunnel',fmtDuree(sim.duree))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
+  h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
+  if(sim.undef)h+='<div class="note err">Certains codes saisis ne sont pas définis dans Réglages — leur cadence est ignorée dans le calcul.</div>';
+  if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel. Réordonner les clients peut réduire ce temps.</div>';
+
+  h+='<div class="sech">Production par client</div>';
+  clients.forEach(function(A){
+    var line=Object.keys(A.postes).map(function(p){return lbl(POSTES,p);}).join(', ');
+    if(A.hasTunnel&&isFinite(A.charg))line+=' \u00b7 '+fmtHHMM(A.charg)+' \u2192 '+fmtHHMM(A.sortie)+' \u00b7 '+fmtDuree(A.sortie-A.charg);
+    if(A.hasLav)line+=' \u00b7 laveuse';
+    var delta='';
+    if(prevTot.hasOwnProperty(A.name)){var d=A.gal-prevTot[A.name];if(d>0)delta='<span style="color:var(--up)">\u2191 +'+d+' galettes vs sem. dernière</span>';else if(d<0)delta='<span style="color:var(--down)">\u2193 '+d+' galettes vs sem. dernière</span>';else delta='<span style="color:var(--muted)">= identique à la sem. dernière</span>';delta+=' <span style="color:var(--faint)">('+prevTot[A.name]+' \u2192 '+A.gal+')</span>';}
+    else delta='<span style="color:var(--faint)">pas de données la semaine dernière</span>';
+    h+='<div class="cli"><div class="cli-top"><span class="cli-name">'+esc(A.name)+'</span><span class="cli-gal">'+A.gal+' galettes</span></div><div class="cli-line">'+line+'</div><div class="cli-delta">'+delta+'</div></div>';
+  });
   h+='</div>';
   out.innerHTML=h;
 }
