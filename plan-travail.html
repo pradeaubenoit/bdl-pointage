@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plan de travail — Lavage</title>
+<style>
+  :root{
+    --bg:#f1f5f6; --card:#ffffff; --ink:#1e2b32; --muted:#5b6b75; --faint:#8a99a3;
+    --line:#e3e9ec; --line2:#cfd8dd; --teal:#0f766e; --teal-bg:#e9f8f3; --teal-line:#bfe7da;
+    --amber:#8a5a07; --amber-bg:#fbf2df; --amber-line:#f0d9a8;
+    --info:#1d4ed8; --info-bg:#eaf1fe; --danger:#b3261e;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#11181c; --card:#1a2329; --ink:#e7edf0; --muted:#9fb0ba; --faint:#76858f;
+      --line:#2a363d; --line2:#3a4750; --teal:#5dcaa5; --teal-bg:#15302a; --teal-line:#1f4a3f;
+      --amber:#f0c570; --amber-bg:#312611; --amber-line:#4a3a18;
+      --info:#7fb0f5; --info-bg:#16243c; --danger:#f0908a;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%}
+  .wrap{max-width:880px;margin:0 auto;padding:14px}
+  h1{font-size:19px;font-weight:600;margin:0}
+  .sub{font-size:13px;color:var(--muted)}
+  header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:12px}
+  .lab{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--faint);margin-bottom:3px}
+  input,select,button{font:inherit;font-size:16px;color:var(--ink)}
+  input,select{width:100%;background:var(--card);border:1px solid var(--line2);border-radius:9px;padding:9px 10px;outline:none}
+  input:focus,select:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-bg)}
+  .w-auto{width:auto}
+  button{cursor:pointer;border-radius:9px;border:1px solid var(--line2);background:var(--card);padding:9px 13px;color:var(--ink)}
+  button:active{transform:scale(.98)}
+  .btn-primary{background:var(--teal);border-color:var(--teal);color:#fff}
+  .btn-ghost{padding:7px 9px;border:none;background:transparent;color:var(--faint)}
+  .btn-ghost:hover{color:var(--ink)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
+  .row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px}
+  .row-top{display:flex;align-items:center;gap:8px}
+  .badge{min-width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border-radius:8px;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);flex:none}
+  .grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:9px}
+  @media(min-width:620px){.grid4{grid-template-columns:repeat(4,1fr)}}
+  .info{font-size:12px;color:var(--faint);margin-top:7px}
+  .pill{padding:1px 7px;border-radius:5px;font-size:12px;background:var(--info-bg);color:var(--info)}
+  .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  @media(min-width:620px){.metrics{grid-template-columns:repeat(4,1fr)}}
+  .metric{background:var(--bg);border-radius:10px;padding:11px}
+  .metric .l{font-size:12px;color:var(--muted)}
+  .metric .v{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+  .strip{display:flex;gap:4px;margin-top:14px}
+  .cell{height:26px;flex:1;border-radius:5px}
+  .cell.stock{background:var(--bg);border:1px solid var(--line2)}
+  .cell.lav{background:var(--teal-bg);border:1px solid var(--teal-line)}
+  .striplab{display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:4px}
+  .note{display:flex;gap:8px;border-radius:10px;padding:10px 12px;margin-top:14px;font-size:13px}
+  .note.warn{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber)}
+  .note.err{background:var(--info-bg);border:1px solid var(--line2);color:var(--danger)}
+  .sech{font-size:12px;color:var(--faint);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.03em}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-weight:500;font-size:12px;color:var(--faint);padding:4px 8px 4px 0}
+  td{padding:7px 8px 7px 0;border-top:1px solid var(--line)}
+  .mono{font-variant-numeric:tabular-nums}
+  .tscroll{overflow-x:auto}
+  .reg-row{display:grid;grid-template-columns:84px 1fr 96px 34px;gap:8px;align-items:center;margin-bottom:7px}
+  .reg-head{display:grid;grid-template-columns:84px 1fr 96px 34px;gap:8px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
+  .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
+  .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
+  @media print{
+    .no-print{display:none!important}
+    body{background:#fff}
+    .card,.row{border-color:#ccc}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Plan de travail — lavage</h1>
+      <div class="sub">Saisie de la journée et estimation du temps de travail</div>
+    </div>
+    <div class="no-print" style="display:flex;align-items:flex-end;gap:8px">
+      <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
+      <div><span class="lab">Démarrage</span><input type="time" id="start" class="w-auto" value="06:00"></div>
+      <button id="btn-reg">Réglages</button>
+      <button id="btn-print">Imprimer</button>
+    </div>
+  </header>
+
+  <section id="reg" class="card no-print" style="display:none">
+    <div style="font-weight:600">Codes de lavage</div>
+    <div class="sub" style="margin-top:2px">Chaque numéro de programme (0 à 30) correspond à un nombre de transferts/heure. Renseignez ici ceux que vous utilisez.</div>
+    <div class="reg-head" style="margin-top:12px"><span>N° (0–30)</span><span>Libellé (optionnel)</span><span>Transf./h</span><span></span></div>
+    <div id="codes"></div>
+    <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
+  </section>
+
+  <section id="rows" style="margin-top:12px"></section>
+  <button id="btn-add" class="btn-primary no-print" style="margin-top:2px">+ Ajouter un client</button>
+
+  <section id="results"></section>
+
+  <div class="foot">Vos saisies sont enregistrées sur cet appareil, par journée. Changez la date en haut pour une autre journée.</div>
+</div>
+
+<script>
+var POSTES=[['pliage_table','Pliage à table'],['faxm','FAXM'],['repassage','Repassage']];
+var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00'};
+var codes=[{num:5,lib:'',tph:36},{num:12,lib:'',tph:30},{num:20,lib:'',tph:24}];
+var rows=[];
+var curDate=todayISO();
+
+function todayISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function uid(){return 'id'+Math.random().toString(36).slice(2)+Date.now();}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function parseHeure(h){var p=(h||'06:00').split(':').map(Number);return p[0]*3600+p[1]*60;}
+function fmtHHMM(s){if(s==null||!isFinite(s))return '—';s=Math.round(s);var h=Math.floor(s/3600)%24,m=Math.floor((s%3600)/60);return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
+function fmtDuree(s){if(s==null||!isFinite(s))return '—';s=Math.max(0,Math.round(s));var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h'+String(m).padStart(2,'0'):m+' min';}
+function fmtCad(s){if(!s||!isFinite(s))return '—';var m=Math.floor(s/60),x=Math.round(s%60);return m>0?m+'\u2032'+String(x).padStart(2,'0')+'\u2033':x+'\u2033';}
+function spt(tph){return tph>0?3600/tph:0;}
+function codeByNum(n){n=parseInt(n);for(var i=0;i<codes.length;i++)if(codes[i].num===n)return codes[i];return null;}
+function lbl(arr,id){for(var i=0;i<arr.length;i++)if(arr[i][0]===id)return arr[i][1];return '—';}
+
+function store(){try{localStorage.setItem('pdt_cfg',JSON.stringify(CFG));localStorage.setItem('pdt_codes',JSON.stringify(codes));localStorage.setItem('pdt_plan:'+curDate,JSON.stringify(rows));}catch(e){}}
+function loadGlobal(){try{var c=localStorage.getItem('pdt_cfg');if(c)CFG=Object.assign(CFG,JSON.parse(c));var cd=localStorage.getItem('pdt_codes');if(cd){var p=JSON.parse(cd);if(p&&p.length)codes=p;}}catch(e){}}
+function loadDay(d){try{var pl=localStorage.getItem('pdt_plan:'+d);rows=pl?JSON.parse(pl):[];}catch(e){rows=[];}}
+
+function simulerTunnel(){
+  var N=CFG.nbStockage+CFG.nbLavage,lavStart=CFG.nbStockage,charges=[],undef=false;
+  rows.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);if(!c&&(parseInt(r.nbTransferts)||0)>0)undef=true;var sec=c?spt(c.tph):0;var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({rowId:r.id,client:r.client,poste:r.poste,sec:sec,tLoad:null,tExit:null});});
+  var start=parseHeure(CFG.heureDemarrage),t=start,pos=new Array(N).fill(null),q=charges.slice(),total=charges.length,ex=0,g=0,bMax=0,cMin=Infinity;
+  while(total>0&&(ex<total||pos.some(Boolean))){g++;if(g>200000)break;var out=pos[N-1];if(out){out.tExit=t;ex++;}for(var i=N-1;i>0;i--)pos[i]=pos[i-1];pos[0]=q.length?q.shift():null;if(pos[0])pos[0].tLoad=t;var occ=[];for(var i2=lavStart;i2<N;i2++)if(pos[i2])occ.push(pos[i2].sec);var cad;if(occ.length){cad=Math.max.apply(null,occ);bMax=Math.max(bMax,cad);cMin=Math.min(cMin,Math.min.apply(null,occ));}else{var all=pos.filter(Boolean).map(function(c){return c.sec;});cad=all.length?Math.min.apply(null,all):0;}t+=cad;}
+  var fin=charges.reduce(function(m,c){return c.tExit!=null?Math.max(m,c.tExit):m;},start);
+  var lots={},postes={};
+  charges.forEach(function(c){if(!lots[c.rowId])lots[c.rowId]={rowId:c.rowId,client:c.client,poste:c.poste,vol:0,charg:Infinity,sortie:0};var L=lots[c.rowId];L.vol++;if(c.tLoad!=null)L.charg=Math.min(L.charg,c.tLoad);if(c.tExit!=null)L.sortie=Math.max(L.sortie,c.tExit);if(!postes[c.poste])postes[c.poste]={poste:c.poste,vol:0,prem:Infinity,der:0};var P=postes[c.poste];P.vol++;if(c.tExit!=null){P.prem=Math.min(P.prem,c.tExit);P.der=Math.max(P.der,c.tExit);}});
+  return{total:total,fin:fin,duree:fin-start,cadMoy:total>0?(fin-start)/total:0,bMax:bMax,cMin:isFinite(cMin)?cMin:0,lots:Object.keys(lots).map(function(k){return lots[k];}),postes:Object.keys(postes).map(function(k){return postes[k];}),undef:undef};
+}
+function estimerLaveuse(){var start=parseHeure(CFG.heureDemarrage),t=start,lots=[];rows.forEach(function(r){if(r.machine!=='laveuse')return;var c=codeByNum(r.code);var sec=c?spt(c.tph):0;var n=Math.max(0,parseInt(r.nbTransferts)||0);var d=sec*n;lots.push({client:r.client,poste:r.poste,vol:n,debut:t,fin:t+d,dur:d});t+=d;});return{lots:lots};}
+
+function rowInfo(r){var c=codeByNum(r.code);var s;if(r.code===''||r.code==null)s='Aucun code';else if(c)s='Code '+c.num+(c.lib?' ('+esc(c.lib)+')':'')+' \u2192 '+c.tph+' transf./h \u00b7 1 / '+fmtCad(spt(c.tph));else s='<span style="color:var(--danger)">Code '+esc(r.code)+' non défini — à renseigner dans Réglages</span>';if(r.machine==='laveuse')s+=' \u00b7 <span class="pill">hors séchoirs</span>';return s;}
+function makeRow(r,i){
+  var el=document.createElement('div');el.className='row';
+  var po=POSTES.map(function(p){return '<option value="'+p[0]+'"'+(r.poste===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');
+  var ma=MACHINES.map(function(m){return '<option value="'+m[0]+'"'+(r.machine===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('');
+  el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span><input type="text" class="r-client" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid4"><div><span class="lab">Poste</span><select class="r-poste">'+po+'</select></div><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Transferts</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div class="info r-info"></div>';
+  el.querySelector('.r-client').addEventListener('input',function(e){r.client=e.target.value;sync();});
+  el.querySelector('.r-poste').addEventListener('change',function(e){r.poste=e.target.value;sync();});
+  el.querySelector('.r-machine').addEventListener('change',function(e){r.machine=e.target.value;el.querySelector('.r-info').innerHTML=rowInfo(r);sync();});
+  el.querySelector('.r-code').addEventListener('input',function(e){var v=e.target.value;if(v!==''){var n=Math.max(0,Math.min(30,parseInt(v)||0));v=String(n);e.target.value=v;}r.code=v;el.querySelector('.r-info').innerHTML=rowInfo(r);sync();});
+  el.querySelector('.r-nb').addEventListener('input',function(e){r.nbTransferts=e.target.value;sync();});
+  el.querySelector('.r-up').addEventListener('click',function(){move(r.id,-1);});
+  el.querySelector('.r-down').addEventListener('click',function(){move(r.id,1);});
+  el.querySelector('.r-del').addEventListener('click',function(){rows=rows.filter(function(x){return x.id!==r.id;});renderRows();sync();});
+  el.querySelector('.r-info').innerHTML=rowInfo(r);
+  return el;
+}
+function renderRows(){var c=document.getElementById('rows');c.innerHTML='';if(rows.length===0){c.innerHTML='<div class="empty">Aucune saisie pour cette journée. Ajoutez un client pour commencer.</div>';return;}rows.forEach(function(r,i){c.appendChild(makeRow(r,i));});}
+function add(){rows.push({id:uid(),client:'',poste:'repassage',machine:'tunnel',code:'',nbTransferts:''});renderRows();sync();}
+function move(id,d){var i=-1;for(var k=0;k<rows.length;k++)if(rows[k].id===id)i=k;var j=i+d;if(i<0||j<0||j>=rows.length)return;var a=rows[i];rows[i]=rows[j];rows[j]=a;renderRows();sync();}
+
+function makeCode(c){var el=document.createElement('div');el.className='reg-row';el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-tph mono" value="'+c.tph+'"><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
+  el.querySelector('.c-num').addEventListener('input',function(e){var n=Math.max(0,Math.min(30,parseInt(e.target.value)||0));e.target.value=String(n);c.num=n;});
+  el.querySelector('.c-num').addEventListener('change',function(){renderRows();renderResults();store();});
+  el.querySelector('.c-lib').addEventListener('input',function(e){c.lib=e.target.value;});
+  el.querySelector('.c-lib').addEventListener('change',function(){renderRows();renderResults();store();});
+  el.querySelector('.c-tph').addEventListener('input',function(e){c.tph=parseFloat(e.target.value)||0;renderRows();renderResults();store();});
+  el.querySelector('.c-del').addEventListener('click',function(){if(codes.length>1){codes=codes.filter(function(x){return x!==c;});renderCodes();renderRows();renderResults();store();}});
+  return el;
+}
+function renderCodes(){var c=document.getElementById('codes');c.innerHTML='';codes.forEach(function(x){c.appendChild(makeCode(x));});}
+function addCode(){codes.push({num:0,lib:'',tph:30});renderCodes();store();}
+
+function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
+function renderResults(){
+  var out=document.getElementById('results');
+  if(rows.length===0){out.innerHTML='';return;}
+  var sim=simulerTunnel(),lav=estimerLaveuse();
+  var totalT=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
+  var N=CFG.nbStockage+CFG.nbLavage;
+  var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée</div>';
+  h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Durée tunnel',fmtDuree(sim.duree))+metric('Total transferts',String(totalT))+metric('Cadence moyenne',sim.total?fmtCad(sim.cadMoy):'—')+'</div>';
+  h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'" title="'+(lavc?'Compartiment de lavage':'Case de stockage')+'"></div>';}
+  h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée en '+N+' transferts</span></div>';
+  if(sim.undef)h+='<div class="note err">Certains codes saisis ne sont pas définis dans Réglages — leur temps est ignoré dans le calcul.</div>';
+  if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 transfert / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel. Réordonner les clients peut réduire ce temps.</div>';
+  if(sim.lots.length){h+='<div class="sech">Par client (tunnel)</div><div class="tscroll"><table><thead><tr><th>Client</th><th>Poste</th><th>Vol.</th><th>Chargement</th><th>Sortie</th><th>Durée</th></tr></thead><tbody>';sim.lots.forEach(function(L){h+='<tr><td>'+(esc(L.client)||'—')+'</td><td style="color:var(--muted)">'+lbl(POSTES,L.poste)+'</td><td class="mono">'+L.vol+'</td><td class="mono">'+fmtHHMM(L.charg)+'</td><td class="mono">'+fmtHHMM(L.sortie)+'</td><td class="mono">'+fmtDuree(L.sortie-L.charg)+'</td></tr>';});h+='</tbody></table></div>';}
+  if(sim.postes.length){h+='<div class="sech">Par poste (sorties tunnel)</div><div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">';sim.postes.forEach(function(P){h+='<div class="metric"><div style="font-weight:600">'+lbl(POSTES,P.poste)+'</div><div class="mono" style="font-size:12px;color:var(--muted);margin-top:2px">'+P.vol+' transferts \u00b7 '+fmtHHMM(P.prem)+' \u2192 '+fmtHHMM(P.der)+'</div></div>';});h+='</div>';}
+  if(lav.lots.length){h+='<div class="sech">Laveuse — hors séchoirs (estimation provisoire)</div><div class="tscroll"><table><thead><tr><th>Client</th><th>Poste</th><th>Vol.</th><th>Début</th><th>Fin</th><th>Durée</th></tr></thead><tbody>';lav.lots.forEach(function(L){h+='<tr><td>'+(esc(L.client)||'—')+'</td><td style="color:var(--muted)">'+lbl(POSTES,L.poste)+'</td><td class="mono">'+L.vol+'</td><td class="mono">'+fmtHHMM(L.debut)+'</td><td class="mono">'+fmtHHMM(L.fin)+'</td><td class="mono">'+fmtDuree(L.dur)+'</td></tr>';});h+='</tbody></table></div>';}
+  h+='</div>';
+  out.innerHTML=h;
+}
+function sync(){store();renderResults();}
+
+loadGlobal();
+loadDay(curDate);
+document.getElementById('date').value=curDate;
+document.getElementById('start').value=CFG.heureDemarrage;
+document.getElementById('btn-reg').addEventListener('click',function(){var r=document.getElementById('reg');r.style.display=r.style.display==='none'?'block':'none';});
+document.getElementById('btn-print').addEventListener('click',function(){window.print();});
+document.getElementById('btn-addcode').addEventListener('click',addCode);
+document.getElementById('btn-add').addEventListener('click',add);
+document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;sync();});
+document.getElementById('date').addEventListener('change',function(e){curDate=e.target.value||todayISO();loadDay(curDate);renderRows();renderResults();});
+renderCodes();renderRows();renderResults();
+</script>
+</body>
+</html>
