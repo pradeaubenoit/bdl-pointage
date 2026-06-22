@@ -99,7 +99,7 @@
     </div>
   </header>
 
-  <div id="neterr" class="neterr">Hors ligne — la base n'a pas répondu. Vos derniers changements ne sont peut-être pas enregistrés. Réessayez dans un instant.</div>
+  <div id="neterr" class="neterr">Hors ligne — la base n'a pas répondu. Vos derniers changements ne sont peut-être pas enregistrés.</div>
 
   <section id="reg" class="card no-print" style="display:none">
     <div style="font-weight:600">Codes de lavage</div>
@@ -112,6 +112,10 @@
     <div class="reg-head"><span>N° (0–30)</span><span>Libellé</span><span>Taux</span><span>Galettes/h</span><span></span></div>
     <div id="codes"></div>
     <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+      <button id="btn-restore">Importer les données de cet appareil</button>
+      <div class="sub" style="margin-top:6px">À utiliser sur l'appareil qui contient des saisies locales pour les envoyer dans le cloud.</div>
+    </div>
   </section>
 
   <section id="rows" style="margin-top:12px"></section>
@@ -163,16 +167,29 @@ async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*'
 async function savePlan(){pendingSave=true;try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',curDate);if(rows.length){var payload=rows.map(function(r,i){return {user_id:USER.id,date_jour:curDate,ordre:i,client:r.client||'',poste:r.poste||'repassage',machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};});await sb.from('plan_charges').insert(payload);}netOk();}catch(e){netErr();}pendingSave=false;}
 async function loadPrevTotals(date){try{var r=await sb.from('plan_charges').select('client,galettes').eq('user_id',USER.id).eq('date_jour',dateMinus7(date));var t={};(r.data||[]).forEach(function(x){var nm=(x.client||'').trim()||'(sans nom)';t[nm]=(t[nm]||0)+(x.galettes||0);});return t;}catch(e){return {};}}
 
-async function migrateFromLocal(){
-  try{
-    var cd=localStorage.getItem('pdt_codes'),cf=localStorage.getItem('pdt_cfg');
-    if(cf)CFG=Object.assign(CFG,JSON.parse(cf));if(!CFG.rotationSec)CFG.rotationSec=13.8;
-    if(cd){var p=JSON.parse(cd);if(p&&p.length)codes=p;}
-    codes.forEach(function(c){if(c.taux==null&&c.tph!=null&&c.tph>0)c.taux=Math.max(1,Math.round(3600/(c.tph*CFG.rotationSec)));if(c.taux==null)c.taux=0;});
-    await saveConfig();
-    for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('pdt_plan:')===0){var date=k.slice(9);var arr=[];try{arr=JSON.parse(localStorage.getItem(k)||'[]');}catch(e){}if(arr&&arr.length){var payload=arr.map(function(r,idx){return {user_id:USER.id,date_jour:date,ordre:idx,client:r.client||'',poste:r.poste||'repassage',machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};});try{await sb.from('plan_charges').insert(payload);}catch(e){}}}}
-  }catch(e){}
+function localPlanKeys(){var a=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('pdt_plan:')===0)a.push(k);}return a;}
+async function pushLocalToCloud(){
+  var cd=localStorage.getItem('pdt_codes'),cf=localStorage.getItem('pdt_cfg'),pk=localPlanKeys();
+  if(!cd&&pk.length===0){localStorage.setItem('pdt_synced','1');return 0;}
+  if(cf)try{CFG=Object.assign(CFG,JSON.parse(cf));}catch(e){}
+  if(!CFG.rotationSec)CFG.rotationSec=13.8;
+  if(cd){try{var p=JSON.parse(cd);if(p&&p.length)codes=p;}catch(e){}}
+  codes.forEach(function(c){if(c.taux==null&&c.tph!=null&&c.tph>0)c.taux=Math.max(1,Math.round(3600/(c.tph*CFG.rotationSec)));if(c.taux==null)c.taux=0;});
+  await saveConfig();
+  var moved=0;
+  for(var j=0;j<pk.length;j++){
+    var key=pk[j],date=key.slice(9),arr=[];
+    try{arr=JSON.parse(localStorage.getItem(key)||'[]');}catch(e){}
+    if(arr&&arr.length){
+      try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',date);}catch(e){}
+      var payload=arr.map(function(r,idx){return {user_id:USER.id,date_jour:date,ordre:idx,client:r.client||'',poste:r.poste||'repassage',machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};});
+      try{await sb.from('plan_charges').insert(payload);moved+=payload.length;}catch(e){}
+    }
+  }
+  localStorage.setItem('pdt_synced','1');
+  return moved;
 }
+async function maybeMigrate(){try{if(localStorage.getItem('pdt_synced')==='1')return;await pushLocalToCloud();}catch(e){}}
 
 function scheduleSavePlan(){pendingSave=true;clearTimeout(saveTimer);saveTimer=setTimeout(function(){savePlan();},700);}
 function scheduleSaveConfig(){clearTimeout(cfgTimer);cfgTimer=setTimeout(function(){saveConfig();},500);}
@@ -258,8 +275,8 @@ async function startApp(){
   document.getElementById('login').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('who').textContent=(USER&&USER.email)||'';
-  var existed=await loadConfig();
-  if(!existed)await migrateFromLocal();
+  await loadConfig();
+  await maybeMigrate();
   curDate=todayISO();
   document.getElementById('date').value=curDate;
   document.getElementById('start').value=CFG.heureDemarrage;
@@ -290,6 +307,13 @@ document.getElementById('btn-refresh').addEventListener('click',refreshFromCloud
 document.getElementById('btn-logout').addEventListener('click',async function(){await sb.auth.signOut();location.reload();});
 document.getElementById('btn-addcode').addEventListener('click',addCode);
 document.getElementById('btn-add').addEventListener('click',add);
+document.getElementById('btn-restore').addEventListener('click',async function(){
+  if(!confirm('Envoyer les saisies stockées sur CET appareil vers le cloud ? (à faire sur l\'ordinateur qui a vos données)'))return;
+  localStorage.removeItem('pdt_synced');
+  var n=await pushLocalToCloud();
+  await loadConfig();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderCodes();renderRows();renderResults();
+  alert(n>0?('Données envoyées : '+n+' galettes importées dans le cloud.'):'Aucune donnée locale trouvée sur cet appareil.');
+});
 document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;renderResults();scheduleSaveConfig();});
 document.getElementById('rot').addEventListener('input',function(e){CFG.rotationSec=parseFloat(e.target.value)||13.8;renderCodes();renderRows();renderResults();scheduleSaveConfig();});
 document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();});
