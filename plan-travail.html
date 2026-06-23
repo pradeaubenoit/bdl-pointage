@@ -314,40 +314,50 @@ function simulerTunnel(){
 }
 
 /* ---------- Moteur séchoirs (Brouillon) ---------- */
-function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=typeFromMin(dryMin);var n=Math.max(0,parseInt(r.nbTransferts)||0);var sec=(CFG.tFixe||36)+taux*(CFG.tParTaux||10);for(var i=0;i<n;i++)charges.push({type:type,dry:dryMin*60,sec:sec});});return charges;}
-/* Cycle séchoir : remplit ((n-1)×96, 1re galette offerte par la passerelle) -> sèche (selon type) -> se vide (96) -> prêt.
-   Passerelle = tampon de 4 galettes ; le tunnel attend si elle est pleine. fin = dernier séchoir terminé (linge sec). */
+function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=typeFromMin(dryMin);var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({type:type,dry:dryMin*60,taux:taux});});return charges;}
+/* Tunnel 14 positions (4 stockage + 10 lavage). BRIDAGE : à chaque transfert, cadence = tFixe + (taux MAX des 10 cases
+   de lavage) × tParTaux, imposée à tout le tunnel tant que la charge lente n'est pas sortie. Sortie -> passerelle (4) ->
+   séchoirs en cycles (remplir 96/gal sauf 1re offerte par passerelle, sécher, vider 96). fin = dernier linge sec. */
 function simSechoirs(list,speed,start){
-  var P=4,LOAD=96,EMPTY=96,caps=CAP;
-  var charges=chargesFrom(list),n=charges.length;
-  if(n===0)return{fin:start,wait:0,total:0};
+  var FIX=(CFG.tFixe==null?36:CFG.tFixe), PER=(CFG.tParTaux==null?10:CFG.tParTaux), LOAD=96, EMPTY=96, P=4, caps=CAP, N=14, W0=4;
+  var charges=chargesFrom(list), total=charges.length;
+  if(total===0)return{fin:start,wait:0,total:0};
   var dryers=caps.map(function(c){return {cap:c,busyUntil:0,idle:true};});
-  var pass=[],tIdx=0,theo=0;for(var k=0;k<n;k++)theo+=charges[k].sec;
-  var t=0,tunnelNext=charges[0].sec,guard=0;
+  var pass=[], pos=new Array(N).fill(null), q=charges.slice(), loaded=0, t=0, tunnelReady=0, guard=0, stall=0;
+  function anyPos(){for(var i=0;i<N;i++)if(pos[i])return true;return false;}
   function someBusy(){for(var i=0;i<dryers.length;i++)if(!dryers[i].idle)return true;return false;}
-  function countType(ty){var c=0;for(var i=0;i<pass.length;i++)if(pass[i].type===ty)c++;return c;}
-  function pullType(ty,mx){var got=[];for(var i=0;i<pass.length&&got.length<mx;){if(pass[i].type===ty)got.push(pass.splice(i,1)[0]);else i++;}return got;}
-  while(tIdx<n||pass.length>0||someBusy()){
-    guard++;if(guard>2000000)break;
-    for(var d=0;d<dryers.length;d++)if(!dryers[d].idle&&dryers[d].busyUntil<=t)dryers[d].idle=true;
-    var changed=true;
-    while(changed){changed=false;
-      while(tIdx<n&&pass.length<P&&tunnelNext<=t){var dt=Math.max(t,tunnelNext);pass.push(charges[tIdx]);tIdx++;tunnelNext=(tIdx<n)?(dt+charges[tIdx].sec):Infinity;changed=true;}
-      for(var di=0;di<dryers.length;di++){var dr=dryers[di];if(!dr.idle||pass.length===0)continue;
-        var ty=pass[0].type,avail=countType(ty),done=(tIdx>=n),full=(pass.length>=P),take;
-        if(avail>=dr.cap)take=dr.cap;else if(full||done)take=avail;else take=0;
-        if(take>0){var lot=pullType(ty,take);var dm=0;for(var x=0;x<lot.length;x++)dm=Math.max(dm,lot[x].dry);dr.idle=false;dr.busyUntil=t+(lot.length-1)*LOAD+dm+EMPTY;changed=true;}}
+  function maxTaux(){var m=0;for(var i=W0;i<N;i++)if(pos[i]&&pos[i].taux>m)m=pos[i].taux;return m||1;}
+  function cnt(ty){var c=0;for(var i=0;i<pass.length;i++)if(pass[i].type===ty)c++;return c;}
+  function pull(ty,mx){var g=[];for(var i=0;i<pass.length&&g.length<mx;){if(pass[i].type===ty)g.push(pass.splice(i,1)[0]);else i++;}return g;}
+  function assign(){var ch=true;while(ch){ch=false;for(var di=0;di<dryers.length;di++){var dr=dryers[di];if(!dr.idle||pass.length===0)continue;
+    var ty=pass[0].type,av=cnt(ty),done=(loaded>=total&&!anyPos()),full=(pass.length>=P),take;
+    if(av>=dr.cap)take=dr.cap;else if(full||done)take=av;else take=0;
+    if(take>0){var lot=pull(ty,take);var dm=0;for(var x=0;x<lot.length;x++)dm=Math.max(dm,lot[x].dry);dr.idle=false;dr.busyUntil=t+(lot.length-1)*LOAD+dm+EMPTY;ch=true;}}}}
+  while(loaded<total || anyPos() || pass.length>0 || someBusy()){
+    guard++; if(guard>5000000) break;
+    for(var d=0;d<dryers.length;d++) if(!dryers[d].idle && dryers[d].busyUntil<=t) dryers[d].idle=true;
+    assign();
+    var needExit=pos[N-1]!=null;
+    var canT=(t>=tunnelReady) && (loaded<total||anyPos()) && (!needExit||pass.length<P);
+    if(canT){
+      if(pos[N-1]){ pass.push(pos[N-1]); pos[N-1]=null; }
+      for(var i=N-1;i>0;i--) pos[i]=pos[i-1];
+      pos[0]=(loaded<total)? q[loaded++] : null;
+      tunnelReady = t + FIX + maxTaux()*PER;
+      assign(); continue;
     }
     var next=Infinity;
-    if(tIdx<n&&pass.length<P)next=Math.min(next,Math.max(t,tunnelNext));
-    for(var dd=0;dd<dryers.length;dd++)if(!dryers[dd].idle)next=Math.min(next,dryers[dd].busyUntil);
-    if(next===Infinity||next<=t){var nb=Infinity;for(var e=0;e<dryers.length;e++)if(!dryers[e].idle)nb=Math.min(nb,dryers[e].busyUntil);if(nb===Infinity)break;next=nb;}
+    if(loaded<total||anyPos()){ if(!needExit||pass.length<P) next=Math.min(next,Math.max(t,tunnelReady));
+      else { for(var e=0;e<dryers.length;e++) if(!dryers[e].idle) next=Math.min(next,dryers[e].busyUntil); } }
+    for(var dd=0;dd<dryers.length;dd++) if(!dryers[dd].idle) next=Math.min(next,dryers[dd].busyUntil);
+    if(next===Infinity||next<=t){var nb=Infinity;for(var f=0;f<dryers.length;f++)if(!dryers[f].idle)nb=Math.min(nb,dryers[f].busyUntil);if(nb===Infinity)break;next=nb;}
+    if(needExit && pass.length>=P && t>=tunnelReady) stall += (next-t);
     t=next;
   }
-  return{fin:start+t,wait:Math.max(0,t-theo),total:n};
+  return{fin:start+t, wait:stall, total:total};
 }
 function optimiserOrdre(list,speed,start){
-  var K=3,best=list.slice(),bestFin=simSechoirs(best,speed,start).fin,improved=true,iter=0;
+  var K=2,best=list.slice(),bestFin=simSechoirs(best,speed,start).fin,improved=true,iter=0;
   while(improved&&iter<80){improved=false;iter++;
     for(var i=0;i<best.length;i++){for(var j=Math.max(0,i-K);j<=Math.min(best.length-1,i+K);j++){if(i===j)continue;
       var cand=best.slice();var x=cand.splice(i,1)[0];cand.splice(j,0,x);
@@ -437,7 +447,7 @@ function renderBrouillon(){
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var s=simSechoirs(bRows,speed,start);
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Galettes tunnel',String(s.total))+metric('Clients',String(tunnelRows.length))+'</div><div class="info" style="margin-top:8px">Séchoirs 2/3/3/2 (10 places) en cycles : remplissage 96 s/galette (1re offerte par la passerelle) → séchage (drap 2,5 / éponge 20 / vêtement 30 min) → vidage 96 s. Passerelle = tampon de 4 ; le tunnel attend quand elle est pleine. Fin = dernier linge sec. Temps tunnel/galette = '+(CFG.tFixe||36)+' s + taux × '+(CFG.tParTaux||10)+' s.</div></div>';
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Galettes tunnel',String(s.total))+metric('Clients',String(tunnelRows.length))+'</div><div class="info" style="margin-top:8px">Tunnel : bridage — à chaque transfert, tout le tunnel tourne à la vitesse de la charge la plus lente présente (cadence = '+(CFG.tFixe||36)+' s + taux max × '+(CFG.tParTaux||10)+' s). Séchoirs 2/3/3/2 en cycles : remplissage 96 s/galette (1re offerte par la passerelle) → séchage (drap 2,5 / éponge 20 / vêtement 30 min) → vidage 96 s. Passerelle = tampon de 4 ; le tunnel attend si elle est pleine. Fin = dernier linge sec.</div></div>';
   var h='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var g=parseInt(r.nbTransferts)||0;
     h+='<div class="bline"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span></div><div class="b-meta">'+g+' gal'+(r.machine==='laveuse'?' · laveuse':'')+'</div></div>';
