@@ -34,21 +34,21 @@
   .btn-primary{background:var(--teal);border-color:var(--teal);color:#fff}
   .btn-ghost{padding:7px 9px;border:none;background:transparent;color:var(--faint)}
 
-  /* En-tête collant */
   .topbar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-top:12px}
   .head-line{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;padding-bottom:10px}
   .head-actions{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
-  /* Onglets */
-  .tabs{display:flex;gap:6px;padding-bottom:10px}
-  .tab{padding:8px 16px;border-radius:10px;border:1px solid var(--line2);background:var(--card);color:var(--muted);font-weight:500}
+  .tabs{display:flex;gap:6px;padding-bottom:10px;flex-wrap:wrap}
+  .tab{padding:8px 14px;border-radius:10px;border:1px solid var(--line2);background:var(--card);color:var(--muted);font-weight:500}
   .tab.active{background:var(--teal);border-color:var(--teal);color:#fff}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
   .row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px}
   .row-top{display:flex;align-items:center;gap:8px}
   .badge{min-width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border-radius:8px;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);flex:none}
-  .grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:9px}
-  @media(min-width:620px){.grid4{grid-template-columns:repeat(4,1fr)}}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:9px}
+  .chips{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line2);background:var(--card);color:var(--muted);font-size:14px;cursor:pointer}
+  .chip.on{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
   .info{font-size:12px;color:var(--faint);margin-top:7px}
   .pill{padding:1px 7px;border-radius:5px;font-size:12px;background:var(--info-bg);color:var(--info)}
   .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
@@ -64,6 +64,7 @@
   .note{display:flex;gap:8px;border-radius:10px;padding:10px 12px;margin-top:14px;font-size:13px}
   .note.warn{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber)}
   .note.err{background:var(--info-bg);border:1px solid var(--line2);color:var(--danger)}
+  .note.ok{background:var(--teal-bg);border:1px solid var(--teal-line);color:var(--teal)}
   .sech{font-size:12px;color:var(--faint);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.03em}
   .cli{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
   .cli-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -72,18 +73,25 @@
   .cli-line{font-size:13px;color:var(--muted);margin-top:2px}
   .cli-delta{font-size:12px;margin-top:4px}
   .mono{font-variant-numeric:tabular-nums}
-  .reg-row{display:grid;grid-template-columns:64px 1fr 70px 96px 30px;gap:8px;align-items:center;margin-bottom:7px}
-  .reg-head{display:grid;grid-template-columns:64px 1fr 70px 96px 30px;gap:8px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
+  .reg-row{display:grid;grid-template-columns:56px 1fr 60px 78px 70px 30px;gap:7px;align-items:center;margin-bottom:7px}
+  .reg-head{display:grid;grid-template-columns:56px 1fr 60px 78px 70px 30px;gap:7px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px}
   .cad-out{font-size:13px;color:var(--teal);font-variant-numeric:tabular-nums}
   .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
   .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
   .neterr{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber);border-radius:10px;padding:8px 12px;margin:10px 0;font-size:13px;display:none}
+  .bline{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:6px}
+  .bline .b-name{font-weight:500}
+  .bline .b-meta{font-size:12px;color:var(--muted)}
+  .tag{display:inline-block;padding:0 6px;border-radius:5px;font-size:11px;margin-left:6px}
+  .tag.drap{background:var(--info-bg);color:var(--info)}
+  .tag.eponge{background:var(--amber-bg);color:var(--amber)}
+  .tag.vetement{background:#efe9fb;color:#6b3fc0}
+  @media (prefers-color-scheme: dark){.tag.vetement{background:#2a2140;color:#b79bf0}}
 
   #view-saisie{padding-top:12px;padding-bottom:96px}
-  #view-plan,#view-reglages{padding-top:12px}
+  #view-plan,#view-reglages,#view-brouillon{padding-top:12px}
   .hidden{display:none!important}
 
-  /* Barre d'ajout fixe en bas */
   #addbar{position:fixed;left:0;right:0;bottom:0;z-index:6;padding:10px 0 14px;background:linear-gradient(to top,var(--bg) 72%,rgba(241,245,246,0));display:none}
   @media (prefers-color-scheme: dark){#addbar{background:linear-gradient(to top,var(--bg) 72%,rgba(17,24,28,0))}}
   #addbar.show{display:block}
@@ -125,6 +133,7 @@
       <div class="tabs">
         <button class="tab active" data-view="saisie">Saisie</button>
         <button class="tab" data-view="plan">Plan de travail</button>
+        <button class="tab" data-view="brouillon">Brouillon</button>
         <button class="tab" data-view="reglages">Réglages</button>
       </div>
     </div>
@@ -143,17 +152,38 @@
       <div id="results"></div>
     </section>
 
+    <!-- ONGLET BROUILLON -->
+    <section id="view-brouillon" class="hidden">
+      <div class="card no-print">
+        <div style="font-weight:600">Brouillon — proposition d'organisation</div>
+        <div class="sub" style="margin-top:2px">Charge un jour de base, simule les séchoirs à la vitesse réelle du tunnel, et propose un ordre de lavage qui finit plus tôt. Votre page officielle n'est pas modifiée.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:12px">
+          <div><span class="lab">Jour de base</span><input type="date" id="b-base" class="w-auto"></div>
+          <button id="b-load">Charger ce jour</button>
+          <div><span class="lab">Vitesse tunnel (s/rotation)</span><input type="number" id="b-speed" class="mono w-auto" style="width:90px" step="0.1" min="1"></div>
+        </div>
+        <div id="b-status" class="info" style="margin-top:8px"></div>
+      </div>
+      <div id="b-results"></div>
+      <div id="b-list"></div>
+      <div id="b-actions" class="hidden" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:12px">
+        <button id="b-opt" class="btn-primary">Optimiser l'ordre</button>
+        <div><span class="lab">Diffuser vers</span><input type="date" id="b-target" class="w-auto"></div>
+        <button id="b-diffuse">Diffuser vers cette date</button>
+      </div>
+    </section>
+
     <!-- ONGLET RÉGLAGES -->
     <section id="view-reglages" class="hidden">
       <div class="card no-print">
         <div style="font-weight:600">Codes de lavage</div>
-        <div class="sub" style="margin-top:2px">Entrez le <b>taux de transfert</b> de chaque programme (le nombre de rotations avant que la case avance). La cadence en galettes/heure se calcule toute seule.</div>
-        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 12px">
-          <span class="lab" style="margin:0">Durée d'une rotation (s)</span>
+        <div class="sub" style="margin-top:2px">Taux de transfert (rotations avant que la case avance) et temps de séchage par type de linge. La cadence et le type se déduisent tout seuls.</div>
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 12px;flex-wrap:wrap">
+          <span class="lab" style="margin:0">Durée d'une rotation (s) — Plan de travail</span>
           <input type="number" id="rot" class="mono w-auto" style="width:90px" step="0.1" min="1">
-          <span class="sub">à ajuster une fois pour coller à votre machine</span>
+          <span class="sub">votre étalon, calé sur votre heure de fin réelle</span>
         </div>
-        <div class="reg-head"><span>N° (0–30)</span><span>Libellé</span><span>Taux</span><span>Galettes/h</span><span></span></div>
+        <div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Galettes/h</span><span></span></div>
         <div id="codes"></div>
         <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
         <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
@@ -166,7 +196,6 @@
     <div class="foot">Données partagées via le cloud. Connecté en tant que <span id="who"></span>.</div>
   </div>
 
-  <!-- Barre d'ajout fixe (onglet Saisie) -->
   <div id="addbar" class="no-print">
     <div class="inner">
       <span class="sum" id="saisie-sum"></span>
@@ -183,15 +212,21 @@ var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
 var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, curView='saisie';
 
-var POSTES=[['pliage_table','Pliage à table'],['faxm','FAXM'],['repassage','Repassage']];
+var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
-var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8};
-var codes=[{num:2,lib:'',taux:9},{num:8,lib:'',taux:7},{num:11,lib:'',taux:8}];
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tunnelSpeedSec:14};
+var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
+var bRows=[], bLoaded=false, bBaseDate='';
+
+/* séchoirs : capacités, cuve #4 (index 3) réservée aux draps */
+var CAP=[2,3,3,2], DRAP_DRYER=3;
 
 function todayISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function dateMinus7(iso){var p=iso.split('-').map(Number);var d=new Date(p[0],p[1]-1,p[2]);d.setDate(d.getDate()-7);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isoMinus(iso,n){var p=iso.split('-').map(Number);var d=new Date(p[0],p[1]-1,p[2]);d.setDate(d.getDate()-n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isoPlus(iso,n){return isoMinus(iso,-n);}
+function dateMinus7(iso){return isoMinus(iso,7);}
 function uid(){return 'id'+Math.random().toString(36).slice(2)+Date.now();}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function parseHeure(h){var p=(h||'06:00').split(':').map(Number);return p[0]*3600+p[1]*60;}
@@ -202,19 +237,30 @@ function secParGalette(c){return (c&&c.taux>0)?c.taux*CFG.rotationSec:0;}
 function galParH(c){var s=secParGalette(c);return s>0?Math.round(3600/s):0;}
 function codeByNum(n){n=parseInt(n);for(var i=0;i<codes.length;i++)if(codes[i].num===n)return codes[i];return null;}
 function lbl(arr,id){for(var i=0;i<arr.length;i++)if(arr[i][0]===id)return arr[i][1];return '—';}
+function defSechage(lib){var s=(lib||'').toLowerCase();if(/drap/.test(s))return 2.5;if(/blouse|tenue|v[êe]tement|robe|veste/.test(s))return 30;return 20;}
+function typeFromMin(m){if(m==null)return 'eponge';if(m<=5)return 'drap';if(m>=25)return 'vetement';return 'eponge';}
+function typeOfCode(c){return typeFromMin(c?c.sechageMin:null);}
+function typeLabel(t){return t==='drap'?'drap':(t==='vetement'?'vêtement':'éponge');}
 
 function netErr(){var e=document.getElementById('neterr');if(e)e.style.display='block';}
 function netOk(){var e=document.getElementById('neterr');if(e)e.style.display='none';}
 
+function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='string'&&p)return p.split(',').map(function(x){return x.trim();}).filter(Boolean);return ['repassage'];}
+
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(d.codes&&d.codes.length)codes=d.codes;return true;}
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(!CFG.tunnelSpeedSec)CFG.tunnelSpeedSec=14;
+      if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);});}
+      return true;}
     return false;
   }catch(e){netErr();return false;}
 }
 async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.id,data:{cfg:CFG,codes:codes},updated_at:new Date().toISOString()},{onConflict:'user_id'});netOk();}catch(e){netErr();}}
-async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');rows=(r.data||[]).map(function(x){return {id:uid(),client:x.client||'',poste:x.poste||'repassage',machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};});netOk();}catch(e){rows=[];netErr();}}
-async function savePlan(){pendingSave=true;try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',curDate);if(rows.length){var payload=rows.map(function(r,i){return {user_id:USER.id,date_jour:curDate,ordre:i,client:r.client||'',poste:r.poste||'repassage',machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};});await sb.from('plan_charges').insert(payload);}netOk();}catch(e){netErr();}pendingSave=false;}
+function mapRow(x){return {id:uid(),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
+function rowToDb(r,date,i){return {user_id:USER.id,date_jour:date,ordre:i,client:r.client||'',poste:(r.postes&&r.postes.length?r.postes.join(','):'repassage'),machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};}
+async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');rows=(r.data||[]).map(mapRow);netOk();}catch(e){rows=[];netErr();}}
+async function loadDay(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');return (r.data||[]).map(mapRow);}catch(e){netErr();return [];}}
+async function savePlan(){pendingSave=true;try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',curDate);if(rows.length){var payload=rows.map(function(r,i){return rowToDb(r,curDate,i);});await sb.from('plan_charges').insert(payload);}netOk();}catch(e){netErr();}pendingSave=false;}
 async function loadPrevTotals(date){try{var r=await sb.from('plan_charges').select('client,galettes').eq('user_id',USER.id).eq('date_jour',dateMinus7(date));var t={};(r.data||[]).forEach(function(x){var nm=(x.client||'').trim()||'(sans nom)';t[nm]=(t[nm]||0)+(x.galettes||0);});return t;}catch(e){return {};}}
 
 function localPlanKeys(){var a=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('pdt_plan:')===0)a.push(k);}return a;}
@@ -224,7 +270,7 @@ async function pushLocalToCloud(){
   if(cf)try{CFG=Object.assign(CFG,JSON.parse(cf));}catch(e){}
   if(!CFG.rotationSec)CFG.rotationSec=13.8;
   if(cd){try{var p=JSON.parse(cd);if(p&&p.length)codes=p;}catch(e){}}
-  codes.forEach(function(c){if(c.taux==null&&c.tph!=null&&c.tph>0)c.taux=Math.max(1,Math.round(3600/(c.tph*CFG.rotationSec)));if(c.taux==null)c.taux=0;});
+  codes.forEach(function(c){if(c.taux==null&&c.tph!=null&&c.tph>0)c.taux=Math.max(1,Math.round(3600/(c.tph*CFG.rotationSec)));if(c.taux==null)c.taux=0;if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);});
   await saveConfig();
   var moved=0;
   for(var j=0;j<pk.length;j++){
@@ -232,7 +278,7 @@ async function pushLocalToCloud(){
     try{arr=JSON.parse(localStorage.getItem(key)||'[]');}catch(e){}
     if(arr&&arr.length){
       try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',date);}catch(e){}
-      var payload=arr.map(function(r,idx){return {user_id:USER.id,date_jour:date,ordre:idx,client:r.client||'',poste:r.poste||'repassage',machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};});
+      var payload=arr.map(function(r,idx){return rowToDb({client:r.client,postes:normPostes(r.poste||r.postes),machine:r.machine,code:r.code,nbTransferts:r.nbTransferts},date,idx);});
       try{await sb.from('plan_charges').insert(payload);moved+=payload.length;}catch(e){}
     }
   }
@@ -248,15 +294,14 @@ function sync(){renderResults();updateSummary();scheduleSavePlan();}
 
 function setView(name){
   curView=name;
-  document.getElementById('view-saisie').classList.toggle('hidden',name!=='saisie');
-  document.getElementById('view-plan').classList.toggle('hidden',name!=='plan');
-  document.getElementById('view-reglages').classList.toggle('hidden',name!=='reglages');
+  ['saisie','plan','brouillon','reglages'].forEach(function(v){document.getElementById('view-'+v).classList.toggle('hidden',name!==v);});
   document.getElementById('addbar').classList.toggle('show',name==='saisie');
   var tabs=document.querySelectorAll('.tab');for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('active',tabs[i].getAttribute('data-view')===name);
   if(name==='plan')renderResults();
   window.scrollTo({top:0,behavior:'auto'});
 }
 
+/* ---------- Moteur tunnel simple (Plan de travail, étalon inchangé) ---------- */
 function simulerTunnel(){
   var N=CFG.nbStockage+CFG.nbLavage,lavStart=CFG.nbStockage,charges=[],undef=false;
   rows.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);if((!c||!(c.taux>0))&&(parseInt(r.nbTransferts)||0)>0)undef=true;var sec=secParGalette(c);var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({rowId:r.id,sec:sec,tLoad:null,tExit:null});});
@@ -267,17 +312,60 @@ function simulerTunnel(){
   return{total:total,fin:fin,duree:fin-start,bMax:bMax,cMin:isFinite(cMin)?cMin:0,lots:lots,undef:undef};
 }
 
-function rowInfo(r){var c=codeByNum(r.code);var s;if(r.code===''||r.code==null)s='Aucun code';else if(c&&c.taux>0)s='Code '+c.num+(c.lib?' ('+esc(c.lib)+')':'')+' \u2192 taux '+c.taux+' \u2192 '+galParH(c)+' galettes/h';else s='<span style="color:var(--danger)">Code '+esc(r.code)+' non défini — à renseigner dans Réglages</span>';if(r.machine==='laveuse')s+=' \u00b7 <span class="pill">hors séchoirs</span>';return s;}
+/* ---------- Moteur séchoirs (Brouillon) ---------- */
+function earliestSlot(dryers,type,t){var best=Infinity,d,dr;
+  for(d=0;d<4;d++){dr=dryers[d];
+    if(type!=='drap'&&d===DRAP_DRYER)continue;
+    if(dr.busy.length===0)best=Math.min(best,t);
+    else if(dr.type===type&&dr.busy.length<dr.cap)best=Math.min(best,t);
+    else if(dr.type===type)best=Math.min(best,Math.min.apply(null,dr.busy));
+    else best=Math.min(best,Math.max.apply(null,dr.busy));}
+  if(type==='drap'){for(d=0;d<4;d++){if(d===DRAP_DRYER)continue;dr=dryers[d];
+    if(dr.busy.length===0)best=Math.min(best,t);
+    else if(dr.type==='drap'&&dr.busy.length<dr.cap)best=Math.min(best,t);
+    else if(dr.type==='drap')best=Math.min(best,Math.min.apply(null,dr.busy));}}
+  return best;}
+function occupy(dryers,type,tOut){var order=type==='drap'?[DRAP_DRYER,0,1,2]:[0,1,2],d,dr;
+  for(d=0;d<order.length;d++){dr=dryers[order[d]];if(dr.busy.length>0&&dr.type===type&&dr.busy.length<dr.cap){dr.busy.push(tOut);return;}}
+  for(d=0;d<order.length;d++){dr=dryers[order[d]];if(dr.busy.length===0){dr.type=type;dr.busy.push(tOut);return;}}
+  for(d=0;d<order.length;d++){dr=dryers[order[d]];if(dr.type===type&&dr.busy.length<dr.cap){dr.busy.push(tOut);return;}}
+  var bd=order[0],bt=Infinity;for(d=0;d<order.length;d++){dr=dryers[order[d]];var f=Math.max.apply(null,dr.busy);if(f<bt){bt=f;bd=order[d];}}
+  dryers[bd].busy=dryers[bd].busy.filter(function(x){return x>bt;});if(dryers[bd].busy.length===0)dryers[bd].type=type;dryers[bd].busy.push(tOut);}
+function release(dryers,t){for(var i=0;i<dryers.length;i++){var dr=dryers[i];dr.busy=dr.busy.filter(function(x){return x>t;});if(dr.busy.length===0)dr.type=null;}}
+function chargesFrom(list,speed){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=typeFromMin(dryMin);var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({rowId:r.id,type:type,dry:dryMin*60,sec:taux*speed,tExit:null});});return charges;}
+function simSechoirs(list,speed,start){
+  var N=14,L=4,dryers=CAP.map(function(c){return{cap:c,type:null,busy:[]};});
+  var charges=chargesFrom(list,speed),pos=new Array(N).fill(null),q=charges.slice(),t=start,ex=0,tot=charges.length,g=0,wait=0;
+  if(tot===0)return{fin:start,wait:0,total:0};
+  while(ex<tot&&g<2000000){g++;var E=pos[N-1];
+    if(E){release(dryers,t);var a=earliestSlot(dryers,E.type,t);if(a>t){wait+=a-t;t=a;release(dryers,t);}occupy(dryers,E.type,t+E.dry);E.tExit=t;ex++;}
+    for(var i=N-1;i>0;i--)pos[i]=pos[i-1];pos[0]=q.length?q.shift():null;
+    var occ=[];for(var k=L;k<N;k++)if(pos[k])occ.push(pos[k].sec);
+    var cad=occ.length?Math.max.apply(null,occ):speed;t+=cad;}
+  var fin=charges.reduce(function(m,c){return c.tExit!=null?Math.max(m,c.tExit):m;},start);
+  return{fin:fin,wait:wait,total:tot};
+}
+function optimiserOrdre(list,speed,start){
+  var K=3,best=list.slice(),bestFin=simSechoirs(best,speed,start).fin,improved=true,iter=0;
+  while(improved&&iter<80){improved=false;iter++;
+    for(var i=0;i<best.length;i++){for(var j=Math.max(0,i-K);j<=Math.min(best.length-1,i+K);j++){if(i===j)continue;
+      var cand=best.slice();var x=cand.splice(i,1)[0];cand.splice(j,0,x);
+      var f=simSechoirs(cand,speed,start).fin;if(f<bestFin-1){bestFin=f;best=cand;improved=true;}}}}
+  return{order:best,fin:bestFin};
+}
+
+/* ---------- Saisie ---------- */
+function rowInfo(r){var c=codeByNum(r.code);var s;if(r.code===''||r.code==null)s='Aucun code';else if(c&&c.taux>0)s='Code '+c.num+(c.lib?' ('+esc(c.lib)+')':'')+' \u2192 '+galParH(c)+' galettes/h \u00b7 '+typeLabel(typeOfCode(c))+' '+(c.sechageMin!=null?c.sechageMin+' min':'');else s='<span style="color:var(--danger)">Code '+esc(r.code)+' non défini — à renseigner dans Réglages</span>';if(r.machine==='laveuse')s+=' \u00b7 <span class="pill">hors séchoirs</span>';return s;}
 function makeRow(r,i){
   var el=document.createElement('div');el.className='row';
-  var po=POSTES.map(function(p){return '<option value="'+p[0]+'"'+(r.poste===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');
   var ma=MACHINES.map(function(m){return '<option value="'+m[0]+'"'+(r.machine===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('');
-  el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span><input type="text" class="r-client" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid4"><div><span class="lab">Poste</span><select class="r-poste">'+po+'</select></div><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Galettes</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div class="info r-info"></div>';
+  var chips=POSTES.map(function(p){var on=(r.postes||[]).indexOf(p[0])>=0;return '<span class="chip'+(on?' on':'')+'" data-p="'+p[0]+'">'+p[1]+'</span>';}).join('');
+  el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span><input type="text" class="r-client" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid3"><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Galettes</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div><span class="lab" style="margin-top:9px">Postes de finition</span><div class="chips">'+chips+'</div></div><div class="info r-info"></div>';
   el.querySelector('.r-client').addEventListener('input',function(e){r.client=e.target.value;sync();});
-  el.querySelector('.r-poste').addEventListener('change',function(e){r.poste=e.target.value;sync();});
   el.querySelector('.r-machine').addEventListener('change',function(e){r.machine=e.target.value;el.querySelector('.r-info').innerHTML=rowInfo(r);sync();});
   el.querySelector('.r-code').addEventListener('input',function(e){var v=e.target.value;if(v!==''){var n=Math.max(0,Math.min(30,parseInt(v)||0));v=String(n);e.target.value=v;}r.code=v;el.querySelector('.r-info').innerHTML=rowInfo(r);sync();});
   el.querySelector('.r-nb').addEventListener('input',function(e){r.nbTransferts=e.target.value;sync();});
+  var ch=el.querySelectorAll('.chip');for(var ci=0;ci<ch.length;ci++)ch[ci].addEventListener('click',function(){var p=this.getAttribute('data-p');if(!r.postes)r.postes=[];var idx=r.postes.indexOf(p);if(idx>=0){if(r.postes.length>1)r.postes.splice(idx,1);}else r.postes.push(p);this.classList.toggle('on');sync();});
   el.querySelector('.r-up').addEventListener('click',function(){move(r.id,-1);});
   el.querySelector('.r-down').addEventListener('click',function(){move(r.id,1);});
   el.querySelector('.r-del').addEventListener('click',function(){rows=rows.filter(function(x){return x.id!==r.id;});renderRows();sync();});
@@ -286,25 +374,28 @@ function makeRow(r,i){
 }
 function renderRows(){var c=document.getElementById('rows');c.innerHTML='';if(rows.length===0){c.innerHTML='<div class="empty">Aucune saisie pour cette journée. Appuyez sur « + Ajouter un client » pour commencer.</div>';updateSummary();return;}rows.forEach(function(r,i){c.appendChild(makeRow(r,i));});updateSummary();}
 function add(){
-  rows.push({id:uid(),client:'',poste:'repassage',machine:'tunnel',code:'',nbTransferts:''});
+  rows.push({id:uid(),client:'',postes:['repassage'],machine:'tunnel',code:'',nbTransferts:''});
   renderRows();sync();
   var inp=document.getElementById('rows').querySelectorAll('.r-client');
   if(inp.length){var last=inp[inp.length-1];last.scrollIntoView({block:'center',behavior:'smooth'});setTimeout(function(){last.focus();},120);}
 }
 function move(id,d){var i=-1;for(var k=0;k<rows.length;k++)if(rows[k].id===id)i=k;var j=i+d;if(i<0||j<0||j>=rows.length)return;var a=rows[i];rows[i]=rows[j];rows[j]=a;renderRows();sync();}
 
-function makeCode(c){var el=document.createElement('div');el.className='reg-row';el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
+/* ---------- Réglages ---------- */
+function makeCode(c){var el=document.createElement('div');el.className='reg-row';el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><input type="number" inputmode="decimal" min="0" step="0.5" class="c-sech mono" value="'+(c.sechageMin==null?'':c.sechageMin)+'"><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
   el.querySelector('.c-num').addEventListener('input',function(e){var n=Math.max(0,Math.min(30,parseInt(e.target.value)||0));e.target.value=String(n);c.num=n;});
   el.querySelector('.c-num').addEventListener('change',function(){renderRows();renderResults();scheduleSaveConfig();});
   el.querySelector('.c-lib').addEventListener('input',function(e){c.lib=e.target.value;});
   el.querySelector('.c-lib').addEventListener('change',function(){renderRows();renderResults();scheduleSaveConfig();});
   el.querySelector('.c-taux').addEventListener('input',function(e){c.taux=Math.max(0,parseInt(e.target.value)||0);el.querySelector('.c-cad').textContent=c.taux>0?galParH(c)+' /h':'—';renderRows();renderResults();scheduleSaveConfig();});
+  el.querySelector('.c-sech').addEventListener('input',function(e){var v=e.target.value;c.sechageMin=v===''?null:Math.max(0,parseFloat(v)||0);renderRows();scheduleSaveConfig();});
   el.querySelector('.c-del').addEventListener('click',function(){if(codes.length>1){codes=codes.filter(function(x){return x!==c;});renderCodes();renderRows();renderResults();scheduleSaveConfig();}});
   return el;
 }
 function renderCodes(){var c=document.getElementById('codes');c.innerHTML='';codes.forEach(function(x){c.appendChild(makeCode(x));});}
-function addCode(){codes.push({num:0,lib:'',taux:0});renderCodes();scheduleSaveConfig();}
+function addCode(){codes.push({num:0,lib:'',taux:0,sechageMin:20});renderCodes();scheduleSaveConfig();}
 
+/* ---------- Plan de travail ---------- */
 function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
 function renderResults(){
   var out=document.getElementById('results');
@@ -313,7 +404,7 @@ function renderResults(){
   var totalG=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
   var N=CFG.nbStockage+CFG.nbLavage;
   var agg={};
-  rows.forEach(function(r){var nm=(r.client||'').trim()||'(sans nom)';if(!agg[nm])agg[nm]={name:nm,gal:0,postes:{},charg:Infinity,sortie:0,hasTunnel:false,hasLav:false};var A=agg[nm];A.gal+=parseInt(r.nbTransferts)||0;A.postes[r.poste]=true;if(r.machine==='tunnel'){A.hasTunnel=true;var L=sim.lots[r.id];if(L){if(L.charg<A.charg)A.charg=L.charg;if(L.sortie>A.sortie)A.sortie=L.sortie;}}else{A.hasLav=true;}});
+  rows.forEach(function(r){var nm=(r.client||'').trim()||'(sans nom)';if(!agg[nm])agg[nm]={name:nm,gal:0,postes:{},charg:Infinity,sortie:0,hasTunnel:false,hasLav:false};var A=agg[nm];A.gal+=parseInt(r.nbTransferts)||0;(r.postes||[]).forEach(function(p){A.postes[p]=true;});if(r.machine==='tunnel'){A.hasTunnel=true;var L=sim.lots[r.id];if(L){if(L.charg<A.charg)A.charg=L.charg;if(L.sortie>A.sortie)A.sortie=L.sortie;}}else{A.hasLav=true;}});
   var clients=Object.keys(agg).map(function(k){return agg[k];});
   var prevTot=prevTotals;
   var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée — '+esc(curDate)+'</div>';
@@ -321,7 +412,7 @@ function renderResults(){
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
-  if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel. Réordonner les clients peut réduire ce temps.</div>';
+  if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
   h+='<div class="sech">Production par client</div>';
   clients.forEach(function(A){
     var line=Object.keys(A.postes).map(function(p){return lbl(POSTES,p);}).join(', ');
@@ -336,6 +427,62 @@ function renderResults(){
   out.innerHTML=h;
 }
 
+/* ---------- Brouillon ---------- */
+function bSpeed(){var v=parseFloat(document.getElementById('b-speed').value);return v>0?v:(CFG.tunnelSpeedSec||14);}
+function renderBrouillon(){
+  var listEl=document.getElementById('b-list'),resEl=document.getElementById('b-results'),act=document.getElementById('b-actions');
+  if(!bLoaded){listEl.innerHTML='';resEl.innerHTML='';act.classList.add('hidden');return;}
+  act.classList.remove('hidden');
+  var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
+  var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
+  var s=simSechoirs(bRows,speed,start);
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Galettes tunnel',String(s.total))+metric('Clients',String(tunnelRows.length))+'</div><div class="info" style="margin-top:8px">Séchoirs 2/3/3/2 — la cuve 4 est réservée aux draps (tampon). Le tunnel attend quand aucune place ne se libère.</div></div>';
+  var h='<div class="sech">Ordre de lavage</div>';
+  bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var g=parseInt(r.nbTransferts)||0;
+    h+='<div class="bline"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span></div><div class="b-meta">'+g+' gal'+(r.machine==='laveuse'?' · laveuse':'')+'</div></div>';
+  });
+  listEl.innerHTML=h;
+}
+async function bLoad(){
+  var d=document.getElementById('b-base').value||isoMinus(todayISO(),1);
+  document.getElementById('b-status').textContent='Chargement…';
+  bRows=await loadDay(d);bBaseDate=d;bLoaded=true;
+  document.getElementById('b-target').value=isoPlus(d,7);
+  document.getElementById('b-status').textContent=bRows.length?('Jour chargé : '+bRows.length+' client(s). Vous pouvez optimiser puis diffuser.'):'Aucune donnée pour ce jour.';
+  renderBrouillon();
+}
+function bOptimize(){
+  if(!bLoaded||!bRows.length)return;
+  var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
+  var before=simSechoirs(bRows,speed,start).fin;
+  var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
+  var others=bRows.filter(function(r){return r.machine!=='tunnel';});
+  var opt=optimiserOrdre(tunnelRows,speed,start);
+  bRows=opt.order.concat(others);
+  var after=opt.fin;
+  var gain=Math.round((before-after)/60);
+  renderBrouillon();
+  var resEl=document.getElementById('b-results');
+  var msg=gain>0?('<div class="note ok">Pari gagné : l\'ordre proposé finit à '+fmtHHMM(after)+', soit '+gain+' min plus tôt qu\'avant ('+fmtHHMM(before)+'). Si ça vous convient, diffusez-le.</div>')
+                :(gain===0?'<div class="note warn">L\'ordre saisi est déjà optimal pour les séchoirs — aucun gain possible en déplaçant les clients de quelques positions.</div>'
+                          :'<div class="note warn">Aucune amélioration trouvée dans l\'ordre proche.</div>');
+  resEl.insertAdjacentHTML('beforeend',msg);
+}
+async function bDiffuse(){
+  if(!bLoaded||!bRows.length){alert('Chargez d\'abord un jour de base.');return;}
+  var target=document.getElementById('b-target').value;
+  if(!target){alert('Choisissez une date cible.');return;}
+  if(!confirm('Diffuser cet ordre vers le '+target+' ? Cela remplacera le contenu de cette date.'))return;
+  try{
+    await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',target);
+    var payload=bRows.map(function(r,i){return rowToDb(r,target,i);});
+    if(payload.length)await sb.from('plan_charges').insert(payload);
+    document.getElementById('b-status').textContent='Diffusé vers le '+target+'. Ouvrez cette date dans Saisie / Plan de travail pour la retrouver.';
+    if(curDate===target){await loadPlan(curDate);renderRows();renderResults();updateSummary();}
+    alert('Diffusé vers le '+target+'.');
+  }catch(e){netErr();alert('Échec de la diffusion (réseau).');}
+}
+
 async function refreshFromCloud(){if(pendingSave)return;prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();}
 
 async function startApp(){
@@ -348,6 +495,9 @@ async function startApp(){
   document.getElementById('date').value=curDate;
   document.getElementById('start').value=CFG.heureDemarrage;
   document.getElementById('rot').value=CFG.rotationSec;
+  document.getElementById('b-speed').value=CFG.tunnelSpeedSec;
+  document.getElementById('b-base').value=isoMinus(curDate,1);
+  document.getElementById('b-target').value=isoPlus(curDate,6);
   prevTotals=await loadPrevTotals(curDate);
   await loadPlan(curDate);
   renderCodes();renderRows();renderResults();updateSummary();
@@ -375,6 +525,10 @@ document.getElementById('btn-refresh').addEventListener('click',refreshFromCloud
 document.getElementById('btn-logout').addEventListener('click',async function(){await sb.auth.signOut();location.reload();});
 document.getElementById('btn-addcode').addEventListener('click',addCode);
 document.getElementById('btn-add').addEventListener('click',add);
+document.getElementById('b-load').addEventListener('click',bLoad);
+document.getElementById('b-opt').addEventListener('click',bOptimize);
+document.getElementById('b-diffuse').addEventListener('click',bDiffuse);
+document.getElementById('b-speed').addEventListener('input',function(e){CFG.tunnelSpeedSec=parseFloat(e.target.value)||14;renderBrouillon();scheduleSaveConfig();});
 document.getElementById('btn-restore').addEventListener('click',async function(){
   if(!confirm('Envoyer les saisies stockées sur CET appareil vers le cloud ? (à faire sur l\'ordinateur qui a vos données)'))return;
   localStorage.removeItem('pdt_synced');
@@ -382,7 +536,7 @@ document.getElementById('btn-restore').addEventListener('click',async function()
   await loadConfig();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderCodes();renderRows();renderResults();updateSummary();
   alert(n>0?('Données envoyées : '+n+' galettes importées dans le cloud.'):'Aucune donnée locale trouvée sur cet appareil.');
 });
-document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;renderResults();scheduleSaveConfig();});
+document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;renderResults();renderBrouillon();scheduleSaveConfig();});
 document.getElementById('rot').addEventListener('input',function(e){CFG.rotationSec=parseFloat(e.target.value)||13.8;renderCodes();renderRows();renderResults();scheduleSaveConfig();});
 document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();});
 window.addEventListener('focus',refreshFromCloud);
