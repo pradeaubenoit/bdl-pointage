@@ -73,8 +73,8 @@
   .cli-line{font-size:13px;color:var(--muted);margin-top:2px}
   .cli-delta{font-size:12px;margin-top:4px}
   .mono{font-variant-numeric:tabular-nums}
-  .reg-row{display:grid;grid-template-columns:56px 1fr 60px 78px 70px 30px;gap:7px;align-items:center;margin-bottom:7px}
-  .reg-head{display:grid;grid-template-columns:56px 1fr 60px 78px 70px 30px;gap:7px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px}
+  .reg-row{display:grid;grid-template-columns:50px 1fr 50px 72px 92px 56px 28px;gap:7px;align-items:center;margin-bottom:7px}
+  .reg-head{display:grid;grid-template-columns:50px 1fr 50px 72px 92px 56px 28px;gap:7px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px}
   .cad-out{font-size:13px;color:var(--teal);font-variant-numeric:tabular-nums}
   .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
   .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
@@ -184,7 +184,7 @@
           <input type="number" id="rot" class="mono w-auto" style="width:90px" step="0.1" min="1">
           <span class="sub">votre étalon, calé sur votre heure de fin réelle</span>
         </div>
-        <div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Galettes/h</span><span></span></div>
+        <div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Galettes/h</span><span></span></div>
         <div id="codes"></div>
         <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
         <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
@@ -235,11 +235,13 @@ function fmtHHMM(s){if(s==null||!isFinite(s))return '—';s=Math.round(s);var h=
 function fmtDuree(s){if(s==null||!isFinite(s))return '—';s=Math.max(0,Math.round(s));var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h'+String(m).padStart(2,'0'):m+' min';}
 function fmtCad(s){if(!s||!isFinite(s))return '—';var m=Math.floor(s/60),x=Math.round(s%60);return m>0?m+'\u2032'+String(x).padStart(2,'0')+'\u2033':x+'\u2033';}
 function secParGalette(c){return (c&&c.taux>0)?c.taux*CFG.rotationSec:0;}
-function galParH(c){if(!c||!(c.taux>0))return 0;var s=(CFG.tFixe||36)+c.taux*(CFG.tParTaux||10);return Math.round(3600/s);}
-  function lbl(arr,id){for(var i=0;i<arr.length;i++)if(arr[i][0]===id)return arr[i][1];return '—';}
+function galParH(c){var s=secParGalette(c);return s>0?Math.round(3600/s):0;}
+function codeByNum(n){n=parseInt(n);for(var i=0;i<codes.length;i++)if(codes[i].num===n)return codes[i];return null;}
+function lbl(arr,id){for(var i=0;i<arr.length;i++)if(arr[i][0]===id)return arr[i][1];return '—';}
 function defSechage(lib){var s=(lib||'').toLowerCase();if(/drap/.test(s))return 2.5;if(/blouse|tenue|v[êe]tement|robe|veste/.test(s))return 30;return 20;}
 function typeFromMin(m){if(m==null)return 'eponge';if(m<=5)return 'drap';if(m>=25)return 'vetement';return 'eponge';}
-function typeOfCode(c){return typeFromMin(c?c.sechageMin:null);}
+var TYPES=[['eponge','Éponge'],['drap','Drap'],['vetement','Vêtement']];
+function typeOfCode(c){return (c&&c.type)?c.type:typeFromMin(c?c.sechageMin:null);}
 function typeLabel(t){return t==='drap'?'drap':(t==='vetement'?'vêtement':'éponge');}
 
 function netErr(){var e=document.getElementById('neterr');if(e)e.style.display='block';}
@@ -250,7 +252,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
     if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;
-      if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);});}
+      if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);});}
       return true;}
     return false;
   }catch(e){netErr();return false;}
@@ -313,7 +315,7 @@ function simulerTunnel(){
 }
 
 /* ---------- Moteur séchoirs (Brouillon) ---------- */
-function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=typeFromMin(dryMin);var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({type:type,dry:dryMin*60,taux:taux});});return charges;}
+function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=c?typeOfCode(c):'eponge';var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({type:type,dry:dryMin*60,taux:taux});});return charges;}
 /* Tunnel 14 positions (4 stockage + 10 lavage). BRIDAGE : à chaque transfert, cadence = tFixe + (taux MAX des 10 cases
    de lavage) × tParTaux, imposée à tout le tunnel tant que la charge lente n'est pas sortie. Sortie -> passerelle (4) ->
    séchoirs en cycles (remplir 96/gal sauf 1re offerte par passerelle, sécher, vider 96). fin = dernier linge sec. */
@@ -392,7 +394,8 @@ function add(){
 function move(id,d){var i=-1;for(var k=0;k<rows.length;k++)if(rows[k].id===id)i=k;var j=i+d;if(i<0||j<0||j>=rows.length)return;var a=rows[i];rows[i]=rows[j];rows[j]=a;renderRows();sync();}
 
 /* ---------- Réglages ---------- */
-function makeCode(c){var el=document.createElement('div');el.className='reg-row';el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><input type="number" inputmode="decimal" min="0" step="0.5" class="c-sech mono" value="'+(c.sechageMin==null?'':c.sechageMin)+'"><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
+function makeCode(c){var el=document.createElement('div');el.className='reg-row';var topts=TYPES.map(function(p){return '<option value="'+p[0]+'"'+(typeOfCode(c)===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><input type="number" inputmode="decimal" min="0" step="0.5" class="c-sech mono" value="'+(c.sechageMin==null?'':c.sechageMin)+'"><select class="c-type">'+topts+'</select><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
+  el.querySelector('.c-type').addEventListener('change',function(e){c.type=e.target.value;renderRows();scheduleSaveConfig();});
   el.querySelector('.c-num').addEventListener('input',function(e){var n=Math.max(0,Math.min(30,parseInt(e.target.value)||0));e.target.value=String(n);c.num=n;});
   el.querySelector('.c-num').addEventListener('change',function(){renderRows();renderResults();scheduleSaveConfig();});
   el.querySelector('.c-lib').addEventListener('input',function(e){c.lib=e.target.value;});
@@ -403,7 +406,7 @@ function makeCode(c){var el=document.createElement('div');el.className='reg-row'
   return el;
 }
 function renderCodes(){var c=document.getElementById('codes');c.innerHTML='';codes.forEach(function(x){c.appendChild(makeCode(x));});}
-function addCode(){codes.push({num:0,lib:'',taux:0,sechageMin:20});renderCodes();scheduleSaveConfig();}
+function addCode(){codes.push({num:0,lib:'',taux:0,sechageMin:20,type:'eponge'});renderCodes();scheduleSaveConfig();}
 
 /* ---------- Plan de travail ---------- */
 function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
