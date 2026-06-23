@@ -235,9 +235,8 @@ function fmtHHMM(s){if(s==null||!isFinite(s))return '—';s=Math.round(s);var h=
 function fmtDuree(s){if(s==null||!isFinite(s))return '—';s=Math.max(0,Math.round(s));var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h'+String(m).padStart(2,'0'):m+' min';}
 function fmtCad(s){if(!s||!isFinite(s))return '—';var m=Math.floor(s/60),x=Math.round(s%60);return m>0?m+'\u2032'+String(x).padStart(2,'0')+'\u2033':x+'\u2033';}
 function secParGalette(c){return (c&&c.taux>0)?c.taux*CFG.rotationSec:0;}
-function galParH(c){var s=secParGalette(c);return s>0?Math.round(3600/s):0;}
-function codeByNum(n){n=parseInt(n);for(var i=0;i<codes.length;i++)if(codes[i].num===n)return codes[i];return null;}
-function lbl(arr,id){for(var i=0;i<arr.length;i++)if(arr[i][0]===id)return arr[i][1];return '—';}
+function galParH(c){if(!c||!(c.taux>0))return 0;var s=(CFG.tFixe||36)+c.taux*(CFG.tParTaux||10);return Math.round(3600/s);}
+  function lbl(arr,id){for(var i=0;i<arr.length;i++)if(arr[i][0]===id)return arr[i][1];return '—';}
 function defSechage(lib){var s=(lib||'').toLowerCase();if(/drap/.test(s))return 2.5;if(/blouse|tenue|v[êe]tement|robe|veste/.test(s))return 30;return 20;}
 function typeFromMin(m){if(m==null)return 'eponge';if(m<=5)return 'drap';if(m>=25)return 'vetement';return 'eponge';}
 function typeOfCode(c){return typeFromMin(c?c.sechageMin:null);}
