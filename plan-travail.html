@@ -160,7 +160,8 @@
         <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:12px">
           <div><span class="lab">Jour de base</span><input type="date" id="b-base" class="w-auto"></div>
           <button id="b-load">Charger ce jour</button>
-          <div><span class="lab">Vitesse tunnel (s/rotation)</span><input type="number" id="b-speed" class="mono w-auto" style="width:90px" step="0.1" min="1"></div>
+          <div><span class="lab">Temps fixe / galette (s)</span><input type="number" id="b-tfixe" class="mono w-auto" style="width:80px" step="1" min="0"></div>
+          <div><span class="lab">Temps / unité de taux (s)</span><input type="number" id="b-ttaux" class="mono w-auto" style="width:80px" step="1" min="0"></div>
         </div>
         <div id="b-status" class="info" style="margin-top:8px"></div>
       </div>
@@ -214,7 +215,7 @@ var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, 
 
 var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
-var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tunnelSpeedSec:14};
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:36,tParTaux:10};
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
@@ -249,7 +250,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(!CFG.tunnelSpeedSec)CFG.tunnelSpeedSec=14;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);});}
       return true;}
     return false;
@@ -332,7 +333,7 @@ function occupy(dryers,type,tOut){var order=type==='drap'?[DRAP_DRYER,0,1,2]:[0,
   var bd=order[0],bt=Infinity;for(d=0;d<order.length;d++){dr=dryers[order[d]];var f=Math.max.apply(null,dr.busy);if(f<bt){bt=f;bd=order[d];}}
   dryers[bd].busy=dryers[bd].busy.filter(function(x){return x>bt;});if(dryers[bd].busy.length===0)dryers[bd].type=type;dryers[bd].busy.push(tOut);}
 function release(dryers,t){for(var i=0;i<dryers.length;i++){var dr=dryers[i];dr.busy=dr.busy.filter(function(x){return x>t;});if(dr.busy.length===0)dr.type=null;}}
-function chargesFrom(list,speed){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=typeFromMin(dryMin);var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({rowId:r.id,type:type,dry:dryMin*60,sec:taux*speed,tExit:null});});return charges;}
+function chargesFrom(list,speed){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=typeFromMin(dryMin);var n=Math.max(0,parseInt(r.nbTransferts)||0);var sec=(CFG.tFixe||36)+taux*(CFG.tParTaux||10);for(var i=0;i<n;i++)charges.push({rowId:r.id,type:type,dry:dryMin*60,sec:sec,tExit:null});});return charges;}
 function simSechoirs(list,speed,start){
   var N=14,L=4,dryers=CAP.map(function(c){return{cap:c,type:null,busy:[]};});
   var charges=chargesFrom(list,speed),pos=new Array(N).fill(null),q=charges.slice(),t=start,ex=0,tot=charges.length,g=0,wait=0;
@@ -428,7 +429,7 @@ function renderResults(){
 }
 
 /* ---------- Brouillon ---------- */
-function bSpeed(){var v=parseFloat(document.getElementById('b-speed').value);return v>0?v:(CFG.tunnelSpeedSec||14);}
+function bSpeed(){return (CFG.tFixe||36)+9*(CFG.tParTaux||10);}
 function renderBrouillon(){
   var listEl=document.getElementById('b-list'),resEl=document.getElementById('b-results'),act=document.getElementById('b-actions');
   if(!bLoaded){listEl.innerHTML='';resEl.innerHTML='';act.classList.add('hidden');return;}
@@ -436,7 +437,7 @@ function renderBrouillon(){
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var s=simSechoirs(bRows,speed,start);
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Galettes tunnel',String(s.total))+metric('Clients',String(tunnelRows.length))+'</div><div class="info" style="margin-top:8px">Séchoirs 2/3/3/2 — la cuve 4 est réservée aux draps (tampon). Le tunnel attend quand aucune place ne se libère.</div></div>';
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Galettes tunnel',String(s.total))+metric('Clients',String(tunnelRows.length))+'</div><div class="info" style="margin-top:8px">Séchoirs 2/3/3/2 — la cuve 4 est réservée aux draps (tampon). Le tunnel attend quand aucune place ne se libère. Temps par galette = '+(CFG.tFixe||36)+' s + taux × '+(CFG.tParTaux||10)+' s (ex. taux 6 → '+((CFG.tFixe||36)+6*(CFG.tParTaux||10))+' s, taux 9 → '+((CFG.tFixe||36)+9*(CFG.tParTaux||10))+' s).</div></div>';
   var h='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var g=parseInt(r.nbTransferts)||0;
     h+='<div class="bline"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span></div><div class="b-meta">'+g+' gal'+(r.machine==='laveuse'?' · laveuse':'')+'</div></div>';
@@ -495,7 +496,8 @@ async function startApp(){
   document.getElementById('date').value=curDate;
   document.getElementById('start').value=CFG.heureDemarrage;
   document.getElementById('rot').value=CFG.rotationSec;
-  document.getElementById('b-speed').value=CFG.tunnelSpeedSec;
+  document.getElementById('b-tfixe').value=CFG.tFixe;
+  document.getElementById('b-ttaux').value=CFG.tParTaux;
   document.getElementById('b-base').value=isoMinus(curDate,1);
   document.getElementById('b-target').value=isoPlus(curDate,6);
   prevTotals=await loadPrevTotals(curDate);
@@ -528,7 +530,8 @@ document.getElementById('btn-add').addEventListener('click',add);
 document.getElementById('b-load').addEventListener('click',bLoad);
 document.getElementById('b-opt').addEventListener('click',bOptimize);
 document.getElementById('b-diffuse').addEventListener('click',bDiffuse);
-document.getElementById('b-speed').addEventListener('input',function(e){CFG.tunnelSpeedSec=parseFloat(e.target.value)||14;renderBrouillon();scheduleSaveConfig();});
+document.getElementById('b-tfixe').addEventListener('input',function(e){CFG.tFixe=parseFloat(e.target.value)||0;renderBrouillon();scheduleSaveConfig();});
+document.getElementById('b-ttaux').addEventListener('input',function(e){CFG.tParTaux=parseFloat(e.target.value)||0;renderBrouillon();scheduleSaveConfig();});
 document.getElementById('btn-restore').addEventListener('click',async function(){
   if(!confirm('Envoyer les saisies stockées sur CET appareil vers le cloud ? (à faire sur l\'ordinateur qui a vos données)'))return;
   localStorage.removeItem('pdt_synced');
