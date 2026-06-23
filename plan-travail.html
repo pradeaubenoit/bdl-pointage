@@ -314,37 +314,37 @@ function simulerTunnel(){
 }
 
 /* ---------- Moteur séchoirs (Brouillon) ---------- */
-function earliestSlot(dryers,type,t){var best=Infinity,d,dr;
-  for(d=0;d<4;d++){dr=dryers[d];
-    if(type!=='drap'&&d===DRAP_DRYER)continue;
-    if(dr.busy.length===0)best=Math.min(best,t);
-    else if(dr.type===type&&dr.busy.length<dr.cap)best=Math.min(best,t);
-    else if(dr.type===type)best=Math.min(best,Math.min.apply(null,dr.busy));
-    else best=Math.min(best,Math.max.apply(null,dr.busy));}
-  if(type==='drap'){for(d=0;d<4;d++){if(d===DRAP_DRYER)continue;dr=dryers[d];
-    if(dr.busy.length===0)best=Math.min(best,t);
-    else if(dr.type==='drap'&&dr.busy.length<dr.cap)best=Math.min(best,t);
-    else if(dr.type==='drap')best=Math.min(best,Math.min.apply(null,dr.busy));}}
-  return best;}
-function occupy(dryers,type,tOut){var order=type==='drap'?[DRAP_DRYER,0,1,2]:[0,1,2],d,dr;
-  for(d=0;d<order.length;d++){dr=dryers[order[d]];if(dr.busy.length>0&&dr.type===type&&dr.busy.length<dr.cap){dr.busy.push(tOut);return;}}
-  for(d=0;d<order.length;d++){dr=dryers[order[d]];if(dr.busy.length===0){dr.type=type;dr.busy.push(tOut);return;}}
-  for(d=0;d<order.length;d++){dr=dryers[order[d]];if(dr.type===type&&dr.busy.length<dr.cap){dr.busy.push(tOut);return;}}
-  var bd=order[0],bt=Infinity;for(d=0;d<order.length;d++){dr=dryers[order[d]];var f=Math.max.apply(null,dr.busy);if(f<bt){bt=f;bd=order[d];}}
-  dryers[bd].busy=dryers[bd].busy.filter(function(x){return x>bt;});if(dryers[bd].busy.length===0)dryers[bd].type=type;dryers[bd].busy.push(tOut);}
-function release(dryers,t){for(var i=0;i<dryers.length;i++){var dr=dryers[i];dr.busy=dr.busy.filter(function(x){return x>t;});if(dr.busy.length===0)dr.type=null;}}
-function chargesFrom(list,speed){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=typeFromMin(dryMin);var n=Math.max(0,parseInt(r.nbTransferts)||0);var sec=(CFG.tFixe||36)+taux*(CFG.tParTaux||10);for(var i=0;i<n;i++)charges.push({rowId:r.id,type:type,dry:dryMin*60,sec:sec,tExit:null});});return charges;}
+function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=typeFromMin(dryMin);var n=Math.max(0,parseInt(r.nbTransferts)||0);var sec=(CFG.tFixe||36)+taux*(CFG.tParTaux||10);for(var i=0;i<n;i++)charges.push({type:type,dry:dryMin*60,sec:sec});});return charges;}
+/* Cycle séchoir : remplit ((n-1)×96, 1re galette offerte par la passerelle) -> sèche (selon type) -> se vide (96) -> prêt.
+   Passerelle = tampon de 4 galettes ; le tunnel attend si elle est pleine. fin = dernier séchoir terminé (linge sec). */
 function simSechoirs(list,speed,start){
-  var N=14,L=4,dryers=CAP.map(function(c){return{cap:c,type:null,busy:[]};});
-  var charges=chargesFrom(list,speed),pos=new Array(N).fill(null),q=charges.slice(),t=start,ex=0,tot=charges.length,g=0,wait=0;
-  if(tot===0)return{fin:start,wait:0,total:0};
-  while(ex<tot&&g<2000000){g++;var E=pos[N-1];
-    if(E){release(dryers,t);var a=earliestSlot(dryers,E.type,t);if(a>t){wait+=a-t;t=a;release(dryers,t);}occupy(dryers,E.type,t+E.dry);E.tExit=t;ex++;}
-    for(var i=N-1;i>0;i--)pos[i]=pos[i-1];pos[0]=q.length?q.shift():null;
-    var occ=[];for(var k=L;k<N;k++)if(pos[k])occ.push(pos[k].sec);
-    var cad=occ.length?Math.max.apply(null,occ):speed;t+=cad;}
-  var fin=charges.reduce(function(m,c){return c.tExit!=null?Math.max(m,c.tExit):m;},start);
-  return{fin:fin,wait:wait,total:tot};
+  var P=4,LOAD=96,EMPTY=96,caps=CAP;
+  var charges=chargesFrom(list),n=charges.length;
+  if(n===0)return{fin:start,wait:0,total:0};
+  var dryers=caps.map(function(c){return {cap:c,busyUntil:0,idle:true};});
+  var pass=[],tIdx=0,theo=0;for(var k=0;k<n;k++)theo+=charges[k].sec;
+  var t=0,tunnelNext=charges[0].sec,guard=0;
+  function someBusy(){for(var i=0;i<dryers.length;i++)if(!dryers[i].idle)return true;return false;}
+  function countType(ty){var c=0;for(var i=0;i<pass.length;i++)if(pass[i].type===ty)c++;return c;}
+  function pullType(ty,mx){var got=[];for(var i=0;i<pass.length&&got.length<mx;){if(pass[i].type===ty)got.push(pass.splice(i,1)[0]);else i++;}return got;}
+  while(tIdx<n||pass.length>0||someBusy()){
+    guard++;if(guard>2000000)break;
+    for(var d=0;d<dryers.length;d++)if(!dryers[d].idle&&dryers[d].busyUntil<=t)dryers[d].idle=true;
+    var changed=true;
+    while(changed){changed=false;
+      while(tIdx<n&&pass.length<P&&tunnelNext<=t){var dt=Math.max(t,tunnelNext);pass.push(charges[tIdx]);tIdx++;tunnelNext=(tIdx<n)?(dt+charges[tIdx].sec):Infinity;changed=true;}
+      for(var di=0;di<dryers.length;di++){var dr=dryers[di];if(!dr.idle||pass.length===0)continue;
+        var ty=pass[0].type,avail=countType(ty),done=(tIdx>=n),full=(pass.length>=P),take;
+        if(avail>=dr.cap)take=dr.cap;else if(full||done)take=avail;else take=0;
+        if(take>0){var lot=pullType(ty,take);var dm=0;for(var x=0;x<lot.length;x++)dm=Math.max(dm,lot[x].dry);dr.idle=false;dr.busyUntil=t+(lot.length-1)*LOAD+dm+EMPTY;changed=true;}}
+    }
+    var next=Infinity;
+    if(tIdx<n&&pass.length<P)next=Math.min(next,Math.max(t,tunnelNext));
+    for(var dd=0;dd<dryers.length;dd++)if(!dryers[dd].idle)next=Math.min(next,dryers[dd].busyUntil);
+    if(next===Infinity||next<=t){var nb=Infinity;for(var e=0;e<dryers.length;e++)if(!dryers[e].idle)nb=Math.min(nb,dryers[e].busyUntil);if(nb===Infinity)break;next=nb;}
+    t=next;
+  }
+  return{fin:start+t,wait:Math.max(0,t-theo),total:n};
 }
 function optimiserOrdre(list,speed,start){
   var K=3,best=list.slice(),bestFin=simSechoirs(best,speed,start).fin,improved=true,iter=0;
@@ -437,7 +437,7 @@ function renderBrouillon(){
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var s=simSechoirs(bRows,speed,start);
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Galettes tunnel',String(s.total))+metric('Clients',String(tunnelRows.length))+'</div><div class="info" style="margin-top:8px">Séchoirs 2/3/3/2 — la cuve 4 est réservée aux draps (tampon). Le tunnel attend quand aucune place ne se libère. Temps par galette = '+(CFG.tFixe||36)+' s + taux × '+(CFG.tParTaux||10)+' s (ex. taux 6 → '+((CFG.tFixe||36)+6*(CFG.tParTaux||10))+' s, taux 9 → '+((CFG.tFixe||36)+9*(CFG.tParTaux||10))+' s).</div></div>';
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Galettes tunnel',String(s.total))+metric('Clients',String(tunnelRows.length))+'</div><div class="info" style="margin-top:8px">Séchoirs 2/3/3/2 (10 places) en cycles : remplissage 96 s/galette (1re offerte par la passerelle) → séchage (drap 2,5 / éponge 20 / vêtement 30 min) → vidage 96 s. Passerelle = tampon de 4 ; le tunnel attend quand elle est pleine. Fin = dernier linge sec. Temps tunnel/galette = '+(CFG.tFixe||36)+' s + taux × '+(CFG.tParTaux||10)+' s.</div></div>';
   var h='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var g=parseInt(r.nbTransferts)||0;
     h+='<div class="bline"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span></div><div class="b-meta">'+g+' gal'+(r.machine==='laveuse'?' · laveuse':'')+'</div></div>';
