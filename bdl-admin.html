@@ -2021,7 +2021,7 @@ function callApi(action, params) {
       delete window[cbName];
       if (s.parentNode) document.body.removeChild(s);
       reject(new Error('Timeout API'));
-    }, 60000);
+    }, 120000);
     window[cbName] = function(data) {
       clearTimeout(timeout);
       delete window[cbName];
