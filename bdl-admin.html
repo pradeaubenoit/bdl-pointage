@@ -9011,6 +9011,60 @@ else document.addEventListener('DOMContentLoaded', lancer);
   setInterval(verifier, 600000); // re-vérifie toutes les 10 minutes
 })();
 
+// ============================================================
+// PLANNING — Afficher les DATES dans le menu des semaines
+// Transforme "2026-W27" en "2026-W27 · 29 juin → 4 juil."
+// pour ne plus avoir à convertir les numéros de semaine de tête.
+// Côté page uniquement. À coller juste avant init().
+// ============================================================
+(function () {
+  var MOIS_COURT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+  // Lundi (objet Date) d'une semaine ISO "AAAA-Wxx"
+  function lundiDeSemaine(iso) {
+    var m = String(iso || '').match(/^(\d{4})-W(\d{1,2})$/);
+    if (!m) return null;
+    var y = +m[1], w = +m[2];
+    var jan4 = new Date(Date.UTC(y, 0, 4));
+    var jour = jan4.getUTCDay() || 7;
+    var lundiS1 = new Date(jan4);
+    lundiS1.setUTCDate(jan4.getUTCDate() - (jour - 1));
+    var lundi = new Date(lundiS1);
+    lundi.setUTCDate(lundiS1.getUTCDate() + (w - 1) * 7);
+    return lundi;
+  }
+
+  function fmtJour(d) {
+    return d.getUTCDate() + ' ' + MOIS_COURT[d.getUTCMonth()];
+  }
+
+  function plageDates(iso) {
+    var lundi = lundiDeSemaine(iso);
+    if (!lundi) return '';
+    var samedi = new Date(lundi);
+    samedi.setUTCDate(lundi.getUTCDate() + 5); // lundi → samedi
+    return fmtJour(lundi) + ' → ' + fmtJour(samedi);
+  }
+
+  function enrichir() {
+    var sel = document.getElementById('planSemaine');
+    if (!sel) return;
+    for (var i = 0; i < sel.options.length; i++) {
+      var opt = sel.options[i];
+      if (opt.getAttribute('data-datée') === '1') continue; // déjà fait
+      var iso = opt.value;
+      var dates = plageDates(iso);
+      if (!dates) continue;
+      var enCours = (opt.textContent.indexOf('en cours') !== -1) ? ' (en cours)' : '';
+      opt.textContent = iso + ' · ' + dates + enCours;
+      opt.setAttribute('data-datée', '1');
+    }
+  }
+
+  // Le menu est rempli dynamiquement → on surveille et on enrichit
+  setInterval(enrichir, 600);
+})();
+  
   init();
  </script>
 </body>
