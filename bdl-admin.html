@@ -8970,7 +8970,48 @@ async function basculerDiffusion(id, statut) {
     toast('Erreur : ' + e.message, 'error');
   }
 }  
+// ============================================================
+// BANDEAU « Semaine prochaine non diffusée » (délai de prévenance 5 j)
+// S'allume si la semaine suivante n'est pas encore diffusée aux salariés.
+// Vérifie au chargement, puis toutes les 10 min. Clic → onglet Planning.
+// ============================================================
+(function () {
+  function poser() {
+    if (document.getElementById('bandeauDiffusion')) return;
+    var header = document.querySelector('.app-header');
+    if (!header || !header.parentNode) return;
+    var b = document.createElement('div');
+    b.id = 'bandeauDiffusion';
+    b.style.cssText = 'display:none;background:#B8742A;color:#fff;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;text-align:center;line-height:1.4';
+    b.innerHTML = '⚠️ Le planning de la <u>semaine prochaine</u> n\'est pas encore diffusé — pense au délai de prévenance de 5 jours. <span style="text-decoration:underline">Cliquer pour aller le diffuser →</span>';
+    b.addEventListener('click', function () {
+      if (typeof switchTab === 'function') switchTab('planning');
+      if (typeof loadPlanningSection === 'function') loadPlanningSection();
+    });
+    header.parentNode.insertBefore(b, header.nextSibling);
+    return b;
+  }
+
+  async function verifier() {
+    var b = document.getElementById('bandeauDiffusion') || poser();
+    if (!b) return;
+    try {
+      var r = await callApi('getStatutDiffusion', {});
+      if (r && r.ok && r.diffusee === false) {
+        b.style.display = 'block';
+      } else {
+        b.style.display = 'none';
+      }
+    } catch (e) { /* silencieux : en cas d'erreur, on n'affiche rien */ }
+  }
+
+  function lancer() { poser(); setTimeout(verifier, 1500); }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') lancer();
+else document.addEventListener('DOMContentLoaded', lancer);
+  setInterval(verifier, 600000); // re-vérifie toutes les 10 minutes
+})();
+
   init();
-</script>
+ </script>
 </body>
 </html>
