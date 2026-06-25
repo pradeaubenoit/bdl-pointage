@@ -229,7 +229,7 @@ var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, 
 
 var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
-var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:36,tParTaux:10,casesVide:3,camionCli:2,maxLent:8};
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:36,tParTaux:10,casesVide:2,camionCli:2,maxLent:8};
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
@@ -270,7 +270,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=3;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
@@ -346,7 +346,7 @@ function simSechoirs(list,speed,start){
   var ROT=(CFG.rotationSec||22), LOAD=96, EMPTY=96, P=4, caps=CAP, N=14, W0=4;
   var realCharges=chargesFrom(list), realTotal=realCharges.length;
   if(realTotal===0)return{fin:start,wait:0,total:0,vides:0};
-  var charges=withVides(realCharges,CFG.casesVide==null?3:CFG.casesVide), total=charges.length;
+  var charges=withVides(realCharges,CFG.casesVide==null?2:CFG.casesVide), total=charges.length;
   var videsCount=total-realTotal;
   function isReal(c){return c&&c.type!=='vide';}
   // référence : sortie du dernier linge RÉEL si les séchoirs étaient instantanés (tunnel libre, cases vides comprises)
@@ -356,7 +356,7 @@ function simSechoirs(list,speed,start){
       var m=0;for(var k=W0;k<N;k++)if(p2[k]&&p2[k].taux>m)m=p2[k].taux; tt+=(m||1)*ROT; }
   })();
   var dryers=caps.map(function(c){return {cap:c,busyUntil:0,idle:true,lot:null};});
-  var pass=[], pos=new Array(N).fill(null), q=charges.slice(), loaded=0, t=0, tunnelReady=0, guard=0, stall=0, lastExit=0, deliveries=[];
+  var pass=[], pos=new Array(N).fill(null), q=charges.slice(), loaded=0, t=0, tunnelReady=0, guard=0, stall=0, lastExit=0, lastLoadReal=0, deliveries=[];
   function anyPos(){for(var i=0;i<N;i++)if(pos[i])return true;return false;}
   function someBusy(){for(var i=0;i<dryers.length;i++)if(!dryers[i].idle)return true;return false;}
   function maxTaux(){var m=0;for(var i=W0;i<N;i++)if(pos[i]&&pos[i].taux>m)m=pos[i].taux;return m||1;}
@@ -377,7 +377,8 @@ function simSechoirs(list,speed,start){
     if(canT){
       if(exitC){ if(isReal(exitC)){ pass.push(exitC); lastExit=t; } pos[N-1]=null; }
       for(var i=N-1;i>0;i--) pos[i]=pos[i-1];
-      pos[0]=(loaded<total)? q[loaded++] : null;
+      var nc=(loaded<total)? q[loaded++] : null; pos[0]=nc;
+      if(nc&&isReal(nc)) lastLoadReal=t;
       tunnelReady = t + maxTaux()*ROT;
       assign(); continue;
     }
@@ -390,7 +391,7 @@ function simSechoirs(list,speed,start){
     t=next;
   }
   for(var dz=0;dz<dryers.length;dz++) deliver(dryers[dz]);
-  return{fin:start+t, wait:Math.max(0,lastExit-freeExit), total:realTotal, vides:videsCount, deliveries:deliveries, start:start};
+  return{fin:start+lastLoadReal, finSec:start+t, wait:Math.max(0,lastExit-freeExit), total:realTotal, vides:videsCount, deliveries:deliveries, start:start};
 }
 /* Alimentation des postes : à partir des livraisons (sortie séchoir), compte par poste et par heure. */
 function feedByHour(deliveries,start,fin){
@@ -406,7 +407,7 @@ function feedByHour(deliveries,start,fin){
   return {posts:posts,hours:hours,grid:grid,idle:idle,gFirst:gFirst,gLast:gLast};
 }
 function feedTable(s){
-  var f=feedByHour(s.deliveries||[],s.start,s.fin);
+  var f=feedByHour(s.deliveries||[],s.start,(s.finSec||s.fin));
   var lab={faxm:'FAXM',pliage_table:'Table',repassage:'Repassage'};
   var html='<div style="overflow-x:auto"><table class="feed"><thead><tr><th>Poste</th>';
   f.hours.forEach(function(h){html+='<th>'+(h%24)+'h</th>';});
@@ -422,7 +423,7 @@ function feedTable(s){
 /* Optimiseur combiné. Priorité absolue : ne pas affamer les postes (main-d'œuvre).
    Puis : heure de fin (qui intègre blocage séchoirs + cases vides). Contrainte camions asymétrique :
    éponge/vêtement à ±N clients de leur ordre, draps libres mais dans leur ordre de départ. */
-function trousTotal(s){var f=feedByHour(s.deliveries||[],s.start,s.fin);var z=0;f.posts.forEach(function(p){z+=f.idle[p].trous;});return z;}
+function trousTotal(s){var f=feedByHour(s.deliveries||[],s.start,(s.finSec||s.fin));var z=0;f.posts.forEach(function(p){z+=f.idle[p].trous;});return z;}
 function rowType(r){var c=codeByNum(r.code);return c?typeOfCode(c):'eponge';}
 function maxLentRun(order){var run=0,mx=0;for(var i=0;i<order.length;i++){var t=rowType(order[i]);var g=parseInt(order[i].nbTransferts)||0;if(t==='drap')run=0;else{run+=g;if(run>mx)mx=run;}}return mx;}
 /* découpe les gros clients lents (>maxLent galettes) en tranches, pour pouvoir intercaler des draps dedans */
@@ -547,7 +548,7 @@ function renderBrouillon(){
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var s=simSechoirs(bRows,speed,start);
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Cases vides',String(s.vides||0))+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">Tunnel : bridage (cadence = taux max × '+(CFG.rotationSec||22)+' s, votre étalon). Entre couleur et blanc, '+(CFG.casesVide==null?3:CFG.casesVide)+' cases vides sont insérées (elles occupent le tunnel sans rien sécher). Séchoirs 2/3/3/2 en cycles : remplissage 96 s/galette (1re offerte par la passerelle) → séchage → vidage 96 s. Grouper les clients par couleur réduit les cases vides et fait finir plus tôt. Fin = dernier linge sec.</div></div>';
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Cases vides',String(s.vides||0))+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">Tunnel : bridage (cadence = taux max × '+(CFG.rotationSec||22)+' s, votre étalon). Entre couleur et blanc, '+(CFG.casesVide==null?2:CFG.casesVide)+' cases vides sont insérées (elles occupent le tunnel sans rien sécher). Séchoirs 2/3/3/2 en cycles : remplissage 96 s/galette (1re offerte par la passerelle) → séchage → vidage 96 s. Quand les séchoirs saturent, la passerelle se remplit et bloque le chargement. <b>Fin = dernière case chargée dans le tunnel</b> (votre repère), pas le dernier linge sec.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
@@ -619,7 +620,7 @@ async function startApp(){
   document.getElementById('start').value=CFG.heureDemarrage;
   document.getElementById('rot').value=CFG.rotationSec;
   document.getElementById('b-rot').value=CFG.rotationSec;
-  document.getElementById('b-cvide').value=(CFG.casesVide==null?3:CFG.casesVide);
+  document.getElementById('b-cvide').value=(CFG.casesVide==null?2:CFG.casesVide);
   document.getElementById('b-camion').value=(CFG.camionCli==null?2:CFG.camionCli);
   document.getElementById('b-base').value=isoMinus(curDate,1);
   document.getElementById('b-target').value=isoPlus(curDate,6);
