@@ -9078,6 +9078,75 @@ else document.addEventListener('DOMContentLoaded', lancer);
   setInterval(enrichir, 600);
 })();
   
+// ============================================================
+// ABSENCE PARTIELLE — clic sur une case d'absence du planning
+// pour saisir les heures de PRÉSENCE (ex : présent 8h-12h).
+// Vide les deux champs → repasse en absence journée complète.
+// ============================================================
+(function () {
+  document.addEventListener('click', async function (e) {
+    var cell = e.target.closest ? e.target.closest('.plan-abs-cell') : null;
+    if (!cell) return;
+    // Ne pas déclencher si on clique dans un champ de saisie horaire
+    if (e.target.tagName === 'INPUT') return;
+
+    var empId = cell.getAttribute('data-emp');
+    var jour = cell.getAttribute('data-jour');
+    var type = cell.getAttribute('data-type');
+    var debutActuel = cell.getAttribute('data-debut') || '';
+    var finActuel = cell.getAttribute('data-fin') || '';
+    if (!empId || jour === null) return;
+
+    // Calcule la date du jour cliqué (lundi de la semaine + index)
+    var semaine = (_planData && _planData.semaine) ? _planData.semaine : null;
+    if (!semaine) { alert('Semaine introuvable, recharge la page.'); return; }
+
+    var msg = 'Heures de PRÉSENCE ce jour-là.\n\n' +
+              'Laisse vide et valide pour revenir à une absence journée complète.\n\n' +
+              'Heure de DÉBUT de présence (ex : 08:00) :';
+    var debut = prompt(msg, debutActuel || '08:00');
+    if (debut === null) return; // annulé
+    debut = debut.trim();
+
+    var fin = '';
+    if (debut) {
+      fin = prompt('Heure de FIN de présence (ex : 12:00) :', finActuel || '12:00');
+      if (fin === null) return; // annulé
+      fin = fin.trim();
+    }
+
+    // Date ISO du jour
+    var dateISO = _planAbsDateFromJour(semaine, parseInt(jour, 10));
+    if (!dateISO) { alert('Date introuvable.'); return; }
+
+    try {
+      var r = await callApi('setHeureAbsence', { empId: empId, date: dateISO, debut: debut, fin: fin });
+      if (r && r.ok) {
+        // Recharge le planning pour rafraîchir l'affichage
+        if (typeof loadPlanningSection === 'function') loadPlanningSection();
+      } else {
+        alert('Erreur : ' + ((r && r.error) || 'enregistrement impossible'));
+      }
+    } catch (err) {
+      alert('Erreur réseau : ' + err.message);
+    }
+  });
+
+  // Calcule la date ISO (AAAA-MM-JJ) d'un jour de la semaine planning
+  window._planAbsDateFromJour = function (semaineISO, jourIndex) {
+    var m = String(semaineISO || '').match(/^(\d{4})-W(\d{1,2})$/);
+    if (!m) return null;
+    var y = +m[1], w = +m[2];
+    var jan4 = new Date(Date.UTC(y, 0, 4));
+    var j0 = jan4.getUTCDay() || 7;
+    var lundiS1 = new Date(jan4); lundiS1.setUTCDate(jan4.getUTCDate() - (j0 - 1));
+    var lundi = new Date(lundiS1); lundi.setUTCDate(lundiS1.getUTCDate() + (w - 1) * 7 + jourIndex);
+    var mm = String(lundi.getUTCMonth() + 1).padStart(2, '0');
+    var dd = String(lundi.getUTCDate()).padStart(2, '0');
+    return lundi.getUTCFullYear() + '-' + mm + '-' + dd;
+  };
+})();
+  
   init();
  </script>
 </body>
