@@ -323,8 +323,14 @@ function simSechoirs(list,speed,start){
   var FIX=(CFG.tFixe==null?36:CFG.tFixe), PER=(CFG.tParTaux==null?10:CFG.tParTaux), LOAD=96, EMPTY=96, P=4, caps=CAP, N=14, W0=4;
   var charges=chargesFrom(list), total=charges.length;
   if(total===0)return{fin:start,wait:0,total:0};
+  // référence : sortie du dernier linge si les séchoirs étaient instantanés (tunnel libre, bridage compris)
+  var freeExit=0;
+  (function(){var p2=new Array(N).fill(null),i2=0,tt=0,ex2=0;
+    while(ex2<total){ if(p2[N-1]){ex2++;freeExit=tt;} for(var i=N-1;i>0;i--)p2[i]=p2[i-1]; p2[0]=(i2<total)?charges[i2++]:null;
+      var m=0;for(var k=W0;k<N;k++)if(p2[k]&&p2[k].taux>m)m=p2[k].taux; tt+=FIX+(m||1)*PER; }
+  })();
   var dryers=caps.map(function(c){return {cap:c,busyUntil:0,idle:true};});
-  var pass=[], pos=new Array(N).fill(null), q=charges.slice(), loaded=0, t=0, tunnelReady=0, guard=0, stall=0;
+  var pass=[], pos=new Array(N).fill(null), q=charges.slice(), loaded=0, t=0, tunnelReady=0, guard=0, stall=0, lastExit=0;
   function anyPos(){for(var i=0;i<N;i++)if(pos[i])return true;return false;}
   function someBusy(){for(var i=0;i<dryers.length;i++)if(!dryers[i].idle)return true;return false;}
   function maxTaux(){var m=0;for(var i=W0;i<N;i++)if(pos[i]&&pos[i].taux>m)m=pos[i].taux;return m||1;}
@@ -341,7 +347,7 @@ function simSechoirs(list,speed,start){
     var needExit=pos[N-1]!=null;
     var canT=(t>=tunnelReady) && (loaded<total||anyPos()) && (!needExit||pass.length<P);
     if(canT){
-      if(pos[N-1]){ pass.push(pos[N-1]); pos[N-1]=null; }
+      if(pos[N-1]){ pass.push(pos[N-1]); pos[N-1]=null; lastExit=t; }
       for(var i=N-1;i>0;i--) pos[i]=pos[i-1];
       pos[0]=(loaded<total)? q[loaded++] : null;
       tunnelReady = t + FIX + maxTaux()*PER;
@@ -355,7 +361,7 @@ function simSechoirs(list,speed,start){
     if(needExit && pass.length>=P && t>=tunnelReady) stall += (next-t);
     t=next;
   }
-  return{fin:start+t, wait:stall, total:total};
+  return{fin:start+t, wait:Math.max(0,lastExit-freeExit), total:total};
 }
 function optimiserOrdre(list,speed,start){
   var K=2,best=list.slice(),bestFin=simSechoirs(best,speed,start).fin,improved=true,iter=0;
