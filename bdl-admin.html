@@ -5902,7 +5902,8 @@ loadPlanningSection = async function () {
     if (sb) { sb.textContent = resp.saison; sb.className = 'badge ' + resp.saison; }
     try {
       var ab = await callApi('getAbsencesSemaine', { semaine: semaine });
-      _planData.absences = (ab && ab.ok) ? (ab.absences || {}) : {};
+_planData.absences = (ab && ab.ok) ? (ab.absences || {}) : {};
+      _planData.heures = (ab && ab.ok) ? (ab.heures || {}) : {};
     } catch (e) { _planData.absences = {}; }
     renderPlanning();
   } catch (err) {
@@ -5940,12 +5941,24 @@ renderPlanning = function () {
     for (var j = 0; j < nbJours; j++) {
       var c = r.jours[j] || { debut: '', fin: '' };
       var aType = mesAbs[j];
-      if (aType) {
+     if (aType) {
         var ac = _planAbsColor(aType);
         joursAbs.push(JP_LABELS[j]);
+        var mesHeures = (_planData.heures && _planData.heures[r.empId]) ? _planData.heures[r.empId] : {};
+        var hP = mesHeures[j] || null; // { debut, fin } = heures de PRÉSENCE, ou null
+        var ligneHeure = '';
+        if (hP && (hP.debut || hP.fin)) {
+          ligneHeure =
+            '<div style="font-size:10px;font-weight:600;color:#2A6F4D;text-align:center;padding:1px 2px">présent ' +
+              (hP.debut || '?') + '–' + (hP.fin || '?') +
+            '</div>';
+        }
         cells +=
-          '<td class="td-num" style="white-space:nowrap;background:' + ac.bg + '">' +
-            '<div style="font-size:11px;font-weight:700;color:' + ac.c + ';text-align:center;padding:6px 2px">● ' + _planAbsLabel(aType) + '</div>' +
+          '<td class="td-num plan-abs-cell" data-emp="' + r.empId + '" data-jour="' + j + '" data-type="' + aType + '" ' +
+              'data-debut="' + (hP ? (hP.debut || '') : '') + '" data-fin="' + (hP ? (hP.fin || '') : '') + '" ' +
+              'style="white-space:nowrap;background:' + ac.bg + ';cursor:pointer" title="Cliquer pour préciser les heures de présence">' +
+            '<div style="font-size:11px;font-weight:700;color:' + ac.c + ';text-align:center;padding:6px 2px 1px">● ' + _planAbsLabel(aType) + '</div>' +
+            ligneHeure +
             '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="d" value="' + (c.debut || '') + '" style="display:none">' +
             '<input type="time" class="plan-input" data-emp="' + r.empId + '" data-jour="' + j + '" data-bound="f" value="' + (c.fin || '') + '" style="display:none">' +
           '</td>';
