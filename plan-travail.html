@@ -176,7 +176,7 @@
           <div><span class="lab">Temps fixe / galette (s)</span><input type="number" id="b-tfixe" class="mono w-auto" style="width:80px" step="1" min="0"></div>
           <div><span class="lab">Temps / unité de taux (s)</span><input type="number" id="b-ttaux" class="mono w-auto" style="width:80px" step="1" min="0"></div>
           <div><span class="lab">Cases vides / changement couleur</span><input type="number" id="b-cvide" class="mono w-auto" style="width:80px" step="1" min="0" max="10"></div>
-          <div><span class="lab">Limite camions (galettes)</span><input type="number" id="b-camion" class="mono w-auto" style="width:80px" step="5" min="0" max="300"></div>
+          <div><span class="lab">Limite camions — clients (sauf draps)</span><input type="number" id="b-camion" class="mono w-auto" style="width:80px" step="1" min="0" max="50"></div>
         </div>
         <div id="b-status" class="info" style="margin-top:8px"></div>
       </div>
@@ -230,7 +230,7 @@ var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, 
 
 var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
-var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:36,tParTaux:10,casesVide:3,camionGal:15,maxLent:8};
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:36,tParTaux:10,casesVide:3,camionCli:2,maxLent:8};
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
@@ -271,7 +271,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=3;if(CFG.camionGal==null)CFG.camionGal=15;if(CFG.maxLent==null)CFG.maxLent=8;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=3;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
@@ -421,8 +421,8 @@ function feedTable(s){
   return html;
 }
 /* Optimiseur combiné. Priorité absolue : ne pas affamer les postes (main-d'œuvre).
-   Puis : heure de fin (qui intègre blocage séchoirs + cases vides). Contrainte dure : limite camions
-   (chaque client reste à ±CFG.camionGal galettes de sa position d'origine). */
+   Puis : heure de fin (qui intègre blocage séchoirs + cases vides). Contrainte camions asymétrique :
+   éponge/vêtement à ±N clients de leur ordre, draps libres mais dans leur ordre de départ. */
 function trousTotal(s){var f=feedByHour(s.deliveries||[],s.start,s.fin);var z=0;f.posts.forEach(function(p){z+=f.idle[p].trous;});return z;}
 function rowType(r){var c=codeByNum(r.code);return c?typeOfCode(c):'eponge';}
 function maxLentRun(order){var run=0,mx=0;for(var i=0;i<order.length;i++){var t=rowType(order[i]);var g=parseInt(order[i].nbTransferts)||0;if(t==='drap')run=0;else{run+=g;if(run>mx)mx=run;}}return mx;}
@@ -438,16 +438,24 @@ function mergeChunks(order){var out=[];order.forEach(function(r){var last=out[ou
 function scoreOrder(order,start){var s=simSechoirs(order,0,start);var maxLent=(CFG.maxLent==null?8:CFG.maxLent);
   var W_RUN=200*3600, W_TROU=6*3600, ex=Math.max(0,maxLentRun(order)-maxLent);
   return {sc:W_RUN*ex+W_TROU*trousTotal(s)+(s.fin-start),fin:s.fin,trous:trousTotal(s),vides:s.vides,run:maxLentRun(order)};}
-function galPos(order){var pos={},cum=0;order.forEach(function(r){pos[r.id]=cum;cum+=(parseInt(r.nbTransferts)||0);});return pos;}
-function camionOK(order,orig,L){var p=galPos(order);for(var id in orig){if(Math.abs((p[id]||0)-(orig[id]||0))>L)return false;}return true;}
+function isDrapRow(r){return rowType(r)==='drap';}
+/* rang parmi les NON-draps seulement (insérer un drap ne décale pas l'éponge) */
+function ndRanks(order){var rank={},k=0;order.forEach(function(r){if(isDrapRow(r))return;var s=r.src||r.id;if(!(s in rank))rank[s]=k++;});return rank;}
+/* séquence des clients draps (ordre de départ) */
+function drapSeq(order){var seen={},seq=[];order.forEach(function(r){if(!isDrapRow(r))return;var s=r.src||r.id;if(!(s in seen)){seen[s]=true;seq.push(s);}});return seq;}
+function sameSeq(a,b){if(a.length!==b.length)return false;for(var i=0;i<a.length;i++)if(a[i]!==b[i])return false;return true;}
+/* Contrainte camions ASYMÉTRIQUE :
+   - éponge/vêtement : ordre serré (±N rangs entre eux, les draps ne comptent pas) ;
+   - draps : libres en distance, mais leur ordre de départ entre eux est préservé. */
+function camionOK(order,origND,origDrap,N){var rk=ndRanks(order);for(var s in origND){if(rk[s]==null)continue;if(Math.abs(rk[s]-origND[s])>N)return false;}return sameSeq(drapSeq(order),origDrap);}
 function optimiserOrdre(list,speed,start){
-  var L=(CFG.camionGal==null?15:CFG.camionGal), maxLent=(CFG.maxLent==null?8:CFG.maxLent);
-  var best=splitSlow(list,maxLent),orig=galPos(best),b=scoreOrder(best,start),it=0,improved=true,WIN=12;
-  while(improved&&it<40){improved=false;it++;
+  var N=(CFG.camionCli==null?2:CFG.camionCli), maxLent=(CFG.maxLent==null?8:CFG.maxLent);
+  var best=splitSlow(list,maxLent),origND=ndRanks(best),origDrap=drapSeq(best),b=scoreOrder(best,start),it=0,improved=true,WIN=16;
+  while(improved&&it<50){improved=false;it++;
     for(var i=0;i<best.length;i++){
       for(var j=Math.max(0,i-WIN);j<=Math.min(best.length-1,i+WIN);j++){ if(i===j)continue;
         var cand=best.slice();var x=cand.splice(i,1)[0];cand.splice(j,0,x);
-        if(!camionOK(cand,orig,L))continue;
+        if(!camionOK(cand,origND,origDrap,N))continue;
         var sc=scoreOrder(cand,start);
         if(sc.sc<b.sc-1){b=sc;best=cand;improved=true;}
       }
@@ -570,17 +578,17 @@ function bOptimize(){
   var dTrous=trousBefore-opt.trous, dVides=videsBefore-opt.vides, dRun=runBefore-opt.run;
   renderBrouillon();
   var resEl=document.getElementById('b-results');
-  var L=(CFG.camionGal==null?15:CFG.camionGal), ML=(CFG.maxLent==null?8:CFG.maxLent);
+  var L=(CFG.camionCli==null?2:CFG.camionCli), ML=(CFG.maxLent==null?8:CFG.maxLent);
   var msg;
   if(gain>0||dTrous>0||dVides>0||dRun>0){
-    msg='<div class="note ok"><b>Proposition trouvée</b> (limite camions '+L+' galettes) :<br>'
+    msg='<div class="note ok"><b>Proposition trouvée</b> (éponge/vêtement à ±'+L+' clients, draps libres en respectant leur ordre) :<br>'
       +'• Plus longue série lente sans drap : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
       +'• Postes affamés : '+trousBefore+' \u2192 '+opt.trous+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':'')+'<br>'
       +'• Cases vides : '+videsBefore+' \u2192 '+opt.vides+(dVides>0?' (\u2212'+dVides+')':'')+'<br>'
       +'• Heure de fin : '+fmtHHMM(before)+' \u2192 '+fmtHHMM(after)+(gain>0?' (\u2212'+gain+' min)':'')+'<br>'
       +'Si ça vous convient, diffusez-le.</div>';
   } else {
-    msg='<div class="note warn">Aucune amélioration possible dans la limite camions de '+L+' galettes. Augmentez cette limite pour laisser plus de marge à la réorganisation.</div>';
+    msg='<div class="note warn">Aucune amélioration possible avec la limite de '+L+' clients pour l\'éponge/vêtement. Augmentez-la pour laisser plus de marge à la réorganisation.</div>';
   }
   resEl.insertAdjacentHTML('beforeend',msg);
 }
@@ -614,7 +622,7 @@ async function startApp(){
   document.getElementById('b-tfixe').value=CFG.tFixe;
   document.getElementById('b-ttaux').value=CFG.tParTaux;
   document.getElementById('b-cvide').value=(CFG.casesVide==null?3:CFG.casesVide);
-  document.getElementById('b-camion').value=(CFG.camionGal==null?15:CFG.camionGal);
+  document.getElementById('b-camion').value=(CFG.camionCli==null?2:CFG.camionCli);
   document.getElementById('b-base').value=isoMinus(curDate,1);
   document.getElementById('b-target').value=isoPlus(curDate,6);
   prevTotals=await loadPrevTotals(curDate);
@@ -650,7 +658,7 @@ document.getElementById('b-diffuse').addEventListener('click',bDiffuse);
 document.getElementById('b-tfixe').addEventListener('input',function(e){CFG.tFixe=parseFloat(e.target.value)||0;renderBrouillon();scheduleSaveConfig();});
 document.getElementById('b-ttaux').addEventListener('input',function(e){CFG.tParTaux=parseFloat(e.target.value)||0;renderBrouillon();scheduleSaveConfig();});
 document.getElementById('b-cvide').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.casesVide=isNaN(v)?0:Math.max(0,Math.min(10,v));renderBrouillon();scheduleSaveConfig();});
-document.getElementById('b-camion').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.camionGal=isNaN(v)?15:Math.max(0,Math.min(300,v));scheduleSaveConfig();});
+document.getElementById('b-camion').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.camionCli=isNaN(v)?2:Math.max(0,Math.min(50,v));scheduleSaveConfig();});
 document.getElementById('btn-restore').addEventListener('click',async function(){
   if(!confirm('Envoyer les saisies stockées sur CET appareil vers le cloud ? (à faire sur l\'ordinateur qui a vos données)'))return;
   localStorage.removeItem('pdt_synced');
