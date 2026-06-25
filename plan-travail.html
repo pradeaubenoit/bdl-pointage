@@ -73,8 +73,8 @@
   .cli-line{font-size:13px;color:var(--muted);margin-top:2px}
   .cli-delta{font-size:12px;margin-top:4px}
   .mono{font-variant-numeric:tabular-nums}
-  .reg-row{display:grid;grid-template-columns:50px 1fr 50px 72px 92px 56px 28px;gap:7px;align-items:center;margin-bottom:7px}
-  .reg-head{display:grid;grid-template-columns:50px 1fr 50px 72px 92px 56px 28px;gap:7px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px}
+  .reg-row{display:grid;grid-template-columns:46px 1fr 44px 60px 76px 76px 48px 24px;gap:6px;align-items:center;margin-bottom:7px}
+  .reg-head{display:grid;grid-template-columns:46px 1fr 44px 60px 76px 76px 48px 24px;gap:6px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px}
   .cad-out{font-size:13px;color:var(--teal);font-variant-numeric:tabular-nums}
   .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
   .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
@@ -87,6 +87,19 @@
   .tag.eponge{background:var(--amber-bg);color:var(--amber)}
   .tag.vetement{background:#efe9fb;color:#6b3fc0}
   @media (prefers-color-scheme: dark){.tag.vetement{background:#2a2140;color:#b79bf0}}
+  .dot{display:inline-block;padding:0 6px;border-radius:5px;font-size:11px;margin-left:6px;border:1px solid var(--line)}
+  .dot.blanc{background:#f4f5f7;color:#555}
+  .dot.couleur{background:#fde8ef;color:#b03a66}
+  @media (prefers-color-scheme: dark){.dot.blanc{background:#23262c;color:#aab}.dot.couleur{background:#3a2230;color:#e79ab8}}
+  table.feed{border-collapse:collapse;font-size:12px;width:100%}
+  table.feed th,table.feed td{border:1px solid var(--line);padding:3px 6px;text-align:center;min-width:30px}
+  table.feed th{font-weight:600;color:var(--muted);font-size:11px}
+  table.feed td.pname{text-align:left;font-weight:600;white-space:nowrap}
+  table.feed td.z{background:#fdecec;color:#c0392b;font-weight:700}
+  table.feed td.lo{background:#fff6e6}
+  table.feed td.ok{background:#eaf6ee}
+  table.feed td.o{background:transparent;color:var(--faint)}
+  @media (prefers-color-scheme: dark){table.feed td.z{background:#3a2020;color:#f0a0a0}table.feed td.lo{background:#33301f}table.feed td.ok{background:#1e2f24}}
 
   #view-saisie{padding-top:12px;padding-bottom:96px}
   #view-plan,#view-reglages,#view-brouillon{padding-top:12px}
@@ -162,6 +175,8 @@
           <button id="b-load">Charger ce jour</button>
           <div><span class="lab">Temps fixe / galette (s)</span><input type="number" id="b-tfixe" class="mono w-auto" style="width:80px" step="1" min="0"></div>
           <div><span class="lab">Temps / unité de taux (s)</span><input type="number" id="b-ttaux" class="mono w-auto" style="width:80px" step="1" min="0"></div>
+          <div><span class="lab">Cases vides / changement couleur</span><input type="number" id="b-cvide" class="mono w-auto" style="width:80px" step="1" min="0" max="10"></div>
+          <div><span class="lab">Limite camions (galettes)</span><input type="number" id="b-camion" class="mono w-auto" style="width:80px" step="5" min="0" max="300"></div>
         </div>
         <div id="b-status" class="info" style="margin-top:8px"></div>
       </div>
@@ -184,7 +199,7 @@
           <input type="number" id="rot" class="mono w-auto" style="width:90px" step="0.1" min="1">
           <span class="sub">votre étalon, calé sur votre heure de fin réelle</span>
         </div>
-        <div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Galettes/h</span><span></span></div>
+        <div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
         <div id="codes"></div>
         <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
         <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
@@ -215,7 +230,7 @@ var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, 
 
 var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
-var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:36,tParTaux:10};
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:36,tParTaux:10,casesVide:3,camionGal:15};
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
@@ -243,6 +258,11 @@ function typeFromMin(m){if(m==null)return 'eponge';if(m<=5)return 'drap';if(m>=2
 var TYPES=[['eponge','Éponge'],['drap','Drap'],['vetement','Vêtement']];
 function typeOfCode(c){return (c&&c.type)?c.type:typeFromMin(c?c.sechageMin:null);}
 function typeLabel(t){return t==='drap'?'drap':(t==='vetement'?'vêtement':'éponge');}
+var COULEURS=[['blanc','Blanc'],['couleur','Couleur']];
+function colFromLib(lib){return /couleur|color/.test((lib||'').toLowerCase())?'couleur':'blanc';}
+function colOfCode(c){return (c&&c.couleur)?c.couleur:colFromLib(c?c.lib:'');}
+function colLabel(co){return co==='couleur'?'couleur':'blanc';}
+function colOfRow(r){var c=codeByNum(r.code);return colOfCode(c);}
 
 function netErr(){var e=document.getElementById('neterr');if(e)e.style.display='block';}
 function netOk(){var e=document.getElementById('neterr');if(e)e.style.display='none';}
@@ -251,8 +271,8 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;
-      if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);});}
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=3;if(CFG.camionGal==null)CFG.camionGal=15;
+      if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
   }catch(e){netErr();return false;}
@@ -315,61 +335,112 @@ function simulerTunnel(){
 }
 
 /* ---------- Moteur séchoirs (Brouillon) ---------- */
-function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=c?typeOfCode(c):'eponge';var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({type:type,dry:dryMin*60,taux:taux});});return charges;}
+function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=c?typeOfCode(c):'eponge';var col=c?colOfCode(c):'blanc';var postes=(r.postes&&r.postes.length)?r.postes.slice():['repassage'];var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({type:type,dry:dryMin*60,taux:taux,col:col,postes:postes});});return charges;}
+/* Insère des cases vides (séparation couleur/blanc) entre charges de couleur différente. Une case vide
+   occupe le tunnel (un transfert) mais ne va pas au séchoir. K = CFG.casesVide par changement. */
+function withVides(charges,K){if(!K||K<1||charges.length===0)return charges.slice();var out=[],prev=null;
+  for(var i=0;i<charges.length;i++){var c=charges[i];if(prev!==null&&c.col!==prev){for(var k=0;k<K;k++)out.push({type:'vide',dry:0,taux:1,col:c.col});}out.push(c);prev=c.col;}return out;}
 /* Tunnel 14 positions (4 stockage + 10 lavage). BRIDAGE : à chaque transfert, cadence = tFixe + (taux MAX des 10 cases
    de lavage) × tParTaux, imposée à tout le tunnel tant que la charge lente n'est pas sortie. Sortie -> passerelle (4) ->
    séchoirs en cycles (remplir 96/gal sauf 1re offerte par passerelle, sécher, vider 96). fin = dernier linge sec. */
 function simSechoirs(list,speed,start){
   var FIX=(CFG.tFixe==null?36:CFG.tFixe), PER=(CFG.tParTaux==null?10:CFG.tParTaux), LOAD=96, EMPTY=96, P=4, caps=CAP, N=14, W0=4;
-  var charges=chargesFrom(list), total=charges.length;
-  if(total===0)return{fin:start,wait:0,total:0};
-  // référence : sortie du dernier linge si les séchoirs étaient instantanés (tunnel libre, bridage compris)
+  var realCharges=chargesFrom(list), realTotal=realCharges.length;
+  if(realTotal===0)return{fin:start,wait:0,total:0,vides:0};
+  var charges=withVides(realCharges,CFG.casesVide==null?3:CFG.casesVide), total=charges.length;
+  var videsCount=total-realTotal;
+  function isReal(c){return c&&c.type!=='vide';}
+  // référence : sortie du dernier linge RÉEL si les séchoirs étaient instantanés (tunnel libre, cases vides comprises)
   var freeExit=0;
   (function(){var p2=new Array(N).fill(null),i2=0,tt=0,ex2=0;
-    while(ex2<total){ if(p2[N-1]){ex2++;freeExit=tt;} for(var i=N-1;i>0;i--)p2[i]=p2[i-1]; p2[0]=(i2<total)?charges[i2++]:null;
+    while(ex2<total){ if(p2[N-1]){ex2++;if(isReal(p2[N-1]))freeExit=tt;} for(var i=N-1;i>0;i--)p2[i]=p2[i-1]; p2[0]=(i2<total)?charges[i2++]:null;
       var m=0;for(var k=W0;k<N;k++)if(p2[k]&&p2[k].taux>m)m=p2[k].taux; tt+=FIX+(m||1)*PER; }
   })();
-  var dryers=caps.map(function(c){return {cap:c,busyUntil:0,idle:true};});
-  var pass=[], pos=new Array(N).fill(null), q=charges.slice(), loaded=0, t=0, tunnelReady=0, guard=0, stall=0, lastExit=0;
+  var dryers=caps.map(function(c){return {cap:c,busyUntil:0,idle:true,lot:null};});
+  var pass=[], pos=new Array(N).fill(null), q=charges.slice(), loaded=0, t=0, tunnelReady=0, guard=0, stall=0, lastExit=0, deliveries=[];
   function anyPos(){for(var i=0;i<N;i++)if(pos[i])return true;return false;}
   function someBusy(){for(var i=0;i<dryers.length;i++)if(!dryers[i].idle)return true;return false;}
   function maxTaux(){var m=0;for(var i=W0;i<N;i++)if(pos[i]&&pos[i].taux>m)m=pos[i].taux;return m||1;}
   function cnt(ty){var c=0;for(var i=0;i<pass.length;i++)if(pass[i].type===ty)c++;return c;}
   function pull(ty,mx){var g=[];for(var i=0;i<pass.length&&g.length<mx;){if(pass[i].type===ty)g.push(pass.splice(i,1)[0]);else i++;}return g;}
+  function deliver(dr){if(dr.lot){for(var x=0;x<dr.lot.length;x++)deliveries.push({t:dr.busyUntil,postes:dr.lot[x].postes});dr.lot=null;}}
   function assign(){var ch=true;while(ch){ch=false;for(var di=0;di<dryers.length;di++){var dr=dryers[di];if(!dr.idle||pass.length===0)continue;
     var ty=pass[0].type,av=cnt(ty),done=(loaded>=total&&!anyPos()),full=(pass.length>=P),take;
     if(av>=dr.cap)take=dr.cap;else if(full||done)take=av;else take=0;
-    if(take>0){var lot=pull(ty,take);var dm=0;for(var x=0;x<lot.length;x++)dm=Math.max(dm,lot[x].dry);dr.idle=false;dr.busyUntil=t+(lot.length-1)*LOAD+dm+EMPTY;ch=true;}}}}
+    if(take>0){var lot=pull(ty,take);var dm=0;for(var x=0;x<lot.length;x++)dm=Math.max(dm,lot[x].dry);dr.idle=false;dr.lot=lot;dr.busyUntil=t+(lot.length-1)*LOAD+dm+EMPTY;ch=true;}}}}
   while(loaded<total || anyPos() || pass.length>0 || someBusy()){
     guard++; if(guard>5000000) break;
-    for(var d=0;d<dryers.length;d++) if(!dryers[d].idle && dryers[d].busyUntil<=t) dryers[d].idle=true;
+    for(var d=0;d<dryers.length;d++) if(!dryers[d].idle && dryers[d].busyUntil<=t){ deliver(dryers[d]); dryers[d].idle=true; }
     assign();
-    var needExit=pos[N-1]!=null;
-    var canT=(t>=tunnelReady) && (loaded<total||anyPos()) && (!needExit||pass.length<P);
+    var exitC=pos[N-1];
+    var needRoom=(exitC&&isReal(exitC)); // case vide sort sans occuper la passerelle
+    var canT=(t>=tunnelReady) && (loaded<total||anyPos()) && (!needRoom||pass.length<P);
     if(canT){
-      if(pos[N-1]){ pass.push(pos[N-1]); pos[N-1]=null; lastExit=t; }
+      if(exitC){ if(isReal(exitC)){ pass.push(exitC); lastExit=t; } pos[N-1]=null; }
       for(var i=N-1;i>0;i--) pos[i]=pos[i-1];
       pos[0]=(loaded<total)? q[loaded++] : null;
       tunnelReady = t + FIX + maxTaux()*PER;
       assign(); continue;
     }
     var next=Infinity;
-    if(loaded<total||anyPos()){ if(!needExit||pass.length<P) next=Math.min(next,Math.max(t,tunnelReady));
+    if(loaded<total||anyPos()){ if(!needRoom||pass.length<P) next=Math.min(next,Math.max(t,tunnelReady));
       else { for(var e=0;e<dryers.length;e++) if(!dryers[e].idle) next=Math.min(next,dryers[e].busyUntil); } }
     for(var dd=0;dd<dryers.length;dd++) if(!dryers[dd].idle) next=Math.min(next,dryers[dd].busyUntil);
     if(next===Infinity||next<=t){var nb=Infinity;for(var f=0;f<dryers.length;f++)if(!dryers[f].idle)nb=Math.min(nb,dryers[f].busyUntil);if(nb===Infinity)break;next=nb;}
-    if(needExit && pass.length>=P && t>=tunnelReady) stall += (next-t);
+    if(needRoom && pass.length>=P && t>=tunnelReady) stall += (next-t);
     t=next;
   }
-  return{fin:start+t, wait:Math.max(0,lastExit-freeExit), total:total};
+  for(var dz=0;dz<dryers.length;dz++) deliver(dryers[dz]);
+  return{fin:start+t, wait:Math.max(0,lastExit-freeExit), total:realTotal, vides:videsCount, deliveries:deliveries, start:start};
 }
+/* Alimentation des postes : à partir des livraisons (sortie séchoir), compte par poste et par heure. */
+function feedByHour(deliveries,start,fin){
+  var posts=POSTES.map(function(p){return p[0];});
+  var h0=Math.floor(start/3600), h1=Math.ceil(fin/3600), hours=[];
+  for(var h=h0;h<h1;h++)hours.push(h);
+  var grid={}; posts.forEach(function(p){grid[p]={};hours.forEach(function(h){grid[p][h]=0;});});
+  deliveries.forEach(function(d){var hh=Math.floor((start+d.t)/3600);if(hh>=h1)hh=h1-1;var ps=d.postes&&d.postes.length?d.postes:['repassage'];var w=1/ps.length;ps.forEach(function(p){if(grid[p]==null)grid[p]={};if(grid[p][hh]==null)grid[p][hh]=0;grid[p][hh]+=w;});});
+  // fenêtre active globale (1re à dernière livraison, tous postes confondus)
+  var gFirst=null,gLast=null;
+  posts.forEach(function(p){hours.forEach(function(h){if(grid[p][h]>0.001){if(gFirst===null||h<gFirst)gFirst=h;if(gLast===null||h>gLast)gLast=h;}});});
+  var idle={};posts.forEach(function(p){var used=false;hours.forEach(function(h){if(grid[p][h]>0.001)used=true;});var z=0;if(used&&gFirst!==null)for(var h=gFirst;h<=gLast;h++)if(grid[p][h]<=0.001)z++;idle[p]={trous:z,used:used,debut:gFirst,fin:gLast};});
+  return {posts:posts,hours:hours,grid:grid,idle:idle,gFirst:gFirst,gLast:gLast};
+}
+function feedTable(s){
+  var f=feedByHour(s.deliveries||[],s.start,s.fin);
+  var lab={faxm:'FAXM',pliage_table:'Table',repassage:'Repassage'};
+  var html='<div style="overflow-x:auto"><table class="feed"><thead><tr><th>Poste</th>';
+  f.hours.forEach(function(h){html+='<th>'+(h%24)+'h</th>';});
+  html+='<th>Trous</th></tr></thead><tbody>';
+  f.posts.forEach(function(p){html+='<tr><td class="pname">'+(lab[p]||p)+'</td>';
+    f.hours.forEach(function(h){var v=f.grid[p][h]||0;var inRange=(f.idle[p].used&&f.gFirst!==null&&h>=f.gFirst&&h<=f.gLast);
+      var cls=v<=0.001?(inRange?'z':'o'):(v<3?'lo':'ok');
+      html+='<td class="'+cls+'">'+(v>0.001?Math.round(v):'')+'</td>';});
+    html+='<td class="pname">'+(f.idle[p].trous>0?'<b style="color:var(--danger)">'+f.idle[p].trous+'</b>':'0')+'</td></tr>';});
+  html+='</tbody></table></div><div class="info" style="margin-top:6px">Une case <b>rouge</b> = ce poste n\'a rien reçu cette heure-là alors que la journée tourne (personnel à l\'arrêt). « Trous » = nombre d\'heures creuses. L\'objectif de l\'optimiseur sera de réduire ces trous.</div>';
+  return html;
+}
+/* Optimiseur combiné. Priorité absolue : ne pas affamer les postes (main-d'œuvre).
+   Puis : heure de fin (qui intègre blocage séchoirs + cases vides). Contrainte dure : limite camions
+   (chaque client reste à ±CFG.camionGal galettes de sa position d'origine). */
+function trousTotal(s){var f=feedByHour(s.deliveries||[],s.start,s.fin);var z=0;f.posts.forEach(function(p){z+=f.idle[p].trous;});return z;}
+function scoreOrder(order,start){var s=simSechoirs(order,0,start);var W=6*3600;return {sc:W*trousTotal(s)+(s.fin-start),fin:s.fin,trous:trousTotal(s),vides:s.vides};}
+function galPos(order){var pos={},cum=0;order.forEach(function(r){pos[r.id]=cum;cum+=(parseInt(r.nbTransferts)||0);});return pos;}
+function camionOK(order,orig,L){var p=galPos(order);for(var id in orig){if(Math.abs((p[id]||0)-(orig[id]||0))>L)return false;}return true;}
 function optimiserOrdre(list,speed,start){
-  var K=2,best=list.slice(),bestFin=simSechoirs(best,speed,start).fin,improved=true,iter=0;
-  while(improved&&iter<80){improved=false;iter++;
-    for(var i=0;i<best.length;i++){for(var j=Math.max(0,i-K);j<=Math.min(best.length-1,i+K);j++){if(i===j)continue;
-      var cand=best.slice();var x=cand.splice(i,1)[0];cand.splice(j,0,x);
-      var f=simSechoirs(cand,speed,start).fin;if(f<bestFin-1){bestFin=f;best=cand;improved=true;}}}}
-  return{order:best,fin:bestFin};
+  var L=(CFG.camionGal==null?15:CFG.camionGal);
+  var best=list.slice(),orig=galPos(best),b=scoreOrder(best,start),it=0,improved=true,WIN=6;
+  while(improved&&it<40){improved=false;it++;
+    for(var i=0;i<best.length;i++){
+      for(var j=Math.max(0,i-WIN);j<=Math.min(best.length-1,i+WIN);j++){ if(i===j)continue;
+        var cand=best.slice();var x=cand.splice(i,1)[0];cand.splice(j,0,x);
+        if(!camionOK(cand,orig,L))continue;
+        var sc=scoreOrder(cand,start);
+        if(sc.sc<b.sc-1){b=sc;best=cand;improved=true;}
+      }
+    }
+  }
+  return {order:best,fin:b.fin,trous:b.trous,vides:b.vides};
 }
 
 /* ---------- Saisie ---------- */
@@ -400,8 +471,9 @@ function add(){
 function move(id,d){var i=-1;for(var k=0;k<rows.length;k++)if(rows[k].id===id)i=k;var j=i+d;if(i<0||j<0||j>=rows.length)return;var a=rows[i];rows[i]=rows[j];rows[j]=a;renderRows();sync();}
 
 /* ---------- Réglages ---------- */
-function makeCode(c){var el=document.createElement('div');el.className='reg-row';var topts=TYPES.map(function(p){return '<option value="'+p[0]+'"'+(typeOfCode(c)===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><input type="number" inputmode="decimal" min="0" step="0.5" class="c-sech mono" value="'+(c.sechageMin==null?'':c.sechageMin)+'"><select class="c-type">'+topts+'</select><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
+function makeCode(c){var el=document.createElement('div');el.className='reg-row';var topts=TYPES.map(function(p){return '<option value="'+p[0]+'"'+(typeOfCode(c)===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');var copts=COULEURS.map(function(p){return '<option value="'+p[0]+'"'+(colOfCode(c)===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><input type="number" inputmode="decimal" min="0" step="0.5" class="c-sech mono" value="'+(c.sechageMin==null?'':c.sechageMin)+'"><select class="c-type">'+topts+'</select><select class="c-couleur">'+copts+'</select><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
   el.querySelector('.c-type').addEventListener('change',function(e){c.type=e.target.value;renderRows();scheduleSaveConfig();});
+  el.querySelector('.c-couleur').addEventListener('change',function(e){c.couleur=e.target.value;renderRows();scheduleSaveConfig();});
   el.querySelector('.c-num').addEventListener('input',function(e){var n=Math.max(0,Math.min(30,parseInt(e.target.value)||0));e.target.value=String(n);c.num=n;});
   el.querySelector('.c-num').addEventListener('change',function(){renderRows();renderResults();scheduleSaveConfig();});
   el.querySelector('.c-lib').addEventListener('input',function(e){c.lib=e.target.value;});
@@ -412,7 +484,7 @@ function makeCode(c){var el=document.createElement('div');el.className='reg-row'
   return el;
 }
 function renderCodes(){var c=document.getElementById('codes');c.innerHTML='';codes.forEach(function(x){c.appendChild(makeCode(x));});}
-function addCode(){codes.push({num:0,lib:'',taux:0,sechageMin:20,type:'eponge'});renderCodes();scheduleSaveConfig();}
+function addCode(){codes.push({num:0,lib:'',taux:0,sechageMin:20,type:'eponge',couleur:'blanc'});renderCodes();scheduleSaveConfig();}
 
 /* ---------- Plan de travail ---------- */
 function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
@@ -455,10 +527,11 @@ function renderBrouillon(){
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var s=simSechoirs(bRows,speed,start);
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Galettes tunnel',String(s.total))+metric('Clients',String(tunnelRows.length))+'</div><div class="info" style="margin-top:8px">Tunnel : bridage — à chaque transfert, tout le tunnel tourne à la vitesse de la charge la plus lente présente (cadence = '+(CFG.tFixe||36)+' s + taux max × '+(CFG.tParTaux||10)+' s). Séchoirs 2/3/3/2 en cycles : remplissage 96 s/galette (1re offerte par la passerelle) → séchage (drap 2,5 / éponge 20 / vêtement 30 min) → vidage 96 s. Passerelle = tampon de 4 ; le tunnel attend si elle est pleine. Fin = dernier linge sec.</div></div>';
-  var h='<div class="sech">Ordre de lavage</div>';
-  bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var g=parseInt(r.nbTransferts)||0;
-    h+='<div class="bline"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span></div><div class="b-meta">'+g+' gal'+(r.machine==='laveuse'?' · laveuse':'')+'</div></div>';
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Cases vides',String(s.vides||0))+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">Tunnel : bridage (cadence = '+(CFG.tFixe||36)+' s + taux max × '+(CFG.tParTaux||10)+' s). Entre couleur et blanc, '+(CFG.casesVide==null?3:CFG.casesVide)+' cases vides sont insérées (elles occupent le tunnel sans rien sécher). Séchoirs 2/3/3/2 en cycles : remplissage 96 s/galette (1re offerte par la passerelle) → séchage → vidage 96 s. Grouper les clients par couleur réduit les cases vides et fait finir plus tôt. Fin = dernier linge sec.</div></div>';
+  var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
+  h+='<div class="sech">Ordre de lavage</div>';
+  bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
+    h+='<div class="bline"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span></div><div class="b-meta">'+g+' gal'+(r.machine==='laveuse'?' · laveuse':'')+'</div></div>';
   });
   listEl.innerHTML=h;
 }
@@ -473,18 +546,28 @@ async function bLoad(){
 function bOptimize(){
   if(!bLoaded||!bRows.length)return;
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
-  var before=simSechoirs(bRows,speed,start).fin;
+  var sBefore=simSechoirs(bRows,speed,start);
+  var before=sBefore.fin, trousBefore=trousTotal(sBefore), videsBefore=sBefore.vides||0;
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var others=bRows.filter(function(r){return r.machine!=='tunnel';});
   var opt=optimiserOrdre(tunnelRows,speed,start);
   bRows=opt.order.concat(others);
   var after=opt.fin;
   var gain=Math.round((before-after)/60);
+  var dTrous=trousBefore-opt.trous, dVides=videsBefore-opt.vides;
   renderBrouillon();
   var resEl=document.getElementById('b-results');
-  var msg=gain>0?('<div class="note ok">Pari gagné : l\'ordre proposé finit à '+fmtHHMM(after)+', soit '+gain+' min plus tôt qu\'avant ('+fmtHHMM(before)+'). Si ça vous convient, diffusez-le.</div>')
-                :(gain===0?'<div class="note warn">L\'ordre saisi est déjà optimal pour les séchoirs — aucun gain possible en déplaçant les clients de quelques positions.</div>'
-                          :'<div class="note warn">Aucune amélioration trouvée dans l\'ordre proche.</div>');
+  var L=(CFG.camionGal==null?15:CFG.camionGal);
+  var msg;
+  if(gain>0||dTrous>0||dVides>0){
+    msg='<div class="note ok"><b>Proposition trouvée</b> (limite camions '+L+' galettes) :<br>'
+      +'• Postes affamés : '+trousBefore+' \u2192 '+opt.trous+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':'')+'<br>'
+      +'• Cases vides : '+videsBefore+' \u2192 '+opt.vides+(dVides>0?' (\u2212'+dVides+')':'')+'<br>'
+      +'• Heure de fin : '+fmtHHMM(before)+' \u2192 '+fmtHHMM(after)+(gain>0?' (\u2212'+gain+' min)':'')+'<br>'
+      +'Si ça vous convient, diffusez-le.</div>';
+  } else {
+    msg='<div class="note warn">Aucune amélioration possible dans la limite camions de '+L+' galettes. Augmentez cette limite dans les réglages du Brouillon pour laisser plus de marge à la réorganisation.</div>';
+  }
   resEl.insertAdjacentHTML('beforeend',msg);
 }
 async function bDiffuse(){
@@ -516,6 +599,8 @@ async function startApp(){
   document.getElementById('rot').value=CFG.rotationSec;
   document.getElementById('b-tfixe').value=CFG.tFixe;
   document.getElementById('b-ttaux').value=CFG.tParTaux;
+  document.getElementById('b-cvide').value=(CFG.casesVide==null?3:CFG.casesVide);
+  document.getElementById('b-camion').value=(CFG.camionGal==null?15:CFG.camionGal);
   document.getElementById('b-base').value=isoMinus(curDate,1);
   document.getElementById('b-target').value=isoPlus(curDate,6);
   prevTotals=await loadPrevTotals(curDate);
@@ -550,6 +635,8 @@ document.getElementById('b-opt').addEventListener('click',bOptimize);
 document.getElementById('b-diffuse').addEventListener('click',bDiffuse);
 document.getElementById('b-tfixe').addEventListener('input',function(e){CFG.tFixe=parseFloat(e.target.value)||0;renderBrouillon();scheduleSaveConfig();});
 document.getElementById('b-ttaux').addEventListener('input',function(e){CFG.tParTaux=parseFloat(e.target.value)||0;renderBrouillon();scheduleSaveConfig();});
+document.getElementById('b-cvide').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.casesVide=isNaN(v)?0:Math.max(0,Math.min(10,v));renderBrouillon();scheduleSaveConfig();});
+document.getElementById('b-camion').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.camionGal=isNaN(v)?15:Math.max(0,Math.min(300,v));scheduleSaveConfig();});
 document.getElementById('btn-restore').addEventListener('click',async function(){
   if(!confirm('Envoyer les saisies stockées sur CET appareil vers le cloud ? (à faire sur l\'ordinateur qui a vos données)'))return;
   localStorage.removeItem('pdt_synced');
