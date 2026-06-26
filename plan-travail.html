@@ -286,9 +286,16 @@ async function loadConfig(){
 async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.id,data:{cfg:CFG,codes:codes},updated_at:new Date().toISOString()},{onConflict:'user_id'});netOk();}catch(e){netErr();}}
 function mapRow(x){return {id:uid(),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
 function rowToDb(r,date,i){return {user_id:USER.id,date_jour:date,ordre:i,client:r.client||'',poste:(r.postes&&r.postes.length?r.postes.join(','):'repassage'),machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};}
-async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');rows=(r.data||[]).map(mapRow);netOk();}catch(e){rows=[];netErr();}}
-async function loadDay(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');return (r.data||[]).map(mapRow);}catch(e){netErr();return [];}}
-async function savePlan(){pendingSave=true;try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',curDate);if(rows.length){var payload=rows.map(function(r,i){return rowToDb(r,curDate,i);});await sb.from('plan_charges').insert(payload);}netOk();}catch(e){netErr();}pendingSave=false;}
+async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});rows=clean.map(mapRow);netOk();}catch(e){rows=[];netErr();}}
+async function loadDay(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});return clean.map(mapRow);}catch(e){netErr();return [];}}
+var saveRunning=false, saveQueued=false;
+async function savePlan(){
+  if(saveRunning){saveQueued=true;return;}
+  saveRunning=true;pendingSave=true;
+  try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',curDate);if(rows.length){var payload=rows.map(function(r,i){return rowToDb(r,curDate,i);});await sb.from('plan_charges').insert(payload);}netOk();}catch(e){netErr();}
+  saveRunning=false;pendingSave=false;
+  if(saveQueued){saveQueued=false;savePlan();}
+}
 async function loadPrevTotals(date){try{var r=await sb.from('plan_charges').select('client,galettes').eq('user_id',USER.id).eq('date_jour',dateMinus7(date));var t={};(r.data||[]).forEach(function(x){var nm=(x.client||'').trim()||'(sans nom)';t[nm]=(t[nm]||0)+(x.galettes||0);});return t;}catch(e){return {};}}
 
 function localPlanKeys(){var a=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('pdt_plan:')===0)a.push(k);}return a;}
@@ -612,23 +619,26 @@ function bOptimize(){
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var others=bRows.filter(function(r){return r.machine!=='tunnel';});
-  var bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin);
-  var sBefore=simSechoirs(bRows,speed,start);
-  var bouchAvant=attenteRegle(splitSlow(tunnelRows,(CFG.maxLent==null?8:CFG.maxLent)));
-  var finAvant=simulerTunnel(bRows).fin, runBefore=maxLentRun(tunnelRows);
+  var bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), ML=(CFG.maxLent==null?8:CFG.maxLent);
+  var bouchAvant=attenteRegle(splitSlow(tunnelRows,ML));
+  var finAvant=simulerTunnel(bRows).fin, runBefore=maxLentRun(tunnelRows); // étalon ~19h (vérité, bouchons inclus)
   var opt=optimiserOrdre(tunnelRows,speed,start);
   bRows=opt.order.concat(others);
-  var finApres=opt.fin;
-  var gainFin=Math.round((finAvant-finApres)/60);
-  var dRun=runBefore-opt.run, dBouch=bouchAvant-opt.bouchons, dAtt=(bouchAvant-opt.bouchons)*bMin;
+  // net = on part de l'étalon, on ajoute le bridage en plus, on retire les bouchons évités
+  var bridageAjoute=opt.fin-finAvant;                       // secondes (souvent >0 : draps intercalés)
+  var bouchEvites=(bouchAvant-opt.bouchons)*bMin*60;        // secondes gagnées (souvent >0)
+  var finReelOpt=finAvant+bridageAjoute-bouchEvites;
+  var gainNet=Math.round((finAvant-finReelOpt)/60);
+  var dRun=runBefore-opt.run, dBouch=bouchAvant-opt.bouchons;
   renderBrouillon();
   var resEl=document.getElementById('b-results');
-  var L=(CFG.camionCli==null?2:CFG.camionCli), ML=(CFG.maxLent==null?8:CFG.maxLent);
+  var L=(CFG.camionCli==null?2:CFG.camionCli);
   var msg='<div class="note ok"><b>Proposition trouvée</b> (cadence '+ML+' éponges \u2192 bloc de draps ; éponge/vêtement à ±'+L+' clients, draps libres dans leur ordre) :<br>'
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
       +'• Bouchons séchoir : '+bouchAvant+' \u2192 '+opt.bouchons+(dBouch>0?' (\u2212'+dBouch+')':'')+'<br>'
-      +'• Attente séchoir : '+(bouchAvant*bMin)+' \u2192 <b>'+opt.attenteMin+' min</b>'+(dAtt>0?' (\u2212'+dAtt+' min sur le flux séchoir/postes)':'')+'<br>'
-      +'• Heure de fin tunnel (étalon) : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finApres)+(gainFin>0?' (\u2212'+gainFin+' min)':' (inchangée — le gain est sur le flux)')+'<br>'
+      +'• Bridage (draps intercalés) : '+(bridageAjoute>0?'+'+Math.round(bridageAjoute/60)+' min':(Math.round(bridageAjoute/60)+' min'))+'<br>'
+      +'• Bouchons évités : \u2212'+Math.round(bouchEvites/60)+' min<br>'
+      +'• <b>Heure de fin réelle : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finReelOpt)+(gainNet>0?' (\u2212'+gainNet+' min)':(gainNet<0?' (+'+(-gainNet)+' min — l\'intercalation coûte plus qu\'elle ne rapporte ici)':' (identique)'))+'</b><br>'
       +(opt.run>ML?'<span style="color:var(--danger)">Il manque des draps pour tout tamponner — on pourra en emprunter à demain (à venir).</span><br>':'')
       +'Si ça vous convient, diffusez-le.</div>';
   resEl.insertAdjacentHTML('beforeend',msg);
