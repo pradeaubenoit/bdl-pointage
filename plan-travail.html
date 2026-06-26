@@ -240,7 +240,7 @@ var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
-var bRows=[], bLoaded=false, bBaseDate='';
+var bRows=[], bLoaded=false, bBaseDate='', bProposFin=null;
 
 /* séchoirs : capacités, cuve #4 (index 3) réservée aux draps */
 var CAP=[2,3,3,2], DRAP_DRYER=3;
@@ -598,7 +598,12 @@ function renderBrouillon(){
   var s=simSechoirs(bRows,speed,start);
   var bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), bouch=attenteRegle(splitSlow(tunnelRows,(CFG.maxLent==null?8:CFG.maxLent)));
   var finReel=simulerTunnel(bRows).fin, serie=maxLentRun(tunnelRows);
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(finReel))+metric('Attente séchoir',fmtDuree(bouch*bMin*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">Heure de fin = dernière case chargée (votre étalon, identique à la page Plan de travail). <b>Attente séchoir</b> = temps perdu quand une série lente dépasse '+(CFG.maxLent==null?8:CFG.maxLent)+' galettes sans bloc de '+(CFG.blocDraps==null?4:CFG.blocDraps)+' draps pour tamponner ('+bMin+' min par bouchon). C\'est ce flux que l\'optimiseur fluidifie — il ne touche pas à la dernière case. Réglable dans Réglages.</div></div>';
+  var finAff=(bProposFin!=null)?bProposFin:finReel;
+  var labelFin=(bProposFin!=null)?'Heure de fin (optimisée)':'Heure de fin (tunnel)';
+  var noteFin=(bProposFin!=null)
+    ?'<b>Heure de fin optimisée</b> = votre étalon + le bridage des draps intercalés \u2212 les bouchons évités. C\'est le vrai temps une fois les tampons posés. '
+    :'Heure de fin = dernière case chargée (votre étalon, identique à la page Plan de travail). ';
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Attente séchoir',fmtDuree(bouch*bMin*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Attente séchoir</b> = temps perdu quand une série lente dépasse '+(CFG.maxLent==null?8:CFG.maxLent)+' galettes sans bloc de '+(CFG.blocDraps==null?4:CFG.blocDraps)+' draps pour tamponner ('+bMin+' min par bouchon). Réglable dans Réglages.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
@@ -609,7 +614,7 @@ function renderBrouillon(){
 async function bLoad(){
   var d=document.getElementById('b-base').value||isoMinus(todayISO(),1);
   document.getElementById('b-status').textContent='Chargement…';
-  bRows=await loadDay(d);bBaseDate=d;bLoaded=true;
+  bRows=await loadDay(d);bBaseDate=d;bLoaded=true;bProposFin=null;
   document.getElementById('b-target').value=isoPlus(d,7);
   document.getElementById('b-status').textContent=bRows.length?('Jour chargé : '+bRows.length+' client(s). Vous pouvez optimiser puis diffuser.'):'Aucune donnée pour ce jour.';
   renderBrouillon();
@@ -628,6 +633,7 @@ function bOptimize(){
   var bridageAjoute=opt.fin-finAvant;                       // secondes (souvent >0 : draps intercalés)
   var bouchEvites=(bouchAvant-opt.bouchons)*bMin*60;        // secondes gagnées (souvent >0)
   var finReelOpt=finAvant+bridageAjoute-bouchEvites;
+  bProposFin=finReelOpt;
   var gainNet=Math.round((finAvant-finReelOpt)/60);
   var dRun=runBefore-opt.run, dBouch=bouchAvant-opt.bouchons;
   renderBrouillon();
