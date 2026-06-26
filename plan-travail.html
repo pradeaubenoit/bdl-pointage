@@ -330,9 +330,10 @@ function setView(name){
 }
 
 /* ---------- Moteur tunnel simple (Plan de travail, étalon inchangé) ---------- */
-function simulerTunnel(){
+function simulerTunnel(srcRows){
+  var src=srcRows||rows;
   var N=CFG.nbStockage+CFG.nbLavage,lavStart=CFG.nbStockage,charges=[],undef=false;
-  rows.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);if((!c||!(c.taux>0))&&(parseInt(r.nbTransferts)||0)>0)undef=true;var sec=secParGalette(c);var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({rowId:r.id,sec:sec,tLoad:null,tExit:null});});
+  src.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);if((!c||!(c.taux>0))&&(parseInt(r.nbTransferts)||0)>0)undef=true;var sec=secParGalette(c);var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({rowId:r.id,sec:sec,tLoad:null,tExit:null});});
   var start=parseHeure(CFG.heureDemarrage),t=start,pos=new Array(N).fill(null),q=charges.slice(),total=charges.length,ex=0,g=0,bMax=0,cMin=Infinity;
   while(total>0&&(ex<total||pos.some(Boolean))){g++;if(g>200000)break;var out=pos[N-1];if(out){out.tExit=t;ex++;}for(var i=N-1;i>0;i--)pos[i]=pos[i-1];pos[0]=q.length?q.shift():null;if(pos[0])pos[0].tLoad=t;var occ=[];for(var i2=lavStart;i2<N;i2++)if(pos[i2])occ.push(pos[i2].sec);var cad;if(occ.length){cad=Math.max.apply(null,occ);bMax=Math.max(bMax,cad);cMin=Math.min(cMin,Math.min.apply(null,occ));}else{var all=pos.filter(Boolean).map(function(c){return c.sec;});cad=all.length?Math.min.apply(null,all):0;}t+=cad;}
   var fin=charges.reduce(function(m,c){return c.tExit!=null?Math.max(m,c.tExit):m;},start);
@@ -496,9 +497,10 @@ function optimiserOrdre(list,speed,start){
     }
   }
   best=mergeChunks(best);
-  var sf=simSechoirs(best,0,start);
   var bouchons=attenteRegle(best);
-  return {order:best, fin:sf.fin+bouchons*bMin*60, finBrut:sf.fin, trous:trousTotal(sf), vides:sf.vides, run:maxLentRun(best), bouchons:bouchons, attenteMin:bouchons*bMin};
+  var fin=simulerTunnel(best).fin;
+  var sf=simSechoirs(best,0,start);
+  return {order:best, fin:fin, trous:trousTotal(sf), vides:sf.vides, run:maxLentRun(best), bouchons:bouchons, attenteMin:bouchons*bMin};
 }
 
 /* ---------- Saisie ---------- */
@@ -557,7 +559,9 @@ function renderResults(){
   var clients=Object.keys(agg).map(function(k){return agg[k];});
   var prevTot=prevTotals;
   var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée — '+esc(curDate)+'</div>';
-  h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Durée tunnel',fmtDuree(sim.duree))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  var tRows=rows.filter(function(r){return r.machine==='tunnel';});
+  var bMinR=(CFG.bouchonMin==null?10:CFG.bouchonMin), bouchR=attenteRegle(splitSlow(tRows,(CFG.maxLent==null?8:CFG.maxLent)));
+  h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Attente séchoir',fmtDuree(bouchR*bMinR*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
@@ -586,8 +590,8 @@ function renderBrouillon(){
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var s=simSechoirs(bRows,speed,start);
   var bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), bouch=attenteRegle(splitSlow(tunnelRows,(CFG.maxLent==null?8:CFG.maxLent)));
-  var finReel=s.fin+bouch*bMin*60, serie=maxLentRun(tunnelRows);
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(finReel))+metric('Attente séchoir',fmtDuree(bouch*bMin*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">Règle : '+( CFG.maxLent==null?8:CFG.maxLent)+' galettes lentes (éponge/vêtement) maximum, puis un bloc de '+(CFG.blocDraps==null?4:CFG.blocDraps)+' draps pour laisser les séchoirs se libérer. Chaque série lente trop longue sans draps = '+bMin+' min de bouchon. <b>Fin = dernière case chargée</b> (votre repère) + bouchons. Réglable dans Réglages.</div></div>';
+  var finReel=simulerTunnel(bRows).fin, serie=maxLentRun(tunnelRows);
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(finReel))+metric('Attente séchoir',fmtDuree(bouch*bMin*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">Heure de fin = dernière case chargée (votre étalon, identique à la page Plan de travail). <b>Attente séchoir</b> = temps perdu quand une série lente dépasse '+(CFG.maxLent==null?8:CFG.maxLent)+' galettes sans bloc de '+(CFG.blocDraps==null?4:CFG.blocDraps)+' draps pour tamponner ('+bMin+' min par bouchon). C\'est ce flux que l\'optimiseur fluidifie — il ne touche pas à la dernière case. Réglable dans Réglages.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
@@ -611,20 +615,20 @@ function bOptimize(){
   var bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin);
   var sBefore=simSechoirs(bRows,speed,start);
   var bouchAvant=attenteRegle(splitSlow(tunnelRows,(CFG.maxLent==null?8:CFG.maxLent)));
-  var before=sBefore.fin+bouchAvant*bMin*60, runBefore=maxLentRun(tunnelRows);
+  var finAvant=simulerTunnel(bRows).fin, runBefore=maxLentRun(tunnelRows);
   var opt=optimiserOrdre(tunnelRows,speed,start);
   bRows=opt.order.concat(others);
-  var after=opt.fin;
-  var gain=Math.round((before-after)/60);
-  var dRun=runBefore-opt.run, dBouch=bouchAvant-opt.bouchons;
+  var finApres=opt.fin;
+  var gainFin=Math.round((finAvant-finApres)/60);
+  var dRun=runBefore-opt.run, dBouch=bouchAvant-opt.bouchons, dAtt=(bouchAvant-opt.bouchons)*bMin;
   renderBrouillon();
   var resEl=document.getElementById('b-results');
   var L=(CFG.camionCli==null?2:CFG.camionCli), ML=(CFG.maxLent==null?8:CFG.maxLent);
   var msg='<div class="note ok"><b>Proposition trouvée</b> (cadence '+ML+' éponges \u2192 bloc de draps ; éponge/vêtement à ±'+L+' clients, draps libres dans leur ordre) :<br>'
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
-      +'• Bouchons séchoir : '+bouchAvant+' \u2192 '+opt.bouchons+(dBouch>0?' (\u2212'+dBouch+')':'')+' \u2192 attente '+(bouchAvant*bMin)+' \u2192 <b>'+opt.attenteMin+' min</b><br>'
-      +'• Cases vides : '+(sBefore.vides||0)+' \u2192 '+opt.vides+'<br>'
-      +'• Heure de fin : '+fmtHHMM(before)+' \u2192 <b>'+fmtHHMM(after)+'</b>'+(gain>0?' (\u2212'+gain+' min)':'')+'<br>'
+      +'• Bouchons séchoir : '+bouchAvant+' \u2192 '+opt.bouchons+(dBouch>0?' (\u2212'+dBouch+')':'')+'<br>'
+      +'• Attente séchoir : '+(bouchAvant*bMin)+' \u2192 <b>'+opt.attenteMin+' min</b>'+(dAtt>0?' (\u2212'+dAtt+' min sur le flux séchoir/postes)':'')+'<br>'
+      +'• Heure de fin tunnel (étalon) : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finApres)+(gainFin>0?' (\u2212'+gainFin+' min)':' (inchangée — le gain est sur le flux)')+'<br>'
       +(opt.run>ML?'<span style="color:var(--danger)">Il manque des draps pour tout tamponner — on pourra en emprunter à demain (à venir).</span><br>':'')
       +'Si ça vous convient, diffusez-le.</div>';
   resEl.insertAdjacentHTML('beforeend',msg);
