@@ -199,6 +199,12 @@
           <input type="number" id="rot" class="mono w-auto" style="width:90px" step="0.1" min="1">
           <span class="sub">votre étalon, calé sur votre heure de fin réelle</span>
         </div>
+        <div style="display:flex;align-items:center;gap:16px;margin:0 0 12px;flex-wrap:wrap;padding:10px;background:var(--bg-soft,#f6f6f4);border-radius:8px">
+          <span class="lab" style="margin:0;font-weight:600">Règle séchoirs</span>
+          <div style="display:flex;align-items:center;gap:6px"><span class="sub">Éponges max avant draps</span><input type="number" id="r-serie" class="mono w-auto" style="width:64px" step="1" min="1"></div>
+          <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bloc de draps pour tamponner</span><input type="number" id="r-bloc" class="mono w-auto" style="width:64px" step="1" min="1"></div>
+          <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bouchon si pas assez (min)</span><input type="number" id="r-bouchon" class="mono w-auto" style="width:64px" step="1" min="0"></div>
+        </div>
         <div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
         <div id="codes"></div>
         <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
@@ -230,7 +236,7 @@ var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, 
 
 var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
-var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:36,tParTaux:10,casesVide:2,camionCli:2,maxLent:8};
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:36,tParTaux:10,casesVide:2,camionCli:2,maxLent:8,blocDraps:4,bouchonMin:10};
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
@@ -271,7 +277,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.blocDraps==null)CFG.blocDraps=4;if(CFG.bouchonMin==null)CFG.bouchonMin=10;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
@@ -436,9 +442,17 @@ function splitSlow(rows,maxLent){var out=[];rows.forEach(function(r){var g=parse
 function mergeChunks(order){var out=[];order.forEach(function(r){var last=out[out.length-1];var src=r.src||r.id;
   if(last&&(last.src||last.id)===src){last.nbTransferts=String((parseInt(last.nbTransferts)||0)+(parseInt(r.nbTransferts)||0));}
   else out.push(Object.assign({},r));});return out;}
-function scoreOrder(order,start){var s=simSechoirs(order,0,start);var maxLent=(CFG.maxLent==null?8:CFG.maxLent);
-  var W_RUN=200*3600, W_TROU=6*3600, ex=Math.max(0,maxLentRun(order)-maxLent);
-  return {sc:W_RUN*ex+W_TROU*trousTotal(s)+(s.fin-start),fin:s.fin,trous:trousTotal(s),vides:s.vides,run:maxLentRun(order)};}
+/* ATTENTE SÉCHOIR selon la règle de Benoît : on accumule les galettes lentes ; au-delà de
+   serieMax sans bloc de draps suffisant pour tamponner, on compte un bouchon. Renvoie le nb de bouchons. */
+function attenteRegle(order){
+  var serieMax=(CFG.maxLent==null?8:CFG.maxLent), bloc=(CFG.blocDraps==null?4:CFG.blocDraps);
+  var s=0,d=0,b=0;
+  for(var i=0;i<order.length;i++){var g=parseInt(order[i].nbTransferts)||0, isD=isDrapRow(order[i]);
+    if(!isD){ if(d>0){ if(d>=bloc)s=0; else s=Math.max(0,s-d*(serieMax/bloc)); d=0; }
+      for(var k=0;k<g;k++){ s++; if(s>serieMax){ b++; s=1; } } }
+    else { d+=g; } }
+  return b;
+}
 function isDrapRow(r){return rowType(r)==='drap';}
 /* rang parmi les NON-draps seulement (insérer un drap ne décale pas l'éponge) */
 function ndRanks(order){var rank={},k=0;order.forEach(function(r){if(isDrapRow(r))return;var s=r.src||r.id;if(!(s in rank))rank[s]=k++;});return rank;}
@@ -449,20 +463,42 @@ function sameSeq(a,b){if(a.length!==b.length)return false;for(var i=0;i<a.length
    - éponge/vêtement : ordre serré (±N rangs entre eux, les draps ne comptent pas) ;
    - draps : libres en distance, mais leur ordre de départ entre eux est préservé. */
 function camionOK(order,origND,origDrap,N){var rk=ndRanks(order);for(var s in origND){if(rk[s]==null)continue;if(Math.abs(rk[s]-origND[s])>N)return false;}return sameSeq(drapSeq(order),origDrap);}
+/* CONSTRUCTEUR DE CADENCE — bâtit l'ordre comme Benoît à la main :
+   éponge dans l'ordre (gros clients coupés en tranches <=serieMax), et on insère un client
+   drap à chaque fois qu'on dépasserait serieMax. Les draps suivent leur ordre de départ. */
+function construireCadence(rows){
+  var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
+  var slow=rows.filter(function(r){return !isDrapRow(r);});
+  var draps=rows.filter(isDrapRow);
+  var chunks=splitSlow(slow,serieMax);
+  var out=[],di=0,acc=0;
+  for(var i=0;i<chunks.length;i++){
+    var g=parseInt(chunks[i].nbTransferts)||0;
+    if(acc>0 && acc+g>serieMax && di<draps.length){ out.push(draps[di++]); acc=0; }
+    out.push(chunks[i]); acc+=g;
+  }
+  while(di<draps.length){ out.push(draps[di++]); }
+  return out; // non recollé : le polish peut encore bouger les draps
+}
 function optimiserOrdre(list,speed,start){
-  var N=(CFG.camionCli==null?2:CFG.camionCli), maxLent=(CFG.maxLent==null?8:CFG.maxLent);
-  var best=splitSlow(list,maxLent),origND=ndRanks(best),origDrap=drapSeq(best),b=scoreOrder(best,start),it=0,improved=true,WIN=16;
-  while(improved&&it<50){improved=false;it++;
+  var N=(CFG.camionCli==null?2:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin);
+  var best=construireCadence(list), origND=ndRanks(best), origDrap=drapSeq(best);
+  function score(o){ return attenteRegle(o)*1e6 + maxLentRun(o)*1e3; }
+  var b=score(best), it=0, improved=true, WIN=14;
+  while(improved&&it<40){improved=false;it++;
     for(var i=0;i<best.length;i++){
       for(var j=Math.max(0,i-WIN);j<=Math.min(best.length-1,i+WIN);j++){ if(i===j)continue;
         var cand=best.slice();var x=cand.splice(i,1)[0];cand.splice(j,0,x);
         if(!camionOK(cand,origND,origDrap,N))continue;
-        var sc=scoreOrder(cand,start);
-        if(sc.sc<b.sc-1){b=sc;best=cand;improved=true;}
+        var sc=score(cand);
+        if(sc<b-1){b=sc;best=cand;improved=true;}
       }
     }
   }
-  return {order:mergeChunks(best),fin:b.fin,trous:b.trous,vides:b.vides,run:b.run};
+  best=mergeChunks(best);
+  var sf=simSechoirs(best,0,start);
+  var bouchons=attenteRegle(best);
+  return {order:best, fin:sf.fin+bouchons*bMin*60, finBrut:sf.fin, trous:trousTotal(sf), vides:sf.vides, run:maxLentRun(best), bouchons:bouchons, attenteMin:bouchons*bMin};
 }
 
 /* ---------- Saisie ---------- */
@@ -549,7 +585,9 @@ function renderBrouillon(){
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var s=simSechoirs(bRows,speed,start);
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(s.fin))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Cases vides',String(s.vides||0))+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">Tunnel : bridage (cadence = taux max × '+(CFG.rotationSec||22)+' s, votre étalon). Entre couleur et blanc, '+(CFG.casesVide==null?2:CFG.casesVide)+' cases vides sont insérées (elles occupent le tunnel sans rien sécher). Séchoirs 2/3/3/2 en cycles : remplissage 96 s/galette (1re offerte par la passerelle) → séchage → vidage 96 s. Quand les séchoirs saturent, la passerelle se remplit et bloque le chargement. <b>Fin = dernière case chargée dans le tunnel</b> (votre repère), pas le dernier linge sec.</div></div>';
+  var bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), bouch=attenteRegle(splitSlow(tunnelRows,(CFG.maxLent==null?8:CFG.maxLent)));
+  var finReel=s.fin+bouch*bMin*60, serie=maxLentRun(tunnelRows);
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin estimée',fmtHHMM(finReel))+metric('Attente séchoir',fmtDuree(bouch*bMin*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">Règle : '+( CFG.maxLent==null?8:CFG.maxLent)+' galettes lentes (éponge/vêtement) maximum, puis un bloc de '+(CFG.blocDraps==null?4:CFG.blocDraps)+' draps pour laisser les séchoirs se libérer. Chaque série lente trop longue sans draps = '+bMin+' min de bouchon. <b>Fin = dernière case chargée</b> (votre repère) + bouchons. Réglable dans Réglages.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
@@ -570,27 +608,25 @@ function bOptimize(){
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var others=bRows.filter(function(r){return r.machine!=='tunnel';});
+  var bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin);
   var sBefore=simSechoirs(bRows,speed,start);
-  var before=sBefore.fin, trousBefore=trousTotal(sBefore), videsBefore=sBefore.vides||0, runBefore=maxLentRun(tunnelRows);
+  var bouchAvant=attenteRegle(splitSlow(tunnelRows,(CFG.maxLent==null?8:CFG.maxLent)));
+  var before=sBefore.fin+bouchAvant*bMin*60, runBefore=maxLentRun(tunnelRows);
   var opt=optimiserOrdre(tunnelRows,speed,start);
   bRows=opt.order.concat(others);
   var after=opt.fin;
   var gain=Math.round((before-after)/60);
-  var dTrous=trousBefore-opt.trous, dVides=videsBefore-opt.vides, dRun=runBefore-opt.run;
+  var dRun=runBefore-opt.run, dBouch=bouchAvant-opt.bouchons;
   renderBrouillon();
   var resEl=document.getElementById('b-results');
   var L=(CFG.camionCli==null?2:CFG.camionCli), ML=(CFG.maxLent==null?8:CFG.maxLent);
-  var msg;
-  if(gain>0||dTrous>0||dVides>0||dRun>0){
-    msg='<div class="note ok"><b>Proposition trouvée</b> (éponge/vêtement à ±'+L+' clients, draps libres en respectant leur ordre) :<br>'
-      +'• Plus longue série lente sans drap : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
-      +'• Postes affamés : '+trousBefore+' \u2192 '+opt.trous+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':'')+'<br>'
-      +'• Cases vides : '+videsBefore+' \u2192 '+opt.vides+(dVides>0?' (\u2212'+dVides+')':'')+'<br>'
-      +'• Heure de fin : '+fmtHHMM(before)+' \u2192 '+fmtHHMM(after)+(gain>0?' (\u2212'+gain+' min)':'')+'<br>'
+  var msg='<div class="note ok"><b>Proposition trouvée</b> (cadence '+ML+' éponges \u2192 bloc de draps ; éponge/vêtement à ±'+L+' clients, draps libres dans leur ordre) :<br>'
+      +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
+      +'• Bouchons séchoir : '+bouchAvant+' \u2192 '+opt.bouchons+(dBouch>0?' (\u2212'+dBouch+')':'')+' \u2192 attente '+(bouchAvant*bMin)+' \u2192 <b>'+opt.attenteMin+' min</b><br>'
+      +'• Cases vides : '+(sBefore.vides||0)+' \u2192 '+opt.vides+'<br>'
+      +'• Heure de fin : '+fmtHHMM(before)+' \u2192 <b>'+fmtHHMM(after)+'</b>'+(gain>0?' (\u2212'+gain+' min)':'')+'<br>'
+      +(opt.run>ML?'<span style="color:var(--danger)">Il manque des draps pour tout tamponner — on pourra en emprunter à demain (à venir).</span><br>':'')
       +'Si ça vous convient, diffusez-le.</div>';
-  } else {
-    msg='<div class="note warn">Aucune amélioration possible avec la limite de '+L+' clients pour l\'éponge/vêtement. Augmentez-la pour laisser plus de marge à la réorganisation.</div>';
-  }
   resEl.insertAdjacentHTML('beforeend',msg);
 }
 async function bDiffuse(){
@@ -620,6 +656,7 @@ async function startApp(){
   document.getElementById('date').value=curDate;
   document.getElementById('start').value=CFG.heureDemarrage;
   document.getElementById('rot').value=CFG.rotationSec;
+  if(document.getElementById('r-serie')){document.getElementById('r-serie').value=(CFG.maxLent==null?8:CFG.maxLent);document.getElementById('r-bloc').value=(CFG.blocDraps==null?4:CFG.blocDraps);document.getElementById('r-bouchon').value=(CFG.bouchonMin==null?10:CFG.bouchonMin);}
   document.getElementById('b-rot').value=CFG.rotationSec;
   document.getElementById('b-cvide').value=(CFG.casesVide==null?2:CFG.casesVide);
   document.getElementById('b-camion').value=(CFG.camionCli==null?2:CFG.camionCli);
@@ -690,6 +727,9 @@ document.getElementById('btn-restore').addEventListener('click',async function()
 });
 document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;renderResults();renderBrouillon();scheduleSaveConfig();});
 document.getElementById('rot').addEventListener('input',function(e){CFG.rotationSec=parseFloat(e.target.value)||13.8;renderCodes();renderRows();renderResults();scheduleSaveConfig();});
+document.getElementById('r-serie').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.maxLent=isNaN(v)?8:Math.max(1,v);scheduleSaveConfig();});
+document.getElementById('r-bloc').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.blocDraps=isNaN(v)?4:Math.max(1,v);scheduleSaveConfig();});
+document.getElementById('r-bouchon').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.bouchonMin=isNaN(v)?10:Math.max(0,v);scheduleSaveConfig();});
 document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();});
 window.addEventListener('focus',refreshFromCloud);
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refreshFromCloud();});
