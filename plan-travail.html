@@ -140,6 +140,7 @@
           <div><span class="lab">Démarrage</span><input type="time" id="start" class="w-auto" value="06:00"></div>
           <button id="btn-refresh" title="Rafraîchir">Rafraîchir</button>
           <button id="btn-print">Imprimer</button>
+          <button id="btn-export" title="Télécharger tous vos plans sur votre Mac">💾 Sauvegarder</button>
           <button id="btn-logout" class="btn-ghost">Déconnexion</button>
         </div>
       </div>
@@ -647,6 +648,29 @@ document.getElementById('li-btn').addEventListener('click',doLogin);
 document.getElementById('li-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
 var tabBtns=document.querySelectorAll('.tab');for(var ti=0;ti<tabBtns.length;ti++)tabBtns[ti].addEventListener('click',function(){setView(this.getAttribute('data-view'));});
 document.getElementById('btn-print').addEventListener('click',function(){setView('plan');setTimeout(function(){window.print();},150);});
+document.getElementById('btn-export').addEventListener('click',exporterTout);
+async function exporterTout(){
+  var btn=document.getElementById('btn-export');var old=btn.textContent;btn.textContent='Sauvegarde…';btn.disabled=true;
+  try{
+    var plans=await sb.from('plan_charges').select('*').eq('user_id',USER.id).order('date_jour').order('ordre');
+    var reg=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
+    if(plans.error)throw plans.error;
+    var rowsP=plans.data||[];
+    var jours={};rowsP.forEach(function(r){(jours[r.date_jour]=jours[r.date_jour]||[]).push(r);});
+    var backup={app:'plan-travail-lavage',exportLe:new Date().toISOString(),userId:USER.id,nbJours:Object.keys(jours).length,nbLignes:rowsP.length,reglages:(reg.data&&reg.data.data)||null,plans:rowsP};
+    var blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;
+    a.download='sauvegarde-plans-bdl-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},2000);
+    btn.textContent='✅ '+Object.keys(jours).length+' jours sauvegardés';
+    setTimeout(function(){btn.textContent=old;btn.disabled=false;},3500);
+  }catch(e){
+    btn.textContent='❌ Échec — réessayez';
+    setTimeout(function(){btn.textContent=old;btn.disabled=false;},3500);
+  }
+}
 document.getElementById('btn-refresh').addEventListener('click',refreshFromCloud);
 document.getElementById('btn-logout').addEventListener('click',async function(){await sb.auth.signOut();location.reload();});
 document.getElementById('btn-addcode').addEventListener('click',addCode);
