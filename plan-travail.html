@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Plan lavage">
+<meta name="theme-color" content="#0f766e">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
 <title>Plan de travail — Lavage</title>
 <style>
   :root{
@@ -75,6 +82,18 @@
   .mono{font-variant-numeric:tabular-nums}
   .reg-row{display:grid;grid-template-columns:46px 1fr 44px 60px 76px 76px 48px 24px;gap:6px;align-items:center;margin-bottom:7px}
   .reg-head{display:grid;grid-template-columns:46px 1fr 44px 60px 76px 76px 48px 24px;gap:6px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px}
+  .reg-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .reg-wrap .reg-head,.reg-wrap .reg-row{min-width:440px}
+  .topbar{padding-top:calc(12px + env(safe-area-inset-top))}
+  body{padding-bottom:env(safe-area-inset-bottom)}
+  @media (max-width:560px){
+    .wrap{padding:0 10px}
+    h1{font-size:18px}
+    .head-actions{gap:6px}
+    .head-actions button{padding:8px 11px}
+    .tab{padding:8px 12px}
+    .grid3{grid-template-columns:1fr 1fr}
+  }
   .cad-out{font-size:13px;color:var(--teal);font-variant-numeric:tabular-nums}
   .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
   .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
@@ -224,8 +243,8 @@
           <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bloc de draps pour tamponner</span><input type="number" id="r-bloc" class="mono w-auto" style="width:64px" step="1" min="1"></div>
           <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bouchon si pas assez (min)</span><input type="number" id="r-bouchon" class="mono w-auto" style="width:64px" step="1" min="0"></div>
         </div>
-        <div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
-        <div id="codes"></div>
+        <div class="reg-wrap"><div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
+        <div id="codes"></div></div>
         <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
         <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
           <button id="btn-restore">Importer les données de cet appareil</button>
