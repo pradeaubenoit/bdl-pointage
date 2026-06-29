@@ -528,15 +528,26 @@ function attenteRegle(order){
   return b;
 }
 function isDrapRow(r){return rowType(r)==='drap';}
-/* clé de regroupement : un même client (par son nom) reste un seul bloc */
-function grpKey(r){return ((r.client||'').trim().toLowerCase())||(r.src||r.id);}
+/* clé de cohésion : on regroupe SEULEMENT les morceaux issus d'une même livraison coupée
+   (même origine src). Deux livraisons séparées d'un même client restent indépendantes —
+   chacune doit partir avec SON camion, on n'y touche pas. */
+function grpKey(r){return r.src||r.id;}
 /* COHÉSION CLIENT : les morceaux d'un même client doivent rester contigus dans la
    suite des non-draps (un bloc de draps entre deux morceaux est permis = tampon ;
    un autre client éponge entre les deux est interdit). */
 function cohesionOK(order){
+  // 1) chaque client coupé reste contigu dans la suite des non-draps
   var ranks={},rank=0;
   for(var i=0;i<order.length;i++){if(isDrapRow(order[i]))continue;var k=grpKey(order[i]);if(!ranks[k])ranks[k]=[];ranks[k].push(rank++);}
   for(var k in ranks){var a=ranks[k];for(var j=1;j<a.length;j++)if(a[j]!==a[j-1]+1)return false;}
+  // 2) entre deux morceaux consécutifs d'un même client, il FAUT un bloc de draps tampon
+  var seen={},drapSince={};
+  for(var i=0;i<order.length;i++){
+    if(isDrapRow(order[i])){for(var kk in drapSince)drapSince[kk]=true;continue;}
+    var k2=grpKey(order[i]);
+    if(seen[k2] && !drapSince[k2]) return false; // deux morceaux collés sans tampon -> interdit
+    seen[k2]=true; drapSince[k2]=false;
+  }
   return true;
 }
 /* rang parmi les NON-draps seulement (insérer un drap ne décale pas l'éponge) */
@@ -556,23 +567,33 @@ function camionOK(order,origND,origDrap,N){var rk=ndRanks(order);for(var s in or
 function construireCadence(rows){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
   var slow=rows.filter(function(r){return !isDrapRow(r);});
-  // COHÉSION : on regroupe d'abord tous les morceaux d'un même client (par nom),
-  // dans l'ordre de première apparition, pour qu'ils restent ensemble.
-  var grpOrder=[],grp={};
-  slow.forEach(function(r){var k=grpKey(r);if(!(k in grp)){grp[k]=[];grpOrder.push(k);}grp[k].push(r);});
-  slow=[];grpOrder.forEach(function(k){slow=slow.concat(grp[k]);});
   var draps=rows.filter(isDrapRow);
   var chunks=splitSlow(slow,serieMax);
+  // cont[i] = ce morceau est la suite d'un même client coupé (il LUI FAUT un tampon avant)
+  var cont=chunks.map(function(c,i){return i>0 && (c.src||c.id)===(chunks[i-1].src||chunks[i-1].id);});
+  // future[i] = nb de points de coupe encore à venir après i (pour réserver des draps en priorité)
+  var future=new Array(chunks.length),fc=0;
+  for(var i=chunks.length-1;i>=0;i--){future[i]=fc;if(cont[i])fc++;}
   var totalSlow=chunks.reduce(function(s,c){return s+(parseInt(c.nbTransferts)||0);},0);
   var espacement=draps.length>0?Math.max(serieMax,totalSlow/(draps.length+1)):totalSlow+1;
-  var out=[],di=0,acc=0;
+  var out=[],di=0,acc=0,manques=[];
   for(var i=0;i<chunks.length;i++){
     var g=parseInt(chunks[i].nbTransferts)||0;
-    if(acc>0 && acc+g/2>espacement && di<draps.length){ out.push(draps[di++]); acc=0; }
-    out.push(chunks[i]); acc+=g;
+    if(cont[i]){
+      // TAMPON OBLIGATOIRE entre deux moitiés d'un même client coupé
+      if(di<draps.length){ out.push(draps[di++]); acc=0; out.push(chunks[i]); acc+=g; }
+      else { // plus aucun drap : on recolle au morceau précédent (client entier) et on SIGNALE le manque
+        var last=out[out.length-1]; last.nbTransferts=String((parseInt(last.nbTransferts)||0)+g);
+        manques.push((chunks[i].client||'').trim()||(chunks[i].src||chunks[i].id)); acc+=g; }
+    } else {
+      // cadence normale : drap seulement si on en a en RAB (au-delà des tampons réservés aux coupes à venir)
+      if(acc>0 && acc+g/2>espacement && (draps.length-di-future[i])>0){ out.push(draps[di++]); acc=0; }
+      out.push(chunks[i]); acc+=g;
+    }
   }
   while(di<draps.length){ out.push(draps[di++]); }
-  return out; // non recollé : le polish peut encore bouger les draps
+  construireCadence.manques=manques;
+  return out;
 }
 function optimiserOrdre(list,speed,start){
   var N=(CFG.camionCli==null?2:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), serieMax=(CFG.maxLent==null?8:CFG.maxLent);
@@ -753,6 +774,7 @@ function bOptimize(){
   var finAvant=simulerTunnel(bRows).fin, runBefore=maxLentRun(tunnelRows); // étalon (vérité, blocages inclus)
   var opt=optimiserOrdre(tunnelRows,speed,start);
   bRows=opt.order.concat(others);
+  var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
   var blocApres=blocageSechoirRows(opt.order);
   var blocEvite=Math.max(0,blocAvant-blocApres);            // minutes de blocage séchoir évitées par le cadençage
   var finReelOpt=finAvant-blocEvite*60;                     // chaque minute de blocage coupée = 1 min de fin en moins
@@ -766,7 +788,7 @@ function bOptimize(){
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
       +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocEvite>0?' (\u2212'+blocEvite+' min)':'')+'<br>'
       +'• <b>Heure de fin réelle : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finReelOpt)+(gainNet>0?' (\u2212'+gainNet+' min)':' (identique)')+'</b><br>'
-      +(opt.run>ML?'<span style="color:var(--danger)">Il manque des draps pour tout tamponner — on pourra en emprunter à demain (à venir).</span><br>':'')
+      +(manques.length?'<span style="color:var(--danger)">Pas assez de draps pour tamponner : <b>'+manques.join(', ')+'</b> tourne(nt) en bloc. Candidat(s) à l\'emprunt de draps sur demain (à venir).</span><br>':'')
       +'Si ça vous convient, diffusez-le.</div>';
   resEl.insertAdjacentHTML('beforeend',msg);
 }
