@@ -389,6 +389,34 @@ function simulerTunnel(srcRows){
 
 /* ---------- Moteur séchoirs (Brouillon) ---------- */
 function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=c?typeOfCode(c):'eponge';var col=c?colOfCode(c):'blanc';var postes=(r.postes&&r.postes.length)?r.postes.slice():['repassage'];var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({type:type,dry:dryMin*60,taux:taux,col:col,postes:postes});});return charges;}
+/* ---- BLOCAGE SÉCHOIR : vraie simulation dans le temps (modèle validé) ----
+   Chaque galette sort de la chaîne (cadence = taux MAX d'une fenêtre de 10 × rotationSec) et va
+   dans un séchoir. Éponge : sèche selon son sechageMin (~35 min) dans les séchoirs 1-2-3.
+   Draps : voie rapide du séchoir 4 (~2 min) qui draine le tampon et garde le tunnel en mouvement
+   pendant que l'éponge sèche. Quand les 14 places (10 séchoirs + 4 passerelles) sont pleines, la
+   chaîne ATTEND qu'un séchoir se libère (durée réelle, variable). Renvoie les minutes de blocage. */
+function blocageSechoir(charges){
+  if(!charges||!charges.length)return 0;
+  var ROT=CFG.rotationSec||16, UNLOAD=120, P=4, DLANE=DRAP_DRYER;
+  var sech=CAP.map(function(c,i){return {cap:c,n:0,st:0,free:0,ty:null,dry:0,lane:(i===DLANE)};}); // st 0 idle,1 remplit,2 sèche,3 décharge
+  var pass=[], t=0, bloc=0;
+  function ok(s,ty){return ty==='drap'?s.lane:!s.lane;}
+  function freeS(now){for(var i=0;i<4;i++){var s=sech[i];if(s.st===2&&now>=s.free){s.st=3;s.free=now+UNLOAD;}if(s.st===3&&now>=s.free){s.st=0;s.n=0;s.ty=null;s.dry=0;}}}
+  function put(c,now){
+    for(var i=0;i<4;i++){var s=sech[i];if(ok(s,c.type)&&s.st===1&&s.ty===c.type&&s.n<s.cap){s.n++;if(c.dry>s.dry)s.dry=c.dry;if(s.n===s.cap){s.st=2;s.free=now+s.dry;}return true;}}
+    for(var i=0;i<4;i++){var s=sech[i];if(ok(s,c.type)&&s.st===0){s.st=1;s.ty=c.type;s.n=1;s.dry=c.dry;if(s.n===s.cap){s.st=2;s.free=now+s.dry;}return true;}}
+    return false;
+  }
+  function place(c,now){freeS(now);if(put(c,now))return true;if(pass.length<P){pass.push(c);return true;}return false;}
+  function drain(now){freeS(now);for(var i=0;i<pass.length;){if(put(pass[i],now))pass.splice(i,1);else i++;}}
+  for(var idx=0;idx<charges.length;idx++){
+    var mx=0;for(var w=idx;w<Math.min(idx+10,charges.length);w++)if(charges[w].taux>mx)mx=charges[w].taux;
+    t+=(mx||1)*ROT;drain(t);var tr=0;
+    while(!place(charges[idx],t)){var nx=Infinity;for(var i=0;i<4;i++)if(sech[i].st===2||sech[i].st===3)nx=Math.min(nx,sech[i].free);if(nx===Infinity){t+=60;}else{bloc+=(nx-t);t=nx;}drain(t);if(++tr>3000)break;}
+  }
+  return Math.round(bloc/60);
+}
+function blocageSechoirRows(order){return blocageSechoir(chargesFrom(order));}
 /* Insère des cases vides (séparation couleur/blanc) entre charges de couleur différente. Une case vide
    occupe le tunnel (un transfert) mais ne va pas au séchoir. K = CFG.casesVide par changement. */
 function withVides(charges,K){if(!K||K<1||charges.length===0)return charges.slice();var out=[],prev=null;
@@ -547,9 +575,9 @@ function optimiserOrdre(list,speed,start){
       }
     }
   }
-  // garde-fou : si la proposition est PIRE que l'ordre d'origine, on garde l'origine
-  var bestBouch=attenteRegle(best), bestRun=maxLentRun(best);
-  if(bestBouch>baseBouch || (bestBouch===baseBouch && bestRun>baseRun)){ best=baseSplit.slice(); }
+  // garde-fou : si la proposition BLOQUE PLUS que l'ordre d'origine (vraie simulation), on garde l'origine
+  var blocBaseG=blocageSechoirRows(baseSplit), blocBestG=blocageSechoirRows(best);
+  if(blocBestG>blocBaseG){ best=baseSplit.slice(); }
   best=mergeChunks(best);
   var bouchons=attenteRegle(best);
   var fin=simulerTunnel(best).fin;
@@ -647,8 +675,8 @@ function renderResults(){
   var prevTot=prevTotals;
   var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée — '+esc(curDate)+'</div>';
   var tRows=rows.filter(function(r){return r.machine==='tunnel';});
-  var bMinR=(CFG.bouchonMin==null?10:CFG.bouchonMin), bouchR=attenteRegle(splitSlow(tRows,(CFG.maxLent==null?8:CFG.maxLent)));
-  h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Attente séchoir',fmtDuree(bouchR*bMinR*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  var blocPlan=blocageSechoirRows(tRows);
+  h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Blocage séchoir',fmtDuree(blocPlan*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
@@ -676,14 +704,14 @@ function renderBrouillon(){
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var s=simSechoirs(bRows,speed,start);
-  var bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), bouch=attenteRegle(splitSlow(tunnelRows,(CFG.maxLent==null?8:CFG.maxLent)));
+  var blocBrou=blocageSechoirRows(tunnelRows);
   var finReel=simulerTunnel(bRows).fin, serie=maxLentRun(tunnelRows);
   var finAff=(bProposFin!=null)?bProposFin:finReel;
   var labelFin=(bProposFin!=null)?'Heure de fin (optimisée)':'Heure de fin (tunnel)';
   var noteFin=(bProposFin!=null)
-    ?'<b>Heure de fin optimisée</b> = votre étalon \u2212 l\'attente séchoir évitée. Chaque minute d\'attente coupée vous fait finir une minute plus tôt. '
+    ?'<b>Heure de fin optimisée</b> = votre étalon \u2212 le blocage séchoir évité par le cadençage. Chaque minute de blocage en moins vous fait finir une minute plus tôt. '
     :'Heure de fin = dernière case chargée (votre étalon, identique à la page Plan de travail). ';
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Attente séchoir',fmtDuree(bouch*bMin*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Attente séchoir</b> = temps perdu quand une série lente dépasse '+(CFG.maxLent==null?8:CFG.maxLent)+' galettes sans bloc de '+(CFG.blocDraps==null?4:CFG.blocDraps)+' draps pour tamponner ('+bMin+' min par bouchon). Réglable dans Réglages.</div></div>';
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Blocage séchoir',fmtDuree(blocBrou*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Blocage séchoir</b> = temps réel où la chaîne attend qu\'un séchoir se libère. L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser ce blocage.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
@@ -704,24 +732,23 @@ function bOptimize(){
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var others=bRows.filter(function(r){return r.machine!=='tunnel';});
-  var bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), ML=(CFG.maxLent==null?8:CFG.maxLent);
-  var bouchAvant=attenteRegle(splitSlow(tunnelRows,ML));
-  var finAvant=simulerTunnel(bRows).fin, runBefore=maxLentRun(tunnelRows); // étalon ~19h (vérité, bouchons inclus)
+  var ML=(CFG.maxLent==null?8:CFG.maxLent);
+  var blocAvant=blocageSechoirRows(tunnelRows);
+  var finAvant=simulerTunnel(bRows).fin, runBefore=maxLentRun(tunnelRows); // étalon (vérité, blocages inclus)
   var opt=optimiserOrdre(tunnelRows,speed,start);
   bRows=opt.order.concat(others);
-  // net = on part de l'étalon, on ajoute le bridage en plus, on retire les bouchons évités
-  var bouchEvites=(bouchAvant-opt.bouchons)*bMin*60;        // secondes d'attente séchoir évitées
-  var finReelOpt=finAvant-bouchEvites;                      // chaque minute d'attente coupée = 1 min de fin en moins
+  var blocApres=blocageSechoirRows(opt.order);
+  var blocEvite=Math.max(0,blocAvant-blocApres);            // minutes de blocage séchoir évitées par le cadençage
+  var finReelOpt=finAvant-blocEvite*60;                     // chaque minute de blocage coupée = 1 min de fin en moins
   bProposFin=finReelOpt;
   var gainNet=Math.round((finAvant-finReelOpt)/60);
-  var dRun=runBefore-opt.run, dBouch=bouchAvant-opt.bouchons;
+  var dRun=runBefore-opt.run;
   renderBrouillon();
   var resEl=document.getElementById('b-results');
   var L=(CFG.camionCli==null?2:CFG.camionCli);
   var msg='<div class="note ok"><b>Proposition trouvée</b> (cadence '+ML+' éponges \u2192 bloc de draps ; éponge/vêtement à ±'+L+' clients, draps libres dans leur ordre) :<br>'
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
-      +'• Bouchons séchoir : '+bouchAvant+' \u2192 '+opt.bouchons+(dBouch>0?' (\u2212'+dBouch+')':'')+'<br>'
-      +'• Attente séchoir : '+(bouchAvant*bMin)+' \u2192 '+(opt.bouchons*bMin)+' min'+(dBouch>0?' (\u2212'+Math.round(bouchEvites/60)+' min)':'')+'<br>'
+      +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocEvite>0?' (\u2212'+blocEvite+' min)':'')+'<br>'
       +'• <b>Heure de fin réelle : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finReelOpt)+(gainNet>0?' (\u2212'+gainNet+' min)':' (identique)')+'</b><br>'
       +(opt.run>ML?'<span style="color:var(--danger)">Il manque des draps pour tout tamponner — on pourra en emprunter à demain (à venir).</span><br>':'')
       +'Si ça vous convient, diffusez-le.</div>';
