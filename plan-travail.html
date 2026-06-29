@@ -624,9 +624,9 @@ function optimiserOrdre(list,speed,start){
       }
     }
   }
-  // garde-fou : si la proposition BLOQUE PLUS que l'ordre d'origine (vraie simulation), on garde l'origine
-  var blocBaseG=blocageSechoirRows(baseSplit), blocBestG=blocageSechoirRows(best);
-  if(blocBestG>blocBaseG){ best=baseSplit.slice(); }
+  // La règle des 8 s'applique TOUJOURS : on garde l'ordre cadencé (clients >8 découpés + tampons).
+  // Le gain de temps est plafonné à zéro côté affichage si cadencer n'aide pas — on ne revient JAMAIS
+  // à des blocs entiers de plus de 8.
   best=mergeChunks(best);
   var bouchons=attenteRegle(best);
   var fin=simulerTunnel(best).fin;
