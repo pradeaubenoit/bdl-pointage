@@ -528,6 +528,17 @@ function attenteRegle(order){
   return b;
 }
 function isDrapRow(r){return rowType(r)==='drap';}
+/* clé de regroupement : un même client (par son nom) reste un seul bloc */
+function grpKey(r){return ((r.client||'').trim().toLowerCase())||(r.src||r.id);}
+/* COHÉSION CLIENT : les morceaux d'un même client doivent rester contigus dans la
+   suite des non-draps (un bloc de draps entre deux morceaux est permis = tampon ;
+   un autre client éponge entre les deux est interdit). */
+function cohesionOK(order){
+  var ranks={},rank=0;
+  for(var i=0;i<order.length;i++){if(isDrapRow(order[i]))continue;var k=grpKey(order[i]);if(!ranks[k])ranks[k]=[];ranks[k].push(rank++);}
+  for(var k in ranks){var a=ranks[k];for(var j=1;j<a.length;j++)if(a[j]!==a[j-1]+1)return false;}
+  return true;
+}
 /* rang parmi les NON-draps seulement (insérer un drap ne décale pas l'éponge) */
 function ndRanks(order){var rank={},k=0;order.forEach(function(r){if(isDrapRow(r))return;var s=r.src||r.id;if(!(s in rank))rank[s]=k++;});return rank;}
 /* séquence des clients draps (ordre de départ) */
@@ -545,6 +556,11 @@ function camionOK(order,origND,origDrap,N){var rk=ndRanks(order);for(var s in or
 function construireCadence(rows){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
   var slow=rows.filter(function(r){return !isDrapRow(r);});
+  // COHÉSION : on regroupe d'abord tous les morceaux d'un même client (par nom),
+  // dans l'ordre de première apparition, pour qu'ils restent ensemble.
+  var grpOrder=[],grp={};
+  slow.forEach(function(r){var k=grpKey(r);if(!(k in grp)){grp[k]=[];grpOrder.push(k);}grp[k].push(r);});
+  slow=[];grpOrder.forEach(function(k){slow=slow.concat(grp[k]);});
   var draps=rows.filter(isDrapRow);
   var chunks=splitSlow(slow,serieMax);
   var totalSlow=chunks.reduce(function(s,c){return s+(parseInt(c.nbTransferts)||0);},0);
@@ -569,7 +585,7 @@ function optimiserOrdre(list,speed,start){
     for(var i=0;i<best.length;i++){
       for(var j=Math.max(0,i-WIN);j<=Math.min(best.length-1,i+WIN);j++){ if(i===j)continue;
         var cand=best.slice();var x=cand.splice(i,1)[0];cand.splice(j,0,x);
-        if(!camionOK(cand,origND,origDrap,N))continue;
+        if(!camionOK(cand,origND,origDrap,N)||!cohesionOK(cand))continue;
         var sc=score(cand);
         if(sc<b-1){b=sc;best=cand;improved=true;}
       }
