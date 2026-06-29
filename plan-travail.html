@@ -516,6 +516,18 @@ function splitSlow(rows,maxLent){var out=[];rows.forEach(function(r){var g=parse
 function mergeChunks(order){var out=[];order.forEach(function(r){var last=out[out.length-1];var src=r.src||r.id;
   if(last&&(last.src||last.id)===src){last.nbTransferts=String((parseInt(last.nbTransferts)||0)+(parseInt(r.nbTransferts)||0));}
   else out.push(Object.assign({},r));});return out;}
+/* FUSION PAR (nom + code) : même nom de client ET même code de lavage = même produit
+   (donc même séchage). On additionne toutes ces lignes en UN seul client, dans l'ordre de
+   première apparition. L'optimiseur le redécoupera ensuite rationnellement (8 + tampon + 5...). */
+function fusionnerMemeClient(rows){
+  var out=[],idx={};
+  rows.forEach(function(r){
+    var key=((r.client||'').trim().toLowerCase())+'|'+(r.code==null?'':r.code)+'|'+(r.machine||'tunnel');
+    if(key in idx){var t=out[idx[key]];t.nbTransferts=String((parseInt(t.nbTransferts)||0)+(parseInt(r.nbTransferts)||0));}
+    else{idx[key]=out.length;out.push(Object.assign({},r));}
+  });
+  return out;
+}
 /* ATTENTE SÉCHOIR selon la règle de Benoît : on accumule les galettes lentes ; au-delà de
    serieMax sans bloc de draps suffisant pour tamponner, on compte un bouchon. Renvoie le nb de bouchons. */
 function attenteRegle(order){
@@ -718,6 +730,10 @@ function renderResults(){
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
   if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
+  h+='<div class="sech">Ordre de lavage</div>';
+  rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
+    h+='<div class="bline"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span></div><div class="b-meta">'+g+' gal'+(r.machine==='laveuse'?' \u00b7 laveuse':'')+'</div></div>';
+  });
   h+='<div class="sech">Production par client</div>';
   clients.forEach(function(A){
     var line=Object.keys(A.postes).map(function(p){return lbl(POSTES,p);}).join(', ');
@@ -770,9 +786,10 @@ function bOptimize(){
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var others=bRows.filter(function(r){return r.machine!=='tunnel';});
   var ML=(CFG.maxLent==null?8:CFG.maxLent);
+  var tunnelMerged=fusionnerMemeClient(tunnelRows); // même nom+code = un seul client
   var blocAvant=blocageSechoirRows(tunnelRows);
   var finAvant=simulerTunnel(bRows).fin, runBefore=maxLentRun(tunnelRows); // étalon (vérité, blocages inclus)
-  var opt=optimiserOrdre(tunnelRows,speed,start);
+  var opt=optimiserOrdre(tunnelMerged,speed,start);
   bRows=opt.order.concat(others);
   var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
   var blocApres=blocageSechoirRows(opt.order);
