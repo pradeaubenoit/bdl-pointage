@@ -483,8 +483,7 @@ function maxLentRun(order){var run=0,mx=0;for(var i=0;i<order.length;i++){var t=
 /* découpe les gros clients lents (>maxLent galettes) en tranches, pour pouvoir intercaler des draps dedans */
 function splitSlow(rows,maxLent){var out=[];rows.forEach(function(r){var g=parseInt(r.nbTransferts)||0;var t=rowType(r);
   if(t==='drap'||g<=maxLent){out.push(Object.assign({},r,{src:r.id}));return;}
-  var n=Math.ceil(g/maxLent),base=Math.floor(g/n),rem=g-base*n;
-  for(var k=0;k<n;k++){var gg=base+(k<rem?1:0);out.push(Object.assign({},r,{id:r.id+'~'+k,src:r.id,nbTransferts:String(gg)}));}});return out;}
+  var k=0;while(g>0){var gg=Math.min(maxLent,g);out.push(Object.assign({},r,{id:r.id+'~'+k,src:r.id,nbTransferts:String(gg)}));g-=gg;k++;}});return out;}
 /* recolle les tranches consécutives du même client (les tranches séparées par un drap restent coupées) */
 function mergeChunks(order){var out=[];order.forEach(function(r){var last=out[out.length-1];var src=r.src||r.id;
   if(last&&(last.src||last.id)===src){last.nbTransferts=String((parseInt(last.nbTransferts)||0)+(parseInt(r.nbTransferts)||0));}
@@ -511,24 +510,30 @@ function sameSeq(a,b){if(a.length!==b.length)return false;for(var i=0;i<a.length
    - draps : libres en distance, mais leur ordre de départ entre eux est préservé. */
 function camionOK(order,origND,origDrap,N){var rk=ndRanks(order);for(var s in origND){if(rk[s]==null)continue;if(Math.abs(rk[s]-origND[s])>N)return false;}return sameSeq(drapSeq(order),origDrap);}
 /* CONSTRUCTEUR DE CADENCE — bâtit l'ordre comme Benoît à la main :
-   éponge dans l'ordre (gros clients coupés en tranches <=serieMax), et on insère un client
-   drap à chaque fois qu'on dépasserait serieMax. Les draps suivent leur ordre de départ. */
+   éponge dans l'ordre (gros clients coupés à 8 d'abord), draps insérés régulièrement.
+   Si les draps sont assez nombreux : un drap tous les 8 éponge (sa règle).
+   Si les draps manquent : on les ÉTALE régulièrement pour ne pas laisser un énorme bloc
+   d'éponge à la fin (espacement = total d'éponge / (nb draps + 1)). */
 function construireCadence(rows){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
   var slow=rows.filter(function(r){return !isDrapRow(r);});
   var draps=rows.filter(isDrapRow);
   var chunks=splitSlow(slow,serieMax);
+  var totalSlow=chunks.reduce(function(s,c){return s+(parseInt(c.nbTransferts)||0);},0);
+  var espacement=draps.length>0?Math.max(serieMax,totalSlow/(draps.length+1)):totalSlow+1;
   var out=[],di=0,acc=0;
   for(var i=0;i<chunks.length;i++){
     var g=parseInt(chunks[i].nbTransferts)||0;
-    if(acc>0 && acc+g>serieMax && di<draps.length){ out.push(draps[di++]); acc=0; }
+    if(acc>0 && acc+g/2>espacement && di<draps.length){ out.push(draps[di++]); acc=0; }
     out.push(chunks[i]); acc+=g;
   }
   while(di<draps.length){ out.push(draps[di++]); }
   return out; // non recollé : le polish peut encore bouger les draps
 }
 function optimiserOrdre(list,speed,start){
-  var N=(CFG.camionCli==null?2:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin);
+  var N=(CFG.camionCli==null?2:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), serieMax=(CFG.maxLent==null?8:CFG.maxLent);
+  var baseSplit=splitSlow(list,serieMax);
+  var baseBouch=attenteRegle(baseSplit), baseRun=maxLentRun(baseSplit);
   var best=construireCadence(list), origND=ndRanks(best), origDrap=drapSeq(best);
   function score(o){ return attenteRegle(o)*1e6 + maxLentRun(o)*1e3; }
   var b=score(best), it=0, improved=true, WIN=14;
@@ -542,6 +547,9 @@ function optimiserOrdre(list,speed,start){
       }
     }
   }
+  // garde-fou : si la proposition est PIRE que l'ordre d'origine, on garde l'origine
+  var bestBouch=attenteRegle(best), bestRun=maxLentRun(best);
+  if(bestBouch>baseBouch || (bestBouch===baseBouch && bestRun>baseRun)){ best=baseSplit.slice(); }
   best=mergeChunks(best);
   var bouchons=attenteRegle(best);
   var fin=simulerTunnel(best).fin;
