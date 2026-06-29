@@ -1053,9 +1053,8 @@ $('btn-save-retrait').addEventListener('click', async () => {
   if (!confirm(`Retirer ${fmtHours(heures)} de ${$('retrait-emp-name').value} ?\n\nMode : ${mode === 'paye' ? 'Paye' : 'Récupération'}\nDate : ${fmtDateFR(date)}`)) return;
   try {
     await apiPost({ action: 'addOperationSup', empId, date, heures, mode, note });
-    toast('✓ Retrait enregistré', 'success');
+toast('✓ Retrait enregistré — recharge à la fin pour les totaux', 'success');
     $('modal-retrait').classList.remove('show');
-    renderReport();
   } catch (e) {
     toast('Erreur : ' + e.message, 'error');
   }
