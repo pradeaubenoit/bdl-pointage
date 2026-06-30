@@ -417,6 +417,22 @@ function blocageSechoir(charges){
   return Math.round(bloc/60);
 }
 function blocageSechoirRows(order){return blocageSechoir(chargesFrom(order));}
+/* HEURE DE FIN RÉELLE, calculable depuis l'ordre SEUL (sans « avant » à comparer).
+   On reconstitue la version non cadencée de cet ordre en refusionnant ses clients
+   (Chatel 8+5 -> 13), et l'heure = étalon − le blocage évité par le cadençage. Du coup la
+   même journée donne TOUJOURS la même heure : Plan de travail, Brouillon, aujourd'hui ou
+   diffusée la semaine prochaine. */
+function heureFinReelle(allRows){
+  var tunnel=allRows.filter(function(r){return r.machine==='tunnel';});
+  var etalon=simulerTunnel(allRows).fin;
+  var brut=blocageSechoirRows(fusionnerMemeClient(tunnel)); // version clients entiers (non cadencée)
+  var opt=blocageSechoirRows(tunnel);
+  return etalon - Math.max(0, brut-opt)*60;
+}
+function gainCadence(allRows){
+  var tunnel=allRows.filter(function(r){return r.machine==='tunnel';});
+  return Math.max(0, blocageSechoirRows(fusionnerMemeClient(tunnel)) - blocageSechoirRows(tunnel));
+}
 /* Insère des cases vides (séparation couleur/blanc) entre charges de couleur différente. Une case vide
    occupe le tunnel (un transfert) mais ne va pas au séchoir. K = CFG.casesVide par changement. */
 function withVides(charges,K){if(!K||K<1||charges.length===0)return charges.slice();var out=[],prev=null;
@@ -725,7 +741,8 @@ function renderResults(){
   var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée — '+esc(curDate)+'</div>';
   var tRows=rows.filter(function(r){return r.machine==='tunnel';});
   var blocPlan=blocageSechoirRows(tRows);
-  h+='<div class="metrics">'+metric('Heure de fin (tunnel)',fmtHHMM(sim.fin))+metric('Blocage séchoir',fmtDuree(blocPlan*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  var ginPlan=gainCadence(rows);
+  h+='<div class="metrics">'+metric(ginPlan>0?'Heure de fin (optimisée)':'Heure de fin',fmtHHMM(heureFinReelle(rows)))+metric('Blocage séchoir',fmtDuree(blocPlan*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
@@ -758,12 +775,13 @@ function renderBrouillon(){
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   var s=simSechoirs(bRows,speed,start);
   var blocBrou=blocageSechoirRows(tunnelRows);
-  var finReel=simulerTunnel(bRows).fin, serie=maxLentRun(tunnelRows);
-  var finAff=(bProposFin!=null)?bProposFin:finReel;
-  var labelFin=(bProposFin!=null)?'Heure de fin (optimisée)':'Heure de fin (tunnel)';
-  var noteFin=(bProposFin!=null)
-    ?'<b>Heure de fin optimisée</b> = votre étalon \u2212 le blocage séchoir évité par le cadençage. Chaque minute de blocage en moins vous fait finir une minute plus tôt. '
-    :'Heure de fin = dernière case chargée (votre étalon, identique à la page Plan de travail). ';
+  var serie=maxLentRun(tunnelRows);
+  var finAff=heureFinReelle(bRows);
+  var gain=gainCadence(bRows);
+  var labelFin=(gain>0)?'Heure de fin (optimisée)':'Heure de fin';
+  var noteFin=(gain>0)
+    ?'<b>Heure de fin optimisée</b> = votre étalon \u2212 le blocage séchoir évité par le cadençage ('+gain+' min gagnées). Recalculée depuis l\'ordre lui-même, donc identique partout. '
+    :'Heure de fin = dernière case chargée (votre étalon). ';
   resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Blocage séchoir',fmtDuree(blocBrou*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Blocage séchoir</b> = temps réel où la chaîne attend qu\'un séchoir se libère. L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser ce blocage.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
@@ -787,15 +805,15 @@ function bOptimize(){
   var others=bRows.filter(function(r){return r.machine!=='tunnel';});
   var ML=(CFG.maxLent==null?8:CFG.maxLent);
   var tunnelMerged=fusionnerMemeClient(tunnelRows); // même nom+code = un seul client
-  var blocAvant=blocageSechoirRows(tunnelRows);
-  var finAvant=simulerTunnel(bRows).fin, runBefore=maxLentRun(tunnelRows); // étalon (vérité, blocages inclus)
+  var finAvant=heureFinReelle(bRows);                       // heure du plan chargé (= ce qu'affiche la page Plan de travail)
+  var blocAvant=blocageSechoirRows(tunnelRows);             // blocage de l'ordre chargé
+  var runBefore=maxLentRun(tunnelRows);
   var opt=optimiserOrdre(tunnelMerged,speed,start);
   bRows=opt.order.concat(others);
   var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
   var blocApres=blocageSechoirRows(opt.order);
   var blocEvite=Math.max(0,blocAvant-blocApres);            // minutes de blocage séchoir évitées par le cadençage
-  var finReelOpt=finAvant-blocEvite*60;                     // chaque minute de blocage coupée = 1 min de fin en moins
-  bProposFin=finReelOpt;
+  var finReelOpt=heureFinReelle(bRows);                     // recalculée depuis l'ordre -> identique après diffusion
   var gainNet=Math.round((finAvant-finReelOpt)/60);
   var dRun=runBefore-opt.run;
   renderBrouillon();
