@@ -572,11 +572,14 @@ function fmtTodayFull() {
 }
 function fmtHours(h) {
   if (h == null || isNaN(h)) return '0h00';
-  const hh = Math.floor(h);
-  const mm = Math.round((h - hh) * 60);
-  return hh + 'h' + String(mm).padStart(2, '0');
+  const neg = h < 0;
+  const abs = Math.abs(h);
+  const hh = Math.floor(abs);
+  const mm = Math.round((abs - hh) * 60);
+  if (mm === 60) return (neg ? '-' : '') + (hh + 1) + 'h00';
+  return (neg ? '-' : '') + hh + 'h' + String(mm).padStart(2, '0');
 }
-function fmtEUR(n, d) {
+  function fmtEUR(n, d) {
   if (n == null || isNaN(n)) return '— €';
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: d||0, maximumFractionDigits: d||0 }).format(n);
 }
