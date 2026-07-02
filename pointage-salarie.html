@@ -571,11 +571,14 @@ function fmtDateFR(date) {
 
 function fmtHours(h) {
   if (h == null || isNaN(h)) return '00:00';
-  const hh = Math.floor(h);
-  const mm = Math.round((h - hh) * 60);
-  return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+  const neg = h < 0;
+  const abs = Math.abs(h);
+  var hh = Math.floor(abs);
+  var mm = Math.round((abs - hh) * 60);
+  if (mm === 60) { hh += 1; mm = 0; }
+  return (neg ? '-' : '') + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
 }
-
+  
 function toast(message, type) {
   const t = $('toast');
   t.querySelector('.inner').textContent = message;
