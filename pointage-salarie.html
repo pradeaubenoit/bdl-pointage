@@ -613,7 +613,7 @@ function apiCall(params) {
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error('Délai dépassé'));
-    }, 15000);
+    }, 60000);
     const script = document.createElement('script');
 
     function cleanup() {
