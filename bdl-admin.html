@@ -887,7 +887,8 @@ tr:hover { background: var(--bg-sunken); }
           <div style="display:flex;align-items:center;gap:14px">
             <div style="text-align:right">
               <div id="ratioMasseCaValue" style="font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;letter-spacing:-0.01em;line-height:1">—</div>
-              <div id="ratioMasseCaSeuil" style="font-size:12px;color:var(--ink-faint);margin-top:4px;cursor:pointer" onclick="editSeuilMasseCa()">Seuil : — % ✏️</div>
+<div id="ratioMasseCaSeuil" style="font-size:12px;color:var(--ink-faint);margin-top:4px;cursor:pointer" onclick="editSeuilMasseCa()">Seuil : — % ✏️</div>
+              <div style="font-size:12px;color:var(--ink-faint);margin-top:2px;cursor:pointer" onclick="editCouleursMasseCa()">🎨 Régler les couleurs</div>
             </div>
           </div>
         </div>
@@ -3254,12 +3255,21 @@ function renderRatioMasseCa(masseSalariale, ca) {
   const seuilMontant = ca * seuil / 100;
   const ecart = seuilMontant - masseSalariale;
 
+  // Bornes de couleur réglables (avec décimales), indépendantes du seuil de dépassement
+  var bOrange = Number(state.parametres.seuil_couleur_orange) || 43;
+  var bRouge = Number(state.parametres.seuil_couleur_rouge) || 45;
   let color, statusText;
+  if (ratio < bOrange) {
+    color = '#15803d'; // vert
+  } else if (ratio < bRouge) {
+    color = '#E6A03C'; // orange
+  } else {
+    color = '#991b1b'; // rouge
+  }
+  // Le texte de statut reste basé sur le seuil de dépassement existant (44%)
   if (ratio <= seuil) {
-    color = '#15803d';
     statusText = '🟢 Sous le seuil de ' + seuil + '% · marge avant dépassement : ' + fmtEur(ecart);
   } else {
-    color = '#991b1b';
     statusText = '🔴 Au-dessus du seuil de ' + seuil + '% · dépassement : ' + fmtEur(-ecart) +
       ' (+' + (ratio - seuil).toFixed(1) + ' pts)';
   }
@@ -3291,7 +3301,41 @@ async function editSeuilMasseCa() {
     alert('Impossible d\'enregistrer le seuil.');
   }
 }
-  
+
+ async function editCouleursMasseCa() {
+  const orangeActuel = Number(state.parametres.seuil_couleur_orange) || 43;
+  const rougeActuel = Number(state.parametres.seuil_couleur_rouge) || 45;
+
+  const sOrange = window.prompt('Couleur ORANGE à partir de quel % ?\n\n(En dessous = vert. Décimales acceptées, ex : 43,0)', orangeActuel);
+  if (sOrange === null) return;
+  const vOrange = parseFloat(String(sOrange).replace(',', '.'));
+  if (isNaN(vOrange) || vOrange <= 0 || vOrange > 100) {
+    alert('Valeur invalide pour l\'orange. Entre un pourcentage entre 1 et 100.');
+    return;
+  }
+
+  const sRouge = window.prompt('Couleur ROUGE à partir de quel % ?\n\n(Doit être supérieur à l\'orange = ' + vOrange + '%. Décimales acceptées, ex : 45,0)', rougeActuel);
+  if (sRouge === null) return;
+  const vRouge = parseFloat(String(sRouge).replace(',', '.'));
+  if (isNaN(vRouge) || vRouge <= 0 || vRouge > 100) {
+    alert('Valeur invalide pour le rouge. Entre un pourcentage entre 1 et 100.');
+    return;
+  }
+  if (vRouge <= vOrange) {
+    alert('Le seuil rouge (' + vRouge + '%) doit être supérieur au seuil orange (' + vOrange + '%).');
+    return;
+  }
+
+  try {
+    await callApi('updateParametre', { cle: 'seuil_couleur_orange', valeur: vOrange });
+    await callApi('updateParametre', { cle: 'seuil_couleur_rouge', valeur: vRouge });
+    state.parametres.seuil_couleur_orange = vOrange;
+    state.parametres.seuil_couleur_rouge = vRouge;
+    loadRatioPersonnelCa(state.currentMonth);
+  } catch (e) {
+    alert('Impossible d\'enregistrer les couleurs.');
+  }
+} 
 // ============================================================
 // V4.9.9 — DÉTECTION D'ANOMALIES (eau/gaz/compresseur)
 // ============================================================
