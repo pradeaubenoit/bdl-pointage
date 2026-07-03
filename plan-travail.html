@@ -224,6 +224,7 @@
         <button id="b-opt" class="btn-primary">Optimiser l'ordre</button>
         <div><span class="lab">Diffuser vers</span><input type="date" id="b-target" class="w-auto"></div>
         <button id="b-diffuse">Diffuser vers cette date</button>
+        <button id="b-postes">🖨️ Plans par poste</button>
       </div>
     </section>
 
@@ -827,6 +828,45 @@ function bOptimize(){
       +'Si ça vous convient, diffusez-le.</div>';
   resEl.insertAdjacentHTML('beforeend',msg);
 }
+/* PLANS DE TRAVAIL PAR POSTE : à partir de la proposition (Brouillon), sort une feuille
+   imprimable par poste (FAXM, Table, Repassage) = les clients dans l'ordre de lavage,
+   filtrés sur ceux qui passent par ce poste. Un client sur plusieurs postes figure sur
+   chacune des feuilles concernées. */
+function mergeConsecPoste(list){
+  var out=[];
+  list.forEach(function(r){
+    var nm=(r.client||'').trim(), last=out[out.length-1];
+    if(last && last.nmKey===nm.toLowerCase() && last.code===r.code){ last.g+=parseInt(r.nbTransferts)||0; }
+    else out.push({nm:nm||'(sans nom)', nmKey:nm.toLowerCase(), code:r.code, g:parseInt(r.nbTransferts)||0});
+  });
+  return out;
+}
+function imprimerPlansPostes(){
+  if(!bLoaded||!bRows.length){alert('Chargez et optimisez d\'abord un jour dans le brouillon.');return;}
+  var target=document.getElementById('b-target').value;
+  var titreDate=target||bBaseDate||'';
+  var css='body{font-family:-apple-system,Segoe UI,Arial,sans-serif;color:#111;margin:24px}'
+    +'h1{font-size:30px;margin:0 0 2px}.d{color:#666;font-size:16px;margin:0 0 18px}'
+    +'ol{font-size:23px;line-height:1.5;padding-left:44px;margin:0}'
+    +'li{border-bottom:1px solid #e5e5e5;padding:7px 0}'
+    +'.n{font-weight:600}.g{float:right;color:#555;font-size:19px}'
+    +'.vide{color:#999;font-size:20px;font-style:italic}'
+    +'@media print{body{margin:12mm}}';
+  var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Plans de travail par poste — '+esc(titreDate)+'</title><style>'+css+'</style></head><body>';
+  POSTES.forEach(function(p,pi){
+    var poste=p[0], nom=p[1];
+    var list=mergeConsecPoste(bRows.filter(function(r){return (r.postes||[]).indexOf(poste)>=0;}));
+    html+='<section'+(pi>0?' style="page-break-before:always"':'')+'><h1>Plan de travail — '+esc(nom)+'</h1><div class="d">'+esc(titreDate)+' · clients dans l\'ordre de lavage</div>';
+    if(!list.length){ html+='<div class="vide">Aucun client sur ce poste ce jour-là.</div>'; }
+    else { html+='<ol>'; list.forEach(function(c){ html+='<li><span class="n">'+esc(c.nm)+'</span><span class="g">'+c.g+' gal</span></li>'; }); html+='</ol>'; }
+    html+='</section>';
+  });
+  html+='</body></html>';
+  var blob=new Blob([html],{type:'text/html'}), url=URL.createObjectURL(blob);
+  var w=window.open(url,'_blank');
+  if(w){ w.addEventListener('load',function(){setTimeout(function(){try{w.focus();w.print();}catch(e){}},300);}); }
+  else { alert('Autorisez les fenêtres pop-up pour imprimer les plans.'); }
+}
 async function bDiffuse(){
   if(!bLoaded||!bRows.length){alert('Chargez d\'abord un jour de base.');return;}
   var target=document.getElementById('b-target').value;
@@ -916,6 +956,7 @@ document.getElementById('ins-cancel').addEventListener('click',function(){docume
 document.getElementById('b-load').addEventListener('click',bLoad);
 document.getElementById('b-opt').addEventListener('click',bOptimize);
 document.getElementById('b-diffuse').addEventListener('click',bDiffuse);
+document.getElementById('b-postes').addEventListener('click',imprimerPlansPostes);
 document.getElementById('b-rot').addEventListener('input',function(e){CFG.rotationSec=parseFloat(e.target.value)||22;var rg=document.getElementById('rot');if(rg)rg.value=CFG.rotationSec;renderBrouillon();scheduleSaveConfig();});
 document.getElementById('b-cvide').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.casesVide=isNaN(v)?0:Math.max(0,Math.min(10,v));renderBrouillon();scheduleSaveConfig();});
 document.getElementById('b-camion').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.camionCli=isNaN(v)?2:Math.max(0,Math.min(50,v));scheduleSaveConfig();});
