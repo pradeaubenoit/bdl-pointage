@@ -101,6 +101,8 @@
   .bline{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:6px}
   .bline .b-name{font-weight:500}
   .bline .b-meta{font-size:12px;color:var(--muted)}
+  .bline.lav{border-left:5px solid #7c3aed;background:linear-gradient(90deg,rgba(124,58,237,.10),var(--card) 60px)}
+  .lavtag{padding:1px 7px;border-radius:5px;font-size:12px;font-weight:600;background:#7c3aed;color:#fff;margin-left:6px}
   .tag{display:inline-block;padding:0 6px;border-radius:5px;font-size:11px;margin-left:6px}
   .tag.drap{background:var(--info-bg);color:var(--info)}
   .tag.eponge{background:var(--amber-bg);color:var(--amber)}
@@ -152,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v50</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v51</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -228,6 +230,7 @@
         <button class="b-poste" data-poste="repassage">🖨️ Repassage</button>
         <button class="b-poste" data-poste="pliage_table">🖨️ Table</button>
         <button class="b-poste" data-poste="faxm">🖨️ FAXM</button>
+        <button class="b-poste" data-poste="laveuse" style="border-color:#7c3aed;color:#7c3aed">🖨️ Laveuse</button>
       </div>
     </section>
 
@@ -756,7 +759,7 @@ function renderResults(){
   if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
-    h+='<div class="bline"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span></div><div class="b-meta">'+g+' gal'+(r.machine==='laveuse'?' \u00b7 laveuse':'')+'</div></div>';
+    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+'"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal</div></div>';
   });
   h+='<div class="sech">Production par client</div>';
   clients.forEach(function(A){
@@ -793,7 +796,7 @@ function renderBrouillon(){
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
-    h+='<div class="bline"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span></div><div class="b-meta">'+g+' gal'+(r.machine==='laveuse'?' · laveuse':'')+'</div></div>';
+    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+'"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal</div></div>';
   });
   listEl.innerHTML=h;
 }
@@ -841,17 +844,19 @@ function bOptimize(){
 function listePoste(poste){
   var seen={}, out=[];
   bRows.forEach(function(r){
-    if((r.postes||[]).indexOf(poste)<0) return;
+    if(poste==='laveuse'){ if(r.machine!=='laveuse') return; }
+    else if((r.postes||[]).indexOf(poste)<0) return;
     var nm=(r.client||'').trim();
+    var pil=(poste==='laveuse')?typeLabel(rowType(r)):'';
     var key=nm.toLowerCase()+'|'+(r.code==null?'':r.code);
     if(key in seen){ out[seen[key]].g+=parseInt(r.nbTransferts)||0; }
-    else { seen[key]=out.length; out.push({nm:nm||'(sans nom)', g:parseInt(r.nbTransferts)||0}); }
+    else { seen[key]=out.length; out.push({nm:nm||'(sans nom)', g:parseInt(r.nbTransferts)||0, pil:pil}); }
   });
   return out;
 }
 function imprimerPlanPoste(poste){
   if(!bLoaded||!bRows.length){alert('Chargez et optimisez d\'abord un jour dans le brouillon.');return;}
-  var nom=lbl(POSTES,poste);
+  var nom=(poste==='laveuse')?'Laveuse':lbl(POSTES,poste);
   var target=document.getElementById('b-target').value, titreDate=target||bBaseDate||'';
   var list=listePoste(poste);
   var css='body{font-family:-apple-system,Segoe UI,Arial,sans-serif;color:#111;margin:24px}'
@@ -864,7 +869,7 @@ function imprimerPlanPoste(poste){
   var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Plan '+esc(nom)+' — '+esc(titreDate)+'</title><style>'+css+'</style></head><body>'
     +'<h1>Plan de travail — '+esc(nom)+'</h1><div class="d">'+esc(titreDate)+' · clients dans l\'ordre de lavage</div>';
   if(!list.length){ html+='<div class="vide">Aucun client sur ce poste ce jour-là.</div>'; }
-  else { html+='<ol>'; list.forEach(function(c){ html+='<li><span class="n">'+esc(c.nm)+'</span><span class="g">'+c.g+' gal</span></li>'; }); html+='</ol>'; }
+  else { html+='<ol>'; list.forEach(function(c){ html+='<li><span class="n">'+esc(c.nm)+'</span>'+(c.pil?' <span style="color:#7c3aed;font-size:18px">'+esc(c.pil)+'</span>':'')+'<span class="g">'+c.g+' gal</span></li>'; }); html+='</ol>'; }
   html+='</body></html>';
   var blob=new Blob([html],{type:'text/html'}), url=URL.createObjectURL(blob);
   var w=window.open(url,'_blank');
