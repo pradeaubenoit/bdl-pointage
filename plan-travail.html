@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v51</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v52</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -596,6 +596,10 @@ function sameSeq(a,b){if(a.length!==b.length)return false;for(var i=0;i<a.length
    - éponge/vêtement : ordre serré (±N rangs entre eux, les draps ne comptent pas) ;
    - draps : libres en distance, mais leur ordre de départ entre eux est préservé. */
 function camionOK(order,origND,origDrap,N){var rk=ndRanks(order);for(var s in origND){if(rk[s]==null)continue;if(Math.abs(rk[s]-origND[s])>N)return false;}return sameSeq(drapSeq(order),origDrap);}
+// Pour chaque drap : combien de clients urgents (non-draps) sont devant lui.
+function drapBefore(order){var cnt={},nd=0;order.forEach(function(r){if(isDrapRow(r)){var s=r.src||r.id;if(!(s in cnt))cnt[s]=nd;}else nd++;});return cnt;}
+// Un drap ne peut jamais avoir MOINS de clients urgents devant lui qu'à son arrivée (il ne remonte pas, il ne double personne).
+function drapNotEarlier(order,orig){var now=drapBefore(order);for(var s in orig){if(now[s]!=null&&now[s]<orig[s])return false;}return true;}
 /* CONSTRUCTEUR DE CADENCE — bâtit l'ordre comme Benoît à la main :
    éponge dans l'ordre (gros clients coupés à 8 d'abord), draps insérés régulièrement.
    Si les draps sont assez nombreux : un drap tous les 8 éponge (sa règle).
@@ -637,14 +641,14 @@ function optimiserOrdre(list,speed,start){
   var N=(CFG.camionCli==null?2:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), serieMax=(CFG.maxLent==null?8:CFG.maxLent);
   var baseSplit=splitSlow(list,serieMax);
   var baseBouch=attenteRegle(baseSplit), baseRun=maxLentRun(baseSplit);
-  var best=construireCadence(list), origND=ndRanks(best), origDrap=drapSeq(best);
+  var best=construireCadence(list), origND=ndRanks(best), origDrap=drapSeq(best), origDrapBefore=drapBefore(best);
   function score(o){ return attenteRegle(o)*1e6 + maxLentRun(o)*1e3; }
   var b=score(best), it=0, improved=true, WIN=14;
   while(improved&&it<40){improved=false;it++;
     for(var i=0;i<best.length;i++){
       for(var j=Math.max(0,i-WIN);j<=Math.min(best.length-1,i+WIN);j++){ if(i===j)continue;
         var cand=best.slice();var x=cand.splice(i,1)[0];cand.splice(j,0,x);
-        if(!camionOK(cand,origND,origDrap,N)||!cohesionOK(cand))continue;
+        if(!camionOK(cand,origND,origDrap,N)||!cohesionOK(cand)||!drapNotEarlier(cand,origDrapBefore))continue;
         var sc=score(cand);
         if(sc<b-1){b=sc;best=cand;improved=true;}
       }
