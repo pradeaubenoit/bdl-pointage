@@ -152,7 +152,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail</div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v50</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -283,7 +283,7 @@ var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tFixe:
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
-var bRows=[], bLoaded=false, bBaseDate='', bProposFin=null;
+var bRows=[], bBase=[], bLoaded=false, bBaseDate='', bProposFin=null;
 
 /* séchoirs : capacités, cuve #4 (index 3) réservée aux draps */
 var CAP=[2,3,3,2], DRAP_DRYER=3;
@@ -401,22 +401,24 @@ function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!
    chaîne ATTEND qu'un séchoir se libère (durée réelle, variable). Renvoie les minutes de blocage. */
 function blocageSechoir(charges){
   if(!charges||!charges.length)return 0;
+  // File d'attente multi-serveurs avec blocage tunnel (récurrence de type Lindley) :
+  // MONOTONE par construction — espacer les arrivées ne peut jamais augmenter le blocage.
   var ROT=CFG.rotationSec||16, UNLOAD=120, P=4, DLANE=DRAP_DRYER;
-  var sech=CAP.map(function(c,i){return {cap:c,n:0,st:0,free:0,ty:null,dry:0,lane:(i===DLANE)};}); // st 0 idle,1 remplit,2 sèche,3 décharge
-  var pass=[], t=0, bloc=0;
-  function ok(s,ty){return ty==='drap'?s.lane:!s.lane;}
-  function freeS(now){for(var i=0;i<4;i++){var s=sech[i];if(s.st===2&&now>=s.free){s.st=3;s.free=now+UNLOAD;}if(s.st===3&&now>=s.free){s.st=0;s.n=0;s.ty=null;s.dry=0;}}}
-  function put(c,now){
-    for(var i=0;i<4;i++){var s=sech[i];if(ok(s,c.type)&&s.st===1&&s.ty===c.type&&s.n<s.cap){s.n++;if(c.dry>s.dry)s.dry=c.dry;if(s.n===s.cap){s.st=2;s.free=now+s.dry;}return true;}}
-    for(var i=0;i<4;i++){var s=sech[i];if(ok(s,c.type)&&s.st===0){s.st=1;s.ty=c.type;s.n=1;s.dry=c.dry;if(s.n===s.cap){s.st=2;s.free=now+s.dry;}return true;}}
-    return false;
-  }
-  function place(c,now){freeS(now);if(put(c,now))return true;if(pass.length<P){pass.push(c);return true;}return false;}
-  function drain(now){freeS(now);for(var i=0;i<pass.length;){if(put(pass[i],now))pass.splice(i,1);else i++;}}
+  var epN=0,drN=0; for(var i=0;i<4;i++){ if(i===DLANE)drN+=CAP[i]; else epN+=CAP[i]; }
+  var epFree=[],drFree=[]; for(var i=0;i<epN;i++)epFree.push(-1e9); for(var i=0;i<drN;i++)drFree.push(-1e9);
+  function earliest(a){var m=a[0],j=0;for(var i=1;i<a.length;i++)if(a[i]<m){m=a[i];j=i;}return j;}
+  var enterEp=[], A=0, bloc=0;
   for(var idx=0;idx<charges.length;idx++){
     var mx=0;for(var w=idx;w<Math.min(idx+10,charges.length);w++)if(charges[w].taux>mx)mx=charges[w].taux;
-    t+=(mx||1)*ROT;drain(t);var tr=0;
-    while(!place(charges[idx],t)){var nx=Infinity;for(var i=0;i<4;i++)if(sech[i].st===2||sech[i].st===3)nx=Math.min(nx,sech[i].free);if(nx===Infinity){t+=60;}else{bloc+=(nx-t);t=nx;}drain(t);if(++tr>3000)break;}
+    var nominal=A+(mx||1)*ROT, arrival=nominal, c=charges[idx];
+    if(c.type==='drap'){
+      var j=earliest(drFree); var e=Math.max(arrival,drFree[j]); drFree[j]=e+(c.dry+UNLOAD); A=arrival;
+    } else {
+      // le tunnel ne peut pas avancer tant qu'une passerelle éponge ne s'est pas libérée
+      if(enterEp.length>=P) arrival=Math.max(nominal, enterEp[enterEp.length-P]);
+      var j=earliest(epFree); var e=Math.max(arrival,epFree[j]); epFree[j]=e+(c.dry+UNLOAD); enterEp.push(e);
+      bloc+=(arrival-nominal); A=arrival;
+    }
   }
   return Math.round(bloc/60);
 }
@@ -618,8 +620,9 @@ function construireCadence(rows){
         var last=out[out.length-1]; last.nbTransferts=String((parseInt(last.nbTransferts)||0)+g);
         manques.push((chunks[i].client||'').trim()||(chunks[i].src||chunks[i].id)); acc+=g; }
     } else {
-      // cadence normale : drap seulement si on en a en RAB (au-delà des tampons réservés aux coupes à venir)
-      if(acc>0 && acc+g/2>espacement && (draps.length-di-future[i])>0){ out.push(draps[di++]); acc=0; }
+      // RÈGLE DES 8 STRICTE : si ajouter ce morceau ferait dépasser 8 galettes lentes d'affilée,
+      // on insère un tampon de draps AVANT (tant qu'il en reste au-delà des tampons réservés aux coupes).
+      if(acc>0 && acc+g>serieMax && (draps.length-di-future[i])>0){ out.push(draps[di++]); acc=0; }
       out.push(chunks[i]); acc+=g;
     }
   }
@@ -797,19 +800,20 @@ function renderBrouillon(){
 async function bLoad(){
   var d=document.getElementById('b-base').value||isoMinus(todayISO(),1);
   document.getElementById('b-status').textContent='Chargement…';
-  bRows=await loadDay(d);bBaseDate=d;bLoaded=true;bProposFin=null;
+  bRows=await loadDay(d);bBase=bRows.slice();bBaseDate=d;bLoaded=true;bProposFin=null;
   document.getElementById('b-target').value=isoPlus(d,7);
   document.getElementById('b-status').textContent=bRows.length?('Jour chargé : '+bRows.length+' client(s). Vous pouvez optimiser puis diffuser.'):'Aucune donnée pour ce jour.';
   renderBrouillon();
 }
 function bOptimize(){
-  if(!bLoaded||!bRows.length)return;
+  if(!bLoaded||!bBase.length)return;
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
-  var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
-  var others=bRows.filter(function(r){return r.machine!=='tunnel';});
+  // on repart TOUJOURS du plan chargé (bBase), jamais de l'ordre déjà optimisé -> résultat stable si on reclique
+  var tunnelRows=bBase.filter(function(r){return r.machine==='tunnel';});
+  var others=bBase.filter(function(r){return r.machine!=='tunnel';});
   var ML=(CFG.maxLent==null?8:CFG.maxLent);
   var tunnelMerged=fusionnerMemeClient(tunnelRows); // même nom+code = un seul client
-  var finAvant=heureFinReelle(bRows);                       // heure du plan chargé (= ce qu'affiche la page Plan de travail)
+  var finAvant=heureFinReelle(bBase);                      // heure du plan chargé (= ce qu'affiche la page Plan de travail)
   var blocAvant=blocageSechoirRows(tunnelRows);             // blocage de l'ordre chargé
   var runBefore=maxLentRun(tunnelRows);
   var opt=optimiserOrdre(tunnelMerged,speed,start);
