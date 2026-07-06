@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v54</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v55</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -637,38 +637,51 @@ function construireCadence(rows){
   construireCadence.manques=manques;
   return out;
 }
-function optimiserOrdre(list,speed,start){
-  var N=(CFG.camionCli==null?2:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin), serieMax=(CFG.maxLent==null?8:CFG.maxLent);
-  var baseSplit=splitSlow(list,serieMax);
-  var baseBouch=attenteRegle(baseSplit), baseRun=maxLentRun(baseSplit);
-  var best=construireCadence(list), origND=ndRanks(best), origDrap=drapSeq(best), origDrapBefore=drapBefore(best);
-  // ÉQUILIBRE DES POSTES : pour chaque poste, l'index (galettes cumulées) de sa PREMIÈRE alimentation + l'étalement.
-  // Nourrir chaque poste au plus tôt (tuer les trous du matin) et grouper son linge (partir tôt).
-  function posteBalance(order){
-    var cum=0, first={}, last={}, gal={};
-    for(var i=0;i<order.length;i++){ var g=parseInt(order[i].nbTransferts)||0;
-      var ps=order[i].postes; if(!ps||!ps.length)ps=['repassage'];
-      for(var k=0;k<ps.length;k++){ var p=ps[k]; if(!(p in first))first[p]=cum; last[p]=cum+g; gal[p]=(gal[p]||0)+g; }
-      cum+=g; }
-    var s=0; for(var p in first){ s += first[p]*2 + (last[p]-first[p]-gal[p]); } // départ tôt (poids 2) + trous internes (span − linge)
-    return s;
-  }
-  // Règle des 8 = priorité absolue quand c'est possible (attenteRegle = violations ÉVITABLES). En dessous, on équilibre les postes.
-  function score(o){ return attenteRegle(o)*1e9 + posteBalance(o)*100 + maxLentRun(o); }
-  var b=score(best), it=0, improved=true, WIN=14;
-  while(improved&&it<40){improved=false;it++;
-    for(var i=0;i<best.length;i++){
-      for(var j=Math.max(0,i-WIN);j<=Math.min(best.length-1,i+WIN);j++){ if(i===j)continue;
-        var cand=best.slice();var x=cand.splice(i,1)[0];cand.splice(j,0,x);
-        if(!camionOK(cand,origND,origDrap,N)||!cohesionOK(cand)||!drapNotEarlier(cand,origDrapBefore))continue;
-        var sc=score(cand);
-        if(sc<b-1){b=sc;best=cand;improved=true;}
-      }
+/* MOTEUR TOURNIQUET : on sert les postes chacun leur tour (FAXM -> Table -> Repassage), en reprenant
+   chaque poste là où on s'était arrêté. 8 cases lentes maxi par bloc puis tampon draps (règle des 8).
+   Un poste ne s'arrête que lorsqu'il n'a PLUS de linge arrivé -> son équipe part (trou final assumé).
+   W = fenêtre d'arrivée (combien de clients sont déjà là ; on ne lave jamais un client pas encore arrivé). */
+function construireTourniquet(rows, W){
+  var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
+  if(W==null)W=1e9;
+  rows.forEach(function(r,i){ r._arr=i; });
+  var draps=rows.filter(isDrapRow);
+  var slow=rows.filter(function(r){return !isDrapRow(r);});
+  var chunks=splitSlow(slow,serieMax);
+  function posteOf(c){var ps=c.postes&&c.postes.length?c.postes:['repassage'];return ps[0];}
+  var cycle=['faxm','pliage_table','repassage'];
+  var queues={}; chunks.forEach(function(c){var p=posteOf(c); if(!queues[p])queues[p]=[]; queues[p].push(c);});
+  Object.keys(queues).forEach(function(p){ if(cycle.indexOf(p)<0) cycle.push(p); });
+  cycle=cycle.filter(function(p){return queues[p]&&queues[p].length;});
+  var ptr={}; cycle.forEach(function(p){ptr[p]=0;});
+  // Répartir les draps RÉGULIÈREMENT sur toute la journée (comme construireCadence) : si assez de draps -> tampon tous les 8 ;
+  // s'il en manque -> on les étale au mieux pour que la plus longue série lente soit minimale (jamais tout brûlé au début).
+  var totalSlow=chunks.reduce(function(s,c){return s+(parseInt(c.nbTransferts)||0);},0);
+  var espacement=draps.length>0?Math.max(serieMax,totalSlow/(draps.length+1)):totalSlow+1;
+  var out=[], di=0, acc=0, frontier=W, guard=0;
+  function remaining(){var n=0;cycle.forEach(function(p){n+=(queues[p].length-ptr[p]);});return n;}
+  while(remaining()>0 && guard++<200000){
+    var placed=false;
+    for(var t=0;t<cycle.length;t++){
+      var p=cycle[t];
+      if(ptr[p]>=queues[p].length) continue;          // ce poste a fini -> il part
+      var c=queues[p][ptr[p]];
+      if(c._arr>=frontier) continue;                  // client pas encore arrivé -> on saute ce poste ce tour
+      var g=parseInt(c.nbTransferts)||0;
+      out.push(c); ptr[p]++; acc+=g; frontier++; placed=true;
+      if(acc>=espacement && di<draps.length){ out.push(draps[di++]); acc=0; } // tampon quand la série atteint l'espacement
     }
+    if(!placed) frontier++;                            // rien de dispo -> le temps avance, un client de plus arrive
   }
-  // La règle des 8 s'applique TOUJOURS : on garde l'ordre cadencé (clients >8 découpés + tampons).
-  // Le gain de temps est plafonné à zéro côté affichage si cadencer n'aide pas — on ne revient JAMAIS
-  // à des blocs entiers de plus de 8.
+  while(di<draps.length){ out.push(draps[di++]); }
+  return out;
+}
+function optimiserOrdre(list,speed,start){
+  var W=(CFG.camionCli==null?15:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin);
+  // MOTEUR TOURNIQUET : sert les postes chacun leur tour, reprend chacun là où il en était,
+  // tampon draps réparti régulièrement (règle des 8). Chaque poste tourne sans trou jusqu'à ce
+  // qu'il n'ait plus de linge arrivé -> son équipe part.
+  var best=construireTourniquet(list, W);
   best=mergeChunks(best);
   var bouchons=attenteRegle(best);
   var fin=simulerTunnel(best).fin;
@@ -849,7 +862,7 @@ function bOptimize(){
   var resEl=document.getElementById('b-results');
   var L=(CFG.camionCli==null?2:CFG.camionCli);
   var finTxt = gainNet>0 ? ' (\u2212'+gainNet+' min)' : (gainNet<0 ? ' <span style="color:var(--muted)">(+'+(-gainNet)+' min au tunnel \u2014 mais postes mieux nourris)</span>' : ' (identique)');
-  var msg='<div class="note ok"><b>Proposition trouvée</b> \u2014 postes équilibrés (chaque poste nourri au plus tôt ; règle des 8 respectée) :<br>'
+  var msg='<div class="note ok"><b>Proposition trouvée</b> \u2014 tourniquet des postes (on sert chaque poste à tour de rôle, on reprend là où on s\'était arrêté ; tampon draps pour les séchoirs). Chaque poste tourne jusqu\'à ce qu\'il n\'ait plus de linge \u2014 puis son équipe part.<br>'
       +'• <b>Trous de postes : '+trousAvant+' \u2192 '+trousApres+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':(dTrous<0?' (+'+(-dTrous)+')':''))+'</b><br>'
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
       +'• Heure de fin tunnel : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finReelOpt)+finTxt+'<br>'
