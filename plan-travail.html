@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v52</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v53</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -829,17 +829,29 @@ function bOptimize(){
   var blocApres=blocageSechoirRows(opt.order);
   var blocEvite=Math.max(0,blocAvant-blocApres);            // minutes de blocage séchoir évitées par le cadençage
   var finReelOpt=heureFinReelle(bRows);                     // recalculée depuis l'ordre -> identique après diffusion
-  var gainNet=Math.round((finAvant-finReelOpt)/60);
+  var gainNet=Math.round((finAvant-finReelOpt)/60);         // >0 : finit plus tôt ; <0 : finit plus tard
   var dRun=runBefore-opt.run;
+  // GARDE-FOU : ne jamais proposer un ordre qui finit plus tard que la base (tolérance = bruit du modèle de blocage).
+  var TOL=3, reverti=false;
+  if(gainNet < -TOL){ bRows=bBase.slice(); reverti=true; }
   renderBrouillon();
   var resEl=document.getElementById('b-results');
   var L=(CFG.camionCli==null?2:CFG.camionCli);
-  var msg='<div class="note ok"><b>Proposition trouvée</b> (cadence '+ML+' éponges \u2192 bloc de draps ; éponge/vêtement à ±'+L+' clients, draps libres dans leur ordre) :<br>'
+  var msg;
+  if(reverti){
+    msg='<div class="note ok"><b>Aucune réorganisation ne fait mieux sans finir plus tard.</b><br>'
+      +'La meilleure trouvée aurait ramené la série lente de '+runBefore+' à '+opt.run+' galettes, '
+      +'mais elle finit <b>'+(-gainNet)+' min plus tard</b> (blocage séchoir '+blocAvant+' \u2192 '+blocApres+' min). '
+      +'Comme tu veux ne jamais finir plus tard que ta base, <b>je garde ta base telle quelle</b> ('+fmtHHMM(finAvant)+').<br>'
+      +'<span style="color:var(--muted)">Rappel : à vitesse de tunnel fixe, l\'heure de fin dépend surtout de la charge du jour ; ces minutes viennent d\'une estimation du blocage séchoir, encore approximative.</span></div>';
+  } else {
+    msg='<div class="note ok"><b>Proposition trouvée</b> (cadence '+ML+' éponges \u2192 bloc de draps ; éponge/vêtement à ±'+L+' clients, draps libres dans leur ordre) :<br>'
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
       +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocEvite>0?' (\u2212'+blocEvite+' min)':'')+'<br>'
       +'• <b>Heure de fin réelle : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finReelOpt)+(gainNet>0?' (\u2212'+gainNet+' min)':' (identique)')+'</b><br>'
       +(manques.length?'<span style="color:var(--danger)">Pas assez de draps pour tamponner : <b>'+manques.join(', ')+'</b> tourne(nt) en bloc. Candidat(s) à l\'emprunt de draps sur demain (à venir).</span><br>':'')
       +'Si ça vous convient, diffusez-le.</div>';
+  }
   resEl.insertAdjacentHTML('beforeend',msg);
 }
 /* PLAN DE TRAVAIL D'UN POSTE : les clients qui passent par ce poste, dans l'ordre de lavage,
