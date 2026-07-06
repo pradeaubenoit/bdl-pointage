@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v61</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v62</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -214,6 +214,7 @@
         <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:12px">
           <div><span class="lab">Jour de base</span><input type="date" id="b-base" class="w-auto"></div>
           <button id="b-load">Charger ce jour</button>
+          <div><span class="lab">Temps moyen par galette — optimisé (s)</span><input type="number" id="b-rot" class="mono w-auto" style="width:80px" step="1" min="1"></div>
           <div><span class="lab">Cases vides / changement couleur</span><input type="number" id="b-cvide" class="mono w-auto" style="width:80px" step="1" min="0" max="10"></div>
           <div><span class="lab">Limite camions — clients (sauf draps)</span><input type="number" id="b-camion" class="mono w-auto" style="width:80px" step="1" min="0" max="50"></div>
         </div>
@@ -281,7 +282,7 @@ var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, 
 
 var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
-var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tempsGalette:120,tFixe:36,tParTaux:10,casesVide:2,camionCli:2,maxLent:8,blocDraps:4,bouchonMin:10};
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tempsGalette:120,tempsGaletteOpt:120,tFixe:36,tParTaux:10,casesVide:2,camionCli:2,maxLent:8,blocDraps:4,bouchonMin:10};
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
@@ -322,7 +323,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.blocDraps==null)CFG.blocDraps=4;if(CFG.bouchonMin==null)CFG.bouchonMin=10;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.blocDraps==null)CFG.blocDraps=4;if(CFG.bouchonMin==null)CFG.bouchonMin=10;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
@@ -431,9 +432,10 @@ function blocageSechoirRows(order){return blocageSechoir(chargesFrom(order));}
    optimisé (le gain). Même journée, même nb de galettes -> seul le blocage change entre deux ordres. */
 function tempsGalette(){return (CFG.tempsGalette>0?CFG.tempsGalette:120);}
 function galettesTunnel(allRows){return allRows.reduce(function(s,r){return r.machine==='tunnel'?s+Math.max(0,parseInt(r.nbTransferts)||0):s;},0);}
-function heureFinReelle(allRows){
+function heureFinReelle(allRows,tg){
   var tunnel=allRows.filter(function(r){return r.machine==='tunnel';});
-  var chargement=parseHeure(CFG.heureDemarrage)+galettesTunnel(allRows)*tempsGalette();
+  var t=(tg>0?tg:tempsGalette());
+  var chargement=parseHeure(CFG.heureDemarrage)+galettesTunnel(allRows)*t;
   var bloc=blocageSechoirRows(tunnel)*60;
   return chargement + bloc;
 }
@@ -840,7 +842,7 @@ function renderBrouillon(){
   var s=simSechoirs(bRows,speed,start);
   var blocBrou=blocageSechoirRows(tunnelRows);
   var serie=maxLentRun(tunnelRows);
-  var finAff=heureFinReelle(bRows);
+  var finAff=heureFinReelle(bRows,CFG.tempsGaletteOpt);
   var labelFin='Heure de fin (optimisé)';
   var noteFin='<b>Heure de fin</b> = 6h + (galettes × temps moyen par galette, réglé dans Réglages) + le blocage séchoir de cet ordre. ';
   resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Blocage séchoir',fmtDuree(blocBrou*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Blocage séchoir</b> = temps réel où la chaîne attend qu\'un séchoir se libère. L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser ce blocage.</div></div>';
@@ -874,7 +876,7 @@ function bOptimize(){
   bRows=opt.order.concat(others);
   var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
   var blocApres=blocageSechoirRows(opt.order);
-  var finReelOpt=heureFinReelle(bRows);               // optimisé
+  var finReelOpt=heureFinReelle(bRows,CFG.tempsGaletteOpt);               // optimisé
   var gainNet=Math.round((finAvant-finReelOpt)/60);        // écart entre les deux heures calées = le gain
   var dRun=runBefore-opt.run;
   var trousAvant=trousTotal(simSechoirs(tunnelRows,speed,start)); // trous de postes de la base
@@ -959,6 +961,7 @@ async function startApp(){
   document.getElementById('start').value=CFG.heureDemarrage;
   document.getElementById('rot').value=tempsGalette();
   if(document.getElementById('r-serie')){document.getElementById('r-serie').value=(CFG.maxLent==null?8:CFG.maxLent);document.getElementById('r-bloc').value=(CFG.blocDraps==null?4:CFG.blocDraps);document.getElementById('r-bouchon').value=(CFG.bouchonMin==null?10:CFG.bouchonMin);}
+  document.getElementById('b-rot').value=(CFG.tempsGaletteOpt==null?tempsGalette():CFG.tempsGaletteOpt);
   document.getElementById('b-cvide').value=(CFG.casesVide==null?2:CFG.casesVide);
   document.getElementById('b-camion').value=(CFG.camionCli==null?2:CFG.camionCli);
   document.getElementById('b-base').value=isoMinus(curDate,1);
@@ -1020,6 +1023,7 @@ document.getElementById('b-load').addEventListener('click',bLoad);
 document.getElementById('b-opt').addEventListener('click',bOptimize);
 document.getElementById('b-diffuse').addEventListener('click',bDiffuse);
 (function(){var bp=document.querySelectorAll('.b-poste');for(var i=0;i<bp.length;i++){bp[i].addEventListener('click',function(){imprimerPlanPoste(this.getAttribute('data-poste'));});}})();
+document.getElementById('b-rot').addEventListener('input',function(e){CFG.tempsGaletteOpt=Math.max(1,parseInt(e.target.value)||120);renderBrouillon();scheduleSaveConfig();});
 document.getElementById('b-cvide').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.casesVide=isNaN(v)?0:Math.max(0,Math.min(10,v));renderBrouillon();scheduleSaveConfig();});
 document.getElementById('b-camion').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.camionCli=isNaN(v)?2:Math.max(0,Math.min(50,v));scheduleSaveConfig();});
 document.getElementById('btn-restore').addEventListener('click',async function(){
