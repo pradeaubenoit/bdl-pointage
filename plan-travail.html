@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v57</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v59</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -426,17 +426,15 @@ function blocageSechoir(charges){
   return Math.round(bloc/60);
 }
 function blocageSechoirRows(order){return blocageSechoir(chargesFrom(order));}
-/* HEURE DE FIN RÉELLE, calculable depuis l'ordre SEUL (sans « avant » à comparer).
-   On reconstitue la version non cadencée de cet ordre en refusionnant ses clients
-   (Chatel 8+5 -> 13), et l'heure = étalon − le blocage évité par le cadençage. Du coup la
-   même journée donne TOUJOURS la même heure : Plan de travail, Brouillon, aujourd'hui ou
-   diffusée la semaine prochaine. */
+/* HEURE DE FIN HONNÊTE = 6h + temps de chargement (tunnel) + TOUT le blocage séchoir de CET ordre.
+   Le chargement est le même pour toute organisation (même linge) ; le blocage, lui, est propre à
+   l'ordre : un plan brut avec de gros arrêts finit tard, un plan bien cadencé finit tôt. L'écart
+   entre les deux = le temps gagné. On ne masque plus les arrêts. */
 function heureFinReelle(allRows){
   var tunnel=allRows.filter(function(r){return r.machine==='tunnel';});
-  var etalon=simulerTunnel(allRows).fin;
-  var brut=blocageSechoirRows(fusionnerMemeClient(tunnel)); // version clients entiers (non cadencée)
-  var opt=blocageSechoirRows(tunnel);
-  return etalon - Math.max(0, brut-opt)*60;
+  var chargement=simulerTunnel(allRows).fin;              // fin du chargement (étalon, hors blocage)
+  var bloc=blocageSechoirRows(tunnel)*60;                 // tout le temps où la chaîne attend un séchoir, pour CET ordre
+  return chargement + bloc;
 }
 function gainCadence(allRows){
   var tunnel=allRows.filter(function(r){return r.machine==='tunnel';});
@@ -648,37 +646,59 @@ function construireTourniquet(rows, W){
   var drapsRaw=rows.filter(isDrapRow);
   var slow=rows.filter(function(r){return !isDrapRow(r);});
   var chunks=splitSlow(slow,serieMax);
-  // Découpage ADAPTATIF des draps en tampons : assez fin pour avoir un tampon toutes les 8 cases lentes
-  // (règle des 8 tenue partout quand il y a assez de galettes de draps), sans dépasser blocDraps.
-  var totalSlowGal=chunks.reduce(function(s,c){return s+(parseInt(c.nbTransferts)||0);},0);
   var totalDrapGal=drapsRaw.reduce(function(s,d){return s+(parseInt(d.nbTransferts)||0);},0);
-  var tamponsNec=Math.max(1,Math.ceil(totalSlowGal/serieMax)-1);
-  var blocMax=(CFG.blocDraps==null?4:CFG.blocDraps); if(blocMax<1)blocMax=1;
-  var blocD=Math.max(1,Math.min(blocMax, totalDrapGal>0?Math.floor(totalDrapGal/tamponsNec)||1:blocMax));
-  var draps=[]; drapsRaw.forEach(function(d){var g=parseInt(d.nbTransferts)||0,k=0;if(g<=0){draps.push(d);return;}while(g>0){var gg=Math.min(blocD,g);draps.push(Object.assign({},d,{id:d.id+'#'+k,src:d.id,nbTransferts:String(gg)}));g-=gg;k++;}});
+  // Toutes les galettes de draps mises en commun (chacune garde sa ligne source pour l'affichage/postes).
+  var pool=[]; drapsRaw.forEach(function(d){var g=parseInt(d.nbTransferts)||0;for(var i=0;i<g;i++)pool.push(d);});
+  // Postes en tourniquet.
   function posteOf(c){var ps=c.postes&&c.postes.length?c.postes:['repassage'];return ps[0];}
   var cycle=['faxm','pliage_table','repassage'];
   var queues={}; chunks.forEach(function(c){var p=posteOf(c); if(!queues[p])queues[p]=[]; queues[p].push(c);});
   Object.keys(queues).forEach(function(p){ if(cycle.indexOf(p)<0) cycle.push(p); });
   cycle=cycle.filter(function(p){return queues[p]&&queues[p].length;});
   var ptr={}; cycle.forEach(function(p){ptr[p]=0;});
-  // Tampon draps : quand il y a assez de draps -> on les répartit régulièrement (tout reste bien ≤ 8, aucune queue).
-  // Quand ils sont vraiment rares -> plafond dur à 8 tant qu'il en reste, et le dépassement tombe à la toute fin (l'équipe repassage part).
-  var totalSlow=chunks.reduce(function(s,c){return s+(parseInt(c.nbTransferts)||0);},0);
-  var esp=serieMax; // plafond dur : on remplit jusqu'à 8 avant de tamponner -> use le moins de draps, la queue éventuelle est minimale
-  var out=[], di=0, acc=0, guard=0;
+  // PASSE 1 : suite des cases lentes en tourniquet + repérage des frontières « règle des 8 ».
+  var seq=[], bnd=[], acc=0, guard=0;
   function remaining(){var n=0;cycle.forEach(function(p){n+=(queues[p].length-ptr[p]);});return n;}
   while(remaining()>0 && guard++<200000){
     for(var t=0;t<cycle.length;t++){
       var p=cycle[t];
-      if(ptr[p]>=queues[p].length) continue;          // ce poste a fini tout son linge -> il part
+      if(ptr[p]>=queues[p].length) continue;            // ce poste a fini son linge -> il part
       var c=queues[p][ptr[p]];
       var g=parseInt(c.nbTransferts)||0;
-      if(acc>0 && acc+g>esp && di<draps.length){ out.push(draps[di++]); acc=0; } // tampon régulier, jamais >8
-      out.push(c); ptr[p]++; acc+=g;
+      if(acc>0 && acc+g>serieMax){ bnd.push(seq.length); acc=0; } // frontière : il faut un tampon draps ici
+      seq.push(c); ptr[p]++; acc+=g;
     }
   }
-  while(di<draps.length){ out.push(draps[di++]); }
+  // PASSE 2 : répartir TOUS les draps sur les tampons = 1 tampon d'ouverture (nourrit le repassage dès la 1re heure,
+  // supprime le trou d'ouverture) + chaque frontière des 8. Chaque tampon >= minTampon (3 par défaut), en combinant
+  // plusieurs clients de draps si besoin (chante grelet 1 + sac à gaz 2 = tampon de 3). S'il y a du rab, les tampons
+  // sont plus gros et régulièrement, pour que le dernier drap tombe avec la dernière case lente. Draps sortent vite
+  // (voie rapide) -> plus le tampon est gros, plus ça draine l'éponge et plus ça lave vite, sans coût tunnel.
+  var startTampon = pool.length>0;                       // tampon au tout début
+  var slots = (startTampon?1:0) + bnd.length;
+  if(slots<1) slots=1;
+  var base = Math.floor(totalDrapGal/slots), rem = totalDrapGal - base*slots;
+  var sizes=[]; for(var i=0;i<slots;i++){ sizes.push(base + (i<rem?1:0)); } // reste réparti sur les 1ers -> tampons un poil plus gros au début
+  var pi=0, tk=0;
+  function pullTampon(sz){                                // tire sz galettes du pool, regroupe les mêmes clients consécutifs
+    var res=[], need=sz;
+    while(need>0 && pi<pool.length){
+      var d=pool[pi++];
+      var last=res[res.length-1];
+      if(last && last.src===d.id){ last.nbTransferts=String((parseInt(last.nbTransferts)||0)+1); }
+      else { res.push(Object.assign({},d,{id:d.id+'#T'+(tk++),src:d.id,nbTransferts:'1'})); }
+      need--;
+    }
+    return res;
+  }
+  var out=[], si=0;
+  if(startTampon){ pullTampon(sizes[si++]).forEach(function(x){out.push(x);}); }
+  var bset={}; bnd.forEach(function(b){ bset[b]=true; });
+  for(var i=0;i<seq.length;i++){
+    if(bset[i] && si<sizes.length){ pullTampon(sizes[si++]).forEach(function(x){out.push(x);}); }
+    out.push(seq[i]);
+  }
+  if(pi<pool.length){ pullTampon(pool.length-pi).forEach(function(x){out.push(x);}); } // reste éventuel d'arrondi -> fin (repassage tourne encore)
   return out;
 }
 function optimiserOrdre(list,speed,start){
@@ -785,8 +805,7 @@ function renderResults(){
   var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée — '+esc(curDate)+'</div>';
   var tRows=rows.filter(function(r){return r.machine==='tunnel';});
   var blocPlan=blocageSechoirRows(tRows);
-  var ginPlan=gainCadence(rows);
-  h+='<div class="metrics">'+metric(ginPlan>0?'Heure de fin (optimisée)':'Heure de fin',fmtHHMM(heureFinReelle(rows)))+metric('Blocage séchoir',fmtDuree(blocPlan*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReelle(rows)))+metric('Blocage séchoir',fmtDuree(blocPlan*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
@@ -821,11 +840,8 @@ function renderBrouillon(){
   var blocBrou=blocageSechoirRows(tunnelRows);
   var serie=maxLentRun(tunnelRows);
   var finAff=heureFinReelle(bRows);
-  var gain=gainCadence(bRows);
-  var labelFin=(gain>0)?'Heure de fin (optimisée)':'Heure de fin';
-  var noteFin=(gain>0)
-    ?'<b>Heure de fin optimisée</b> = votre étalon \u2212 le blocage séchoir évité par le cadençage ('+gain+' min gagnées). Recalculée depuis l\'ordre lui-même, donc identique partout. '
-    :'Heure de fin = dernière case chargée (votre étalon). ';
+  var labelFin='Heure de fin';
+  var noteFin='<b>Heure de fin</b> = 6h + temps de chargement + le blocage séchoir de cet ordre. ';
   resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Blocage séchoir',fmtDuree(blocBrou*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Blocage séchoir</b> = temps réel où la chaîne attend qu\'un séchoir se libère. L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser ce blocage.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
@@ -866,11 +882,12 @@ function bOptimize(){
   renderBrouillon();
   var resEl=document.getElementById('b-results');
   var L=(CFG.camionCli==null?2:CFG.camionCli);
-  var finTxt = gainNet>0 ? ' (\u2212'+gainNet+' min)' : (gainNet<0 ? ' <span style="color:var(--muted)">(+'+(-gainNet)+' min au tunnel \u2014 mais postes mieux nourris)</span>' : ' (identique)');
+  var finTxt = gainNet>0 ? ' <span style="color:var(--down)"><b>\u2014 tu gagnes '+gainNet+' min</b></span>' : (gainNet<0 ? ' <span style="color:var(--muted)">(+'+(-gainNet)+' min)</span>' : ' (identique)');
   var msg='<div class="note ok"><b>Proposition trouvée</b> \u2014 tourniquet des postes (on sert chaque poste à tour de rôle, on reprend là où on s\'était arrêté ; tampon draps pour les séchoirs). Chaque poste tourne jusqu\'à ce qu\'il n\'ait plus de linge \u2014 puis son équipe part.<br>'
-      +'• <b>Trous de postes : '+trousAvant+' \u2192 '+trousApres+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':(dTrous<0?' (+'+(-dTrous)+')':''))+'</b><br>'
+      +'• <b>Heure de fin : plan actuel '+fmtHHMM(finAvant)+' \u2192 optimisé '+fmtHHMM(finReelOpt)+finTxt+'</b><br>'
+      +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocAvant-blocApres>0?' (\u2212'+(blocAvant-blocApres)+' min d\'arrêts en moins)':'')+'<br>'
+      +'• Trous de postes : '+trousAvant+' \u2192 '+trousApres+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':(dTrous<0?' (+'+(-dTrous)+')':''))+'<br>'
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
-      +'• Heure de fin tunnel : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finReelOpt)+finTxt+'<br>'
       +(manques.length?'<span style="color:var(--danger)">Pas assez de draps pour tamponner : <b>'+manques.join(', ')+'</b> tourne(nt) en bloc.</span><br>':'')
       +'Si ça vous convient, diffusez-le.</div>';
   resEl.insertAdjacentHTML('beforeend',msg);
