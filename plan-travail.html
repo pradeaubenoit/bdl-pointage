@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v63</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v64</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -286,7 +286,7 @@ var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tempsG
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
-var bRows=[], bBase=[], bLoaded=false, bBaseDate='', bProposFin=null;
+var bRows=[], bBase=[], bLoaded=false, bBaseDate='', bProposFin=null, bOptimized=false;
 
 /* séchoirs : capacités, cuve #4 (index 3) réservée aux draps */
 var CAP=[2,3,3,2], DRAP_DRYER=3;
@@ -854,7 +854,7 @@ function renderBrouillon(){
 async function bLoad(){
   var d=document.getElementById('b-base').value||isoMinus(todayISO(),1);
   document.getElementById('b-status').textContent='Chargement…';
-  bRows=await loadDay(d);bBase=bRows.slice();bBaseDate=d;bLoaded=true;bProposFin=null;
+  bRows=await loadDay(d);bBase=bRows.slice();bBaseDate=d;bLoaded=true;bProposFin=null;bOptimized=false;
   document.getElementById('b-target').value=isoPlus(d,7);
   document.getElementById('b-status').textContent=bRows.length?('Jour chargé : '+bRows.length+' client(s). Vous pouvez optimiser puis diffuser.'):'Aucune donnée pour ce jour.';
   renderBrouillon();
@@ -870,6 +870,7 @@ function bOptimize(){
   var runBefore=maxLentRun(tunnelRows);
   var opt=optimiserOrdre(tunnelMerged,speed,start);
   bRows=opt.order.concat(others);
+  bOptimized=true;
   var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
   var sBase=simSechoirs(tunnelRows,CFG.tempsGalette,start);   // plan actuel (temps plan de travail)
   var sOpt=simSechoirs(opt.order,CFG.tempsGaletteOpt,start);  // optimisé (temps optimisé)
@@ -934,14 +935,19 @@ async function bDiffuse(){
   if(!bLoaded||!bRows.length){alert('Chargez d\'abord un jour de base.');return;}
   var target=document.getElementById('b-target').value;
   if(!target){alert('Choisissez une date cible.');return;}
-  if(!confirm('Diffuser cet ordre vers le '+target+' ? Cela remplacera le contenu de cette date.'))return;
+  var kind=bOptimized?'ordre OPTIMISÉ':'ordre BRUT (non optimisé)';
+  if(!bOptimized){
+    if(!confirm('Attention : cet ordre n\'est PAS optimisé (vous n\'avez pas cliqué « Optimiser l\'ordre »).\n\nDiffuser quand même l\'ordre brut vers le '+target+' ?'))return;
+  } else {
+    if(!confirm('Diffuser l\'ordre OPTIMISÉ ('+bRows.length+' lignes) vers le '+target+' ?\nCela remplacera le contenu de cette date.'))return;
+  }
   try{
     await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',target);
     var payload=bRows.map(function(r,i){return rowToDb(r,target,i);});
     if(payload.length)await sb.from('plan_charges').insert(payload);
-    document.getElementById('b-status').textContent='Diffusé vers le '+target+'. Ouvrez cette date dans Saisie / Plan de travail pour la retrouver.';
+    document.getElementById('b-status').textContent='Diffusé ('+kind+', '+payload.length+' lignes) vers le '+target+'. Ouvrez cette date dans Plan de travail pour la retrouver.';
     if(curDate===target){await loadPlan(curDate);renderRows();renderResults();updateSummary();}
-    alert('Diffusé vers le '+target+'.');
+    alert('Diffusé : '+kind+' ('+payload.length+' lignes) vers le '+target+'.');
   }catch(e){netErr();alert('Échec de la diffusion (réseau).');}
 }
 
