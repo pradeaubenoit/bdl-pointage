@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v55</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v57</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -645,33 +645,38 @@ function construireTourniquet(rows, W){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
   if(W==null)W=1e9;
   rows.forEach(function(r,i){ r._arr=i; });
-  var draps=rows.filter(isDrapRow);
+  var drapsRaw=rows.filter(isDrapRow);
   var slow=rows.filter(function(r){return !isDrapRow(r);});
   var chunks=splitSlow(slow,serieMax);
+  // Découpage ADAPTATIF des draps en tampons : assez fin pour avoir un tampon toutes les 8 cases lentes
+  // (règle des 8 tenue partout quand il y a assez de galettes de draps), sans dépasser blocDraps.
+  var totalSlowGal=chunks.reduce(function(s,c){return s+(parseInt(c.nbTransferts)||0);},0);
+  var totalDrapGal=drapsRaw.reduce(function(s,d){return s+(parseInt(d.nbTransferts)||0);},0);
+  var tamponsNec=Math.max(1,Math.ceil(totalSlowGal/serieMax)-1);
+  var blocMax=(CFG.blocDraps==null?4:CFG.blocDraps); if(blocMax<1)blocMax=1;
+  var blocD=Math.max(1,Math.min(blocMax, totalDrapGal>0?Math.floor(totalDrapGal/tamponsNec)||1:blocMax));
+  var draps=[]; drapsRaw.forEach(function(d){var g=parseInt(d.nbTransferts)||0,k=0;if(g<=0){draps.push(d);return;}while(g>0){var gg=Math.min(blocD,g);draps.push(Object.assign({},d,{id:d.id+'#'+k,src:d.id,nbTransferts:String(gg)}));g-=gg;k++;}});
   function posteOf(c){var ps=c.postes&&c.postes.length?c.postes:['repassage'];return ps[0];}
   var cycle=['faxm','pliage_table','repassage'];
   var queues={}; chunks.forEach(function(c){var p=posteOf(c); if(!queues[p])queues[p]=[]; queues[p].push(c);});
   Object.keys(queues).forEach(function(p){ if(cycle.indexOf(p)<0) cycle.push(p); });
   cycle=cycle.filter(function(p){return queues[p]&&queues[p].length;});
   var ptr={}; cycle.forEach(function(p){ptr[p]=0;});
-  // Répartir les draps RÉGULIÈREMENT sur toute la journée (comme construireCadence) : si assez de draps -> tampon tous les 8 ;
-  // s'il en manque -> on les étale au mieux pour que la plus longue série lente soit minimale (jamais tout brûlé au début).
+  // Tampon draps : quand il y a assez de draps -> on les répartit régulièrement (tout reste bien ≤ 8, aucune queue).
+  // Quand ils sont vraiment rares -> plafond dur à 8 tant qu'il en reste, et le dépassement tombe à la toute fin (l'équipe repassage part).
   var totalSlow=chunks.reduce(function(s,c){return s+(parseInt(c.nbTransferts)||0);},0);
-  var espacement=draps.length>0?Math.max(serieMax,totalSlow/(draps.length+1)):totalSlow+1;
-  var out=[], di=0, acc=0, frontier=W, guard=0;
+  var esp=serieMax; // plafond dur : on remplit jusqu'à 8 avant de tamponner -> use le moins de draps, la queue éventuelle est minimale
+  var out=[], di=0, acc=0, guard=0;
   function remaining(){var n=0;cycle.forEach(function(p){n+=(queues[p].length-ptr[p]);});return n;}
   while(remaining()>0 && guard++<200000){
-    var placed=false;
     for(var t=0;t<cycle.length;t++){
       var p=cycle[t];
-      if(ptr[p]>=queues[p].length) continue;          // ce poste a fini -> il part
+      if(ptr[p]>=queues[p].length) continue;          // ce poste a fini tout son linge -> il part
       var c=queues[p][ptr[p]];
-      if(c._arr>=frontier) continue;                  // client pas encore arrivé -> on saute ce poste ce tour
       var g=parseInt(c.nbTransferts)||0;
-      out.push(c); ptr[p]++; acc+=g; frontier++; placed=true;
-      if(acc>=espacement && di<draps.length){ out.push(draps[di++]); acc=0; } // tampon quand la série atteint l'espacement
+      if(acc>0 && acc+g>esp && di<draps.length){ out.push(draps[di++]); acc=0; } // tampon régulier, jamais >8
+      out.push(c); ptr[p]++; acc+=g;
     }
-    if(!placed) frontier++;                            // rien de dispo -> le temps avance, un client de plus arrive
   }
   while(di<draps.length){ out.push(draps[di++]); }
   return out;
