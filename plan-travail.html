@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v53</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v54</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -642,7 +642,19 @@ function optimiserOrdre(list,speed,start){
   var baseSplit=splitSlow(list,serieMax);
   var baseBouch=attenteRegle(baseSplit), baseRun=maxLentRun(baseSplit);
   var best=construireCadence(list), origND=ndRanks(best), origDrap=drapSeq(best), origDrapBefore=drapBefore(best);
-  function score(o){ return attenteRegle(o)*1e6 + maxLentRun(o)*1e3; }
+  // ÉQUILIBRE DES POSTES : pour chaque poste, l'index (galettes cumulées) de sa PREMIÈRE alimentation + l'étalement.
+  // Nourrir chaque poste au plus tôt (tuer les trous du matin) et grouper son linge (partir tôt).
+  function posteBalance(order){
+    var cum=0, first={}, last={}, gal={};
+    for(var i=0;i<order.length;i++){ var g=parseInt(order[i].nbTransferts)||0;
+      var ps=order[i].postes; if(!ps||!ps.length)ps=['repassage'];
+      for(var k=0;k<ps.length;k++){ var p=ps[k]; if(!(p in first))first[p]=cum; last[p]=cum+g; gal[p]=(gal[p]||0)+g; }
+      cum+=g; }
+    var s=0; for(var p in first){ s += first[p]*2 + (last[p]-first[p]-gal[p]); } // départ tôt (poids 2) + trous internes (span − linge)
+    return s;
+  }
+  // Règle des 8 = priorité absolue quand c'est possible (attenteRegle = violations ÉVITABLES). En dessous, on équilibre les postes.
+  function score(o){ return attenteRegle(o)*1e9 + posteBalance(o)*100 + maxLentRun(o); }
   var b=score(best), it=0, improved=true, WIN=14;
   while(improved&&it<40){improved=false;it++;
     for(var i=0;i<best.length;i++){
@@ -827,31 +839,22 @@ function bOptimize(){
   bRows=opt.order.concat(others);
   var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
   var blocApres=blocageSechoirRows(opt.order);
-  var blocEvite=Math.max(0,blocAvant-blocApres);            // minutes de blocage séchoir évitées par le cadençage
-  var finReelOpt=heureFinReelle(bRows);                     // recalculée depuis l'ordre -> identique après diffusion
+  var finReelOpt=heureFinReelle(bRows);
   var gainNet=Math.round((finAvant-finReelOpt)/60);         // >0 : finit plus tôt ; <0 : finit plus tard
   var dRun=runBefore-opt.run;
-  // GARDE-FOU : ne jamais proposer un ordre qui finit plus tard que la base (tolérance = bruit du modèle de blocage).
-  var TOL=3, reverti=false;
-  if(gainNet < -TOL){ bRows=bBase.slice(); reverti=true; }
+  var trousAvant=trousTotal(simSechoirs(tunnelRows,speed,start)); // trous de postes de la base
+  var trousApres=opt.trous;                                       // trous de postes de la proposition
+  var dTrous=trousAvant-trousApres;
   renderBrouillon();
   var resEl=document.getElementById('b-results');
   var L=(CFG.camionCli==null?2:CFG.camionCli);
-  var msg;
-  if(reverti){
-    msg='<div class="note ok"><b>Aucune réorganisation ne fait mieux sans finir plus tard.</b><br>'
-      +'La meilleure trouvée aurait ramené la série lente de '+runBefore+' à '+opt.run+' galettes, '
-      +'mais elle finit <b>'+(-gainNet)+' min plus tard</b> (blocage séchoir '+blocAvant+' \u2192 '+blocApres+' min). '
-      +'Comme tu veux ne jamais finir plus tard que ta base, <b>je garde ta base telle quelle</b> ('+fmtHHMM(finAvant)+').<br>'
-      +'<span style="color:var(--muted)">Rappel : à vitesse de tunnel fixe, l\'heure de fin dépend surtout de la charge du jour ; ces minutes viennent d\'une estimation du blocage séchoir, encore approximative.</span></div>';
-  } else {
-    msg='<div class="note ok"><b>Proposition trouvée</b> (cadence '+ML+' éponges \u2192 bloc de draps ; éponge/vêtement à ±'+L+' clients, draps libres dans leur ordre) :<br>'
+  var finTxt = gainNet>0 ? ' (\u2212'+gainNet+' min)' : (gainNet<0 ? ' <span style="color:var(--muted)">(+'+(-gainNet)+' min au tunnel \u2014 mais postes mieux nourris)</span>' : ' (identique)');
+  var msg='<div class="note ok"><b>Proposition trouvée</b> \u2014 postes équilibrés (chaque poste nourri au plus tôt ; règle des 8 respectée) :<br>'
+      +'• <b>Trous de postes : '+trousAvant+' \u2192 '+trousApres+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':(dTrous<0?' (+'+(-dTrous)+')':''))+'</b><br>'
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
-      +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocEvite>0?' (\u2212'+blocEvite+' min)':'')+'<br>'
-      +'• <b>Heure de fin réelle : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finReelOpt)+(gainNet>0?' (\u2212'+gainNet+' min)':' (identique)')+'</b><br>'
-      +(manques.length?'<span style="color:var(--danger)">Pas assez de draps pour tamponner : <b>'+manques.join(', ')+'</b> tourne(nt) en bloc. Candidat(s) à l\'emprunt de draps sur demain (à venir).</span><br>':'')
+      +'• Heure de fin tunnel : '+fmtHHMM(finAvant)+' \u2192 '+fmtHHMM(finReelOpt)+finTxt+'<br>'
+      +(manques.length?'<span style="color:var(--danger)">Pas assez de draps pour tamponner : <b>'+manques.join(', ')+'</b> tourne(nt) en bloc.</span><br>':'')
       +'Si ça vous convient, diffusez-le.</div>';
-  }
   resEl.insertAdjacentHTML('beforeend',msg);
 }
 /* PLAN DE TRAVAIL D'UN POSTE : les clients qui passent par ce poste, dans l'ordre de lavage,
