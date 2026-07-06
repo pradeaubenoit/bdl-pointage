@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v62</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v63</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -434,10 +434,8 @@ function tempsGalette(){return (CFG.tempsGalette>0?CFG.tempsGalette:120);}
 function galettesTunnel(allRows){return allRows.reduce(function(s,r){return r.machine==='tunnel'?s+Math.max(0,parseInt(r.nbTransferts)||0):s;},0);}
 function heureFinReelle(allRows,tg){
   var tunnel=allRows.filter(function(r){return r.machine==='tunnel';});
-  var t=(tg>0?tg:tempsGalette());
-  var chargement=parseHeure(CFG.heureDemarrage)+galettesTunnel(allRows)*t;
-  var bloc=blocageSechoirRows(tunnel)*60;
-  return chargement + bloc;
+  var s=simSechoirs(tunnel,(tg>0?tg:tempsGalette()),parseHeure(CFG.heureDemarrage));
+  return s.finSec; // sortie du dernier linge des séchoirs = vraie fin (même moteur que le tableau des postes)
 }
 function gainCadence(allRows){
   var tunnel=allRows.filter(function(r){return r.machine==='tunnel';});
@@ -450,8 +448,8 @@ function withVides(charges,K){if(!K||K<1||charges.length===0)return charges.slic
 /* Tunnel 14 positions (4 stockage + 10 lavage). BRIDAGE : à chaque transfert, cadence = tFixe + (taux MAX des 10 cases
    de lavage) × tParTaux, imposée à tout le tunnel tant que la charge lente n'est pas sortie. Sortie -> passerelle (4) ->
    séchoirs en cycles (remplir 96/gal sauf 1re offerte par passerelle, sécher, vider 96). fin = dernier linge sec. */
-function simSechoirs(list,speed,start){
-  var ROT=(CFG.rotationSec||22), LOAD=96, EMPTY=96, P=4, caps=CAP, N=14, W0=4;
+function simSechoirs(list,tg,start){
+  var CAD=(tg>0?tg:tempsGalette()), LOAD=96, EMPTY=96, P=4, caps=CAP, N=14, W0=4;
   var realCharges=chargesFrom(list), realTotal=realCharges.length;
   if(realTotal===0)return{fin:start,wait:0,total:0,vides:0};
   var charges=withVides(realCharges,CFG.casesVide==null?2:CFG.casesVide), total=charges.length;
@@ -461,7 +459,7 @@ function simSechoirs(list,speed,start){
   var freeExit=0;
   (function(){var p2=new Array(N).fill(null),i2=0,tt=0,ex2=0;
     while(ex2<total){ if(p2[N-1]){ex2++;if(isReal(p2[N-1]))freeExit=tt;} for(var i=N-1;i>0;i--)p2[i]=p2[i-1]; p2[0]=(i2<total)?charges[i2++]:null;
-      var m=0;for(var k=W0;k<N;k++)if(p2[k]&&p2[k].taux>m)m=p2[k].taux; tt+=(m||1)*ROT; }
+      tt+=CAD; }
   })();
   var dryers=caps.map(function(c){return {cap:c,busyUntil:0,idle:true,lot:null};});
   var pass=[], pos=new Array(N).fill(null), q=charges.slice(), loaded=0, t=0, tunnelReady=0, guard=0, stall=0, lastExit=0, lastLoadReal=0, deliveries=[];
@@ -487,7 +485,7 @@ function simSechoirs(list,speed,start){
       for(var i=N-1;i>0;i--) pos[i]=pos[i-1];
       var nc=(loaded<total)? q[loaded++] : null; pos[0]=nc;
       if(nc&&isReal(nc)) lastLoadReal=t;
-      tunnelReady = t + maxTaux()*ROT;
+      tunnelReady = t + CAD;
       assign(); continue;
     }
     var next=Infinity;
@@ -839,13 +837,13 @@ function renderBrouillon(){
   act.classList.remove('hidden');
   var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
-  var s=simSechoirs(bRows,speed,start);
-  var blocBrou=blocageSechoirRows(tunnelRows);
+  var s=simSechoirs(bRows,CFG.tempsGaletteOpt,start);
+  var blocBrou=Math.round(s.wait/60);
   var serie=maxLentRun(tunnelRows);
-  var finAff=heureFinReelle(bRows,CFG.tempsGaletteOpt);
+  var finAff=s.finSec; // même simulation que le tableau -> l'heure de fin et le tableau finissent ensemble
   var labelFin='Heure de fin (optimisé)';
-  var noteFin='<b>Heure de fin</b> = 6h + (galettes × temps moyen par galette, réglé dans Réglages) + le blocage séchoir de cet ordre. ';
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Blocage séchoir',fmtDuree(blocBrou*60))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Blocage séchoir</b> = temps réel où la chaîne attend qu\'un séchoir se libère. L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser ce blocage.</div></div>';
+  var noteFin='<b>Heure de fin</b> = sortie du dernier linge des séchoirs (le tableau ci-dessous), avec le temps moyen par galette optimisé (réglable en haut). ';
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Attente séchoir</b> = temps où la chaîne attend qu\'un séchoir se libère. L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser cette attente.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
@@ -869,18 +867,17 @@ function bOptimize(){
   var others=bBase.filter(function(r){return r.machine!=='tunnel';});
   var ML=(CFG.maxLent==null?8:CFG.maxLent);
   var tunnelMerged=fusionnerMemeClient(tunnelRows); // même nom+code = un seul client
-  var finAvant=heureFinReelle(bBase);                // plan actuel
-  var blocAvant=blocageSechoirRows(tunnelRows);
   var runBefore=maxLentRun(tunnelRows);
   var opt=optimiserOrdre(tunnelMerged,speed,start);
   bRows=opt.order.concat(others);
   var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
-  var blocApres=blocageSechoirRows(opt.order);
-  var finReelOpt=heureFinReelle(bRows,CFG.tempsGaletteOpt);               // optimisé
-  var gainNet=Math.round((finAvant-finReelOpt)/60);        // écart entre les deux heures calées = le gain
+  var sBase=simSechoirs(tunnelRows,CFG.tempsGalette,start);   // plan actuel (temps plan de travail)
+  var sOpt=simSechoirs(opt.order,CFG.tempsGaletteOpt,start);  // optimisé (temps optimisé)
+  var finAvant=sBase.finSec, finReelOpt=sOpt.finSec;
+  var blocAvant=Math.round(sBase.wait/60), blocApres=Math.round(sOpt.wait/60);
+  var gainNet=Math.round((finAvant-finReelOpt)/60);           // écart entre les deux heures = le gain
   var dRun=runBefore-opt.run;
-  var trousAvant=trousTotal(simSechoirs(tunnelRows,speed,start)); // trous de postes de la base
-  var trousApres=opt.trous;                                       // trous de postes de la proposition
+  var trousAvant=trousTotal(sBase), trousApres=trousTotal(sOpt);
   var dTrous=trousAvant-trousApres;
   renderBrouillon();
   var resEl=document.getElementById('b-results');
