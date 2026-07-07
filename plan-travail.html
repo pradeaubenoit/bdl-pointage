@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v64</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v67</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -176,6 +176,7 @@
 
   <div class="wrap">
     <div id="neterr" class="neterr">Hors ligne — la base n'a pas répondu. Vos derniers changements ne sont peut-être pas enregistrés.</div>
+    <datalist id="client-list"></datalist>
 
     <!-- ONGLET SAISIE -->
     <section id="view-saisie">
@@ -184,7 +185,7 @@
         <div class="grid3">
           <div><span class="lab">Date du plan</span><input type="date" id="ins-date"></div>
           <div><span class="lab">Heure souhaitée</span><input type="time" id="ins-time" value="08:00"></div>
-          <div><span class="lab">Nom du client</span><input type="text" id="ins-client" placeholder="Nom du client"></div>
+          <div><span class="lab">Nom du client</span><input type="text" id="ins-client" list="client-list" placeholder="Nom du client"></div>
         </div>
         <div class="grid3" style="margin-top:8px">
           <div><span class="lab">Machine</span><select id="ins-machine"></select></div>
@@ -197,6 +198,16 @@
           <button id="ins-do" class="btn-primary">Insérer à sa place</button>
           <button id="ins-cancel" class="btn-ghost">Annuler</button>
         </div>
+      </div>
+      <div class="card no-print" style="margin-bottom:12px">
+        <div style="font-weight:600;margin-bottom:8px">Rechercher / remplacer un client</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="sr-find" list="client-list" placeholder="Chercher\u2026" style="flex:1;min-width:130px">
+          <input type="text" id="sr-replace" list="client-list" placeholder="Remplacer par\u2026" style="flex:1;min-width:130px">
+          <button id="sr-do" class="btn-primary">Remplacer partout</button>
+          <span id="sr-count" class="sub"></span>
+        </div>
+        <div class="sub" style="margin-top:6px">Tapez pour surligner les lignes correspondantes. « Remplacer partout » corrige le nom sur toutes les lignes de la journée en cours.</div>
       </div>
       <div id="rows"></div>
     </section>
@@ -333,12 +344,17 @@ async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.i
 function mapRow(x){return {id:uid(),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
 function rowToDb(r,date,i){return {user_id:USER.id,date_jour:date,ordre:i,client:r.client||'',poste:(r.postes&&r.postes.length?r.postes.join(','):'repassage'),machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};}
 async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});rows=clean.map(mapRow);netOk();}catch(e){rows=[];netErr();}}
+var clientNames=[];
+function fillClientDatalist(){var dl=document.getElementById('client-list');if(!dl)return;dl.innerHTML=clientNames.map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}
+async function loadClientNames(){try{var r=await sb.from('plan_charges').select('client').eq('user_id',USER.id);var seen={},list=[];(r.data||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;list.push(c);}});(rows||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;list.push(c);}});list.sort(function(a,b){return a.localeCompare(b,'fr');});clientNames=list;fillClientDatalist();}catch(e){}}
+function mergeClientNames(){var seen={};clientNames.forEach(function(n){seen[n.toLowerCase()]=1;});var added=false;(rows||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;clientNames.push(c);added=true;}});if(added){clientNames.sort(function(a,b){return a.localeCompare(b,'fr');});fillClientDatalist();}}
 async function loadDay(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});return clean.map(mapRow);}catch(e){netErr();return [];}}
 var saveRunning=false, saveQueued=false;
 async function savePlan(){
   if(saveRunning){saveQueued=true;return;}
   saveRunning=true;pendingSave=true;
   try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',curDate);if(rows.length){var payload=rows.map(function(r,i){return rowToDb(r,curDate,i);});await sb.from('plan_charges').insert(payload);}netOk();}catch(e){netErr();}
+  mergeClientNames();
   saveRunning=false;pendingSave=false;
   if(saveQueued){saveQueued=false;savePlan();}
 }
@@ -656,6 +672,10 @@ function construireTourniquet(rows, W){
   var queues={}; chunks.forEach(function(c){var p=posteOf(c); if(!queues[p])queues[p]=[]; queues[p].push(c);});
   Object.keys(queues).forEach(function(p){ if(cycle.indexOf(p)<0) cycle.push(p); });
   cycle=cycle.filter(function(p){return queues[p]&&queues[p].length;});
+  // Démarrer le tourniquet sur le POSTE du 1er client de la liste : on respecte le client que Benoît
+  // met en tête (ex. Spas Chatel), au lieu d'imposer faxm ou un drap d'ouverture. Les 5 cases vides
+  // en tête de tunnel font déjà le tampon d'ouverture, donc on peut démarrer direct sur l'éponge.
+  if(chunks.length){ var pStart=posteOf(chunks[0]); var ixc=cycle.indexOf(pStart); if(ixc>0) cycle=cycle.slice(ixc).concat(cycle.slice(0,ixc)); }
   var ptr={}; cycle.forEach(function(p){ptr[p]=0;});
   // PASSE 1 : suite des cases lentes en tourniquet + repérage des frontières « règle des 8 ».
   var seq=[], bnd=[], acc=0, guard=0;
@@ -670,13 +690,13 @@ function construireTourniquet(rows, W){
       seq.push(c); ptr[p]++; acc+=g;
     }
   }
-  // PASSE 2 : répartir TOUS les draps sur les tampons = 1 tampon d'ouverture (nourrit le repassage dès la 1re heure,
-  // supprime le trou d'ouverture) + chaque frontière des 8. Chaque tampon >= minTampon (3 par défaut), en combinant
-  // plusieurs clients de draps si besoin (chante grelet 1 + sac à gaz 2 = tampon de 3). S'il y a du rab, les tampons
-  // sont plus gros et régulièrement, pour que le dernier drap tombe avec la dernière case lente. Draps sortent vite
-  // (voie rapide) -> plus le tampon est gros, plus ça draine l'éponge et plus ça lave vite, sans coût tunnel.
-  var startTampon = pool.length>0;                       // tampon au tout début
-  var slots = (startTampon?1:0) + bnd.length;
+  // PASSE 2 : répartir TOUS les draps sur les tampons = chaque frontière des 8 (PAS de tampon d'ouverture
+  // forcé : les cases vides en tête de tunnel font déjà le tampon de départ, et on veut démarrer sur le
+  // 1er client). Chaque tampon >= minTampon (3 par défaut), en combinant plusieurs clients de draps si
+  // besoin (chante grelet 1 + sac à gaz 2 = tampon de 3). S'il y a du rab, tampons plus gros et réguliers,
+  // pour que le dernier drap tombe avec la dernière case lente. Draps rapides -> gros tampon = mieux drainé.
+  var startTampon = false;                                // plus de tampon de draps au tout début
+  var slots = bnd.length;
   if(slots<1) slots=1;
   var base = Math.floor(totalDrapGal/slots), rem = totalDrapGal - base*slots;
   var sizes=[]; for(var i=0;i<slots;i++){ sizes.push(base + (i<rem?1:0)); } // reste réparti sur les 1ers -> tampons un poil plus gros au début
@@ -722,7 +742,7 @@ function makeRow(r,i,charg){
   var ma=MACHINES.map(function(m){return '<option value="'+m[0]+'"'+(r.machine===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('');
   var chips=POSTES.map(function(p){var on=(r.postes||[]).indexOf(p[0])>=0;return '<span class="chip'+(on?' on':'')+'" data-p="'+p[0]+'">'+p[1]+'</span>';}).join('');
   var hr=(charg!=null)?'<span class="pill" style="margin-left:6px">~'+fmtHHMM(charg)+'</span>':'';
-  el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span>'+hr+'<input type="text" class="r-client" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid3"><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Galettes</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div><span class="lab" style="margin-top:9px">Postes de finition</span><div class="chips">'+chips+'</div></div><div class="info r-info"></div>';
+  el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span>'+hr+'<input type="text" class="r-client" list="client-list" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid3"><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Galettes</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div><span class="lab" style="margin-top:9px">Postes de finition</span><div class="chips">'+chips+'</div></div><div class="info r-info"></div>';
   el.querySelector('.r-client').addEventListener('input',function(e){r.client=e.target.value;sync();});
   el.querySelector('.r-machine').addEventListener('change',function(e){r.machine=e.target.value;el.querySelector('.r-info').innerHTML=rowInfo(r);sync();});
   el.querySelector('.r-code').addEventListener('input',function(e){var v=e.target.value;if(v!==''){var n=Math.max(0,Math.min(30,parseInt(v)||0));v=String(n);e.target.value=v;}r.code=v;el.querySelector('.r-info').innerHTML=rowInfo(r);sync();});
@@ -734,7 +754,9 @@ function makeRow(r,i,charg){
   el.querySelector('.r-info').innerHTML=rowInfo(r);
   return el;
 }
-function renderRows(){var c=document.getElementById('rows');c.innerHTML='';if(rows.length===0){c.innerHTML='<div class="empty">Aucune saisie pour cette journée. Appuyez sur « + Ajouter un client » pour commencer.</div>';updateSummary();return;}var sim=simulerTunnel(rows);rows.forEach(function(r,i){var L=sim.lots[r.id];var charg=(r.machine==='tunnel'&&L&&isFinite(L.charg))?L.charg:null;c.appendChild(makeRow(r,i,charg));});updateSummary();}
+function renderRows(){var c=document.getElementById('rows');c.innerHTML='';if(rows.length===0){c.innerHTML='<div class="empty">Aucune saisie pour cette journée. Appuyez sur « + Ajouter un client » pour commencer.</div>';updateSummary();return;}var sim=simulerTunnel(rows);rows.forEach(function(r,i){var L=sim.lots[r.id];var charg=(r.machine==='tunnel'&&L&&isFinite(L.charg))?L.charg:null;c.appendChild(makeRow(r,i,charg));});updateSummary();if(document.getElementById('sr-find')&&document.getElementById('sr-find').value)srHighlight();}
+function srHighlight(){var fEl=document.getElementById('sr-find');if(!fEl)return;var q=(fEl.value||'').trim().toLowerCase();var els=document.querySelectorAll('#rows .row');var n=0,first=null;els.forEach(function(el){var ci=el.querySelector('.r-client');var v=ci?(ci.value||'').toLowerCase():'';var on=q&&v.indexOf(q)>=0;el.style.outline=on?'2px solid #c8901a':'';el.style.outlineOffset=on?'2px':'';if(on){n++;if(!first)first=el;}});var cEl=document.getElementById('sr-count');if(cEl&&!/modifi/.test(cEl.textContent||''))cEl.textContent=q?(n+' trouvé'+(n>1?'s':'')):'';if(first)first.scrollIntoView({behavior:'smooth',block:'center'});}
+function srReplace(){var f=(document.getElementById('sr-find').value||'').trim();var t=(document.getElementById('sr-replace').value||'').trim();if(!f){alert('Indiquez le nom à chercher.');return;}if(!t){alert('Indiquez le nouveau nom (Remplacer par…).');return;}var re=new RegExp(f.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig');var n=0;rows.forEach(function(r){var c=r.client||'';if(c.toLowerCase().indexOf(f.toLowerCase())>=0){r.client=c.replace(re,t);n++;}});if(n){renderRows();sync();mergeClientNames();}var cEl=document.getElementById('sr-count');if(cEl)cEl.textContent=n+' ligne'+(n>1?'s':'')+' modifiée'+(n>1?'s':'');}
 function add(){
   rows.push({id:uid(),client:'',postes:['repassage'],machine:'tunnel',code:'',nbTransferts:''});
   renderRows();sync();
@@ -813,7 +835,7 @@ function renderResults(){
   if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
-    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+'"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal</div></div>';
+    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+'"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal <button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:8px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button></div></div>';
   });
   h+='<div class="sech">Production par client</div>';
   clients.forEach(function(A){
@@ -827,6 +849,20 @@ function renderResults(){
   });
   h+='</div>';
   out.innerHTML=h;
+}
+/* Ré-optimise UNIQUEMENT la suite à partir de la ligne i : le dessus (déjà lavé) reste figé,
+   le tourniquet reprend sur les lignes du dessous avec les draps restants. */
+function reOptimiserDepuis(i){
+  if(i<=0){ if(!confirm('Ré-optimiser toute la journée depuis le début ?'))return; }
+  else if(!confirm('Ré-optimiser la suite à partir de la ligne '+(i+1)+' ?\nLes '+i+' lignes du dessus restent figées (déjà lavées).'))return;
+  var figes=rows.slice(0,i), suite=rows.slice(i);
+  var suiteTunnel=suite.filter(function(r){return r.machine==='tunnel';});
+  var suiteAutres=suite.filter(function(r){return r.machine!=='tunnel';});
+  if(suiteTunnel.length===0){alert('Aucune ligne tunnel à ré-optimiser après cette ligne.');return;}
+  var start=parseHeure(CFG.heureDemarrage);
+  var opt=optimiserOrdre(fusionnerMemeClient(suiteTunnel),0,start);
+  rows=figes.concat(opt.order).concat(suiteAutres);
+  renderRows();renderResults();sync();
 }
 
 /* ---------- Brouillon ---------- */
@@ -942,12 +978,18 @@ async function bDiffuse(){
     if(!confirm('Diffuser l\'ordre OPTIMISÉ ('+bRows.length+' lignes) vers le '+target+' ?\nCela remplacera le contenu de cette date.'))return;
   }
   try{
-    await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',target);
+    var del=await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',target);
+    if(del.error){netErr();alert('La suppression de l\'ancien plan du '+target+' a été refusée :\n'+del.error.message+'\n\nC\'est probablement ça qui te ramène l\'ordre brut.');return;}
+    var chk0=await sb.from('plan_charges').select('ordre').eq('user_id',USER.id).eq('date_jour',target);
+    if((chk0.data||[]).length>0){netErr();alert('\u26a0 '+chk0.data.length+' anciennes lignes subsistent pour le '+target+' malgré la suppression. C\'est ça qui fait revenir l\'ordre brut (l\'ancien et le nouveau cohabitent). Il faut débloquer la suppression côté Supabase.');return;}
     var payload=bRows.map(function(r,i){return rowToDb(r,target,i);});
-    if(payload.length)await sb.from('plan_charges').insert(payload);
-    document.getElementById('b-status').textContent='Diffusé ('+kind+', '+payload.length+' lignes) vers le '+target+'. Ouvrez cette date dans Plan de travail pour la retrouver.';
+    var ins=payload.length?await sb.from('plan_charges').insert(payload):{error:null};
+    if(ins&&ins.error){netErr();alert('L\'écriture du plan a été refusée :\n'+ins.error.message);return;}
+    var chk1=await sb.from('plan_charges').select('ordre').eq('user_id',USER.id).eq('date_jour',target);
+    var n=(chk1.data||[]).length;
+    document.getElementById('b-status').textContent='Diffusé ('+kind+', '+payload.length+' lignes, '+n+' en base) vers le '+target+'. Ouvrez cette date dans Plan de travail.';
     if(curDate===target){await loadPlan(curDate);renderRows();renderResults();updateSummary();}
-    alert('Diffusé : '+kind+' ('+payload.length+' lignes) vers le '+target+'.');
+    alert('Diffusé : '+kind+' ('+payload.length+' lignes) vers le '+target+'.'+(n!==payload.length?'\n\u26a0 Attention : '+n+' lignes en base au lieu de '+payload.length+' \u2014 d\'anciennes lignes traînent.':''));
   }catch(e){netErr();alert('Échec de la diffusion (réseau).');}
 }
 
@@ -971,6 +1013,7 @@ async function startApp(){
   document.getElementById('b-target').value=isoPlus(curDate,6);
   prevTotals=await loadPrevTotals(curDate);
   await loadPlan(curDate);
+  loadClientNames();
   renderCodes();renderRows();renderResults();updateSummary();
   setView('saisie');
 }
@@ -1041,7 +1084,10 @@ document.getElementById('rot').addEventListener('input',function(e){CFG.tempsGal
 document.getElementById('r-serie').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.maxLent=isNaN(v)?8:Math.max(1,v);scheduleSaveConfig();});
 document.getElementById('r-bloc').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.blocDraps=isNaN(v)?4:Math.max(1,v);scheduleSaveConfig();});
 document.getElementById('r-bouchon').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.bouchonMin=isNaN(v)?10:Math.max(0,v);scheduleSaveConfig();});
-document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();});
+document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();mergeClientNames();});
+document.getElementById('sr-find').addEventListener('input',srHighlight);
+document.getElementById('sr-do').addEventListener('click',srReplace);
+document.getElementById('results').addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('.reopt-here');if(!b)return;var i=parseInt(b.getAttribute('data-i'));if(!isNaN(i))reOptimiserDepuis(i);});
 window.addEventListener('focus',refreshFromCloud);
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refreshFromCloud();});
 
