@@ -6450,11 +6450,13 @@ var _BAR_PALETTE = ['#185FA5', '#1D9E75', '#BA7517', '#534AB7', '#993C1D', '#993
       '<div id="barBar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 10px;padding:10px 12px;background:var(--bg-sunken);border-radius:8px">' +
         '<span style="font-size:13px;color:var(--ink-soft);font-weight:600">📊 Vue barres — postes du jour :</span>' +
         '<div class="select-wrap"><select id="barJour"></select></div>' +
-        '<button class="btn ghost" id="barRefresh" style="padding:6px 12px;font-size:12px">Afficher</button>' +
+'<button class="btn ghost" id="barRefresh" style="padding:6px 12px;font-size:12px">Afficher</button>' +
+'<button class="btn ghost" id="barPrint" style="padding:6px 12px;font-size:12px">🖨️ Imprimer / Afficher</button>' +
       '</div>' +
       '<div id="barWrap" style="overflow-x:auto"></div>';
     sec.appendChild(box);
     document.getElementById('barRefresh').addEventListener('click', barRender);
+    document.getElementById('barPrint').addEventListener('click', barPrint);
     document.getElementById('barJour').addEventListener('change', barRender);
     barFillJours();
   }
@@ -6613,7 +6615,29 @@ async function barRender() {
 
   svg += '</svg>';
   wrap.innerHTML = svg;
-}  
+} 
+  function barPrint() {
+  var wrap = document.getElementById('barWrap');
+  if (!wrap || !wrap.querySelector('svg')) { alert('Affiche d\'abord la vue barres (bouton « Afficher »).'); return; }
+  var labels = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  var jourLabel = labels[_barJour] || '';
+  var semaine = (_planData && _planData.semaine) ? _planData.semaine : '';
+  var svgHtml = wrap.innerHTML;
+  var css = 'body{font-family:-apple-system,Segoe UI,Arial,sans-serif;color:#111;margin:24px}' +
+            'h1{font-size:26px;margin:0 0 2px}.d{color:#666;font-size:15px;margin:0 0 18px}' +
+            'svg{max-width:100%;height:auto}' +
+            '@media print{body{margin:10mm}}';
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Postes — ' + jourLabel + '</title><style>' + css + '</style></head><body>' +
+             '<h1>Postes du jour — ' + jourLabel + '</h1>' +
+             '<div class="d">Semaine ' + semaine + '</div>' +
+             svgHtml +
+             '</body></html>';
+  var blob = new Blob([html], { type: 'text/html' });
+  var url = URL.createObjectURL(blob);
+  var w = window.open(url, '_blank');
+  if (w) { w.addEventListener('load', function () { setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 300); }); }
+  else { alert('Autorise les fenêtres pop-up pour imprimer.'); }
+}
   
 // ============================================================
 // PLANNING — auto-calcul de la FIN quand on change un DÉBUT (Lun→Ven).
