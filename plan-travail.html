@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v67</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v68</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -293,7 +293,7 @@ var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, 
 
 var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
-var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tempsGalette:120,tempsGaletteOpt:120,tFixe:36,tParTaux:10,casesVide:2,camionCli:2,maxLent:8,blocDraps:4,bouchonMin:10};
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tempsGalette:120,tempsGaletteOpt:120,tFixe:36,tParTaux:10,casesVide:2,camionCli:2,maxLent:8,maxClientsBloc:3,blocDraps:4,bouchonMin:10};
 var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
 var rows=[];
 var curDate=todayISO();
@@ -334,7 +334,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.blocDraps==null)CFG.blocDraps=4;if(CFG.bouchonMin==null)CFG.bouchonMin=10;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(CFG.bouchonMin==null)CFG.bouchonMin=10;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
@@ -678,7 +678,9 @@ function construireTourniquet(rows, W){
   if(chunks.length){ var pStart=posteOf(chunks[0]); var ixc=cycle.indexOf(pStart); if(ixc>0) cycle=cycle.slice(ixc).concat(cycle.slice(0,ixc)); }
   var ptr={}; cycle.forEach(function(p){ptr[p]=0;});
   // PASSE 1 : suite des cases lentes en tourniquet + repérage des frontières « règle des 8 ».
-  var seq=[], bnd=[], acc=0, guard=0;
+  var seq=[], bnd=[], acc=0, cliBloc=0, lastCli=null, guard=0;
+  var maxCli=(CFG.maxClientsBloc==null?3:CFG.maxClientsBloc); // max clients éponge distincts par bloc
+  function ckey(c){return (c.client||'').trim().toLowerCase();}
   function remaining(){var n=0;cycle.forEach(function(p){n+=(queues[p].length-ptr[p]);});return n;}
   while(remaining()>0 && guard++<200000){
     for(var t=0;t<cycle.length;t++){
@@ -686,8 +688,13 @@ function construireTourniquet(rows, W){
       if(ptr[p]>=queues[p].length) continue;            // ce poste a fini son linge -> il part
       var c=queues[p][ptr[p]];
       var g=parseInt(c.nbTransferts)||0;
-      if(acc>0 && acc+g>serieMax){ bnd.push(seq.length); acc=0; } // frontière : il faut un tampon draps ici
+      var cl=ckey(c); var isNew=(cl!==lastCli);
+      // Frontière (= tampon draps ici) dès que le bloc d'éponge atteint SOIT 8 galettes, SOIT 3 clients
+      // distincts. Raison : on ne mélange pas deux clients dans un séchoir, donc chaque client occupe un
+      // séchoir entier ; avec 4 séchoirs on en garde 1 libre pour que les draps traversent -> max 3 clients.
+      if(acc>0 && (acc+g>serieMax || (isNew && cliBloc>=maxCli))){ bnd.push(seq.length); acc=0; cliBloc=0; lastCli=null; isNew=true; }
       seq.push(c); ptr[p]++; acc+=g;
+      if(isNew){ cliBloc++; lastCli=cl; }
     }
   }
   // PASSE 2 : répartir TOUS les draps sur les tampons = chaque frontière des 8 (PAS de tampon d'ouverture
