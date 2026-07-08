@@ -6490,12 +6490,19 @@ async function barRender() {
   _barJour = sel ? Number(sel.value || 0) : 0;
 
   if (wrap) wrap.innerHTML = '<div style="color:var(--ink-faint);font-size:13px;padding:8px">Chargement…</div>';
-  try {
+ try {
     var a = await callApi('getAffectationsSemaine', { semaine: _planData.semaine });
     _affData = (a && a.ok) ? (a.affectations || {}) : {};
   } catch (e) {}
-
+  // Recharge les absences du jour pour ne pas afficher les absents comme présents
+  try {
+    var abz = await callApi('getAbsencesSemaine', { semaine: _planData.semaine });
+    _planData.absences = (abz && abz.ok) ? (abz.absences || {}) : (_planData.absences || {});
+  } catch (e) {}
+  var _barAbs = _planData.absences || {};
   var rows = (_planData.planning || []).filter(function (r) {
+    var estAbsent = _barAbs[r.empId] && _barAbs[r.empId][_barJour];
+    if (estAbsent) return false;
     var h = r.jours[_barJour];
     var aff = _affData[r.empId] && _affData[r.empId][_barJour];
     return (h && h.debut && h.fin) || (aff && aff.length);
