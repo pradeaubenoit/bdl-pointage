@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v70</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v71</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -694,6 +694,8 @@ function construireTourniquet(rows, W){
   var ATT=(CFG.attelages||{});
   var cnt={};  chunks.forEach(function(c){var k=ckey(c); cnt[k]=(cnt[k]||0)+1;});
   var forced=null;
+  construireTourniquet.orphelins=[];
+  for(var _ak in ATT){ if(cnt[_ak]!=null && cnt[ATT[_ak]]==null) construireTourniquet.orphelins.push(_ak+' \u2192 '+ATT[_ak]); }
   function atteleDe(ancreKey){ for(var k in ATT){ if(ATT[k]===ancreKey) return k; } return null; }
   function promote(k){                                   // remonte les morceaux de k en tête de sa file
     for(var qi=0;qi<cycle.length;qi++){
@@ -779,6 +781,7 @@ function optimiserOrdre(list,speed,start){
   var libres=[], fixes=[];
   list.forEach(function(r,i){ if(LOCK[cliKey(r)]) fixes.push({i:i,r:r}); else libres.push(r); });
   var best=construireTourniquet(libres, W);
+  var orph=construireTourniquet.orphelins||[];
   best=mergeChunks(best);
   // réinsertion des lignes verrouillées à leur place d'origine
   fixes.forEach(function(f){ var at=Math.min(f.i,best.length); best.splice(at,0,f.r); });
@@ -788,7 +791,7 @@ function optimiserOrdre(list,speed,start){
   var bouchons=attenteRegle(best);
   var fin=simulerTunnel(best).fin;
   var sf=simSechoirs(best,0,start);
-  return {order:best, fin:fin, trous:trousTotal(sf), vides:sf.vides, run:maxLentRun(best), bouchons:bouchons, attenteMin:bouchons*bMin, galIn:gIn, galOut:gOut};
+  return {order:best, fin:fin, trous:trousTotal(sf), vides:sf.vides, run:maxLentRun(best), bouchons:bouchons, attenteMin:bouchons*bMin, galIn:gIn, galOut:gOut, orphelins:orph};
 }
 
 /* ---------- Saisie ---------- */
@@ -801,7 +804,8 @@ function makeRow(r,i,charg){
   var _k=(r.client||'').trim().toLowerCase();
   var _lock=!!((CFG.cadenas||{})[_k]);
   var _anc=((CFG.attelages||{})[_k])||'';
-  var _opts='<option value="">— libre —</option>'+(clientNames||[]).filter(function(n){return n.trim().toLowerCase()!==_k;}).map(function(n){var k=n.trim().toLowerCase();return '<option value="'+esc(k)+'"'+(_anc===k?' selected':'')+'>'+esc(n)+'</option>';}).join('');
+  var _drapKeys={}; (rows||[]).forEach(function(x){ if(isDrapRow(x)){ var kk=(x.client||'').trim().toLowerCase(); if(kk)_drapKeys[kk]=1; } });
+  var _opts='<option value="">— libre —</option>'+(clientNames||[]).filter(function(n){var k=n.trim().toLowerCase();return k!==_k && !_drapKeys[k];}).map(function(n){var k=n.trim().toLowerCase();return '<option value="'+esc(k)+'"'+(_anc===k?' selected':'')+'>'+esc(n)+'</option>';}).join('');
   var att='<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn-ghost r-lock" title="Cadenas : cette ligne ne bouge pas quand j\'optimise" style="'+(_lock?'background:#fde7c8':'')+'">'+(_lock?'\u{1F512} figé':'\u{1F513} libre')+'</button><span class="lab" style="margin:0">\u26D3\uFE0F juste après</span><select class="r-att" style="flex:1;min-width:140px">'+_opts+'</select></div>';
   el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span>'+hr+'<input type="text" class="r-client" list="client-list" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid3"><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Galettes</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div><span class="lab" style="margin-top:9px">Postes de finition</span><div class="chips">'+chips+'</div></div>'+att+'<div class="info r-info"></div>';
   el.querySelector('.r-lock').addEventListener('click',function(){
@@ -989,6 +993,10 @@ function bOptimize(){
   bRows=opt.order.concat(others);
   bOptimized=true;
   if(opt.galIn!==opt.galOut){ alert('\u26a0 Contrôle : '+opt.galIn+' galettes en entrée, '+opt.galOut+' en sortie. '+Math.abs(opt.galIn-opt.galOut)+' galette(s) '+(opt.galOut<opt.galIn?'perdues':'en trop')+' — signalez-le, c\'est un bug.'); }
+  if(opt.orphelins&&opt.orphelins.length){ alert('\u26a0 Attelage ignoré : l\'ancre n\'est pas un client lavé au tunnel (souvent un drap, qui sert de tampon et ne peut pas servir d\'ancre).\n\n'+opt.orphelins.join('\n')+'\n\nAttelez plutôt à un client éponge/vêtement.'); }
+  // Contrôle règle des 8 : le moteur se dénonce s'il produit une série lente trop longue.
+  (function(){var s=0,worst=0;opt.order.forEach(function(r){if(isDrapRow(r))s=0;else{s+=parseInt(r.nbTransferts)||0;if(s>worst)worst=s;}});
+    if(worst>ML) alert('\u26a0 Règle des '+ML+' non respectée : '+worst+' galettes lentes d\'affilée sans tampon de draps. Trop peu de draps disponibles, ou un attelage force la main.');})();
   var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
   var sBase=simSechoirs(tunnelRows,CFG.tempsGalette,start);   // plan actuel (temps plan de travail)
   var sOpt=simSechoirs(opt.order,CFG.tempsGaletteOpt,start);  // optimisé (temps optimisé)
