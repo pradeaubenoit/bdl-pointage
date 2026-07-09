@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v68</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v69</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -677,25 +677,39 @@ function construireTourniquet(rows, W){
   // en tête de tunnel font déjà le tampon d'ouverture, donc on peut démarrer direct sur l'éponge.
   if(chunks.length){ var pStart=posteOf(chunks[0]); var ixc=cycle.indexOf(pStart); if(ixc>0) cycle=cycle.slice(ixc).concat(cycle.slice(0,ixc)); }
   var ptr={}; cycle.forEach(function(p){ptr[p]=0;});
-  // PASSE 1 : suite des cases lentes en tourniquet + repérage des frontières « règle des 8 ».
+  // PASSE 1 : suite des cases lentes + repérage des frontières « règle des 8 ».
+  // On ne pioche plus « chacun son tour » : à chaque case on sert le POSTE LE MOINS CHARGÉ.
+  // La charge compte toutes les galettes déjà envoyées au poste, Y COMPRIS LES DRAPS pour le Repassage
+  // (les draps ne sont pas que des tampons : la repasseuse doit les traiter). Conséquence voulue :
+  // le Repassage étant noyé de draps, ses serviettes reculent derrière les peignoirs (FAXM, peu chargé).
   var seq=[], bnd=[], acc=0, cliBloc=0, lastCli=null, guard=0;
   var maxCli=(CFG.maxClientsBloc==null?3:CFG.maxClientsBloc); // max clients éponge distincts par bloc
   function ckey(c){return (c.client||'').trim().toLowerCase();}
   function remaining(){var n=0;cycle.forEach(function(p){n+=(queues[p].length-ptr[p]);});return n;}
+  var charge={}; cycle.forEach(function(p){charge[p]=0;});
+  if(charge.repassage!=null) charge.repassage+=totalDrapGal;   // les draps chargent la repasseuse
+  // On démarre malgré tout sur le poste du 1er client de Benoît.
+  var forceFirst=(chunks.length?posteOf(chunks[0]):null);
   while(remaining()>0 && guard++<200000){
-    for(var t=0;t<cycle.length;t++){
-      var p=cycle[t];
-      if(ptr[p]>=queues[p].length) continue;            // ce poste a fini son linge -> il part
-      var c=queues[p][ptr[p]];
-      var g=parseInt(c.nbTransferts)||0;
-      var cl=ckey(c); var isNew=(cl!==lastCli);
-      // Frontière (= tampon draps ici) dès que le bloc d'éponge atteint SOIT 8 galettes, SOIT 3 clients
-      // distincts. Raison : on ne mélange pas deux clients dans un séchoir, donc chaque client occupe un
-      // séchoir entier ; avec 4 séchoirs on en garde 1 libre pour que les draps traversent -> max 3 clients.
-      if(acc>0 && (acc+g>serieMax || (isNew && cliBloc>=maxCli))){ bnd.push(seq.length); acc=0; cliBloc=0; lastCli=null; isNew=true; }
-      seq.push(c); ptr[p]++; acc+=g;
-      if(isNew){ cliBloc++; lastCli=cl; }
+    var p=null;
+    if(forceFirst && ptr[forceFirst]<queues[forceFirst].length){ p=forceFirst; forceFirst=null; }
+    else{
+      for(var t=0;t<cycle.length;t++){
+        var q=cycle[t];
+        if(ptr[q]>=queues[q].length) continue;          // ce poste a fini son linge -> il part
+        if(p===null || charge[q]<charge[p]) p=q;        // le moins chargé gagne
+      }
     }
+    if(p===null) break;
+    var c=queues[p][ptr[p]];
+    var g=parseInt(c.nbTransferts)||0;
+    var cl=ckey(c); var isNew=(cl!==lastCli);
+    // Frontière (= tampon draps ici) dès que le bloc d'éponge atteint SOIT 8 galettes, SOIT 3 clients
+    // distincts. Raison : on ne mélange pas deux clients dans un séchoir, donc chaque client occupe un
+    // séchoir entier ; avec 4 séchoirs on en garde 1 libre pour que les draps traversent -> max 3 clients.
+    if(acc>0 && (acc+g>serieMax || (isNew && cliBloc>=maxCli))){ bnd.push(seq.length); acc=0; cliBloc=0; lastCli=null; isNew=true; }
+    seq.push(c); ptr[p]++; acc+=g; charge[p]+=g;
+    if(isNew){ cliBloc++; lastCli=cl; }
   }
   // PASSE 2 : répartir TOUS les draps sur les tampons = chaque frontière des 8 (PAS de tampon d'ouverture
   // forcé : les cases vides en tête de tunnel font déjà le tampon de départ, et on veut démarrer sur le
