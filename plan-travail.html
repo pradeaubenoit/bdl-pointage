@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v71</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v73</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -732,7 +732,7 @@ function construireTourniquet(rows, W){
     // Frontière (= tampon draps ici) dès que le bloc d'éponge atteint SOIT 8 galettes, SOIT 3 clients
     // distincts. Raison : on ne mélange pas deux clients dans un séchoir, donc chaque client occupe un
     // séchoir entier ; avec 4 séchoirs on en garde 1 libre pour que les draps traversent -> max 3 clients.
-    if(acc>0 && (acc+g>serieMax || (isNew && cliBloc>=maxCli))){ bnd.push(seq.length); acc=0; cliBloc=0; lastCli=null; isNew=true; }
+    if(acc>0 && (acc+g>serieMax || (isNew && cliBloc>=maxCli))){ bnd.push({i:seq.length, dure:(acc+g>serieMax)}); acc=0; cliBloc=0; lastCli=null; isNew=true; }
     seq.push(c); ptr[p]++; acc+=g; charge[p]+=g;
     if(isNew){ cliBloc++; lastCli=cl; }
     cnt[cl]--;
@@ -744,10 +744,26 @@ function construireTourniquet(rows, W){
   // besoin (chante grelet 1 + sac à gaz 2 = tampon de 3). S'il y a du rab, tampons plus gros et réguliers,
   // pour que le dernier drap tombe avec la dernière case lente. Draps rapides -> gros tampon = mieux drainé.
   var startTampon = false;                                // plus de tampon de draps au tout début
+  // Toutes les frontières ne se valent pas. Une frontière DURE (règle des 8) protège du blocage tunnel :
+  // elle doit recevoir un drap coûte que coûte. Une frontière SOUPLE (3 clients / séchoirs) est un confort.
+  // On sert donc les dures d'abord ; le reste des draps se répartit ensuite équitablement sur toutes.
   var slots = bnd.length;
-  if(slots<1) slots=1;
-  var base = Math.floor(totalDrapGal/slots), rem = totalDrapGal - base*slots;
-  var sizes=[]; for(var i=0;i<slots;i++){ sizes.push(base + (i<rem?1:0)); } // reste réparti sur les 1ers -> tampons un poil plus gros au début
+  var sizes = new Array(slots); for(var i=0;i<slots;i++) sizes[i]=0;
+  var reste = totalDrapGal;
+  var dures=[], souples=[];
+  bnd.forEach(function(b,ix){ (b.dure?dures:souples).push(ix); });
+  dures.forEach(function(ix){ if(reste>0){ sizes[ix]=1; reste--; } });       // 1 drap minimum aux vitales
+  souples.forEach(function(ix){ if(reste>0){ sizes[ix]=1; reste--; } });     // puis 1 aux confortables
+  var ordreServi = dures.concat(souples);
+  if(ordreServi.length && reste>0){                                          // le rab, réparti en tournant
+    var minT=(CFG.blocDraps==null?3:CFG.blocDraps);
+    for(var pass=0; pass<minT && reste>0; pass++){
+      for(var z=0; z<ordreServi.length && reste>0; z++){ sizes[ordreServi[z]]++; reste--; }
+    }
+    var z2=0; while(reste>0){ sizes[ordreServi[z2%ordreServi.length]]++; reste--; z2++; }
+  }
+  var manqueTampon = dures.filter(function(ix){return sizes[ix]===0;}).length;
+  construireTourniquet.manqueTampon = manqueTampon;
   var pi=0, tk=0;
   function pullTampon(sz){                                // tire sz galettes du pool, regroupe les mêmes clients consécutifs
     var res=[], need=sz;
@@ -760,11 +776,10 @@ function construireTourniquet(rows, W){
     }
     return res;
   }
-  var out=[], si=0;
-  if(startTampon){ pullTampon(sizes[si++]).forEach(function(x){out.push(x);}); }
-  var bset={}; bnd.forEach(function(b){ bset[b]=true; });
+  var out=[];
+  var bset={}; bnd.forEach(function(b,ix){ bset[b.i]=ix; });
   for(var i=0;i<seq.length;i++){
-    if(bset[i] && si<sizes.length){ pullTampon(sizes[si++]).forEach(function(x){out.push(x);}); }
+    if(bset[i]!=null){ pullTampon(sizes[bset[i]]).forEach(function(x){out.push(x);}); }
     out.push(seq[i]);
   }
   if(pi<pool.length){ pullTampon(pool.length-pi).forEach(function(x){out.push(x);}); } // reste éventuel d'arrondi -> fin (repassage tourne encore)
@@ -805,12 +820,18 @@ function makeRow(r,i,charg){
   var _lock=!!((CFG.cadenas||{})[_k]);
   var _anc=((CFG.attelages||{})[_k])||'';
   var _drapKeys={}; (rows||[]).forEach(function(x){ if(isDrapRow(x)){ var kk=(x.client||'').trim().toLowerCase(); if(kk)_drapKeys[kk]=1; } });
-  var _opts='<option value="">— libre —</option>'+(clientNames||[]).filter(function(n){var k=n.trim().toLowerCase();return k!==_k && !_drapKeys[k];}).map(function(n){var k=n.trim().toLowerCase();return '<option value="'+esc(k)+'"'+(_anc===k?' selected':'')+'>'+esc(n)+'</option>';}).join('');
+  var _lockKeys=(CFG.cadenas||{});   // un client figé sort du tourniquet : il ne peut pas servir d'ancre
+  var _opts='<option value="">— libre —</option>'+(clientNames||[]).filter(function(n){var k=n.trim().toLowerCase();return k!==_k && !_drapKeys[k] && !_lockKeys[k];}).map(function(n){var k=n.trim().toLowerCase();return '<option value="'+esc(k)+'"'+(_anc===k?' selected':'')+'>'+esc(n)+'</option>';}).join('');
   var att='<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn-ghost r-lock" title="Cadenas : cette ligne ne bouge pas quand j\'optimise" style="'+(_lock?'background:#fde7c8':'')+'">'+(_lock?'\u{1F512} figé':'\u{1F513} libre')+'</button><span class="lab" style="margin:0">\u26D3\uFE0F juste après</span><select class="r-att" style="flex:1;min-width:140px">'+_opts+'</select></div>';
   el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span>'+hr+'<input type="text" class="r-client" list="client-list" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid3"><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Galettes</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div><span class="lab" style="margin-top:9px">Postes de finition</span><div class="chips">'+chips+'</div></div>'+att+'<div class="info r-info"></div>';
   el.querySelector('.r-lock').addEventListener('click',function(){
     var k=(r.client||'').trim().toLowerCase(); if(!k){alert('Nommez d\'abord le client.');return;}
     if(!CFG.cadenas)CFG.cadenas={};
+    if(!CFG.cadenas[k]){
+      var dep=[]; for(var kk in (CFG.attelages||{})){ if(CFG.attelages[kk]===k) dep.push(kk); }
+      if(dep.length){ alert('Impossible de figer « '+(r.client||'')+' » : ce client sert d\'ancre à '+dep.join(', ')+'.\n\nUn client figé sort du tourniquet et ne peut plus servir d\'ancre. Détachez d\'abord, ou utilisez seulement l\'attelage.'); return; }
+      if((CFG.attelages||{})[k]){ alert('« '+(r.client||'')+' » est déjà attelé à un autre client : l\'attelage impose déjà son ordre, le cadenas est inutile ici.'); return; }
+    }
     if(CFG.cadenas[k]) delete CFG.cadenas[k]; else CFG.cadenas[k]=1;
     saveConfig(); renderRows();
   });
