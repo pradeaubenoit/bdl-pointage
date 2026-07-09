@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v73</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v74</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -691,7 +691,22 @@ function construireTourniquet(rows, W){
   // ATTELAGE ⛓️ : « ce client passe juste après cet autre ». On ne colle PAS les deux : dès que l'ancre a
   // fini son linge, on fait passer le client attelé en tête de sa file. La règle des frontières ci-dessous
   // intercalera d'elle-même le tampon de draps si les deux sont de l'éponge. Les chaînes marchent (A→B→C).
-  var ATT=(CFG.attelages||{});
+  var ATT=Object.assign({},(CFG.attelages||{}));
+  // RÈGLE DES THERMES (implicite) : chez un même Therme, les peignoirs (FAXM) passent avant les serviettes
+  // (Repassage), parce que la repasseuse croule déjà sous les draps. On l'implémente comme un attelage
+  // automatique serviette -> peignoir du même Therme. Un attelage manuel reste prioritaire.
+  (function(){
+    function sansAccent(s){return s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;}
+    function grp(k){return sansAccent(k).replace(/peignoirs?|serviettes?/g,'').replace(/\d+/g,'').replace(/\s+/g,' ').trim();}
+    var peig={}, serv={};
+    chunks.forEach(function(c){
+      var k=ckey(c), n=sansAccent(k);
+      if(!/therm/.test(n)) return;
+      if(/peignoir/.test(n)) peig[grp(k)]=k;
+      else if(/serviette/.test(n)) serv[grp(k)]=k;
+    });
+    for(var g in serv){ if(peig[g] && !ATT[serv[g]] && peig[g]!==serv[g]) ATT[serv[g]]=peig[g]; }
+  })();
   var cnt={};  chunks.forEach(function(c){var k=ckey(c); cnt[k]=(cnt[k]||0)+1;});
   var forced=null;
   construireTourniquet.orphelins=[];
