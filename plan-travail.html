@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v77</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v78</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -827,21 +827,31 @@ function construireTourniquet(rows, W, ctx){
   var manqueTampon = dures.filter(function(ix){return sizes[ix]===0;}).length;
   construireTourniquet.manqueTampon = manqueTampon;
   var pi=0, tk=0;
-  function pullTampon(sz){                                // tire sz galettes du pool, regroupe les mêmes clients consécutifs
+  var pris={};                                            // galettes déjà tirées du pool
+  function grpCli(k){ var s=(k||'').toLowerCase(); s=s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;
+    return s.replace(/sacs?|sac a gaz|eponges?|draps?|serviettes?|peignoirs?|linge|blouses?|couleur/g,'').replace(/\d+/g,'').replace(/\s+/g,' ').trim(); }
+  function pullTampon(sz, pref){                          // tire sz galettes, en servant d'abord les draps du client `pref`
     var res=[], need=sz;
-    while(need>0 && pi<pool.length){
-      var d=pool[pi++];
+    function prendre(idx){
+      var d=pool[idx]; pris[idx]=1;
       var last=res[res.length-1];
       if(last && last.src===d.id){ last.nbTransferts=String((parseInt(last.nbTransferts)||0)+1); }
       else { res.push(Object.assign({},d,{id:d.id+'#T'+(tk++),src:d.id,nbTransferts:'1'})); }
       need--;
     }
+    if(pref){                                             // 1) les draps du même client : on le finit sur place
+      for(var i=0;i<pool.length && need>0;i++){
+        if(pris[i]) continue;
+        if(grpCli((pool[i].client||'').trim())===pref) prendre(i);
+      }
+    }
+    for(var j=0;j<pool.length && need>0;j++){ if(!pris[j]) prendre(j); }   // 2) puis le reste, dans l'ordre
     return res;
   }
   var out=[];
   var bset={}; bnd.forEach(function(b,ix){ bset[b.i]=ix; });
   for(var i=0;i<seq.length;i++){
-    if(bset[i]!=null){ pullTampon(sizes[bset[i]]).forEach(function(x){out.push(x);}); }
+    if(bset[i]!=null){ var av=(i>0?grpCli((seq[i-1].client||'').trim()):null); pullTampon(sizes[bset[i]], av).forEach(function(x){out.push(x);}); }
     out.push(seq[i]);
   }
   if(pi<pool.length){ pullTampon(pool.length-pi).forEach(function(x){out.push(x);}); } // reste éventuel d'arrondi -> fin (repassage tourne encore)
