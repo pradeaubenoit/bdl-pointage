@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v80</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v81</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -866,7 +866,36 @@ function construireTourniquet(rows, W, ctx){
     if(bset[i]!=null){ var av=(i>0?grpCli((seq[i-1].client||'').trim()):null); pullTampon(sizes[bset[i]], av).forEach(function(x){out.push(x);}); }
     out.push(seq[i]);
   }
-  if(pi<pool.length){ pullTampon(pool.length-pi).forEach(function(x){out.push(x);}); } // reste éventuel d'arrondi -> fin (repassage tourne encore)
+  var reste2=[]; for(var q=0;q<pool.length;q++){ if(!pris[q]) reste2.push(q); }
+  if(reste2.length){ pullTampon(reste2.length).forEach(function(x){out.push(x);}); } // reliquat -> fin de journée
+
+  /* RÉPARATION : le moteur relit son propre plan. Tant qu'une série lente dépasse la règle des 8, il prend
+     UNE galette à un tampon de draps trop gras (ailleurs dans la journée) et la pose là où elle manque.
+     On ne crée pas de drap : on redistribue. S'il n'y a vraiment plus de drap disponible, on s'arrête. */
+  (function reparer(){
+    var ML=serieMax, tours=0;
+    function estDrap(r){ return rowType(r)==='drap'; }
+    while(tours++<500){
+      var run=0, faute=-1;
+      for(var i=0;i<out.length;i++){
+        if(estDrap(out[i])){ run=0; continue; }
+        run+=parseInt(out[i].nbTransferts)||0;
+        if(run>ML){ faute=i; break; }                       // c'est ici qu'il manque un tampon
+      }
+      if(faute<0) return;                                    // plus de violation
+      // chercher un tampon de draps à plus d'une galette, le plus proche possible
+      var don=-1, best=1e9;
+      for(var j=0;j<out.length;j++){
+        if(!estDrap(out[j])) continue;
+        if((parseInt(out[j].nbTransferts)||0)<2) continue;   // ne pas vider un tampon d'une seule galette
+        var d=Math.abs(j-faute); if(d<best){best=d;don=j;}
+      }
+      if(don<0) return;                                      // vraiment pas assez de draps ce jour-là
+      out[don].nbTransferts=String((parseInt(out[don].nbTransferts)||0)-1);
+      var g=Object.assign({},out[don],{id:out[don].id+'#R'+(tk++),nbTransferts:'1'});
+      out.splice(faute,0,g);                                 // le drap prend la place qui manquait
+    }
+  })();
   return out;
 }
 /* CADENAS 🔒 : les clients verrouillés ne sont pas confiés au tourniquet ; ils sont réinsérés
