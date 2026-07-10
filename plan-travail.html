@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v81</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v82</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -788,10 +788,14 @@ function construireTourniquet(rows, W, ctx){
     else if(forceFirst && tete(forceFirst)>=0){ p=forceFirst; forceFirst=null; }
     else{
       forced=null;
+      // ARBITRE = TON ORDRE DE SAISIE. Entre deux postes servables, on prend celui dont le prochain client
+      // a le plus petit rang d'origine (le plus haut dans ta liste). La charge ne départage que les égalités.
       for(var t=0;t<cycle.length;t++){
         var q2=cycle[t];
-        if(tete(q2)<0) continue;                          // rien de servable ici (fini ou bloqué)
-        if(p===null || charge[q2]<charge[p]) p=q2;        // le moins chargé gagne
+        var ti2=tete(q2); if(ti2<0) continue;             // rien de servable ici (fini ou bloqué)
+        if(p===null){ p=q2; continue; }
+        var rNew=queues[q2][ti2]._arr, rCur=queues[p][tete(p)]._arr;
+        if(rNew<rCur || (rNew===rCur && charge[q2]<charge[p])) p=q2;
       }
     }
     if(p===null) break;
