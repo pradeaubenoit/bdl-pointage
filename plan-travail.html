@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v74</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v75</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -656,7 +656,7 @@ function construireCadence(rows){
    chaque poste là où on s'était arrêté. 8 cases lentes maxi par bloc puis tampon draps (règle des 8).
    Un poste ne s'arrête que lorsqu'il n'a PLUS de linge arrivé -> son équipe part (trou final assumé).
    W = fenêtre d'arrivée (combien de clients sont déjà là ; on ne lave jamais un client pas encore arrivé). */
-function construireTourniquet(rows, W){
+function construireTourniquet(rows, W, ctx){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
   if(W==null)W=1e9;
   rows.forEach(function(r,i){ r._arr=i; });
@@ -688,6 +688,9 @@ function construireTourniquet(rows, W){
   function remaining(){var n=0;cycle.forEach(function(p){n+=(queues[p].length-ptr[p]);});return n;}
   var charge={}; cycle.forEach(function(p){charge[p]=0;});
   if(charge.repassage!=null) charge.repassage+=totalDrapGal;   // les draps chargent la repasseuse
+  // Ré-optimisation partielle : on hérite de ce que les postes ont DÉJÀ encaissé avant la ligne figée,
+  // sinon le moteur croit repartir d'un atelier vide et ressert trop tôt le poste déjà chargé.
+  if(ctx && ctx.charge){ for(var _p in ctx.charge){ if(charge[_p]!=null) charge[_p]+=ctx.charge[_p]; } }
   // ATTELAGE ⛓️ : « ce client passe juste après cet autre ». On ne colle PAS les deux : dès que l'ancre a
   // fini son linge, on fait passer le client attelé en tête de sa file. La règle des frontières ci-dessous
   // intercalera d'elle-même le tampon de draps si les deux sont de l'éponge. Les chaînes marchent (A→B→C).
@@ -705,7 +708,9 @@ function construireTourniquet(rows, W){
       if(/peignoir/.test(n)) peig[grp(k)]=k;
       else if(/serviette/.test(n)) serv[grp(k)]=k;
     });
-    for(var g in serv){ if(peig[g] && !ATT[serv[g]] && peig[g]!==serv[g]) ATT[serv[g]]=peig[g]; }
+    // Un peignoir déjà lavé avant la ligne figée ne doit plus bloquer sa serviette.
+    var dejaFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(/therm/.test(n)&&/peignoir/.test(n)) dejaFait[grp(k)]=1;});
+    for(var g in serv){ if(dejaFait[g]) continue; if(peig[g] && !ATT[serv[g]] && peig[g]!==serv[g]) ATT[serv[g]]=peig[g]; }
   })();
   var cnt={};  chunks.forEach(function(c){var k=ckey(c); cnt[k]=(cnt[k]||0)+1;});
   var forced=null;
@@ -804,13 +809,25 @@ function construireTourniquet(rows, W){
    à l'index exact qu'ils occupaient dans la liste d'origine. */
 function clesCadenas(){var C=(CFG.cadenas||{}),o={};for(var k in C){if(C[k])o[k]=1;}return o;}
 function cliKey(r){return (r.client||'').trim().toLowerCase();}
-function optimiserOrdre(list,speed,start){
+/* Contexte d'une ré-optimisation partielle : ce que les postes ont déjà encaissé
+   et quels clients sont déjà passés, avant la ligne figée. */
+function contexteDepuis(figes){
+  var ch={faxm:0,pliage_table:0,repassage:0}, faits=[];
+  (figes||[]).forEach(function(r){
+    var g=parseInt(r.nbTransferts)||0;
+    var p=(r.postes&&r.postes.length?r.postes[0]:'repassage');
+    if(ch[p]!=null) ch[p]+=g;
+    var k=(r.client||'').trim().toLowerCase(); if(k) faits.push(k);
+  });
+  return {charge:ch, faits:faits};
+}
+function optimiserOrdre(list,speed,start,ctx){
   var W=(CFG.camionCli==null?15:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin);
   // MOTEUR TOURNIQUET : sert le poste le moins chargé, tampon draps réparti (règle des 8 + des séchoirs).
   var LOCK=clesCadenas();
   var libres=[], fixes=[];
   list.forEach(function(r,i){ if(LOCK[cliKey(r)]) fixes.push({i:i,r:r}); else libres.push(r); });
-  var best=construireTourniquet(libres, W);
+  var best=construireTourniquet(libres, W, ctx);
   var orph=construireTourniquet.orphelins||[];
   best=mergeChunks(best);
   // réinsertion des lignes verrouillées à leur place d'origine
@@ -981,7 +998,7 @@ function reOptimiserDepuis(i){
   var suiteAutres=suite.filter(function(r){return r.machine!=='tunnel';});
   if(suiteTunnel.length===0){alert('Aucune ligne tunnel à ré-optimiser après cette ligne.');return;}
   var start=parseHeure(CFG.heureDemarrage);
-  var opt=optimiserOrdre(fusionnerMemeClient(suiteTunnel),0,start);
+  var opt=optimiserOrdre(fusionnerMemeClient(suiteTunnel),0,start,contexteDepuis(figes));
   rows=figes.concat(opt.order).concat(suiteAutres);
   renderRows();renderResults();sync();
 }
