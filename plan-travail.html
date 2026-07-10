@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v78</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v80</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -656,6 +656,19 @@ function construireCadence(rows){
    chaque poste là où on s'était arrêté. 8 cases lentes maxi par bloc puis tampon draps (règle des 8).
    Un poste ne s'arrête que lorsqu'il n'a PLUS de linge arrivé -> son équipe part (trou final assumé).
    W = fenêtre d'arrivée (combien de clients sont déjà là ; on ne lave jamais un client pas encore arrivé). */
+/* NOYAU DU NOM D'UN CLIENT : on retire les mots de catégorie (et les chiffres) situés à la FIN du nom.
+   « therme de royat sac a gaz » et « therme de royat serviette » -> « therme de royat » (même client).
+   « hotel campanile thiers » et « hotel campanile clermont » restent DIFFÉRENTS (thiers/clermont ne sont
+   pas des catégories). Robuste aux mots nouveaux : bavoir, couverture, plastique… */
+var MOTS_CAT=/^(sac|sacs|gaz|a|eponge|eponges|drap|draps|serviette|serviettes|peignoir|peignoirs|linge|blouse|blouses|couleur|couleurs|bavoir|bavoirs|couverture|couvertures|plastique|resident|residents|sante|et|de|du|des|la|le|les|spa|spas|table)$/;
+function noyauClient(nom){
+  var s=(nom||'').toLowerCase();
+  s=s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;
+  s=s.replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+  var w=s.split(' ');
+  while(w.length>1 && (MOTS_CAT.test(w[w.length-1]) || /^\d+$/.test(w[w.length-1]))) w.pop();
+  return w.join(' ');
+}
 function construireTourniquet(rows, W, ctx){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
   if(W==null)W=1e9;
@@ -670,7 +683,7 @@ function construireTourniquet(rows, W, ctx){
   // ceux des hôtels ayant aussi de l'éponge soient piochés en premier.
   (function(){
     function sa(s){return s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;}
-    function gH(k){return sa(k).replace(/sacs?|eponges?|draps?|serviettes?|linge|blouses?/g,'').replace(/\d+/g,'').replace(/\s+/g,' ').trim();}
+    function gH(k){return noyauClient(k);}
     var avecEponge={};
     rows.forEach(function(r){ if(!isDrapRow(r) && rowType(r)==='eponge'){ var k=(r.client||'').trim().toLowerCase(); if(k && !/therm/.test(sa(k))) avecEponge[gH(k)]=1; } });
     drapsRaw.sort(function(a,b){
@@ -713,7 +726,7 @@ function construireTourniquet(rows, W, ctx){
   // automatique serviette -> peignoir du même Therme. Un attelage manuel reste prioritaire.
   (function(){
     function sansAccent(s){return s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;}
-    function grp(k){return sansAccent(k).replace(/peignoirs?|serviettes?/g,'').replace(/\d+/g,'').replace(/\s+/g,' ').trim();}
+    function grp(k){return noyauClient(k);}
     var peig={}, serv={};
     chunks.forEach(function(c){
       var k=ckey(c), n=sansAccent(k);
@@ -727,15 +740,15 @@ function construireTourniquet(rows, W, ctx){
     // RÈGLE DES HÔTELS (implicite) : le linge arrive mélangé. On sort d'abord les draps, on rassemble les
     // éponges au fil du tri, et les SACS passent en dernier (il faut les vider). Les draps étant des tampons
     // répartis par le moteur, on ne peut garantir ici que : éponge du même hôtel AVANT son sac.
-    function grpH(k){return sansAccent(k).replace(/sacs?|eponges?|draps?|serviettes?|linge|blouses?/g,'').replace(/\d+/g,'').replace(/\s+/g,' ').trim();}
+    function grpH(k){return noyauClient(k);}
     var epo={}, sac={};
     chunks.forEach(function(c){
       var k=ckey(c), n=sansAccent(k), t=rowType(c);
       if(/therm/.test(n)) return;                       // les Thermes ont déjà leur règle
-      if(/sac/.test(n)) sac[grpH(k)]=k;
+      if(t==='vetement') sac[grpH(k)]=k;                // sacs, bavoirs, plastique… = ce qui est en sac
       else if(t==='eponge') epo[grpH(k)]=k;
     });
-    var epoFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(!/therm/.test(n)&&!/sac/.test(n)) epoFait[grpH(k)]=1;});
+    var epoFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(!/therm/.test(n)) epoFait[grpH(k)]=1;});
     for(var g2 in sac){ if(epoFait[g2]) continue; if(epo[g2] && !ATT[sac[g2]] && epo[g2]!==sac[g2]) ATT[sac[g2]]=epo[g2]; }
   })();
   var cnt={};  chunks.forEach(function(c){var k=ckey(c); cnt[k]=(cnt[k]||0)+1;});
@@ -828,8 +841,7 @@ function construireTourniquet(rows, W, ctx){
   construireTourniquet.manqueTampon = manqueTampon;
   var pi=0, tk=0;
   var pris={};                                            // galettes déjà tirées du pool
-  function grpCli(k){ var s=(k||'').toLowerCase(); s=s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;
-    return s.replace(/sacs?|sac a gaz|eponges?|draps?|serviettes?|peignoirs?|linge|blouses?|couleur/g,'').replace(/\d+/g,'').replace(/\s+/g,' ').trim(); }
+  function grpCli(k){ return noyauClient(k); }
   function pullTampon(sz, pref){                          // tire sz galettes, en servant d'abord les draps du client `pref`
     var res=[], need=sz;
     function prendre(idx){
