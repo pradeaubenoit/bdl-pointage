@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v75</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v77</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -665,6 +665,19 @@ function construireTourniquet(rows, W, ctx){
   var chunks=splitSlow(slow,serieMax);
   var totalDrapGal=drapsRaw.reduce(function(s,d){return s+(parseInt(d.nbTransferts)||0);},0);
   // Toutes les galettes de draps mises en commun (chacune garde sa ligne source pour l'affichage/postes).
+  // Les draps d'un hôtel doivent sortir AVANT ses éponges (le linge arrive mélangé, on sort les draps
+  // d'abord). Les draps servant de tampons, on ne peut pas les figer : on biaise la réserve pour que
+  // ceux des hôtels ayant aussi de l'éponge soient piochés en premier.
+  (function(){
+    function sa(s){return s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;}
+    function gH(k){return sa(k).replace(/sacs?|eponges?|draps?|serviettes?|linge|blouses?/g,'').replace(/\d+/g,'').replace(/\s+/g,' ').trim();}
+    var avecEponge={};
+    rows.forEach(function(r){ if(!isDrapRow(r) && rowType(r)==='eponge'){ var k=(r.client||'').trim().toLowerCase(); if(k && !/therm/.test(sa(k))) avecEponge[gH(k)]=1; } });
+    drapsRaw.sort(function(a,b){
+      var ka=gH((a.client||'').trim().toLowerCase()), kb=gH((b.client||'').trim().toLowerCase());
+      return (avecEponge[kb]?1:0)-(avecEponge[ka]?1:0);   // draps d'hôtels « à éponge » d'abord
+    });
+  })();
   var pool=[]; drapsRaw.forEach(function(d){var g=parseInt(d.nbTransferts)||0;for(var i=0;i<g;i++)pool.push(d);});
   // Postes en tourniquet.
   function posteOf(c){var ps=c.postes&&c.postes.length?c.postes:['repassage'];return ps[0];}
@@ -711,6 +724,19 @@ function construireTourniquet(rows, W, ctx){
     // Un peignoir déjà lavé avant la ligne figée ne doit plus bloquer sa serviette.
     var dejaFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(/therm/.test(n)&&/peignoir/.test(n)) dejaFait[grp(k)]=1;});
     for(var g in serv){ if(dejaFait[g]) continue; if(peig[g] && !ATT[serv[g]] && peig[g]!==serv[g]) ATT[serv[g]]=peig[g]; }
+    // RÈGLE DES HÔTELS (implicite) : le linge arrive mélangé. On sort d'abord les draps, on rassemble les
+    // éponges au fil du tri, et les SACS passent en dernier (il faut les vider). Les draps étant des tampons
+    // répartis par le moteur, on ne peut garantir ici que : éponge du même hôtel AVANT son sac.
+    function grpH(k){return sansAccent(k).replace(/sacs?|eponges?|draps?|serviettes?|linge|blouses?/g,'').replace(/\d+/g,'').replace(/\s+/g,' ').trim();}
+    var epo={}, sac={};
+    chunks.forEach(function(c){
+      var k=ckey(c), n=sansAccent(k), t=rowType(c);
+      if(/therm/.test(n)) return;                       // les Thermes ont déjà leur règle
+      if(/sac/.test(n)) sac[grpH(k)]=k;
+      else if(t==='eponge') epo[grpH(k)]=k;
+    });
+    var epoFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(!/therm/.test(n)&&!/sac/.test(n)) epoFait[grpH(k)]=1;});
+    for(var g2 in sac){ if(epoFait[g2]) continue; if(epo[g2] && !ATT[sac[g2]] && epo[g2]!==sac[g2]) ATT[sac[g2]]=epo[g2]; }
   })();
   var cnt={};  chunks.forEach(function(c){var k=ckey(c); cnt[k]=(cnt[k]||0)+1;});
   var forced=null;
@@ -725,6 +751,18 @@ function construireTourniquet(rows, W, ctx){
     }
   }
   function bloque(c){ var a=ATT[ckey(c)]; return (a!=null && cnt[a]>0); }   // attelé, ancre pas finie
+  // FILE D'ATTENTE DES THERMES : dès qu'un peignoir est terminé, sa serviette prend rang. Le premier
+  // Therme engagé est le premier bouclé — on ne commence pas les serviettes d'un autre avant les siennes.
+  var mark={}; cycle.forEach(function(p){mark[p]=0;});
+  function prendRang(k){
+    for(var qi=0;qi<cycle.length;qi++){
+      var p=cycle[qi], q=queues[p];
+      if(mark[p]<ptr[p]) mark[p]=ptr[p];
+      var pris=[];
+      for(var i=q.length-1;i>=ptr[p];i--){ if(ckey(q[i])===k) pris.unshift(q.splice(i,1)[0]); }
+      if(pris.length){ for(var z=0;z<pris.length;z++) q.splice(mark[p]+z,0,pris[z]); mark[p]+=pris.length; return; }
+    }
+  }
   function tete(p){                                        // 1er morceau servable de la file p
     for(var i=ptr[p];i<queues[p].length;i++){ if(!bloque(queues[p][i])) return i; }
     return -1;
@@ -756,7 +794,11 @@ function construireTourniquet(rows, W, ctx){
     seq.push(c); ptr[p]++; acc+=g; charge[p]+=g;
     if(isNew){ cliBloc++; lastCli=cl; }
     cnt[cl]--;
-    if(cnt[cl]===0){ var nx=atteleDe(cl); if(nx && cnt[nx]>0) promote(nx); else forced=null; }
+    if(cnt[cl]===0){
+      var nx=atteleDe(cl); if(nx && cnt[nx]>0) promote(nx); else forced=null;
+      // un peignoir de Therme vient de finir -> sa serviette prend rang (FIFO des Thermes engagés)
+      for(var _s in ATT){ if(ATT[_s]===cl && cnt[_s]>0 && _s!==nx) prendRang(_s); }
+    }
   }
   // PASSE 2 : répartir TOUS les draps sur les tampons = chaque frontière des 8 (PAS de tampon d'ouverture
   // forcé : les cases vides en tête de tunnel font déjà le tampon de départ, et on veut démarrer sur le
