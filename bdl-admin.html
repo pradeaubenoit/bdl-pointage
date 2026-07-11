@@ -5988,8 +5988,10 @@ renderPlanning = function () {
      if (aType) {
         var ac = _planAbsColor(aType);
         joursAbs.push(JP_LABELS[j]);
-        var mesHeures = (_planData.heures && _planData.heures[r.empId]) ? _planData.heures[r.empId] : {};
-        var hP = mesHeures[j] || null; // { debut, fin } = heures de PRÉSENCE, ou null
+var mesHeures = (_planData.heures && _planData.heures[r.empId]) ? _planData.heures[r.empId] : {};
+        var hPraw = mesHeures[j] || null;
+        function _planHHMM(v){if(v==null)return '';if(typeof v==='string'){var m=v.match(/(\d{1,2}):(\d{2})/);return m?(('0'+m[1]).slice(-2)+':'+m[2]):'';}if(v instanceof Date){return ('0'+v.getHours()).slice(-2)+':'+('0'+v.getMinutes()).slice(-2);}return '';}
+        var hP = hPraw ? { debut: _planHHMM(hPraw.debut), fin: _planHHMM(hPraw.fin) } : null;
         var ligneHeure = '';
         if (hP && (hP.debut || hP.fin)) {
           ligneHeure =
@@ -5997,7 +5999,7 @@ renderPlanning = function () {
               (hP.debut || '?') + '–' + (hP.fin || '?') +
             '</div>';
         }
-        cells +=
+       cells +=
           '<td class="td-num plan-abs-cell" data-emp="' + r.empId + '" data-jour="' + j + '" data-type="' + aType + '" ' +
               'data-debut="' + (hP ? (hP.debut || '') : '') + '" data-fin="' + (hP ? (hP.fin || '') : '') + '" ' +
               'style="white-space:nowrap;background:' + ac.bg + ';cursor:pointer" title="Cliquer pour préciser les heures de présence">' +
