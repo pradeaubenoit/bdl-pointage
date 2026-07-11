@@ -6561,10 +6561,18 @@ var _barAbs = _planData.absences || {};
     var aff = (_affData[r.empId] && _affData[r.empId][_barJour]) || [];
     if (aff.length) {
       // regrouper les segments du salarié par poste
-      var parPoste = {};
+var parPoste = {};
+      // Présence partielle : borne les segments aux heures de présence réelles
+      var _hp = _barHeures[r.empId] && _barHeures[r.empId][_barJour];
+      var _presDeb = (_hp && _hp.debut) ? _barMin(_barHHMM(_hp.debut)) : null;
+      var _presFin = (_hp && _hp.fin) ? _barMin(_barHHMM(_hp.fin)) : null;
       aff.forEach(function (p) {
         var pd = _barMin(p.debut), pf = _barMin(p.fin);
         if (pd == null || pf == null || pf <= pd) return;
+        // rogne le segment à la plage de présence
+        if (_presDeb != null && pd < _presDeb) pd = _presDeb;
+        if (_presFin != null && pf > _presFin) pf = _presFin;
+        if (pf <= pd) return; // en dehors de la présence → segment vide, on saute
         if (!parPoste[p.poste]) parPoste[p.poste] = [];
         parPoste[p.poste].push({ d: pd, f: pf, poste: p.poste });
       });
