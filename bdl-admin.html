@@ -6497,15 +6497,19 @@ async function barRender() {
     _affData = (a && a.ok) ? (a.affectations || {}) : {};
   } catch (e) {}
   // Recharge les absences du jour pour ne pas afficher les absents comme présents
-  try {
+ try {
     var abz = await callApi('getAbsencesSemaine', { semaine: _planData.semaine });
     _planData.absences = (abz && abz.ok) ? (abz.absences || {}) : (_planData.absences || {});
+    _planData.heures = (abz && abz.ok) ? (abz.heures || {}) : (_planData.heures || {});
   } catch (e) {}
-  var _barAbs = _planData.absences || {};
+var _barAbs = _planData.absences || {};
+  var _barHeures = _planData.heures || {};
   var rows = (_planData.planning || []).filter(function (r) {
     var estAbsent = _barAbs[r.empId] && _barAbs[r.empId][_barJour];
-    if (estAbsent) return false;
-    var h = r.jours[_barJour];
+    var presencePartielle = _barHeures[r.empId] && _barHeures[r.empId][_barJour] &&
+                            (_barHeures[r.empId][_barJour].debut || _barHeures[r.empId][_barJour].fin);
+    if (estAbsent && !presencePartielle) return false;
+  var h = r.jours[_barJour];
     var aff = _affData[r.empId] && _affData[r.empId][_barJour];
     return (h && h.debut && h.fin) || (aff && aff.length);
   });
