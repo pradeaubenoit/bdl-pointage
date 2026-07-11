@@ -6515,7 +6515,25 @@ var _barAbs = _planData.absences || {};
   });
 
   if (rows.length === 0) { wrap.innerHTML = '<div style="color:var(--ink-faint);font-size:13px;padding:8px">Personne de planifié ce jour.</div>'; return; }
-
+// Présence partielle : remplacer l'horaire par les heures de présence réelles (8h-12h)
+  function _barHHMM(v) {
+    if (v == null) return '';
+    if (typeof v === 'string') { var m = v.match(/(\d{1,2}):(\d{2})/); return m ? (('0'+m[1]).slice(-2)+':'+m[2]) : ''; }
+    if (v instanceof Date) { return ('0'+v.getHours()).slice(-2)+':'+('0'+v.getMinutes()).slice(-2); }
+    return '';
+  }
+  rows.forEach(function (r) {
+    var hp = _barHeures[r.empId] && _barHeures[r.empId][_barJour];
+    if (hp && (hp.debut || hp.fin)) {
+      var pd = _barHHMM(hp.debut), pf = _barHHMM(hp.fin);
+      if (pd || pf) {
+        if (!r.jours[_barJour]) r.jours[_barJour] = {};
+        if (pd) r.jours[_barJour].debut = pd;
+        if (pf) r.jours[_barJour].fin = pf;
+      }
+    }
+  });
+  
   // bornes horaires
   var minH = 24 * 60, maxH = 0;
   rows.forEach(function (r) {
