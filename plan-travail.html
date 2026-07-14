@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v82</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v83</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1117,8 +1117,12 @@ function renderBrouillon(){
   resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Attente séchoir</b> = temps où la chaîne attend qu\'un séchoir se libère. L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser cette attente.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
+  var cgTG=(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette());   // même étalon que l'heure de fin optimisée
+  var cgSec=start;                                                       // horloge de chargement, cumulée
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
-    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+'"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span><span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal</div></div>';
+    var hh=(r.machine==='tunnel')?'<span class="pill" style="margin-left:6px">~'+fmtHHMM(cgSec)+'</span>':'';
+    if(r.machine==='tunnel') cgSec+=g*cgTG;                              // les galettes de cette ligne défilent
+    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+'"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+hh+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal</div></div>';
   });
   listEl.innerHTML=h;
 }
