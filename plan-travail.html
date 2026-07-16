@@ -154,7 +154,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v83</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v84</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -721,6 +721,15 @@ function construireTourniquet(rows, W, ctx){
   // fini son linge, on fait passer le client attelé en tête de sa file. La règle des frontières ci-dessous
   // intercalera d'elle-même le tampon de draps si les deux sont de l'éponge. Les chaînes marchent (A→B→C).
   var ATT=Object.assign({},(CFG.attelages||{}));
+  // Un attelage ne doit JAMAIS créer de boucle (A attend B qui attend A) : les deux s'attendraient
+  // pour toujours et leur linge disparaîtrait du plan. On refuse tout lien qui refermerait une chaîne.
+  function creeBoucle(k,anc){
+    var vu={}, cur=anc;
+    while(cur){ if(cur===k) return true; if(vu[cur]) return false; vu[cur]=1; cur=ATT[cur]; }
+    return false;
+  }
+  function lier(k,anc){ if(k===anc||ATT[k]||creeBoucle(k,anc)) return false; ATT[k]=anc; return true; }
+  Object.keys(ATT).forEach(function(k){ var a=ATT[k]; delete ATT[k]; if(!lier(k,a)) construireTourniquet.boucles=(construireTourniquet.boucles||[]).concat(k+' \u2192 '+a); });
   // RÈGLE DES THERMES (implicite) : chez un même Therme, les peignoirs (FAXM) passent avant les serviettes
   // (Repassage), parce que la repasseuse croule déjà sous les draps. On l'implémente comme un attelage
   // automatique serviette -> peignoir du même Therme. Un attelage manuel reste prioritaire.
@@ -736,7 +745,7 @@ function construireTourniquet(rows, W, ctx){
     });
     // Un peignoir déjà lavé avant la ligne figée ne doit plus bloquer sa serviette.
     var dejaFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(/therm/.test(n)&&/peignoir/.test(n)) dejaFait[grp(k)]=1;});
-    for(var g in serv){ if(dejaFait[g]) continue; if(peig[g] && !ATT[serv[g]] && peig[g]!==serv[g]) ATT[serv[g]]=peig[g]; }
+    for(var g in serv){ if(dejaFait[g]) continue; if(peig[g]) lier(serv[g],peig[g]); }
     // RÈGLE DES HÔTELS (implicite) : le linge arrive mélangé. On sort d'abord les draps, on rassemble les
     // éponges au fil du tri, et les SACS passent en dernier (il faut les vider). Les draps étant des tampons
     // répartis par le moteur, on ne peut garantir ici que : éponge du même hôtel AVANT son sac.
@@ -749,11 +758,11 @@ function construireTourniquet(rows, W, ctx){
       else if(t==='eponge') epo[grpH(k)]=k;
     });
     var epoFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(!/therm/.test(n)) epoFait[grpH(k)]=1;});
-    for(var g2 in sac){ if(epoFait[g2]) continue; if(epo[g2] && !ATT[sac[g2]] && epo[g2]!==sac[g2]) ATT[sac[g2]]=epo[g2]; }
+    for(var g2 in sac){ if(epoFait[g2]) continue; if(epo[g2]) lier(sac[g2],epo[g2]); }
   })();
   var cnt={};  chunks.forEach(function(c){var k=ckey(c); cnt[k]=(cnt[k]||0)+1;});
   var forced=null;
-  construireTourniquet.orphelins=[];
+  construireTourniquet.orphelins=[]; construireTourniquet.bloques=0;
   for(var _ak in ATT){ if(cnt[_ak]!=null && cnt[ATT[_ak]]==null) construireTourniquet.orphelins.push(_ak+' \u2192 '+ATT[_ak]); }
   function atteleDe(ancreKey){ for(var k in ATT){ if(ATT[k]===ancreKey) return k; } return null; }
   function promote(k){                                   // remonte les morceaux de k en tête de sa file
@@ -798,7 +807,16 @@ function construireTourniquet(rows, W, ctx){
         if(rNew<rCur || (rNew===rCur && charge[q2]<charge[p])) p=q2;
       }
     }
-    if(p===null) break;
+    if(p===null){
+      // Sécurité : plus rien de servable alors qu'il reste du linge = blocage d'attelages. On verse le
+      // restant dans le plan (ordre de saisie) plutôt que de le faire disparaître silencieusement.
+      var rest=[];
+      cycle.forEach(function(q3){ for(var z=ptr[q3];z<queues[q3].length;z++) rest.push(queues[q3][z]); ptr[q3]=queues[q3].length; });
+      rest.sort(function(a,b){return (a._arr||0)-(b._arr||0);});
+      rest.forEach(function(r3){ seq.push(r3); });
+      if(rest.length) construireTourniquet.bloques=rest.length;
+      break;
+    }
     var ti=tete(p);
     if(ti>ptr[p]){ var it=queues[p].splice(ti,1)[0]; queues[p].splice(ptr[p],0,it); }  // saute les bloqués
     var c=queues[p][ptr[p]];
