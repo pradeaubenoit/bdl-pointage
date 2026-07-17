@@ -5474,7 +5474,22 @@ function closeScoringDetail() {
     container.appendChild(sec);
   }
 })();
-
+// ============================================================
+// PLANNING + VUE BARRES — figer la colonne des noms et l'en-tête
+// ============================================================
+(function injectStickyCSS() {
+  if (document.getElementById('bdlStickyCSS')) return;
+  var st = document.createElement('style');
+  st.id = 'bdlStickyCSS';
+  st.textContent =
+    '#section-planning .table-wrap{overflow:auto;max-height:75vh}' +
+    '#section-planning .table-wrap table{border-collapse:separate;border-spacing:0}' +
+    '#section-planning .table-wrap thead th{position:sticky;top:0;z-index:3;background:#1F4E4A;color:#fff}' +
+    '#section-planning .table-wrap thead th:first-child{left:0;z-index:4}' +
+    '#section-planning .table-wrap tbody td:first-child{position:sticky;left:0;z-index:2;background:#fff;box-shadow:2px 0 3px -1px rgba(0,0,0,0.12)}' +
+    '#section-planning .table-wrap tbody tr td:first-child{background:inherit}';
+  document.head.appendChild(st);
+})();
 var _planData = null;
 var _planSort = 'role';
 var JP_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
