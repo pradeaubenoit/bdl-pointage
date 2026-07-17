@@ -1475,7 +1475,8 @@ tr:hover { background: var(--bg-sunken); }
             <th>Date</th>
             <th>Jour</th>
             <th class="td-num">Transf.</th>
-            <th class="td-num">Kg</th>
+<th class="td-num">Kg</th>
+            <th class="td-num">Heures</th>
             <th class="td-num">Eau (m³)</th>
             <th class="td-num">Gaz (%)</th>
             <th class="td-num">Compr. (h)</th>
@@ -2492,16 +2493,25 @@ async function loadProductionMonthData(month) {
 // ============================================================
 async function loadProductionMonth(month) {
   const tbody = document.getElementById('prodTbody');
-  tbody.innerHTML = '<tr><td colspan="10"><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
+  tbody.innerHTML = '<tr><td colspan="11"><div class="loader"><div class="spinner-mini"></div></div></td></tr>';
 
   // Bust cache pour avoir le frais
   delete state.productionByMonth[month];
-  const prod = await loadProductionMonthData(month);
+const prod = await loadProductionMonthData(month);
   const records = prod.production || [];
-
+  // Heures travaillées par jour (mêmes heures que la paie : plafonnées par les références)
+  var heuresParJour = {};
+  try {
+    var cal = await callApi('getCalendrierHeuresMois', { month: month });
+    ((cal && cal.calendrier) || []).forEach(function (c) {
+      Object.keys(c.jours || {}).forEach(function (d) {
+        heuresParJour[d] = (heuresParJour[d] || 0) + c.jours[d];
+      });
+    });
+  } catch (e) {}
   // Totaux
   const tot = records.reduce((a, r) => {
-    a.kg += r.kg || 0;
+  a.kg += r.kg || 0;
     a.eau += r.eau_m3 || 0;
     a.gaz += r.gaz_pct || 0;
     a.compr += r.compresseur_h || 0;
@@ -2540,7 +2550,7 @@ async function loadProductionMonth(month) {
 
   // Tableau
   if (records.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Aucune saisie pour ce mois</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Aucune saisie pour ce mois</td></tr>';
     return;
   }
   // Tri décroissant (plus récent en haut)
@@ -2551,6 +2561,7 @@ async function loadProductionMonth(month) {
       <td class="td-day">${r.jour_travail || ''}</td>
       <td class="td-num td-mono">${r.transferts != null ? fmtNum(r.transferts) : '—'}</td>
       <td class="td-num td-mono">${r.kg != null ? fmtNum(r.kg) : '—'}</td>
+      <td class="td-num td-mono">${heuresParJour[r.date_travail] != null ? fmtNum(heuresParJour[r.date_travail], 1) : '—'}</td>
       <td class="td-num td-mono">${r.eau_m3 != null ? fmtNum(r.eau_m3, 1) : '—'}</td>
       <td class="td-num td-mono">${r.gaz_pct != null ? fmtNum(r.gaz_pct, 1) : '—'}</td>
       <td class="td-num td-mono">${r.compresseur_h != null ? fmtNum(r.compresseur_h, 1) : '—'}</td>
