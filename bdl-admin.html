@@ -6625,12 +6625,13 @@ var parPoste = {};
   var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" style="min-width:' + W + 'px;font-family:Bricolage Grotesque,sans-serif">';
 
   // axe heures (sur toute la hauteur)
-  for (var hh = minH; hh <= maxH; hh += 60) {
+for (var hh = minH; hh <= maxH; hh += 60) {
     var xx = x(hh);
     svg += '<line x1="' + xx + '" y1="' + (top - 6) + '" x2="' + xx + '" y2="' + (H - 30) + '" stroke="#9b958a" stroke-opacity="0.15"/>';
     svg += '<text x="' + xx + '" y="' + (top - 10) + '" font-size="10" fill="#8A877E" text-anchor="middle">' + (hh / 60) + 'h</text>';
+    svg += '<text x="' + xx + '" y="' + (H - 14) + '" font-size="10" fill="#8A877E" text-anchor="middle">' + (hh / 60) + 'h</text>';
   }
-
+  
   // --- Dessin groupe par groupe ---
   var yCur = top;
   ordrePostes.forEach(function (poste) {
