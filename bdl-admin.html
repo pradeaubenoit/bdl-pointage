@@ -5703,7 +5703,6 @@ async function planSaveEmp(empId) {
       if (resp && resp.ok) okCount++;
     }
     toast('Planning enregistré (' + okCount + '/' + total + ' salariés)', 'success');
-    loadPlanningSection();
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
   } finally {
