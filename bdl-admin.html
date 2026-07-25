@@ -4070,47 +4070,6 @@ async function savePointageManuel() {
   if (!date) { alert('Sélectionne une date'); return; }
   if (!heure) { alert('Saisis une heure'); return; }
   
-  try {
-    const resp = await callApi('addPointageManuel', {
-      empId: empId,
-      date: date,
-      heure: heure,
-      notes: note || 'Régularisation manuelle'
-    });
-    
-    if (resp.error) {
-      alert('Erreur : ' + resp.error);
-      return;
-    }
-    
-    toast('✅ Pointage ajouté avec succès', 'success');
-    document.getElementById('modalPointage').style.display = 'none';
-    
-    // Recharger la liste
-    loadPointagesJour(document.getElementById('pointagesDate').value);
-    
-  } catch (err) {
-    alert('Erreur : ' + err.message);
-  }
-}
-
-window.deletePointage = async function(id) {
-  if (!confirm('Supprimer ce pointage ?')) return;
-  try {
-    const resp = await callApi('deletePointage', { id: id });
-    if (resp.ok) {
-      toast('Pointage supprimé', 'success');
-      loadPointagesJour(document.getElementById('pointagesDate').value);
-    } else {
-      alert('Erreur : ' + (resp.error || 'Échec suppression'));
-    }
-  } catch (err) {
-    alert('Erreur : ' + err.message);
-  }
-};
-
-// ============================================================
-// V4.8.3 — VUE CALENDRIER HEURES JOUR PAR JOUR
 // ============================================================
 window.switchVuePointages = function(vue) {
   const vueJour = document.getElementById('vuePointagesJour');
@@ -5046,7 +5005,11 @@ window.setHeureRefSalarie = async function(empId, dateISO, heure, selectEl) {
     if (resp && resp.error) {
       toast('Erreur : ' + resp.error, 'error');
     } else {
-      toast(heure ? ('Réf. ' + heure + ' enregistrée') : 'Référence retirée', 'success');
+toast(heure ? ('Réf. ' + heure + ' enregistrée') : 'Référence retirée', 'success');
+      if (window.__memoRefAbs && window.__memoRefAbs.cle === dateISO) {
+        if (heure) window.__memoRefAbs.refMap[empId] = heure;
+        else delete window.__memoRefAbs.refMap[empId];
+      }
       const di = document.getElementById('pointagesDate');
       if (di && di.value) loadPointagesJour(di.value);
     }
@@ -5171,12 +5134,17 @@ window.changerNbJoursAbsence = async function(empId, dateISO, nbInput) {
     setTimeout(function() { injecterColonneRef(tentative + 1); }, 400);
     return;
   }
- Promise.all([
-    callApi('getHeuresReference', { date: dateISO }),
-    callApi('getAbsences', { date: dateISO })
-  ]).then(function(results) {
+var _memo = window.__memoRefAbs;
+  var _src = (_memo && _memo.cle === dateISO)
+    ? Promise.resolve([{ heures_ref: _memo.refMap }, { absences: _memo.absMap }])
+    : Promise.all([
+        callApi('getHeuresReference', { date: dateISO }),
+        callApi('getAbsences', { date: dateISO })
+      ]);
+  _src.then(function(results) {
     const refMap = (results[0] && results[0].heures_ref) || {};
     const absMap = (results[1] && results[1].absences) || {};
+    window.__memoRefAbs = { cle: dateISO, refMap: refMap, absMap: absMap };
     tbody.querySelectorAll('tr').forEach(function(tr) {
       if (tr.querySelector('td[colspan]')) return;
       if (tr.querySelector('.cell-ref-arrivee')) return;
@@ -7836,7 +7804,18 @@ function openPanel() {
     return p;
   };
   callApi._cached = true;
-})();  
+})();
+  // PERF — La mémoire réf/absences est vidée dès qu'une absence change
+(function () {
+  if (window.__memoPatchAbs) return;
+  window.__memoPatchAbs = true;
+  var _prev = callApi;
+  var ECRITURES = ['setAbsence', 'setAbsenceRemplace', 'deleteAbsence', 'deleteAbsencePlage'];
+  callApi = function (action, params) {
+    if (ECRITURES.indexOf(String(action)) !== -1) window.__memoRefAbs = null;
+    return _prev.apply(this, arguments);
+  };
+})();
   
 // ============================================================
 // PERF — Graphique 12 mois chargé EN PARALLÈLE (au lieu de mois par mois)
