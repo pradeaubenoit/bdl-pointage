@@ -5981,10 +5981,19 @@ loadPlanningSection = async function () {
       var ab = await callApi('getAbsencesSemaine', { semaine: semaine });
 _planData.absences = (ab && ab.ok) ? (ab.absences || {}) : {};
       _planData.heures = (ab && ab.ok) ? (ab.heures || {}) : {};
-    } catch (e) { _planData.absences = {}; }
+} catch (e) { _planData.absences = {}; }
     renderPlanning();
+    // Soldes sup chargés en arrière-plan (évite ~25 s au chargement du planning)
+    callApi('getAllSoldesSup', {}).then(function (rs) {
+      var soldes = (rs && rs.soldes) || {};
+      (_planData.planning || []).forEach(function (r) {
+        var sd = soldes[r.empId];
+        r.solde_sup = sd ? Math.round((Number(sd.solde) || 0) * 10) / 10 : 0;
+      });
+      renderPlanning();
+    }).catch(function () {});
   } catch (err) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + err.message + '</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + err.message + '</td></tr>';
   }
 };
 
