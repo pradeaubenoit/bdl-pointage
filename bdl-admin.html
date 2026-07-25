@@ -4069,6 +4069,47 @@ async function savePointageManuel() {
   if (!empId) { alert('Sélectionne un salarié'); return; }
   if (!date) { alert('Sélectionne une date'); return; }
   if (!heure) { alert('Saisis une heure'); return; }
+  try {
+    const resp = await callApi('addPointageManuel', {
+      empId: empId,
+      date: date,
+      heure: heure,
+      notes: note || 'Régularisation manuelle'
+    });
+    
+    if (resp.error) {
+      alert('Erreur : ' + resp.error);
+      return;
+    }
+    
+    toast('✅ Pointage ajouté avec succès', 'success');
+    document.getElementById('modalPointage').style.display = 'none';
+    
+    // Recharger la liste
+    loadPointagesJour(document.getElementById('pointagesDate').value);
+    
+  } catch (err) {
+    alert('Erreur : ' + err.message);
+  }
+}
+
+window.deletePointage = async function(id) {
+  if (!confirm('Supprimer ce pointage ?')) return;
+  try {
+    const resp = await callApi('deletePointage', { id: id });
+    if (resp.ok) {
+      toast('Pointage supprimé', 'success');
+      loadPointagesJour(document.getElementById('pointagesDate').value);
+    } else {
+      alert('Erreur : ' + (resp.error || 'Échec suppression'));
+    }
+  } catch (err) {
+    alert('Erreur : ' + err.message);
+  }
+};
+
+// ============================================================
+// V4.8.3 — VUE CALENDRIER HEURES JOUR PAR JOUR
   
 // ============================================================
 window.switchVuePointages = function(vue) {
