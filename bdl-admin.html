@@ -5171,7 +5171,7 @@ window.changerNbJoursAbsence = async function(empId, dateISO, nbInput) {
   if (!tbody) return;
   const hasRealRows = tbody.querySelector('button[onclick*="prefillModalPointage"]');
   const stillLoading = tbody.textContent.indexOf('Chargement') !== -1;
-  if ((!hasRealRows || stillLoading) && tentative < 15) {
+  if ((!hasRealRows || stillLoading) && tentative < 60) {
     setTimeout(function() { injecterColonneRef(tentative + 1); }, 400);
     return;
   }
@@ -5243,8 +5243,10 @@ var _memo = window.__memoRefAbs;
 if (typeof loadPointagesJour === 'function') {
   const _origLoadPtj = loadPointagesJour;
   loadPointagesJour = function(date) {
-    const r = _origLoadPtj.apply(this, arguments);
-    setTimeout(function(){ injecterColonneRef(0); }, 300);
+const r = _origLoadPtj.apply(this, arguments);
+    Promise.resolve(r).then(function() {
+      setTimeout(function(){ injecterColonneRef(0); }, 80);
+    }).catch(function(){ setTimeout(function(){ injecterColonneRef(0); }, 300); });
     return r;
   };
 }
