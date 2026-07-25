@@ -5541,10 +5541,19 @@ async function loadPlanningSection() {
       if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + ((resp && resp.error) || 'inconnue') + '</td></tr>';
       return;
     }
-    _planData = resp;
+_planData = resp;
     var sb = document.getElementById('planSaison');
     if (sb) { sb.textContent = resp.saison; sb.className = 'badge ' + resp.saison; }
     renderPlanning();
+    // Soldes sup chargés en arrière-plan (évite ~25 s au chargement du planning)
+    callApi('getAllSoldesSup', {}).then(function (rs) {
+      var soldes = (rs && rs.soldes) || {};
+      (_planData.planning || []).forEach(function (r) {
+        var sd = soldes[r.empId];
+        r.solde_sup = sd ? Math.round((Number(sd.solde) || 0) * 10) / 10 : 0;
+      });
+      renderPlanning();
+    }).catch(function () {});
   } catch (err) {
     if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Erreur : ' + err.message + '</td></tr>';
   }
