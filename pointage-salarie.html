@@ -940,7 +940,7 @@ function renderStats(s) {
   $('stats-annee').textContent = fmtHM(s.supDepuisDemarrage);
   // V4.9.4 — Afficher les heures sup en sous-titre de chaque tuile
   setSubSup('stats-jour-sub', s.supAujourdhui);
-  setSubSup('stats-semaine-sup-sub', s.supSemaine);
+setSubSup('stats-semaine-sup-sub', s.supSemaineNet != null ? s.supSemaineNet : s.supSemaine);
   setSubSup('stats-mois-sub', s.supMoisNet != null ? s.supMoisNet : s.supMois);
   if (s.nbJoursInjustifies > 0) {
     var moisSubEl = document.getElementById('stats-mois-sub');
@@ -972,10 +972,11 @@ function fmtHM(h) {
 
 // V4.9.4 — Affichage des heures sup en sous-titre
 function fmtSup(supHeures) {
-  if (!supHeures || supHeures <= 0) return '';
+  if (supHeures == null || isNaN(supHeures) || supHeures === 0) return '';
+if (supHeures < 0) return 'Dont −' + fmtHM(Math.abs(supHeures)) + ' à rattraper';
   return 'Dont +' + fmtHM(supHeures) + ' en sup';
 }
-
+  
 // V4.9.4 — Helper : créer ou mettre à jour le sous-titre sup dans une tuile
 function setSubSup(elementId, supHeures) {
   var el = document.getElementById(elementId);
@@ -998,6 +999,7 @@ function setSubSup(elementId, supHeures) {
     el.style.fontWeight = '500';
     parentEl.parentNode.appendChild(el);
   }
+el.style.color = (supHeures < 0) ? '#9C2B2B' : '#B8742A';
   el.textContent = fmtSup(supHeures);
 }
 
