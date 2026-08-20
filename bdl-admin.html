@@ -1075,6 +1075,7 @@ tr:hover { background: var(--bg-sunken); }
         <label style="font-size:14px;color:var(--text-soft)">Date :</label>
         <input type="date" id="pointagesDate" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border)">
         <button class="btn btn-primary" id="btnAjouterPointage">➕ Ajouter pointage</button>
+                    <button class="btn btn-ghost" id="btnRafraichirJour" style="display:none" onclick="loadPointagesJour(document.getElementById('pointagesDate').value)">🔄 Rafraîchir les heures</button>
       </div>
     </div>
 
@@ -3921,6 +3922,22 @@ window.selectEmp = function(id, name) {
   document.getElementById('modalEmpDisplay').style.color = '#15803d';
 };
 
+// V2 — Marque la ligne d'un salarié comme "à rafraîchir" après une saisie.
+// Aucun appel serveur : la saisie suivante peut démarrer immédiatement.
+function marquerLigneARafraichir(empId) {
+  var tr = document.querySelector('#pointagesTbody tr[data-emp="' + empId + '"]');
+  if (tr) {
+    tr.style.opacity = '0.5';
+    var tds = tr.getElementsByTagName('td');
+    if (tds[2]) tds[2].innerHTML = '<span style="color:#d97706;font-size:12px">⏳ à rafraîchir</span>';
+    if (tds[3]) tds[3].innerHTML = '<span style="color:#d97706;font-size:12px">—</span>';
+  }
+  var b = document.getElementById('btnRafraichirJour');
+  if (b) {
+    b.style.display = 'inline-block';
+    b.textContent = '🔄 Rafraîchir les heures';
+  }
+}
 async function loadPointagesJour(date) {
   const tbody = document.getElementById('pointagesTbody');
   const stats = document.getElementById('pointagesStats');
@@ -3980,7 +3997,7 @@ async function loadPointagesJour(date) {
         statut = '<span style="background:#f3f4f6;color:#6b7280;padding:4px 8px;border-radius:6px;font-size:12px">✓ Parti</span>';
       }
       
-      html += `<tr style="${rowStyle}">
+      html += `<tr data-emp="${emp.id}" style="${rowStyle}">
         <td><strong>${emp.prenom} ${emp.nom}</strong></td>
         <td>${scansHtml}</td>
         <td>${p.heures.toFixed(1)} h</td>
@@ -4004,10 +4021,10 @@ async function loadPointagesJour(date) {
           : (p.abs_type
               ? '<span style="color:var(--text-soft);font-size:12px">' + (labelsAbs[p.abs_type] || p.abs_type) + '</span>'
               : '<span style="color:var(--text-soft);font-size:12px">Absent / Repos</span>');
-        html += `<tr style="${rowStyle}">
+        html += `<tr data-emp="${emp.id}" style="${rowStyle}">
           <td>${emp.prenom} ${emp.nom}</td>
           <td><em>Aucun scan</em></td>
-          <td>—</td>
+        <td>—</td>
           <td>${statut}</td>
           <td>
             <button class="btn btn-ghost btn-sm" onclick="prefillModalPointage('${emp.id}', '${resp.date}')">➕ Ajouter scan</button>
@@ -4085,8 +4102,8 @@ async function savePointageManuel() {
     toast('✅ Pointage ajouté avec succès', 'success');
     document.getElementById('modalPointage').style.display = 'none';
     
-    // Recharger la liste
-    loadPointagesJour(document.getElementById('pointagesDate').value);
+    // V2 — Pas de rechargement : on marque la ligne du salarié comme à rafraîchir
+    marquerLigneARafraichir(empId);
     
   } catch (err) {
     alert('Erreur : ' + err.message);
