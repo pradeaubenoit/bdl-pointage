@@ -4116,7 +4116,16 @@ window.deletePointage = async function(id) {
     const resp = await callApi('deletePointage', { id: id });
     if (resp.ok) {
       toast('Pointage supprimé', 'success');
-      loadPointagesJour(document.getElementById('pointagesDate').value);
+        // V2 — Pas de rechargement : on retire le scan à l'écran et on marque la ligne
+        var btnSup = document.querySelector('button[onclick*="deletePointage(\'' + id + '\')"]');
+        if (btnSup) {
+          var trSup = btnSup.closest('tr');
+          if (btnSup.parentNode) btnSup.parentNode.remove();
+          if (trSup) {
+            var empSup = trSup.getAttribute('data-emp');
+            if (empSup) marquerLigneARafraichir(empSup);
+          }
+        }
     } else {
       alert('Erreur : ' + (resp.error || 'Échec suppression'));
     }
@@ -5068,8 +5077,8 @@ toast(heure ? ('Réf. ' + heure + ' enregistrée') : 'Référence retirée', 'su
         if (heure) window.__memoRefAbs.refMap[empId] = heure;
         else delete window.__memoRefAbs.refMap[empId];
       }
-      const di = document.getElementById('pointagesDate');
-      if (di && di.value) loadPointagesJour(di.value);
+        // V2 — Pas de rechargement : on marque la ligne du salarié
+        marquerLigneARafraichir(empId);
     }
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
