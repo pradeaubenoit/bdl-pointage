@@ -2016,42 +2016,31 @@ const state = {
 // API (JSONP)
 // ============================================================
 let jsonpCounter = 0;
-function callApi(action, params) {
-  return new Promise((resolve, reject) => {
-    if (!API_URL) { reject(new Error('Pas d\'URL API. Ajoute ?api=...')); return; }
-    const cbName = 'cb_' + Date.now() + '_' + (++jsonpCounter);
-    const timeout = setTimeout(() => {
-      delete window[cbName];
-      if (s.parentNode) document.body.removeChild(s);
-      reject(new Error('Timeout API'));
-    }, 120000);
-    window[cbName] = function(data) {
-      clearTimeout(timeout);
-      delete window[cbName];
-      if (s.parentNode) document.body.removeChild(s);
-      if (data && data.error) reject(new Error(data.error));
-      else resolve(data);
-    };
-    const queryParts = ['action=' + encodeURIComponent(action), 'callback=' + cbName];
-    if (params) {
-      Object.keys(params).forEach(k => {
-        if (params[k] !== undefined && params[k] !== null) {
-          queryParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
-        }
-      });
-    }
-    const s = document.createElement('script');
-    s.src = API_URL + '?' + queryParts.join('&');
-    s.onerror = () => {
-      clearTimeout(timeout);
-      delete window[cbName];
-      if (s.parentNode) document.body.removeChild(s);
-      reject(new Error('Échec chargement'));
-    };
-    document.body.appendChild(s);
-  });
-}
 
+  function callApi(action, params) {
+  if (!API_URL) return Promise.reject(new Error('Pas d\'URL API. Ajoute ?api=...'));
+  const queryParts = ['action=' + encodeURIComponent(action)];
+  if (params) {
+    Object.keys(params).forEach(k => {
+      if (params[k] !== undefined && params[k] !== null) {
+        queryParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+      }
+    });
+  }
+  const url = API_URL + '?' + queryParts.join('&');
+  return fetch(url, { method: 'GET', redirect: 'follow' })
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(txt => {
+      let data;
+      try { data = JSON.parse(txt); }
+      catch (e) { throw new Error('Reponse invalide'); }
+      if (data && data.error) throw new Error(data.error);
+      return data;
+    });
+}
 // ============================================================
 // FORMATTERS
 // ============================================================
