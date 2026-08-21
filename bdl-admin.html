@@ -5186,11 +5186,11 @@ window.changerNbJoursAbsence = async function(empId, dateISO, nbInput) {
   if (!tbody) return;
   const hasRealRows = tbody.querySelector('button[onclick*="prefillModalPointage"]');
   const stillLoading = tbody.textContent.indexOf('Chargement') !== -1;
-  if ((!hasRealRows || stillLoading) && tentative < 60) {
-    setTimeout(function() { injecterColonneRef(tentative + 1); }, 400);
-    return;
-  }
-var _memo = window.__memoRefAbs;
+    if ((!hasRealRows || stillLoading) && tentative < 450) {
+      setTimeout(function() { injecterColonneRef(tentative + 1); }, 400);
+      return;
+    }
+    var _memo = window.__memoRefAbs;
   var _src = (_memo && _memo.cle === dateISO)
     ? Promise.resolve([{ heures_ref: _memo.refMap }, { absences: _memo.absMap }])
     : Promise.all([
