@@ -1160,18 +1160,21 @@ document.getElementById('submitBtn').addEventListener('click', async function() 
         String(now.getMonth() + 1).padStart(2, '0') + '-' +
         String(now.getDate()).padStart(2, '0');
 
+      // V2 — Les 4 relevés en parallèle au lieu de l'un après l'autre
+      const jobs = [];
       if (data.eau_compteur != null) {
-        await callApi('setReleveMatin', { type: 'eau', date: dateDiagJour, heure: heureNow, valeur_compteur: data.eau_compteur });
+        jobs.push(callApi('setReleveMatin', { type: 'eau', date: dateDiagJour, heure: heureNow, valeur_compteur: data.eau_compteur }));
       }
       if (data.gaz_cuve_pct != null) {
-        await callApi('setReleveMatin', { type: 'gaz', date: dateDiagJour, heure: heureNow, valeur_compteur: data.gaz_cuve_pct });
+        jobs.push(callApi('setReleveMatin', { type: 'gaz', date: dateDiagJour, heure: heureNow, valeur_compteur: data.gaz_cuve_pct }));
       }
       if (data.compresseur_compteur != null) {
-        await callApi('setReleveMatin', { type: 'compresseur', date: dateDiagJour, heure: heureNow, valeur_compteur: data.compresseur_compteur });
+        jobs.push(callApi('setReleveMatin', { type: 'compresseur', date: dateDiagJour, heure: heureNow, valeur_compteur: data.compresseur_compteur }));
       }
       if (data.edf != null) {
-        await callApi('setReleveMatin', { type: 'edf', date: dateDiagJour, heure: heureNow, valeur_compteur: data.edf });
+        jobs.push(callApi('setReleveMatin', { type: 'edf', date: dateDiagJour, heure: heureNow, valeur_compteur: data.edf }));
       }
+      if (jobs.length) await Promise.all(jobs);
     } catch (e) {
       console.log('Sync Diagnostic non bloquant:', e);
     }
