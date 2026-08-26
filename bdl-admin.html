@@ -2105,6 +2105,7 @@ function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === 'section-' + name));
   state.currentSection = name;
+  if (name === 'dashboard' && state.currentMonth) loadDashboard(state.currentMonth);
   if (name === 'production' && state.currentMonth) loadProductionMonth(state.currentMonth);
   if (name === 'gaz') loadGazLivraisons();
   if (name === 'vehicules') loadVehiculesSection();
@@ -2145,9 +2146,10 @@ async function init() {
     // Remplir les sélecteurs de mois
     populateMonthSelectors();
 
-    // Charger la production du mois courant
-    await loadDashboard(state.currentMonth);
-
+    // V2 — Le tableau de bord ne se charge plus au demarrage :
+    // il se chargera au premier clic sur son onglet.
+    if (state.currentSection === 'dashboard') loadDashboard(state.currentMonth);
+    
   } catch (err) {
     toast('Erreur init : ' + err.message, 'error');
   }
