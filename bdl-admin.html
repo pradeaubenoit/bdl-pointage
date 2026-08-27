@@ -7849,7 +7849,7 @@ function openPanel() {
   }
 
   btn.addEventListener('click', openPanel);
-  setTimeout(refreshBadge, 2000);
+  setTimeout(refreshBadge, 20000);
   setInterval(refreshBadge, 90000);
 })();  
  
@@ -9272,7 +9272,7 @@ async function basculerDiffusion(id, statut) {
     } catch (e) { /* silencieux : en cas d'erreur, on n'affiche rien */ }
   }
 
-  function lancer() { poser(); setTimeout(verifier, 1500); }
+  function lancer() { poser(); setTimeout(verifier, 25000); }
   if (document.readyState === 'complete' || document.readyState === 'interactive') lancer();
 else document.addEventListener('DOMContentLoaded', lancer);
   setInterval(verifier, 600000); // re-vérifie toutes les 10 minutes
