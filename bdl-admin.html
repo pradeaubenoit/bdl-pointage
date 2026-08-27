@@ -4079,15 +4079,21 @@ window.prefillModalPointage = async function(empId, date) {
   document.getElementById('modalPointage').style.display = 'flex';
 };
 
-async function savePointageManuel() {
+  async function savePointageManuel() {
   const empId = document.getElementById('modalEmpId').value;
   const date = document.getElementById('modalDate').value;
   const heure = document.getElementById('modalHeure').value;
   const note = document.getElementById('modalNote').value;
-  
+
   if (!empId) { alert('Sélectionne un salarié'); return; }
   if (!date) { alert('Sélectionne une date'); return; }
   if (!heure) { alert('Saisis une heure'); return; }
+
+  // V2 — Bloque le bouton pendant l'enregistrement (evite les doublons)
+  var _btn = document.getElementById('btnSavePointage');
+  if (_btn && _btn.disabled) return;
+  if (_btn) { _btn.disabled = true; _btn.textContent = 'Enregistrement…'; }
+
   try {
     const resp = await callApi('addPointageManuel', {
       empId: empId,
@@ -4095,23 +4101,30 @@ async function savePointageManuel() {
       heure: heure,
       notes: note || 'Régularisation manuelle'
     });
-    
+
     if (resp.error) {
       alert('Erreur : ' + resp.error);
+      if (_btn) { _btn.disabled = false; _btn.textContent = 'Enregistrer'; }
       return;
     }
-    
+
     toast('✅ Pointage ajouté avec succès', 'success');
     document.getElementById('modalPointage').style.display = 'none';
-    
+
     // V2 — Pas de rechargement : on marque la ligne du salarié comme à rafraîchir
     marquerLigneARafraichir(empId);
-    
+
+    // V2 — Laisse 2 s au serveur avant d'autoriser l'enregistrement suivant
+    if (_btn) {
+      _btn.textContent = 'Patientez…';
+      setTimeout(function() { _btn.disabled = false; _btn.textContent = 'Enregistrer'; }, 2000);
+    }
+
   } catch (err) {
     alert('Erreur : ' + err.message);
+    if (_btn) { _btn.disabled = false; _btn.textContent = 'Enregistrer'; }
   }
 }
-
 window.deletePointage = async function(id) {
   if (!confirm('Supprimer ce pointage ?')) return;
   try {
