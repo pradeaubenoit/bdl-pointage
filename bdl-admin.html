@@ -7868,6 +7868,11 @@ function openPanel() {
   var _inner = callApi;
   var _cache = {};
   var TTL = 90000; // 90 secondes
+    // Donnees quasi-stables : gardees 1 heure au lieu de 90 s.
+  var TTL_LONG = 3600000;
+  function ttlFor(a) {
+    return /^(getCompetences|getPostes|getRoles|getParametres)$/.test(String(a || '')) ? TTL_LONG : TTL;
+  }
 
   function isWrite(a) {
     return /^(save|update|delete|add|set|envoyer|marquer|repondre|ack|seed|reproduire|dupliquer|recaler|sortie|supprimer|creer|addOperation|deleteOperation)/i.test(String(a || ''));
@@ -7882,7 +7887,7 @@ function openPanel() {
     if (!isReadable(action)) return _inner(action, params);
     var k = action + '|' + JSON.stringify(params || {});
     var hit = _cache[k];
-    if (hit && (Date.now() - hit.t) < TTL) return hit.p;
+    if (hit && (Date.now() - hit.t) < ttlFor(action)) return hit.p;
     var p = _inner(action, params);
     _cache[k] = { t: Date.now(), p: p };
     p.catch(function () { if (_cache[k] && _cache[k].p === p) delete _cache[k]; });
