@@ -3850,6 +3850,8 @@ async function loadPointagesSection() {
 
 async function loadEmployeesForPointageModal() {
   try {
+        // V2 — La liste des salaries ne change pas : on ne la recharge pas a chaque clic
+    if (window._salariesCache && window._salariesCache.length) return true;
     const resp = await callApi('salaries');
     if (resp.salaries) {
       const list = resp.salaries.filter(s => s.actif !== false);
