@@ -2146,10 +2146,8 @@ async function init() {
     // Remplir les sélecteurs de mois
     populateMonthSelectors();
 
-    // V2 — Le tableau de bord ne se charge plus au demarrage :
-    // il se chargera au premier clic sur son onglet.
-    if (state.currentSection === 'dashboard') loadDashboard(state.currentMonth);
-    
+    // V3 — On ouvre directement sur Pointages : aucun appel du tableau de bord.
+    switchTab('pointages');    
   } catch (err) {
     toast('Erreur init : ' + err.message, 'error');
   }
