@@ -7632,7 +7632,7 @@ async function planReproduire() {
   var _orig = callApi;
   var _queue = [];
   var _running = 0;
-  var MAX = 2;
+  var MAX = 3;
 
   function runJob(job) {
     _orig(job.action, job.params).then(
