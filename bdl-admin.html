@@ -2028,12 +2028,16 @@ let jsonpCounter = 0;
     });
   }
   const url = API_URL + '?' + queryParts.join('&');
+  // Une ecriture n'est JAMAIS reessayee : cela creerait un doublon.
+  // Seules les lectures ont droit a 3 essais.
+  const _lecture = /^(get|salaries$|analyse|reorganiser|assistant)/i.test(String(action));
+  const _maxEssais = _lecture ? 3 : 1;
   function _tenter(essai) {
     return fetch(url, { method: 'GET', redirect: 'follow' })
       .then(r => {
         if (!r.ok) {
-          if (essai < 3) {
-            return new Promise(res => setTimeout(res, 800 * essai))
+          if (essai < _maxEssais) {
+          return new Promise(res => setTimeout(res, 800 * essai))
               .then(() => _tenter(essai + 1));
           }
           throw new Error('HTTP ' + r.status);
