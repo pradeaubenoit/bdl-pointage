@@ -7312,9 +7312,8 @@ async function planReproduire() {
     try { if (typeof barRender === 'function') barRender(); } catch (e) {}
   }
 
-  // Veille légère : vérifie ~2x/seconde si la semaine chargée a changé.
-  setInterval(refreshBarsIfNeeded, 500);
-
+  // Veilleur remplace par la version corrigee plus bas (barJour vide + changement de semaine).
+  
   // Coup d'envoi rapide à l'ouverture de l'onglet Planning.
   var tabBtn = document.querySelector('.tab[data-tab="planning"]');
   if (tabBtn) tabBtn.addEventListener('click', function () { setTimeout(refreshBarsIfNeeded, 120); });
