@@ -8690,10 +8690,9 @@ window.loadSupChart = async function () {
       if (window.lancerAnalyseSup) window.lancerAnalyseSup();
       else document.getElementById('supAnalyseArea').innerHTML = '<div class="empty-state">Analyse à brancher (étape 3).</div>';
     });
-    window.loadSupChart();
+    // Le graphique ne se charge plus tout seul : clique "↻ Actualiser".
   }, 1500);
-})();  
-  
+})();    
 window.lancerAnalyseSup = async function () {
   var area = document.getElementById('supAnalyseArea');
   if (area) area.innerHTML = '<div class="empty-state">🤖 Analyse en cours… (quelques secondes)</div>';
