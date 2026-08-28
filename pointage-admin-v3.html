@@ -1176,6 +1176,21 @@ window.toggleDetailSalarie = async function(empId, empName) {
       '</tr>';
     
     html += '</tbody></table>';
+        // V4.9.27 - Synthese des deductions et anomalies, jour par jour
+    if (_r && ((_r.joursManquants && _r.joursManquants.length) || (_r.joursInjustifies && _r.joursInjustifies.length) || (_r.anomalies && _r.anomalies.length))) {
+      html += '<div style="margin-top:10px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:12px;color:#7c2d12">';
+      html += '<strong>Détail des heures non retenues :</strong><br>';
+      (_r.joursInjustifies || []).forEach(function(j) {
+        html += '— ' + fmtDateFR(j.date) + ' : journée injustifiée (−7h00)<br>';
+      });
+      (_r.joursManquants || []).forEach(function(j) {
+        html += '— ' + fmtDateFR(j.date) + ' : ' + fmtHours(j.manque) + ' manquantes (' + fmtHours(j.heures) + ' pointées / 7h00 attendues)<br>';
+      });
+      (_r.anomalies || []).forEach(function(a) {
+        html += '— ' + fmtDateFR(a) + ' : ⚠ pointage incomplet ce jour (entrée ou sortie manquante)<br>';
+      });
+      html += '</div>';
+    }
     
     detailContent.innerHTML = html;
     
