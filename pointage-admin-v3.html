@@ -1191,12 +1191,28 @@ window.toggleDetailSalarie = async function(empId, empName) {
       });
       html += '</div>';
     }
-    
+
+        // V4.9.28 - Bouton d'impression du bilan individuel
+    html += '<div class="no-print" style="margin-top:10px;text-align:right"><button onclick="imprimerDetail(\'' + empId + '\', \'' + empName.replace(/'/g, "\\'") + '\')" style="padding:8px 14px;border:1px solid #1F4A47;background:white;color:#1F4A47;border-radius:8px;cursor:pointer">🖨 Imprimer ce bilan</button></div>';
     detailContent.innerHTML = html;
     
   } catch (err) {
     detailContent.innerHTML = '<div style="padding:20px;color:var(--bad)">Erreur : ' + err.message + '</div>';
   }
+};
+  // V4.9.28 - Impression du detail individuel seul
+window.imprimerDetail = function(empId, empName) {
+  var el = document.getElementById('detail-content-' + empId);
+  if (!el) return;
+  var w = window.open('', '_blank');
+  w.document.write('<html><head><title>Bilan ' + empName + ' — ' + $('rpt-month').value + '</title>' +
+    '<style>.no-print{display:none}</style></head>' +
+    '<body style="font-family:sans-serif;padding:20px">' +
+    '<p style="font-size:11px;color:#666">Blanchisserie du Limousin — Bilan individuel ' + $('rpt-month').value + ' — édité le ' + new Date().toLocaleDateString('fr-FR') + '</p>' +
+    el.innerHTML + '</body></html>');
+  w.document.close();
+  w.focus();
+  w.print();
 };
 $('rpt-refresh').addEventListener('click', renderReport);
 $('rpt-month').addEventListener('change', renderReport);
