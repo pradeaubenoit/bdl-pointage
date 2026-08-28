@@ -1161,14 +1161,18 @@ window.toggleDetailSalarie = async function(empId, empName) {
     if (semaineActuelle !== null) {
       html += '<tr style="background:#fef3c7"><td colspan="6" style="padding:6px 12px;font-style:italic;color:#854d0e;font-size:12px">— Fin semaine ' + semaineActuelle + ' : ' + cumulSemAvant.toFixed(1) + 'h —</td></tr>';
     }
-    
+
+        // Heures manquantes du salarie (issues du recapitulatif) pour afficher le net retenu.
+    var _r = (currentReport && currentReport.report) ? currentReport.report.find(function(x){ return x.employee.id === empId; }) : null;
+    var _inj = (_r && _r.heuresInjustifiees) || 0;
+    var _netSup = empData.total_sup_mois - _inj;
     html += '<tr style="background:#1F4A47;color:white;font-weight:600">' +
             '<td colspan="2" style="padding:10px 12px">TOTAL MOIS</td>' +
             '<td style="padding:10px 12px;text-align:right">' + empData.total_mois.toFixed(1) + 'h</td>' +
             '<td style="padding:10px 12px;text-align:right">—</td>' +
             '<td style="padding:10px 12px;text-align:right">—</td>' +
-            '<td style="padding:10px 12px;text-align:right;background:#fed7aa;color:#9a3412">' + empData.total_sup_mois.toFixed(1) + 'h sup</td>' +
-            '</tr>';
+            '<td style="padding:10px 12px;text-align:right;background:#fed7aa;color:#9a3412">' + (_inj > 0 ? empData.total_sup_mois.toFixed(1) + 'h − ' + _inj.toFixed(1) + 'h manq. = <strong>' + _netSup.toFixed(1) + 'h sup retenues</strong>' : empData.total_sup_mois.toFixed(1) + 'h sup') + '</td>' +
+      '</tr>';
     
     html += '</tbody></table>';
     
