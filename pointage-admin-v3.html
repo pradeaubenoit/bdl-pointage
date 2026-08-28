@@ -615,6 +615,13 @@ function todayIso() {
 function apiCall(params) {
   return new Promise((resolve, reject) => {
     if (!apiUrl) return reject(new Error('API URL non configurée'));
+        // Cache memoire : les lectures lourdes ne sont payees qu'une fois par 90 s.
+    var _key = JSON.stringify(params);
+    // Seules les lectures lourdes sont mises en cache — jamais les ecritures ni 'presents'.
+    var _cacheable = /^(getAllSoldesSup|getOperationsSup|getCalendrierHeuresMois|monthlyReport|getSoldeSup)$/.test(String(params.action || ''));
+    window._apiCache = window._apiCache || {};
+    var _hit = window._apiCache[_key];
+    if (_cacheable && _hit && (Date.now() - _hit.t) < 90000) return resolve(_hit.d);
     const cbName = '_bdlcb' + Date.now() + Math.random().toString(36).slice(2, 7);
     const url = new URL(apiUrl);
     Object.entries(params).forEach(([k, v]) => {
@@ -639,7 +646,7 @@ function apiCall(params) {
     window[cbName] = function(data) {
       cleanup();
       if (data && data.error) reject(new Error(data.error));
-      else resolve(data || {});
+      else { if (_cacheable) window._apiCache[_key] = { t: Date.now(), d: data || {} }; resolve(data || {}); }
     };
     script.src = url.toString();
     script.onerror = () => { cleanup(); reject(new Error('Échec du chargement — vérifie l\'URL Apps Script')); };
