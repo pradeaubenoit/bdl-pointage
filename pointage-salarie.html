@@ -976,7 +976,7 @@ async function chargerRecitSolde() {
     var noms = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
     var moisNom = noms[parseInt(r.mois.split('-')[1], 10) - 1];
     var html = 'Vous étiez à <strong>' + fmtHM(r.soldeAvant) + '</strong> au 1er ' + moisNom + '.<br>';
-    html += 'Vous avez généré <strong>' + fmtHM(r.supNetMois) + '</strong> d\'heures supplémentaires, ce qui vous porte à <strong>' + fmtHM(r.soldeAvant + r.supNetMois) + '</strong>.<br>';
+    html += 'Vous avez généré <strong>' + fmtHM(r.supNetMois) + '</strong> d\'heures supplémentaires, ce qui vous porte à <strong>' + fmtHM(r.soldeFinMois + r.retraitsMois) + '</strong>.<br>';
     if (r.retraitsMois > 0) {
       html += '<strong>' + fmtHM(r.retraitsMois) + '</strong> vous ont été réglées (payées ou récupérées).<br>';
     }
