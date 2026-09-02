@@ -649,7 +649,16 @@ function apiCall(params) {
       else { if (_cacheable) window._apiCache[_key] = { t: Date.now(), d: data || {} }; resolve(data || {}); }
     };
     script.src = url.toString();
-    script.onerror = () => { cleanup(); reject(new Error('Échec du chargement — vérifie l\'URL Apps Script')); };
+    script.onerror = () => {
+      cleanup();
+      // Une lecture a droit a un second essai apres 3 s (erreur passagere Apps Script). Jamais une ecriture : doublon.
+      var _lecture = /^(get|ping$|presents$|salaries$|monthlyReport$)/.test(String(params.action || ''));
+      if (_lecture && !params._retry) {
+        setTimeout(function() { apiCall(Object.assign({}, params, { _retry: 1 })).then(resolve, reject); }, 3000);
+        return;
+      }
+      reject(new Error('Échec du chargement — vérifie l\'URL Apps Script'));
+    };
     document.body.appendChild(script);
   });
 }
