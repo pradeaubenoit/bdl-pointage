@@ -981,6 +981,11 @@ async function chargerRecitSolde() {
       html += '<strong>' + fmtHM(r.retraitsMois) + '</strong> vous ont été réglées (payées ou récupérées).<br>';
     }
     html += 'Vous êtes maintenant à <strong>' + fmtHM(r.soldeFinMois) + '</strong>.';
+       // V4.9.30 - La tuile noire affiche le meme chiffre que le recit : une seule verite.
+    var tuile = document.getElementById('stats-annee');
+    if (tuile) tuile.textContent = fmtHM(r.soldeFinMois);
+    var tuileLbl = document.getElementById('stats-annee-lbl');
+    if (tuileLbl) tuileLbl.textContent = 'Votre solde d\'heures sup';
     el.innerHTML = html;
     el.style.display = 'block';
   } catch (e) { /* silencieux : le recit est un plus, pas un bloquant */ }
