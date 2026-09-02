@@ -1018,7 +1018,9 @@ async function loadOpsMonth(month) {
       try {
         await apiPost({ action: 'deleteOperationSup', id: id });
         toast('Retrait annulé', 'success');
-        renderReport();
+        // V4.9.31 - Un seul rechargement differe, relance a chaque suppression enchainee.
+        clearTimeout(window._rrTimer);
+        window._rrTimer = setTimeout(renderReport, 4000);
       } catch (e) {
         toast('Erreur : ' + e.message, 'error');
       }
