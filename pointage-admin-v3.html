@@ -670,7 +670,9 @@ async function apiPost(payload) {
   if (payload.employee) Object.entries(payload.employee).forEach(([k,v]) => { if (v !== undefined) params[k] = v; });
   if (payload.pointage) Object.entries(payload.pointage).forEach(([k,v]) => { if (v !== undefined) params[k] = v; });
   ['id','empId','source','notes','date','heures','mode','note'].forEach(k => { if (payload[k] !== undefined) params[k] = payload[k]; });
-  return apiCall(params);
+  const _res = await apiCall(params);
+  window._apiCache = {}; // Ecriture reussie : le cache client repart de zero.
+  return _res;
 }
 
 // ============================================================
