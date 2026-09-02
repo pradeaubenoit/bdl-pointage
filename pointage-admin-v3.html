@@ -877,7 +877,7 @@ async function renderReport() {
       <th>Salarié</th><th>Rôle</th>
       <th class="num">Jours</th><th class="num">Heures</th>
       <th class="num">H. norm.</th><th class="num">H. sup.</th>
-      <th class="num">Retraits mois</th><th class="num">Solde global</th>
+        <th class="num">Retraits mois</th><th class="num">Solde fin de mois</th>
       <th class="num">Coût €</th>
       <th></th></tr>`;
     if (!d.report.length) {
@@ -899,7 +899,7 @@ async function renderReport() {
         <td class="num">${fmtHours(r.heuresTotal)}</td>
         <td class="num">${fmtHours(r.heuresNormales)}</td>
 <td class="num ${(r.heuresSupNet!=null?r.heuresSupNet:r.heuresSup)<0?'bad':(r.heuresSup>0?'warn':'')}">${fmtHours(r.heuresSupNet!=null?r.heuresSupNet:r.heuresSup)}${r.nbJoursInjustifies>0?`<br><span style="font-size:11px;color:var(--ink-3)">${fmtHours(r.heuresSup)} −${r.nbJoursInjustifies}j inj.</span>`:''}${r.heuresManquantes>0?`<br><span style="font-size:11px;color:var(--ink-3)">−${fmtHours(r.heuresManquantes)} manq.</span>`:''}${(r.nbJoursConge>0||r.nbJoursMaladie>0)?`<br><span style="font-size:11px;color:var(--ink-3)">${r.nbJoursConge>0?'🏖️'+r.nbJoursConge+'j ':''}${r.nbJoursMaladie>0?'🤒'+r.nbJoursMaladie+'j':''}</span>`:''}</td><td class="num ${retraitsMois>0?'ok':''}">${retraitsMois>0?fmtHours(retraitsMois):'—'}</td>
-        <td class="num" id="solde-${e.id}" style="color:var(--ink-3)"><em>…</em></td>
+        <td class="num" id="solde-${e.id}">${r.soldeFinMois != null ? `<span style="font-weight:600;color:${r.soldeFinMois < 0 ? 'var(--bad)' : 'var(--ink)'}">${fmtHours(r.soldeFinMois)}</span><br><span style="font-size:11px;color:var(--ink-3)">début ${fmtHours(r.soldeAvant)} ${(r.heuresSupNet != null ? r.heuresSupNet : r.heuresSup) >= 0 ? '+' : '−'} ${fmtHours(Math.abs(r.heuresSupNet != null ? r.heuresSupNet : r.heuresSup))}${retraitsMois > 0 ? ' − ' + fmtHours(retraitsMois) + ' payé/récup' : ''}</span>` : '<em style="color:var(--ink-3)">…</em>'}</td>
         <td class="num">${fmtEUR(r.coutTotal)}</td>
         <td><button class="btn-retrait" onclick="window.openRetraitModal('${e.id}', '${e.prenom.replace(/'/g,"\\'")} ${e.nom.replace(/'/g,"\\'")}')">− Retirer</button></td>
       </tr>
@@ -918,8 +918,8 @@ async function renderReport() {
       <td class="num">${fmtEUR(d.totaux.coutTotal)}</td>
       <td></td>
     </tr>`;
-    // V4.9.6 — Charger TOUS les soldes en UN seul appel (au lieu de N appels)
-    loadAllSoldes(d.report);
+    // V4.9.29 — Les soldes fin de mois viennent du serveur ; l'ancien chargement ne sert que si absents.
+    if (!d.report.length || d.report[0].soldeFinMois == null) loadAllSoldes(d.report);
     loadOpsMonth(month);
   } catch (e) {
     totauxWrap.innerHTML = `<div style="padding:20px;color:var(--bad)">Erreur : ${e.message}</div>`;
