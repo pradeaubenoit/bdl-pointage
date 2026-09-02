@@ -494,7 +494,7 @@ footer {
         <div class="v" id="stats-annee">—</div>
       </div>
     </div>
-
+    <div id="recit-solde" style="display:none;margin-top:10px;padding:12px 14px;background:var(--paper);border:1px solid var(--line, #D9D2C2);border-radius:10px;font-size:14px;line-height:1.6"></div>
     <div class="scans" id="scans-block" style="display:none">
       <div class="lbl">Tes pointages du jour</div>
       <div id="scans-list"></div>
@@ -916,6 +916,9 @@ async function refresh() {
     updateConnectionStatus();
     // 3. Charge les stats en arrière-plan (jour/semaine/mois/année)
     loadStats();
+    // V4.9.30 - Recit du solde en phrases
+    chargerRecitSolde();
+    loadStats();
   } catch (e) {
     setConnection('offline', 'Erreur : ' + e.message);
   }
@@ -962,7 +965,26 @@ setSubSup('stats-semaine-sup-sub', s.supSemaineNet != null ? s.supSemaineNet : s
   // Tuile noire : uniquement les heures sup depuis le démarrage du système
   $('stats-annee-lbl').textContent = 'Heures sup depuis le 15/05/2026';
 }
-
+// V4.9.30 - Recit du solde en phrases, valide avec les salaries.
+async function chargerRecitSolde() {
+  try {
+    var d = await apiGet('getSoldeSup', { empId: config.empId });
+    var el = document.getElementById('recit-solde');
+    if (!el) return;
+    if (!d || !d.recit) { el.style.display = 'none'; return; }
+    var r = d.recit;
+    var noms = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+    var moisNom = noms[parseInt(r.mois.split('-')[1], 10) - 1];
+    var html = 'Vous étiez à <strong>' + fmtHM(r.soldeAvant) + '</strong> au 1er ' + moisNom + '.<br>';
+    html += 'Vous avez généré <strong>' + fmtHM(r.supNetMois) + '</strong> d\'heures supplémentaires, ce qui vous porte à <strong>' + fmtHM(r.soldeAvant + r.supNetMois) + '</strong>.<br>';
+    if (r.retraitsMois > 0) {
+      html += '<strong>' + fmtHM(r.retraitsMois) + '</strong> vous ont été réglées (payées ou récupérées).<br>';
+    }
+    html += 'Vous êtes maintenant à <strong>' + fmtHM(r.soldeFinMois) + '</strong>.';
+    el.innerHTML = html;
+    el.style.display = 'block';
+  } catch (e) { /* silencieux : le recit est un plus, pas un bloquant */ }
+}
 function fmtHM(h) {
   if (h == null || isNaN(h)) return '0h00';
   const hh = Math.floor(h);
