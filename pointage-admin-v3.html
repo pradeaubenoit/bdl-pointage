@@ -1204,7 +1204,19 @@ window.toggleDetailSalarie = async function(empId, empName) {
       });
       html += '</div>';
     }
-
+    // V4.9.31 - Recit du solde, identique a celui de l'app salarie.
+    if (_r && _r.soldeFinMois != null) {
+      var _net = (_r.heuresSupNet != null ? _r.heuresSupNet : _r.heuresSup) || 0;
+      var _ret = (_r.retraitsMois && _r.retraitsMois.total) || 0;
+      var _moisNoms = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+      var _moisNom = _moisNoms[parseInt($('rpt-month').value.split('-')[1], 10) - 1];
+      html += '<div style="margin-top:10px;padding:12px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:13px;line-height:1.6">';
+      html += 'Vous étiez à <strong>' + fmtHours(_r.soldeAvant) + '</strong> au 1er ' + _moisNom + '.<br>';
+      html += 'Vous avez généré <strong>' + fmtHours(_net) + '</strong> d\'heures supplémentaires, ce qui vous porte à <strong>' + fmtHours(_r.soldeFinMois + _ret) + '</strong>.<br>';
+      if (_ret > 0) html += '<strong>' + fmtHours(_ret) + '</strong> vous ont été réglées (payées ou récupérées).<br>';
+      html += 'Vous êtes maintenant à <strong>' + fmtHours(_r.soldeFinMois) + '</strong>.';
+      html += '</div>';
+    }
         // V4.9.28 - Bouton d'impression du bilan individuel
     html += '<div class="no-print" style="margin-top:10px;text-align:right"><button onclick="imprimerDetail(\'' + empId + '\', \'' + empName.replace(/'/g, "\\'") + '\')" style="padding:8px 14px;border:1px solid #1F4A47;background:white;color:#1F4A47;border-radius:8px;cursor:pointer">🖨 Imprimer ce bilan</button></div>';
     detailContent.innerHTML = html;
