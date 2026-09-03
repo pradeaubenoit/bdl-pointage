@@ -1248,7 +1248,13 @@ window.envoyerBilanMail = async function(empId, empName) {
   if (!el) return;
   try {
     toast('Envoi en cours...', 'success');
-    var d = await apiPost({ action: 'envoyerBilanMail', empId: empId, dest: dest, month: $('rpt-month').value, html: el.innerHTML });
+    // V4.9.31 - Envoi en vrai POST : le HTML du bilan depasse la limite d'URL du JSONP.
+    var _resp = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'envoyerBilanMail', empId: empId, dest: dest, month: $('rpt-month').value, html: el.innerHTML })
+    });
+    var d = await _resp.json();
     if (d && d.ok) toast('✓ Bilan envoyé à ' + dest, 'success');
     else toast('Erreur : ' + ((d && d.error) || 'envoi impossible'), 'error');
   } catch (e) {
