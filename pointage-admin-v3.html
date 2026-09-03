@@ -1218,7 +1218,7 @@ window.toggleDetailSalarie = async function(empId, empName) {
       html += '</div>';
     }
         // V4.9.28 - Bouton d'impression du bilan individuel
-    html += '<div class="no-print" style="margin-top:10px;text-align:right"><button onclick="imprimerDetail(\'' + empId + '\', \'' + empName.replace(/'/g, "\\'") + '\')" style="padding:8px 14px;border:1px solid #1F4A47;background:white;color:#1F4A47;border-radius:8px;cursor:pointer">🖨 Imprimer ce bilan</button></div>';
+    html += '<div class="no-print" style="margin-top:10px;text-align:right"><button onclick="envoyerBilanMail(\'' + empId + '\', \'' + empName.replace(/'/g, "\\'") + '\')" style="padding:8px 14px;border:1px solid #1F4A47;background:white;color:#1F4A47;border-radius:8px;cursor:pointer;margin-right:8px">✉️ Envoyer par mail</button><button onclick="imprimerDetail(\'' + empId + '\', \'' + empName.replace(/'/g, "\\'") + '\')" style="padding:8px 14px;border:1px solid #1F4A47;background:white;color:#1F4A47;border-radius:8px;cursor:pointer">🖨 Imprimer ce bilan</button></div>';
     detailContent.innerHTML = html;
     
   } catch (err) {
@@ -1238,6 +1238,22 @@ window.imprimerDetail = function(empId, empName) {
   w.document.close();
   w.focus();
   w.print();
+  };
+  // V4.9.31 - Envoi du bilan individuel par mail
+window.envoyerBilanMail = async function(empId, empName) {
+  var dest = prompt('Adresse e-mail du destinataire (comptable, agence...) :');
+  if (!dest) return;
+  if (dest.indexOf('@') === -1) return toast('Adresse invalide', 'error');
+  var el = document.getElementById('detail-content-' + empId);
+  if (!el) return;
+  try {
+    toast('Envoi en cours...', 'success');
+    var d = await apiPost({ action: 'envoyerBilanMail', empId: empId, dest: dest, month: $('rpt-month').value, html: el.innerHTML });
+    if (d && d.ok) toast('✓ Bilan envoyé à ' + dest, 'success');
+    else toast('Erreur : ' + ((d && d.error) || 'envoi impossible'), 'error');
+  } catch (e) {
+    toast('Erreur : ' + e.message, 'error');
+  }
 };
 $('rpt-refresh').addEventListener('click', renderReport);
 $('rpt-month').addEventListener('change', renderReport);
