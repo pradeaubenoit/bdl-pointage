@@ -1125,7 +1125,7 @@ window.toggleDetailSalarie = async function(empId, empName) {
     html += '<thead><tr style="background:#1F4A47;color:white">' +
             '<th style="padding:8px 12px;text-align:left">Date</th>' +
             '<th style="padding:8px 12px;text-align:left">Jour</th>' +
-            '<th style="padding:8px 12px;text-align:right">Heures</th>' +
+              '<th style="padding:8px 12px;text-align:left">Pointages</th>' +            '<th style="padding:8px 12px;text-align:right">Heures</th>' +
             '<th style="padding:8px 12px;text-align:right">Sup ce jour</th>' +
             '<th style="padding:8px 12px;text-align:right">Cumul semaine</th>' +
             '<th style="padding:8px 12px;text-align:right">Cumul sup mois</th>' +
@@ -1149,7 +1149,7 @@ window.toggleDetailSalarie = async function(empId, empName) {
       
       if (semaineActuelle !== weekNo) {
         if (semaineActuelle !== null) {
-          html += '<tr style="background:#fef3c7"><td colspan="6" style="padding:6px 12px;font-style:italic;color:#854d0e;font-size:12px">— Fin semaine ' + semaineActuelle + ' : ' + cumulSemAvant.toFixed(1) + 'h —</td></tr>';
+          html += '<tr style="background:#fef3c7"><td colspan="7" style="padding:6px 12px;font-style:italic;color:#854d0e;font-size:12px">— Fin semaine ' + semaineActuelle + ' : ' + cumulSemAvant.toFixed(1) + 'h —</td></tr>';
         }
         semaineActuelle = weekNo;
         cumulSemAvant = 0;
@@ -1164,7 +1164,7 @@ window.toggleDetailSalarie = async function(empId, empName) {
       html += '<tr style="border-bottom:1px solid #e5e7eb">' +
               '<td style="padding:6px 12px"><strong>' + jourCourt + '</strong></td>' +
               '<td style="padding:6px 12px;color:var(--ink-2)">' + jourLabel + '</td>' +
-              '<td style="padding:6px 12px;text-align:right">' + heures.toFixed(1) + 'h</td>' +
+                '<td style="padding:6px 12px;font-family:monospace;font-size:11px;color:var(--ink-2)">' + ((empData.scans && empData.scans[dateISO]) || '—') + '</td>' +              '<td style="padding:6px 12px;text-align:right">' + heures.toFixed(1) + 'h</td>' +
               '<td style="padding:6px 12px;text-align:right;' + supColor + '">' + (supJour > 0 ? supJour.toFixed(1) + 'h' : '—') + '</td>' +
               '<td style="padding:6px 12px;text-align:right;' + cumulSemColor + '">' + cumulSemAvant.toFixed(1) + 'h</td>' +
               '<td style="padding:6px 12px;text-align:right;' + cumulMoisColor + '">' + (cumulSupMois > 0 ? cumulSupMois.toFixed(1) + 'h' : '0h') + '</td>' +
@@ -1172,7 +1172,7 @@ window.toggleDetailSalarie = async function(empId, empName) {
     });
     
     if (semaineActuelle !== null) {
-      html += '<tr style="background:#fef3c7"><td colspan="6" style="padding:6px 12px;font-style:italic;color:#854d0e;font-size:12px">— Fin semaine ' + semaineActuelle + ' : ' + cumulSemAvant.toFixed(1) + 'h —</td></tr>';
+      html += '<tr style="background:#fef3c7"><td colspan="7" style="padding:6px 12px;font-style:italic;color:#854d0e;font-size:12px">— Fin semaine ' + semaineActuelle + ' : ' + cumulSemAvant.toFixed(1) + 'h —</td></tr>';
     }
 
         // Heures manquantes du salarie (issues du recapitulatif) pour afficher le net retenu.
@@ -1181,7 +1181,7 @@ window.toggleDetailSalarie = async function(empId, empName) {
     var _manq = (_r && _r.heuresManquantes) || 0;
     var _netSup = empData.total_sup_mois - _inj - _manq;
     html += '<tr style="background:#1F4A47;color:white;font-weight:600">' +
-            '<td colspan="2" style="padding:10px 12px">TOTAL MOIS</td>' +
+            '<td colspan="3" style="padding:10px 12px">TOTAL MOIS</td>' +
             '<td style="padding:10px 12px;text-align:right">' + empData.total_mois.toFixed(1) + 'h</td>' +
             '<td style="padding:10px 12px;text-align:right">—</td>' +
             '<td style="padding:10px 12px;text-align:right">—</td>' +
