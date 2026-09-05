@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Plan lavage">
+<meta name="theme-color" content="#0f766e">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
+<title>Plan de travail — Lavage</title>
+<style>
+  :root{
+    --bg:#f1f5f6; --card:#ffffff; --ink:#1e2b32; --muted:#5b6b75; --faint:#8a99a3;
+    --line:#e3e9ec; --line2:#cfd8dd; --teal:#0f766e; --teal-bg:#e9f8f3; --teal-line:#bfe7da;
+    --amber:#8a5a07; --amber-bg:#fbf2df; --amber-line:#f0d9a8;
+    --info:#1d4ed8; --info-bg:#eaf1fe; --danger:#b3261e; --up:#0f766e; --down:#b3261e;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#11181c; --card:#1a2329; --ink:#e7edf0; --muted:#9fb0ba; --faint:#76858f;
+      --line:#2a363d; --line2:#3a4750; --teal:#5dcaa5; --teal-bg:#15302a; --teal-line:#1f4a3f;
+      --amber:#f0c570; --amber-bg:#312611; --amber-line:#4a3a18;
+      --info:#7fb0f5; --info-bg:#16243c; --danger:#f0908a; --up:#5dcaa5; --down:#f0908a;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%}
+  .wrap{max-width:880px;margin:0 auto;padding:0 14px}
+  h1{font-size:19px;font-weight:600;margin:0}
+  .sub{font-size:13px;color:var(--muted)}
+  .lab{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--faint);margin-bottom:3px}
+  input,select,button{font:inherit;font-size:16px;color:var(--ink)}
+  input,select{width:100%;background:var(--card);border:1px solid var(--line2);border-radius:9px;padding:9px 10px;outline:none}
+  input:focus,select:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-bg)}
+  .w-auto{width:auto}
+  button{cursor:pointer;border-radius:9px;border:1px solid var(--line2);background:var(--card);padding:9px 13px;color:var(--ink)}
+  button:active{transform:scale(.98)}
+  .btn-primary{background:var(--teal);border-color:var(--teal);color:#fff}
+  .btn-ghost{padding:7px 9px;border:none;background:transparent;color:var(--faint)}
+
+  .topbar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-top:12px}
+  .head-line{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;padding-bottom:10px}
+  .head-actions{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+  .tabs{display:flex;gap:6px;padding-bottom:10px;flex-wrap:wrap}
+  .tab{padding:8px 14px;border-radius:10px;border:1px solid var(--line2);background:var(--card);color:var(--muted);font-weight:500}
+  .tab.active{background:var(--teal);border-color:var(--teal);color:#fff}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
+  .row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px}
+  .row-top{display:flex;align-items:center;gap:8px}
+  .badge{min-width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg);border-radius:8px;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);flex:none}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:9px}
+  .chips{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line2);background:var(--card);color:var(--muted);font-size:14px;cursor:pointer}
+  .chip.on{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
+  .info{font-size:12px;color:var(--faint);margin-top:7px}
+  .pill{padding:1px 7px;border-radius:5px;font-size:12px;background:var(--info-bg);color:var(--info)}
+  .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  @media(min-width:620px){.metrics{grid-template-columns:repeat(4,1fr)}}
+  .metric{background:var(--bg);border-radius:10px;padding:11px}
+  .metric .l{font-size:12px;color:var(--muted)}
+  .metric .v{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+  .strip{display:flex;gap:4px;margin-top:14px}
+  .cell{height:26px;flex:1;border-radius:5px}
+  .cell.stock{background:var(--bg);border:1px solid var(--line2)}
+  .cell.lav{background:var(--teal-bg);border:1px solid var(--teal-line)}
+  .striplab{display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:4px}
+  .note{display:flex;gap:8px;border-radius:10px;padding:10px 12px;margin-top:14px;font-size:13px}
+  .note.warn{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber)}
+  .note.err{background:var(--info-bg);border:1px solid var(--line2);color:var(--danger)}
+  .note.ok{background:var(--teal-bg);border:1px solid var(--teal-line);color:var(--teal)}
+  .sech{font-size:12px;color:var(--faint);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.03em}
+  .cli{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .cli-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .cli-name{font-weight:600}
+  .cli-gal{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cli-line{font-size:13px;color:var(--muted);margin-top:2px}
+  .cli-delta{font-size:12px;margin-top:4px}
+  .mono{font-variant-numeric:tabular-nums}
+  .reg-row{display:grid;grid-template-columns:46px 1fr 44px 60px 76px 76px 48px 24px;gap:6px;align-items:center;margin-bottom:7px}
+  .reg-head{display:grid;grid-template-columns:46px 1fr 44px 60px 76px 76px 48px 24px;gap:6px;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px}
+  .reg-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .reg-wrap .reg-head,.reg-wrap .reg-row{min-width:440px}
+  .topbar{padding-top:calc(12px + env(safe-area-inset-top))}
+  body{padding-bottom:env(safe-area-inset-bottom)}
+  @media (max-width:560px){
+    .wrap{padding:0 10px}
+    h1{font-size:18px}
+    .head-actions{gap:6px}
+    .head-actions button{padding:8px 11px}
+    .tab{padding:8px 12px}
+    .grid3{grid-template-columns:1fr 1fr}
+  }
+  .cad-out{font-size:13px;color:var(--teal);font-variant-numeric:tabular-nums}
+  .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
+  .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
+  .neterr{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber);border-radius:10px;padding:8px 12px;margin:10px 0;font-size:13px;display:none}
+  .bline{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:6px}
+  .bline .b-name{font-weight:500}
+  .bline[draggable="true"]{cursor:grab}
+  .bline.dragging{opacity:.35;cursor:grabbing}
+  .bline.drop-before{box-shadow:0 -3px 0 0 var(--teal)}
+  .bline.drop-after{box-shadow:0 3px 0 0 var(--teal)}
+  .bline.picked{border-color:var(--amber-line);background:var(--amber-bg);box-shadow:0 0 0 2px var(--amber-line)}
+  .drag-h{color:var(--faint);cursor:grab;user-select:none;font-size:14px;letter-spacing:-2px;margin-right:2px}
+  .pick-btn{font-size:12px;padding:2px 8px;margin-left:6px}
+  .pick-btn.poser{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
+  .pose-fin{margin:2px 0 10px;text-align:center}
+  .bline .b-meta{font-size:12px;color:var(--muted)}
+  .bline.lav{border-left:5px solid #7c3aed;background:linear-gradient(90deg,rgba(124,58,237,.10),var(--card) 60px)}
+  .lavtag{padding:1px 7px;border-radius:5px;font-size:12px;font-weight:600;background:#7c3aed;color:#fff;margin-left:6px}
+  .tag{display:inline-block;padding:0 6px;border-radius:5px;font-size:11px;margin-left:6px}
+  .tag.drap{background:var(--info-bg);color:var(--info)}
+  .tag.eponge{background:var(--amber-bg);color:var(--amber)}
+  .tag.vetement{background:#efe9fb;color:#6b3fc0}
+  @media (prefers-color-scheme: dark){.tag.vetement{background:#2a2140;color:#b79bf0}}
+  .dot{display:inline-block;padding:0 6px;border-radius:5px;font-size:11px;margin-left:6px;border:1px solid var(--line)}
+  .dot.blanc{background:#f4f5f7;color:#555}
+  .dot.couleur{background:#fde8ef;color:#b03a66}
+  @media (prefers-color-scheme: dark){.dot.blanc{background:#23262c;color:#aab}.dot.couleur{background:#3a2230;color:#e79ab8}}
+  table.feed{border-collapse:collapse;font-size:12px;width:100%}
+  table.feed th,table.feed td{border:1px solid var(--line);padding:3px 6px;text-align:center;min-width:30px}
+  table.feed th{font-weight:600;color:var(--muted);font-size:11px}
+  table.feed td.pname{text-align:left;font-weight:600;white-space:nowrap}
+  table.feed td.z{background:#fdecec;color:#c0392b;font-weight:700}
+  table.feed td.lo{background:#fff6e6}
+  table.feed td.ok{background:#eaf6ee}
+  table.feed td.o{background:transparent;color:var(--faint)}
+  @media (prefers-color-scheme: dark){table.feed td.z{background:#3a2020;color:#f0a0a0}table.feed td.lo{background:#33301f}table.feed td.ok{background:#1e2f24}}
+
+  #view-saisie{padding-top:12px;padding-bottom:96px}
+  #view-plan,#view-reglages,#view-brouillon{padding-top:12px}
+  .hidden{display:none!important}
+
+  #addbar{position:fixed;left:0;right:0;bottom:0;z-index:6;padding:10px 0 14px;background:linear-gradient(to top,var(--bg) 72%,rgba(241,245,246,0));display:none}
+  @media (prefers-color-scheme: dark){#addbar{background:linear-gradient(to top,var(--bg) 72%,rgba(17,24,28,0))}}
+  #addbar.show{display:block}
+  #addbar .inner{max-width:880px;margin:0 auto;padding:0 14px;display:flex;align-items:center;gap:12px}
+  #addbar .sum{font-size:13px;color:var(--muted);white-space:nowrap}
+  #addbar button{flex:1}
+
+  @media print{.no-print{display:none!important}body{background:#fff}.card,.row,.cli{border-color:#ccc}#view-plan{padding-top:0}}
+</style>
+</head>
+<body>
+
+<div id="login" class="wrap" style="max-width:360px;margin-top:60px;display:none">
+  <h1>Plan de travail — lavage</h1>
+  <div class="sub" style="margin:4px 0 16px">Connectez-vous pour accéder à vos données partagées.</div>
+  <div style="margin-bottom:10px"><span class="lab">Email</span><input type="email" id="li-email" autocomplete="username"></div>
+  <div style="margin-bottom:14px"><span class="lab">Mot de passe</span><input type="password" id="li-pw" autocomplete="current-password"></div>
+  <button id="li-btn" class="btn-primary" style="width:100%">Se connecter</button>
+  <div id="li-err" style="color:var(--danger);font-size:13px;margin-top:10px;display:none"></div>
+</div>
+
+<div id="app" style="display:none">
+
+  <div class="topbar no-print">
+    <div class="wrap">
+      <div class="head-line">
+        <div>
+          <h1>Plan de travail — lavage</h1>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v86</b></div>
+        </div>
+        <div class="head-actions">
+          <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
+          <div><span class="lab">Démarrage</span><input type="time" id="start" class="w-auto" value="06:00"></div>
+          <button id="btn-refresh" title="Rafraîchir">Rafraîchir</button>
+          <button id="btn-print">Imprimer</button>
+          <button id="btn-export" title="Télécharger tous vos plans sur votre Mac">💾 Sauvegarder</button>
+          <button id="btn-logout" class="btn-ghost">Déconnexion</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-view="saisie">Saisie</button>
+        <button class="tab" data-view="plan">Plan de travail</button>
+        <button class="tab" data-view="brouillon">Brouillon</button>
+        <button class="tab" data-view="reglages">Réglages</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div id="neterr" class="neterr">Hors ligne — la base n'a pas répondu. Vos derniers changements ne sont peut-être pas enregistrés.</div>
+    <datalist id="client-list"></datalist>
+
+    <!-- ONGLET SAISIE -->
+    <section id="view-saisie">
+      <div id="ins-panel" class="card hidden no-print" style="margin-bottom:12px">
+        <div style="font-weight:600;margin-bottom:8px">Insérer un client à une date / heure</div>
+        <div class="grid3">
+          <div><span class="lab">Date du plan</span><input type="date" id="ins-date"></div>
+          <div><span class="lab">Heure souhaitée</span><input type="time" id="ins-time" value="08:00"></div>
+          <div><span class="lab">Nom du client</span><input type="text" id="ins-client" list="client-list" placeholder="Nom du client"></div>
+        </div>
+        <div class="grid3" style="margin-top:8px">
+          <div><span class="lab">Machine</span><select id="ins-machine"></select></div>
+          <div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" id="ins-code" class="mono"></div>
+          <div><span class="lab">Galettes</span><input type="number" inputmode="numeric" min="0" step="1" id="ins-nb" class="mono"></div>
+        </div>
+        <div style="margin-top:8px"><span class="lab">Postes de finition</span><div class="chips" id="ins-chips"></div></div>
+        <div id="ins-msg" class="info" style="margin-top:8px"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button id="ins-do" class="btn-primary">Insérer à sa place</button>
+          <button id="ins-cancel" class="btn-ghost">Annuler</button>
+        </div>
+      </div>
+      <div class="card no-print" style="margin-bottom:12px">
+        <div style="font-weight:600;margin-bottom:8px">Rechercher / remplacer un client</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="sr-find" list="client-list" placeholder="Chercher\u2026" style="flex:1;min-width:130px">
+          <input type="text" id="sr-replace" list="client-list" placeholder="Remplacer par\u2026" style="flex:1;min-width:130px">
+          <button id="sr-do" class="btn-primary">Remplacer partout</button>
+          <span id="sr-count" class="sub"></span>
+        </div>
+        <div class="sub" style="margin-top:6px">Tapez pour surligner les lignes correspondantes. « Remplacer partout » corrige le nom sur toutes les lignes de la journée en cours.</div>
+      </div>
+      <div id="rows"></div>
+    </section>
+
+    <!-- ONGLET PLAN DE TRAVAIL -->
+    <section id="view-plan" class="hidden">
+      <div id="results"></div>
+    </section>
+
+    <!-- ONGLET BROUILLON -->
+    <section id="view-brouillon" class="hidden">
+      <div class="card no-print">
+        <div style="font-weight:600">Brouillon — proposition d'organisation</div>
+        <div class="sub" style="margin-top:2px">Charge un jour de base, simule les séchoirs à la vitesse réelle du tunnel, et propose un ordre de lavage qui finit plus tôt. Votre page officielle n'est pas modifiée.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:12px">
+          <div><span class="lab">Jour de base</span><input type="date" id="b-base" class="w-auto"></div>
+          <button id="b-load">Charger ce jour</button>
+          <div><span class="lab">Temps moyen par galette — optimisé (s)</span><input type="number" id="b-rot" class="mono w-auto" style="width:80px" step="1" min="1"></div>
+          <div><span class="lab">Cases vides / changement couleur</span><input type="number" id="b-cvide" class="mono w-auto" style="width:80px" step="1" min="0" max="10"></div>
+          <div><span class="lab">Limite camions — clients (sauf draps)</span><input type="number" id="b-camion" class="mono w-auto" style="width:80px" step="1" min="0" max="50"></div>
+        </div>
+        <div id="b-status" class="info" style="margin-top:8px"></div>
+      </div>
+      <div id="b-results"></div>
+      <div id="b-list"></div>
+      <div id="b-actions" class="hidden" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:12px">
+        <button id="b-opt" class="btn-primary">Optimiser l'ordre</button>
+        <div><span class="lab">Diffuser vers</span><input type="date" id="b-target" class="w-auto"></div>
+        <button id="b-diffuse">Diffuser vers cette date</button>
+        <span class="lab" style="width:100%;margin-top:4px">Imprimer un plan par poste (à afficher à chaque poste) :</span>
+        <button class="b-poste" data-poste="repassage">🖨️ Repassage</button>
+        <button class="b-poste" data-poste="pliage_table">🖨️ Table</button>
+        <button class="b-poste" data-poste="faxm">🖨️ FAXM</button>
+        <button class="b-poste" data-poste="laveuse" style="border-color:#7c3aed;color:#7c3aed">🖨️ Laveuse</button>
+      </div>
+    </section>
+
+    <!-- ONGLET RÉGLAGES -->
+    <section id="view-reglages" class="hidden">
+      <div class="card no-print">
+        <div style="font-weight:600">Codes de lavage</div>
+        <div class="sub" style="margin-top:2px">Taux de transfert (rotations avant que la case avance) et temps de séchage par type de linge. La cadence et le type se déduisent tout seuls.</div>
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 0 12px;flex-wrap:wrap">
+          <span class="lab" style="margin:0">Temps moyen par galette (s)</span>
+          <input type="number" id="rot" class="mono w-auto" style="width:90px" step="1" min="1">
+          <span class="sub" id="rot-help">moyenne entre un programme rapide (6 rotations = 96 s) et lent (9 rotations = 144 s). Ajustez ce temps sur votre vraie heure de fin : plus haut = journée plus longue, plus bas = plus courte.</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;margin:0 0 12px;flex-wrap:wrap;padding:10px;background:var(--bg-soft,#f6f6f4);border-radius:8px">
+          <span class="lab" style="margin:0;font-weight:600">Règle séchoirs</span>
+          <div style="display:flex;align-items:center;gap:6px"><span class="sub">Éponges max avant draps</span><input type="number" id="r-serie" class="mono w-auto" style="width:64px" step="1" min="1"></div>
+          <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bloc de draps pour tamponner</span><input type="number" id="r-bloc" class="mono w-auto" style="width:64px" step="1" min="1"></div>
+          <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bouchon si pas assez (min)</span><input type="number" id="r-bouchon" class="mono w-auto" style="width:64px" step="1" min="0"></div>
+        </div>
+        <div class="reg-wrap"><div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
+        <div id="codes"></div></div>
+        <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
+        <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+          <button id="btn-restore">Importer les données de cet appareil</button>
+          <div class="sub" style="margin-top:6px">À utiliser sur l'appareil qui contient des saisies locales pour les envoyer dans le cloud.</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="foot">Données partagées via le cloud. Connecté en tant que <span id="who"></span>.</div>
+  </div>
+
+  <div id="addbar" class="no-print">
+    <div class="inner">
+      <span class="sum" id="saisie-sum"></span>
+      <button id="btn-insert">\u2795 Insérer (date / heure)</button>
+      <button id="btn-add" class="btn-primary">+ Ajouter un client</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
+var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
+var sb=supabase.createClient(SB_URL,SB_KEY);
+var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, curView='saisie';
+
+var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
+var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
+var CFG={nbStockage:4,nbLavage:10,heureDemarrage:'06:00',rotationSec:13.8,tempsGalette:120,tempsGaletteOpt:120,tFixe:36,tParTaux:10,casesVide:2,camionCli:2,maxLent:8,maxClientsBloc:3,blocDraps:4,bouchonMin:10,attelages:{},cadenas:{}};
+var codes=[{num:2,lib:'',taux:9,sechageMin:20},{num:8,lib:'',taux:7,sechageMin:20},{num:11,lib:'',taux:8,sechageMin:30}];
+var rows=[];
+var curDate=todayISO();
+var bRows=[], bBase=[], bLoaded=false, bBaseDate='', bProposFin=null, bOptimized=false;
+
+/* séchoirs : capacités, cuve #4 (index 3) réservée aux draps */
+var CAP=[2,3,3,2], DRAP_DRYER=3;
+
+function todayISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isoMinus(iso,n){var p=iso.split('-').map(Number);var d=new Date(p[0],p[1]-1,p[2]);d.setDate(d.getDate()-n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function isoPlus(iso,n){return isoMinus(iso,-n);}
+function dateMinus7(iso){return isoMinus(iso,7);}
+function uid(){return 'id'+Math.random().toString(36).slice(2)+Date.now();}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function parseHeure(h){var p=(h||'06:00').split(':').map(Number);return p[0]*3600+p[1]*60;}
+function fmtHHMM(s){if(s==null||!isFinite(s))return '—';s=Math.round(s);var h=Math.floor(s/3600)%24,m=Math.floor((s%3600)/60);return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
+function fmtDuree(s){if(s==null||!isFinite(s))return '—';s=Math.max(0,Math.round(s));var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h'+String(m).padStart(2,'0'):m+' min';}
+function fmtCad(s){if(!s||!isFinite(s))return '—';var m=Math.floor(s/60),x=Math.round(s%60);return m>0?m+'\u2032'+String(x).padStart(2,'0')+'\u2033':x+'\u2033';}
+function secParGalette(c){return (c&&c.taux>0)?c.taux*CFG.rotationSec:0;}
+function galParH(c){var s=secParGalette(c);return s>0?Math.round(3600/s):0;}
+function codeByNum(n){n=parseInt(n);for(var i=0;i<codes.length;i++)if(codes[i].num===n)return codes[i];return null;}
+function lbl(arr,id){for(var i=0;i<arr.length;i++)if(arr[i][0]===id)return arr[i][1];return '—';}
+function defSechage(lib){var s=(lib||'').toLowerCase();if(/drap/.test(s))return 2.5;if(/blouse|tenue|v[êe]tement|robe|veste/.test(s))return 30;return 20;}
+function typeFromMin(m){if(m==null)return 'eponge';if(m<=5)return 'drap';if(m>=25)return 'vetement';return 'eponge';}
+var TYPES=[['eponge','Éponge'],['drap','Drap'],['vetement','Vêtement']];
+function typeOfCode(c){return (c&&c.type)?c.type:typeFromMin(c?c.sechageMin:null);}
+function typeLabel(t){return t==='drap'?'drap':(t==='vetement'?'vêtement':'éponge');}
+var COULEURS=[['blanc','Blanc'],['couleur','Couleur']];
+function colFromLib(lib){return /couleur|color/.test((lib||'').toLowerCase())?'couleur':'blanc';}
+function colOfCode(c){return (c&&c.couleur)?c.couleur:colFromLib(c?c.lib:'');}
+function colLabel(co){return co==='couleur'?'couleur':'blanc';}
+function colOfRow(r){var c=codeByNum(r.code);return colOfCode(c);}
+
+function netErr(){var e=document.getElementById('neterr');if(e)e.style.display='block';}
+function netOk(){var e=document.getElementById('neterr');if(e)e.style.display='none';}
+
+function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='string'&&p)return p.split(',').map(function(x){return x.trim();}).filter(Boolean);return ['repassage'];}
+
+async function loadConfig(){
+  try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(!CFG.attelages)CFG.attelages={};if(!CFG.cadenas)CFG.cadenas={};if(CFG.bouchonMin==null)CFG.bouchonMin=10;
+      if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
+      return true;}
+    return false;
+  }catch(e){netErr();return false;}
+}
+async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.id,data:{cfg:CFG,codes:codes},updated_at:new Date().toISOString()},{onConflict:'user_id'});netOk();}catch(e){netErr();}}
+function mapRow(x){return {id:uid(),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
+function rowToDb(r,date,i){return {user_id:USER.id,date_jour:date,ordre:i,client:r.client||'',poste:(r.postes&&r.postes.length?r.postes.join(','):'repassage'),machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};}
+async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});rows=clean.map(mapRow);netOk();}catch(e){rows=[];netErr();}}
+var clientNames=[];
+function fillClientDatalist(){var dl=document.getElementById('client-list');if(!dl)return;dl.innerHTML=clientNames.map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}
+async function loadClientNames(){try{var r=await sb.from('plan_charges').select('client').eq('user_id',USER.id);var seen={},list=[];(r.data||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;list.push(c);}});(rows||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;list.push(c);}});list.sort(function(a,b){return a.localeCompare(b,'fr');});clientNames=list;fillClientDatalist();}catch(e){}}
+function mergeClientNames(){var seen={};clientNames.forEach(function(n){seen[n.toLowerCase()]=1;});var added=false;(rows||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;clientNames.push(c);added=true;}});if(added){clientNames.sort(function(a,b){return a.localeCompare(b,'fr');});fillClientDatalist();}}
+async function loadDay(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});return clean.map(mapRow);}catch(e){netErr();return [];}}
+var saveRunning=false, saveQueued=false;
+async function savePlan(){
+  if(saveRunning){saveQueued=true;return;}
+  saveRunning=true;pendingSave=true;
+  try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',curDate);if(rows.length){var payload=rows.map(function(r,i){return rowToDb(r,curDate,i);});await sb.from('plan_charges').insert(payload);}netOk();}catch(e){netErr();}
+  mergeClientNames();
+  saveRunning=false;pendingSave=false;
+  if(saveQueued){saveQueued=false;savePlan();}
+}
+async function loadPrevTotals(date){try{var r=await sb.from('plan_charges').select('client,galettes').eq('user_id',USER.id).eq('date_jour',dateMinus7(date));var t={};(r.data||[]).forEach(function(x){var nm=(x.client||'').trim()||'(sans nom)';t[nm]=(t[nm]||0)+(x.galettes||0);});return t;}catch(e){return {};}}
+
+function localPlanKeys(){var a=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('pdt_plan:')===0)a.push(k);}return a;}
+async function pushLocalToCloud(){
+  var cd=localStorage.getItem('pdt_codes'),cf=localStorage.getItem('pdt_cfg'),pk=localPlanKeys();
+  if(!cd&&pk.length===0){localStorage.setItem('pdt_synced','1');return 0;}
+  if(cf)try{CFG=Object.assign(CFG,JSON.parse(cf));}catch(e){}
+  if(!CFG.rotationSec)CFG.rotationSec=13.8;
+  if(cd){try{var p=JSON.parse(cd);if(p&&p.length)codes=p;}catch(e){}}
+  codes.forEach(function(c){if(c.taux==null&&c.tph!=null&&c.tph>0)c.taux=Math.max(1,Math.round(3600/(c.tph*CFG.rotationSec)));if(c.taux==null)c.taux=0;if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);});
+  await saveConfig();
+  var moved=0;
+  for(var j=0;j<pk.length;j++){
+    var key=pk[j],date=key.slice(9),arr=[];
+    try{arr=JSON.parse(localStorage.getItem(key)||'[]');}catch(e){}
+    if(arr&&arr.length){
+      try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',date);}catch(e){}
+      var payload=arr.map(function(r,idx){return rowToDb({client:r.client,postes:normPostes(r.poste||r.postes),machine:r.machine,code:r.code,nbTransferts:r.nbTransferts},date,idx);});
+      try{await sb.from('plan_charges').insert(payload);moved+=payload.length;}catch(e){}
+    }
+  }
+  localStorage.setItem('pdt_synced','1');
+  return moved;
+}
+async function maybeMigrate(){try{if(localStorage.getItem('pdt_synced')==='1')return;await pushLocalToCloud();}catch(e){}}
+
+function scheduleSavePlan(){pendingSave=true;clearTimeout(saveTimer);saveTimer=setTimeout(function(){savePlan();},700);}
+function scheduleSaveConfig(){clearTimeout(cfgTimer);cfgTimer=setTimeout(function(){saveConfig();},500);}
+function updateSummary(){var n=rows.length,g=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);var el=document.getElementById('saisie-sum');if(el)el.textContent=n+' client'+(n>1?'s':'')+' \u00b7 '+g+' galette'+(g>1?'s':'');}
+function sync(){renderResults();updateSummary();scheduleSavePlan();}
+
+function setView(name){
+  curView=name;
+  ['saisie','plan','brouillon','reglages'].forEach(function(v){document.getElementById('view-'+v).classList.toggle('hidden',name!==v);});
+  document.getElementById('addbar').classList.toggle('show',name==='saisie');
+  var tabs=document.querySelectorAll('.tab');for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('active',tabs[i].getAttribute('data-view')===name);
+  if(name==='plan')renderResults();
+  window.scrollTo({top:0,behavior:'auto'});
+}
+
+/* ---------- Moteur tunnel simple (Plan de travail, étalon inchangé) ---------- */
+function simulerTunnel(srcRows){
+  var src=srcRows||rows;
+  var N=CFG.nbStockage+CFG.nbLavage,lavStart=CFG.nbStockage,charges=[],undef=false;
+  src.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);if((!c||!(c.taux>0))&&(parseInt(r.nbTransferts)||0)>0)undef=true;var sec=secParGalette(c);var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({rowId:r.id,sec:sec,tLoad:null,tExit:null});});
+  var start=parseHeure(CFG.heureDemarrage),t=start,pos=new Array(N).fill(null),q=charges.slice(),total=charges.length,ex=0,g=0,bMax=0,cMin=Infinity;
+  while(total>0&&(ex<total||pos.some(Boolean))){g++;if(g>200000)break;var out=pos[N-1];if(out){out.tExit=t;ex++;}for(var i=N-1;i>0;i--)pos[i]=pos[i-1];pos[0]=q.length?q.shift():null;if(pos[0])pos[0].tLoad=t;var occ=[];for(var i2=lavStart;i2<N;i2++)if(pos[i2])occ.push(pos[i2].sec);var cad;if(occ.length){cad=Math.max.apply(null,occ);bMax=Math.max(bMax,cad);cMin=Math.min(cMin,Math.min.apply(null,occ));}else{var all=pos.filter(Boolean).map(function(c){return c.sec;});cad=all.length?Math.min.apply(null,all):0;}t+=cad;}
+  var fin=charges.reduce(function(m,c){return c.tExit!=null?Math.max(m,c.tExit):m;},start);
+  var lots={};charges.forEach(function(c){if(!lots[c.rowId])lots[c.rowId]={rowId:c.rowId,charg:Infinity,sortie:0};var L=lots[c.rowId];if(c.tLoad!=null)L.charg=Math.min(L.charg,c.tLoad);if(c.tExit!=null)L.sortie=Math.max(L.sortie,c.tExit);});
+  return{total:total,fin:fin,duree:fin-start,bMax:bMax,cMin:isFinite(cMin)?cMin:0,lots:lots,undef:undef};
+}
+
+/* ---------- Moteur séchoirs (Brouillon) ---------- */
+function chargesFrom(list){var charges=[];list.forEach(function(r){if(r.machine!=='tunnel')return;var c=codeByNum(r.code);var taux=(c&&c.taux>0)?c.taux:9;var dryMin=(c&&c.sechageMin!=null)?c.sechageMin:20;var type=c?typeOfCode(c):'eponge';var col=c?colOfCode(c):'blanc';var postes=(r.postes&&r.postes.length)?r.postes.slice():['repassage'];var n=Math.max(0,parseInt(r.nbTransferts)||0);for(var i=0;i<n;i++)charges.push({type:type,dry:dryMin*60,taux:taux,col:col,postes:postes});});return charges;}
+/* ---- BLOCAGE SÉCHOIR : vraie simulation dans le temps (modèle validé) ----
+   Chaque galette sort de la chaîne (cadence = taux MAX d'une fenêtre de 10 × rotationSec) et va
+   dans un séchoir. Éponge : sèche selon son sechageMin (~35 min) dans les séchoirs 1-2-3.
+   Draps : voie rapide du séchoir 4 (~2 min) qui draine le tampon et garde le tunnel en mouvement
+   pendant que l'éponge sèche. Quand les 14 places (10 séchoirs + 4 passerelles) sont pleines, la
+   chaîne ATTEND qu'un séchoir se libère (durée réelle, variable). Renvoie les minutes de blocage. */
+function blocageSechoir(charges){
+  if(!charges||!charges.length)return 0;
+  // File d'attente multi-serveurs avec blocage tunnel (récurrence de type Lindley) :
+  // MONOTONE par construction — espacer les arrivées ne peut jamais augmenter le blocage.
+  var TG=120, UNLOAD=120, P=4, DLANE=DRAP_DRYER; // espacement de référence FIXE (le réglage temps/galette ne pilote que le chargement)
+  var epN=0,drN=0; for(var i=0;i<4;i++){ if(i===DLANE)drN+=CAP[i]; else epN+=CAP[i]; }
+  var epFree=[],drFree=[]; for(var i=0;i<epN;i++)epFree.push(-1e9); for(var i=0;i<drN;i++)drFree.push(-1e9);
+  function earliest(a){var m=a[0],j=0;for(var i=1;i<a.length;i++)if(a[i]<m){m=a[i];j=i;}return j;}
+  var enterEp=[], A=0, bloc=0;
+  for(var idx=0;idx<charges.length;idx++){
+    var nominal=A+TG, arrival=nominal, c=charges[idx];
+    if(c.type==='drap'){
+      var j=earliest(drFree); var e=Math.max(arrival,drFree[j]); drFree[j]=e+(c.dry+UNLOAD); A=arrival;
+    } else {
+      // le tunnel ne peut pas avancer tant qu'une passerelle éponge ne s'est pas libérée
+      if(enterEp.length>=P) arrival=Math.max(nominal, enterEp[enterEp.length-P]);
+      var j=earliest(epFree); var e=Math.max(arrival,epFree[j]); epFree[j]=e+(c.dry+UNLOAD); enterEp.push(e);
+      bloc+=(arrival-nominal); A=arrival;
+    }
+  }
+  return Math.round(bloc/60);
+}
+function blocageSechoirRows(order){return blocageSechoir(chargesFrom(order));}
+/* HEURE DE FIN = 6h + (nb galettes × temps moyen par galette) + blocage séchoir de CET ordre.
+   Le temps moyen par galette (réglable, ~120 s = moyenne entre un programme à 6 rotations = 96 s
+   et à 9 rotations = 144 s) donne l'heure réaliste ; on l'ajuste sur la vraie heure de fin observée.
+   Le blocage séchoir, lui, est propre à l'ordre : c'est ce qui fait la différence plan actuel /
+   optimisé (le gain). Même journée, même nb de galettes -> seul le blocage change entre deux ordres. */
+function tempsGalette(){return (CFG.tempsGalette>0?CFG.tempsGalette:120);}
+function galettesTunnel(allRows){return allRows.reduce(function(s,r){return r.machine==='tunnel'?s+Math.max(0,parseInt(r.nbTransferts)||0):s;},0);}
+function heureFinReelle(allRows,tg){
+  var tunnel=allRows.filter(function(r){return r.machine==='tunnel';});
+  var s=simSechoirs(tunnel,(tg>0?tg:tempsGalette()),parseHeure(CFG.heureDemarrage));
+  return s.finSec; // sortie du dernier linge des séchoirs = vraie fin (même moteur que le tableau des postes)
+}
+function gainCadence(allRows){
+  var tunnel=allRows.filter(function(r){return r.machine==='tunnel';});
+  return Math.max(0, blocageSechoirRows(fusionnerMemeClient(tunnel)) - blocageSechoirRows(tunnel));
+}
+/* Insère des cases vides (séparation couleur/blanc) entre charges de couleur différente. Une case vide
+   occupe le tunnel (un transfert) mais ne va pas au séchoir. K = CFG.casesVide par changement. */
+function withVides(charges,K){if(!K||K<1||charges.length===0)return charges.slice();var out=[],prev=null;
+  for(var i=0;i<charges.length;i++){var c=charges[i];if(prev!==null&&c.col!==prev){for(var k=0;k<K;k++)out.push({type:'vide',dry:0,taux:1,col:c.col});}out.push(c);prev=c.col;}return out;}
+/* Tunnel 14 positions (4 stockage + 10 lavage). BRIDAGE : à chaque transfert, cadence = tFixe + (taux MAX des 10 cases
+   de lavage) × tParTaux, imposée à tout le tunnel tant que la charge lente n'est pas sortie. Sortie -> passerelle (4) ->
+   séchoirs en cycles (remplir 96/gal sauf 1re offerte par passerelle, sécher, vider 96). fin = dernier linge sec. */
+function simSechoirs(list,tg,start){
+  var CAD=(tg>0?tg:tempsGalette()), LOAD=96, EMPTY=96, P=4, caps=CAP, N=14, W0=4;
+  var realCharges=chargesFrom(list), realTotal=realCharges.length;
+  if(realTotal===0)return{fin:start,wait:0,total:0,vides:0};
+  var charges=withVides(realCharges,CFG.casesVide==null?2:CFG.casesVide), total=charges.length;
+  var videsCount=total-realTotal;
+  function isReal(c){return c&&c.type!=='vide';}
+  // référence : sortie du dernier linge RÉEL si les séchoirs étaient instantanés (tunnel libre, cases vides comprises)
+  var freeExit=0;
+  (function(){var p2=new Array(N).fill(null),i2=0,tt=0,ex2=0;
+    while(ex2<total){ if(p2[N-1]){ex2++;if(isReal(p2[N-1]))freeExit=tt;} for(var i=N-1;i>0;i--)p2[i]=p2[i-1]; p2[0]=(i2<total)?charges[i2++]:null;
+      tt+=CAD; }
+  })();
+  var dryers=caps.map(function(c){return {cap:c,busyUntil:0,idle:true,lot:null};});
+  var pass=[], pos=new Array(N).fill(null), q=charges.slice(), loaded=0, t=0, tunnelReady=0, guard=0, stall=0, lastExit=0, lastLoadReal=0, deliveries=[];
+  function anyPos(){for(var i=0;i<N;i++)if(pos[i])return true;return false;}
+  function someBusy(){for(var i=0;i<dryers.length;i++)if(!dryers[i].idle)return true;return false;}
+  function maxTaux(){var m=0;for(var i=W0;i<N;i++)if(pos[i]&&pos[i].taux>m)m=pos[i].taux;return m||1;}
+  function cnt(ty){var c=0;for(var i=0;i<pass.length;i++)if(pass[i].type===ty)c++;return c;}
+  function pull(ty,mx){var g=[];for(var i=0;i<pass.length&&g.length<mx;){if(pass[i].type===ty)g.push(pass.splice(i,1)[0]);else i++;}return g;}
+  function deliver(dr){if(dr.lot){for(var x=0;x<dr.lot.length;x++)deliveries.push({t:dr.busyUntil,postes:dr.lot[x].postes});dr.lot=null;}}
+  function assign(){var ch=true;while(ch){ch=false;for(var di=0;di<dryers.length;di++){var dr=dryers[di];if(!dr.idle||pass.length===0)continue;
+    var ty=pass[0].type,av=cnt(ty),done=(loaded>=total&&!anyPos()),full=(pass.length>=P),take;
+    if(av>=dr.cap)take=dr.cap;else if(full||done)take=av;else take=0;
+    if(take>0){var lot=pull(ty,take);var dm=0;for(var x=0;x<lot.length;x++)dm=Math.max(dm,lot[x].dry);dr.idle=false;dr.lot=lot;dr.busyUntil=t+(lot.length-1)*LOAD+dm+EMPTY;ch=true;}}}}
+  while(loaded<total || anyPos() || pass.length>0 || someBusy()){
+    guard++; if(guard>5000000) break;
+    for(var d=0;d<dryers.length;d++) if(!dryers[d].idle && dryers[d].busyUntil<=t){ deliver(dryers[d]); dryers[d].idle=true; }
+    assign();
+    var exitC=pos[N-1];
+    var needRoom=(exitC&&isReal(exitC)); // case vide sort sans occuper la passerelle
+    var canT=(t>=tunnelReady) && (loaded<total||anyPos()) && (!needRoom||pass.length<P);
+    if(canT){
+      if(exitC){ if(isReal(exitC)){ pass.push(exitC); lastExit=t; } pos[N-1]=null; }
+      for(var i=N-1;i>0;i--) pos[i]=pos[i-1];
+      var nc=(loaded<total)? q[loaded++] : null; pos[0]=nc;
+      if(nc&&isReal(nc)) lastLoadReal=t;
+      tunnelReady = t + CAD;
+      assign(); continue;
+    }
+    var next=Infinity;
+    if(loaded<total||anyPos()){ if(!needRoom||pass.length<P) next=Math.min(next,Math.max(t,tunnelReady));
+      else { for(var e=0;e<dryers.length;e++) if(!dryers[e].idle) next=Math.min(next,dryers[e].busyUntil); } }
+    for(var dd=0;dd<dryers.length;dd++) if(!dryers[dd].idle) next=Math.min(next,dryers[dd].busyUntil);
+    if(next===Infinity||next<=t){var nb=Infinity;for(var f=0;f<dryers.length;f++)if(!dryers[f].idle)nb=Math.min(nb,dryers[f].busyUntil);if(nb===Infinity)break;next=nb;}
+    if(needRoom && pass.length>=P && t>=tunnelReady) stall += (next-t);
+    t=next;
+  }
+  for(var dz=0;dz<dryers.length;dz++) deliver(dryers[dz]);
+  return{fin:start+lastLoadReal, finSec:start+t, wait:Math.max(0,lastExit-freeExit), total:realTotal, vides:videsCount, deliveries:deliveries, start:start};
+}
+/* Alimentation des postes : à partir des livraisons (sortie séchoir), compte par poste et par heure. */
+function feedByHour(deliveries,start,fin){
+  var posts=POSTES.map(function(p){return p[0];});
+  var h0=Math.floor(start/3600), h1=Math.ceil(fin/3600), hours=[];
+  for(var h=h0;h<h1;h++)hours.push(h);
+  var grid={}; posts.forEach(function(p){grid[p]={};hours.forEach(function(h){grid[p][h]=0;});});
+  deliveries.forEach(function(d){var hh=Math.floor((start+d.t)/3600);if(hh>=h1)hh=h1-1;var ps=d.postes&&d.postes.length?d.postes:['repassage'];var w=1/ps.length;ps.forEach(function(p){if(grid[p]==null)grid[p]={};if(grid[p][hh]==null)grid[p][hh]=0;grid[p][hh]+=w;});});
+  // fenêtre active globale (1re à dernière livraison, tous postes confondus)
+  var gFirst=null,gLast=null;
+  posts.forEach(function(p){hours.forEach(function(h){if(grid[p][h]>0.001){if(gFirst===null||h<gFirst)gFirst=h;if(gLast===null||h>gLast)gLast=h;}});});
+  var idle={};posts.forEach(function(p){var used=false;hours.forEach(function(h){if(grid[p][h]>0.001)used=true;});var z=0;if(used&&gFirst!==null)for(var h=gFirst;h<=gLast;h++)if(grid[p][h]<=0.001)z++;idle[p]={trous:z,used:used,debut:gFirst,fin:gLast};});
+  return {posts:posts,hours:hours,grid:grid,idle:idle,gFirst:gFirst,gLast:gLast};
+}
+function feedTable(s){
+  var f=feedByHour(s.deliveries||[],s.start,(s.finSec||s.fin));
+  var lab={faxm:'FAXM',pliage_table:'Table',repassage:'Repassage'};
+  var html='<div style="overflow-x:auto"><table class="feed"><thead><tr><th>Poste</th>';
+  f.hours.forEach(function(h){html+='<th>'+(h%24)+'h</th>';});
+  html+='<th>Trous</th></tr></thead><tbody>';
+  f.posts.forEach(function(p){html+='<tr><td class="pname">'+(lab[p]||p)+'</td>';
+    f.hours.forEach(function(h){var v=f.grid[p][h]||0;var inRange=(f.idle[p].used&&f.gFirst!==null&&h>=f.gFirst&&h<=f.gLast);
+      var cls=v<=0.001?(inRange?'z':'o'):(v<3?'lo':'ok');
+      html+='<td class="'+cls+'">'+(v>0.001?Math.round(v):'')+'</td>';});
+    html+='<td class="pname">'+(f.idle[p].trous>0?'<b style="color:var(--danger)">'+f.idle[p].trous+'</b>':'0')+'</td></tr>';});
+  html+='</tbody></table></div><div class="info" style="margin-top:6px">Une case <b>rouge</b> = ce poste n\'a rien reçu cette heure-là alors que la journée tourne (personnel à l\'arrêt). « Trous » = nombre d\'heures creuses. L\'objectif de l\'optimiseur sera de réduire ces trous.</div>';
+  return html;
+}
+/* Optimiseur combiné. Priorité absolue : ne pas affamer les postes (main-d'œuvre).
+   Puis : heure de fin (qui intègre blocage séchoirs + cases vides). Contrainte camions asymétrique :
+   éponge/vêtement à ±N clients de leur ordre, draps libres mais dans leur ordre de départ. */
+function trousTotal(s){var f=feedByHour(s.deliveries||[],s.start,(s.finSec||s.fin));var z=0;f.posts.forEach(function(p){z+=f.idle[p].trous;});return z;}
+function rowType(r){var c=codeByNum(r.code);return c?typeOfCode(c):'eponge';}
+function maxLentRun(order){var run=0,mx=0;for(var i=0;i<order.length;i++){var t=rowType(order[i]);var g=parseInt(order[i].nbTransferts)||0;if(t==='drap')run=0;else{run+=g;if(run>mx)mx=run;}}return mx;}
+/* découpe les gros clients lents (>maxLent galettes) en tranches, pour pouvoir intercaler des draps dedans */
+function splitSlow(rows,maxLent){var out=[];rows.forEach(function(r){var g=parseInt(r.nbTransferts)||0;var t=rowType(r);
+  if(t==='drap'||g<=maxLent){out.push(Object.assign({},r,{src:r.id}));return;}
+  var k=0;while(g>0){var gg=Math.min(maxLent,g);out.push(Object.assign({},r,{id:r.id+'~'+k,src:r.id,nbTransferts:String(gg)}));g-=gg;k++;}});return out;}
+/* recolle les tranches consécutives du même client (les tranches séparées par un drap restent coupées) */
+function mergeChunks(order){var out=[];order.forEach(function(r){var last=out[out.length-1];var src=r.src||r.id;
+  if(last&&(last.src||last.id)===src){last.nbTransferts=String((parseInt(last.nbTransferts)||0)+(parseInt(r.nbTransferts)||0));}
+  else out.push(Object.assign({},r));});return out;}
+/* FUSION PAR (nom + code) : même nom de client ET même code de lavage = même produit
+   (donc même séchage). On additionne toutes ces lignes en UN seul client, dans l'ordre de
+   première apparition. L'optimiseur le redécoupera ensuite rationnellement (8 + tampon + 5...). */
+function fusionnerMemeClient(rows){
+  var out=[],idx={};
+  rows.forEach(function(r){
+    var key=((r.client||'').trim().toLowerCase())+'|'+(r.code==null?'':r.code)+'|'+(r.machine||'tunnel');
+    if(key in idx){var t=out[idx[key]];t.nbTransferts=String((parseInt(t.nbTransferts)||0)+(parseInt(r.nbTransferts)||0));}
+    else{idx[key]=out.length;out.push(Object.assign({},r));}
+  });
+  return out;
+}
+/* ATTENTE SÉCHOIR selon la règle de Benoît : on accumule les galettes lentes ; au-delà de
+   serieMax sans bloc de draps suffisant pour tamponner, on compte un bouchon. Renvoie le nb de bouchons. */
+function attenteRegle(order){
+  var serieMax=(CFG.maxLent==null?8:CFG.maxLent), bloc=(CFG.blocDraps==null?4:CFG.blocDraps);
+  var s=0,d=0,b=0;
+  for(var i=0;i<order.length;i++){var g=parseInt(order[i].nbTransferts)||0, isD=isDrapRow(order[i]);
+    if(!isD){ if(d>0){ if(d>=bloc)s=0; else s=Math.max(0,s-d*(serieMax/bloc)); d=0; }
+      for(var k=0;k<g;k++){ s++; if(s>serieMax){ b++; s=1; } } }
+    else { d+=g; } }
+  return b;
+}
+function isDrapRow(r){return rowType(r)==='drap';}
+/* clé de cohésion : on regroupe SEULEMENT les morceaux issus d'une même livraison coupée
+   (même origine src). Deux livraisons séparées d'un même client restent indépendantes —
+   chacune doit partir avec SON camion, on n'y touche pas. */
+function grpKey(r){return r.src||r.id;}
+/* COHÉSION CLIENT : les morceaux d'un même client doivent rester contigus dans la
+   suite des non-draps (un bloc de draps entre deux morceaux est permis = tampon ;
+   un autre client éponge entre les deux est interdit). */
+function cohesionOK(order){
+  // 1) chaque client coupé reste contigu dans la suite des non-draps
+  var ranks={},rank=0;
+  for(var i=0;i<order.length;i++){if(isDrapRow(order[i]))continue;var k=grpKey(order[i]);if(!ranks[k])ranks[k]=[];ranks[k].push(rank++);}
+  for(var k in ranks){var a=ranks[k];for(var j=1;j<a.length;j++)if(a[j]!==a[j-1]+1)return false;}
+  // 2) entre deux morceaux consécutifs d'un même client, il FAUT un bloc de draps tampon
+  var seen={},drapSince={};
+  for(var i=0;i<order.length;i++){
+    if(isDrapRow(order[i])){for(var kk in drapSince)drapSince[kk]=true;continue;}
+    var k2=grpKey(order[i]);
+    if(seen[k2] && !drapSince[k2]) return false; // deux morceaux collés sans tampon -> interdit
+    seen[k2]=true; drapSince[k2]=false;
+  }
+  return true;
+}
+/* rang parmi les NON-draps seulement (insérer un drap ne décale pas l'éponge) */
+function ndRanks(order){var rank={},k=0;order.forEach(function(r){if(isDrapRow(r))return;var s=r.src||r.id;if(!(s in rank))rank[s]=k++;});return rank;}
+/* séquence des clients draps (ordre de départ) */
+function drapSeq(order){var seen={},seq=[];order.forEach(function(r){if(!isDrapRow(r))return;var s=r.src||r.id;if(!(s in seen)){seen[s]=true;seq.push(s);}});return seq;}
+function sameSeq(a,b){if(a.length!==b.length)return false;for(var i=0;i<a.length;i++)if(a[i]!==b[i])return false;return true;}
+/* Contrainte camions ASYMÉTRIQUE :
+   - éponge/vêtement : ordre serré (±N rangs entre eux, les draps ne comptent pas) ;
+   - draps : libres en distance, mais leur ordre de départ entre eux est préservé. */
+function camionOK(order,origND,origDrap,N){var rk=ndRanks(order);for(var s in origND){if(rk[s]==null)continue;if(Math.abs(rk[s]-origND[s])>N)return false;}return sameSeq(drapSeq(order),origDrap);}
+// Pour chaque drap : combien de clients urgents (non-draps) sont devant lui.
+function drapBefore(order){var cnt={},nd=0;order.forEach(function(r){if(isDrapRow(r)){var s=r.src||r.id;if(!(s in cnt))cnt[s]=nd;}else nd++;});return cnt;}
+// Un drap ne peut jamais avoir MOINS de clients urgents devant lui qu'à son arrivée (il ne remonte pas, il ne double personne).
+function drapNotEarlier(order,orig){var now=drapBefore(order);for(var s in orig){if(now[s]!=null&&now[s]<orig[s])return false;}return true;}
+/* CONSTRUCTEUR DE CADENCE — bâtit l'ordre comme Benoît à la main :
+   éponge dans l'ordre (gros clients coupés à 8 d'abord), draps insérés régulièrement.
+   Si les draps sont assez nombreux : un drap tous les 8 éponge (sa règle).
+   Si les draps manquent : on les ÉTALE régulièrement pour ne pas laisser un énorme bloc
+   d'éponge à la fin (espacement = total d'éponge / (nb draps + 1)). */
+function construireCadence(rows){
+  var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
+  var slow=rows.filter(function(r){return !isDrapRow(r);});
+  var draps=rows.filter(isDrapRow);
+  var chunks=splitSlow(slow,serieMax);
+  // cont[i] = ce morceau est la suite d'un même client coupé (il LUI FAUT un tampon avant)
+  var cont=chunks.map(function(c,i){return i>0 && (c.src||c.id)===(chunks[i-1].src||chunks[i-1].id);});
+  // future[i] = nb de points de coupe encore à venir après i (pour réserver des draps en priorité)
+  var future=new Array(chunks.length),fc=0;
+  for(var i=chunks.length-1;i>=0;i--){future[i]=fc;if(cont[i])fc++;}
+  var totalSlow=chunks.reduce(function(s,c){return s+(parseInt(c.nbTransferts)||0);},0);
+  var espacement=draps.length>0?Math.max(serieMax,totalSlow/(draps.length+1)):totalSlow+1;
+  var out=[],di=0,acc=0,manques=[];
+  for(var i=0;i<chunks.length;i++){
+    var g=parseInt(chunks[i].nbTransferts)||0;
+    if(cont[i]){
+      // TAMPON OBLIGATOIRE entre deux moitiés d'un même client coupé
+      if(di<draps.length){ out.push(draps[di++]); acc=0; out.push(chunks[i]); acc+=g; }
+      else { // plus aucun drap : on recolle au morceau précédent (client entier) et on SIGNALE le manque
+        var last=out[out.length-1]; last.nbTransferts=String((parseInt(last.nbTransferts)||0)+g);
+        manques.push((chunks[i].client||'').trim()||(chunks[i].src||chunks[i].id)); acc+=g; }
+    } else {
+      // RÈGLE DES 8 STRICTE : si ajouter ce morceau ferait dépasser 8 galettes lentes d'affilée,
+      // on insère un tampon de draps AVANT (tant qu'il en reste au-delà des tampons réservés aux coupes).
+      if(acc>0 && acc+g>serieMax && (draps.length-di-future[i])>0){ out.push(draps[di++]); acc=0; }
+      out.push(chunks[i]); acc+=g;
+    }
+  }
+  while(di<draps.length){ out.push(draps[di++]); }
+  construireCadence.manques=manques;
+  return out;
+}
+/* MOTEUR TOURNIQUET : on sert les postes chacun leur tour (FAXM -> Table -> Repassage), en reprenant
+   chaque poste là où on s'était arrêté. 8 cases lentes maxi par bloc puis tampon draps (règle des 8).
+   Un poste ne s'arrête que lorsqu'il n'a PLUS de linge arrivé -> son équipe part (trou final assumé).
+   W = fenêtre d'arrivée (combien de clients sont déjà là ; on ne lave jamais un client pas encore arrivé). */
+/* NOYAU DU NOM D'UN CLIENT : on retire les mots de catégorie (et les chiffres) situés à la FIN du nom.
+   « therme de royat sac a gaz » et « therme de royat serviette » -> « therme de royat » (même client).
+   « hotel campanile thiers » et « hotel campanile clermont » restent DIFFÉRENTS (thiers/clermont ne sont
+   pas des catégories). Robuste aux mots nouveaux : bavoir, couverture, plastique… */
+var MOTS_CAT=/^(sac|sacs|gaz|a|eponge|eponges|drap|draps|serviette|serviettes|peignoir|peignoirs|linge|blouse|blouses|couleur|couleurs|bavoir|bavoirs|couverture|couvertures|plastique|resident|residents|sante|et|de|du|des|la|le|les|spa|spas|table)$/;
+function noyauClient(nom){
+  var s=(nom||'').toLowerCase();
+  s=s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;
+  s=s.replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+  var w=s.split(' ');
+  while(w.length>1 && (MOTS_CAT.test(w[w.length-1]) || /^\d+$/.test(w[w.length-1]))) w.pop();
+  return w.join(' ');
+}
+function construireTourniquet(rows, W, ctx){
+  var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
+  if(W==null)W=1e9;
+  rows.forEach(function(r,i){ r._arr=i; });
+  var drapsRaw=rows.filter(isDrapRow);
+  var slow=rows.filter(function(r){return !isDrapRow(r);});
+  var chunks=splitSlow(slow,serieMax);
+  var totalDrapGal=drapsRaw.reduce(function(s,d){return s+(parseInt(d.nbTransferts)||0);},0);
+  // Toutes les galettes de draps mises en commun (chacune garde sa ligne source pour l'affichage/postes).
+  // Les draps ne sont pas interchangeables : un drap saisi tôt (déjà arrivé à l'atelier) doit servir de
+  // tampon AVANT un drap saisi tard (pas encore livré). On garde donc l'ordre de saisie comme critère
+  // principal ; la préférence « hôtel qui a aussi de l'éponge » ne départage que deux draps de même rang.
+  (function(){
+    function sa(s){return s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;}
+    function gH(k){return noyauClient(k);}
+    var avecEponge={};
+    rows.forEach(function(r){ if(!isDrapRow(r) && rowType(r)==='eponge'){ var k=(r.client||'').trim().toLowerCase(); if(k && !/therm/.test(sa(k))) avecEponge[gH(k)]=1; } });
+    drapsRaw.sort(function(a,b){
+      var ra=(a._arr==null?1e9:a._arr), rb=(b._arr==null?1e9:b._arr);
+      if(ra!==rb) return ra-rb;                            // ordre de saisie d'abord
+      var ka=gH((a.client||'').trim().toLowerCase()), kb=gH((b.client||'').trim().toLowerCase());
+      return (avecEponge[kb]?1:0)-(avecEponge[ka]?1:0);   // à rang égal : draps d'hôtels « à éponge » d'abord
+    });
+  })();
+  var pool=[]; drapsRaw.forEach(function(d){var g=parseInt(d.nbTransferts)||0;for(var i=0;i<g;i++)pool.push(d);});
+  // Postes en tourniquet.
+  function posteOf(c){var ps=c.postes&&c.postes.length?c.postes:['repassage'];return ps[0];}
+  var cycle=['faxm','pliage_table','repassage'];
+  var queues={}; chunks.forEach(function(c){var p=posteOf(c); if(!queues[p])queues[p]=[]; queues[p].push(c);});
+  Object.keys(queues).forEach(function(p){ if(cycle.indexOf(p)<0) cycle.push(p); });
+  cycle=cycle.filter(function(p){return queues[p]&&queues[p].length;});
+  // Démarrer le tourniquet sur le POSTE du 1er client de la liste : on respecte le client que Benoît
+  // met en tête (ex. Spas Chatel), au lieu d'imposer faxm ou un drap d'ouverture. Les 5 cases vides
+  // en tête de tunnel font déjà le tampon d'ouverture, donc on peut démarrer direct sur l'éponge.
+  if(chunks.length){ var pStart=posteOf(chunks[0]); var ixc=cycle.indexOf(pStart); if(ixc>0) cycle=cycle.slice(ixc).concat(cycle.slice(0,ixc)); }
+  var ptr={}; cycle.forEach(function(p){ptr[p]=0;});
+  // PASSE 1 : suite des cases lentes + repérage des frontières « règle des 8 ».
+  // On ne pioche plus « chacun son tour » : à chaque case on sert le POSTE LE MOINS CHARGÉ.
+  // La charge compte toutes les galettes déjà envoyées au poste, Y COMPRIS LES DRAPS pour le Repassage
+  // (les draps ne sont pas que des tampons : la repasseuse doit les traiter). Conséquence voulue :
+  // le Repassage étant noyé de draps, ses serviettes reculent derrière les peignoirs (FAXM, peu chargé).
+  var seq=[], bnd=[], acc=0, cliBloc=0, lastCli=null, guard=0;
+  var maxCli=(CFG.maxClientsBloc==null?3:CFG.maxClientsBloc); // max clients éponge distincts par bloc
+  function ckey(c){return (c.client||'').trim().toLowerCase();}
+  function remaining(){var n=0;cycle.forEach(function(p){n+=(queues[p].length-ptr[p]);});return n;}
+  var charge={}; cycle.forEach(function(p){charge[p]=0;});
+  if(charge.repassage!=null) charge.repassage+=totalDrapGal;   // les draps chargent la repasseuse
+  // Ré-optimisation partielle : on hérite de ce que les postes ont DÉJÀ encaissé avant la ligne figée,
+  // sinon le moteur croit repartir d'un atelier vide et ressert trop tôt le poste déjà chargé.
+  if(ctx && ctx.charge){ for(var _p in ctx.charge){ if(charge[_p]!=null) charge[_p]+=ctx.charge[_p]; } }
+  // ATTELAGE ⛓️ : « ce client passe juste après cet autre ». On ne colle PAS les deux : dès que l'ancre a
+  // fini son linge, on fait passer le client attelé en tête de sa file. La règle des frontières ci-dessous
+  // intercalera d'elle-même le tampon de draps si les deux sont de l'éponge. Les chaînes marchent (A→B→C).
+  var ATT=Object.assign({},(CFG.attelages||{}));
+  // Un attelage ne doit JAMAIS créer de boucle (A attend B qui attend A) : les deux s'attendraient
+  // pour toujours et leur linge disparaîtrait du plan. On refuse tout lien qui refermerait une chaîne.
+  function creeBoucle(k,anc){
+    var vu={}, cur=anc;
+    while(cur){ if(cur===k) return true; if(vu[cur]) return false; vu[cur]=1; cur=ATT[cur]; }
+    return false;
+  }
+  function lier(k,anc){ if(k===anc||ATT[k]||creeBoucle(k,anc)) return false; ATT[k]=anc; return true; }
+  Object.keys(ATT).forEach(function(k){ var a=ATT[k]; delete ATT[k]; if(!lier(k,a)) construireTourniquet.boucles=(construireTourniquet.boucles||[]).concat(k+' \u2192 '+a); });
+  // RÈGLE DES THERMES (implicite) : chez un même Therme, les peignoirs (FAXM) passent avant les serviettes
+  // (Repassage), parce que la repasseuse croule déjà sous les draps. On l'implémente comme un attelage
+  // automatique serviette -> peignoir du même Therme. Un attelage manuel reste prioritaire.
+  (function(){
+    function sansAccent(s){return s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;}
+    function grp(k){return noyauClient(k);}
+    var peig={}, serv={};
+    chunks.forEach(function(c){
+      var k=ckey(c), n=sansAccent(k);
+      if(!/therm/.test(n)) return;
+      if(/peignoir/.test(n)) peig[grp(k)]=k;
+      else if(/serviette/.test(n)) serv[grp(k)]=k;
+    });
+    // Un peignoir déjà lavé avant la ligne figée ne doit plus bloquer sa serviette.
+    var dejaFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(/therm/.test(n)&&/peignoir/.test(n)) dejaFait[grp(k)]=1;});
+    for(var g in serv){ if(dejaFait[g]) continue; if(peig[g]) lier(serv[g],peig[g]); }
+    // RÈGLE DES HÔTELS (implicite) : le linge arrive mélangé. On sort d'abord les draps, on rassemble les
+    // éponges au fil du tri, et les SACS passent en dernier (il faut les vider). Les draps étant des tampons
+    // répartis par le moteur, on ne peut garantir ici que : éponge du même hôtel AVANT son sac.
+    function grpH(k){return noyauClient(k);}
+    var epo={}, sac={};
+    chunks.forEach(function(c){
+      var k=ckey(c), n=sansAccent(k), t=rowType(c);
+      if(/therm/.test(n)) return;                       // les Thermes ont déjà leur règle
+      if(t==='vetement') sac[grpH(k)]=k;                // sacs, bavoirs, plastique… = ce qui est en sac
+      else if(t==='eponge') epo[grpH(k)]=k;
+    });
+    var epoFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(!/therm/.test(n)) epoFait[grpH(k)]=1;});
+    for(var g2 in sac){ if(epoFait[g2]) continue; if(epo[g2]) lier(sac[g2],epo[g2]); }
+  })();
+  var cnt={};  chunks.forEach(function(c){var k=ckey(c); cnt[k]=(cnt[k]||0)+1;});
+  var forced=null;
+  construireTourniquet.orphelins=[]; construireTourniquet.bloques=0;
+  for(var _ak in ATT){ if(cnt[_ak]!=null && cnt[ATT[_ak]]==null) construireTourniquet.orphelins.push(_ak+' \u2192 '+ATT[_ak]); }
+  function atteleDe(ancreKey){ for(var k in ATT){ if(ATT[k]===ancreKey) return k; } return null; }
+  function promote(k){                                   // remonte les morceaux de k en tête de sa file
+    for(var qi=0;qi<cycle.length;qi++){
+      var p=cycle[qi], q=queues[p], ins=ptr[p], moved=false;
+      for(var i=ptr[p];i<q.length;i++){ if(ckey(q[i])===k){ var it=q.splice(i,1)[0]; q.splice(ins++,0,it); moved=true; } }
+      if(moved){ forced=p; return; }
+    }
+  }
+  function bloque(c){ var a=ATT[ckey(c)]; return (a!=null && cnt[a]>0); }   // attelé, ancre pas finie
+  // FILE D'ATTENTE DES THERMES : dès qu'un peignoir est terminé, sa serviette prend rang. Le premier
+  // Therme engagé est le premier bouclé — on ne commence pas les serviettes d'un autre avant les siennes.
+  var mark={}; cycle.forEach(function(p){mark[p]=0;});
+  function prendRang(k){
+    for(var qi=0;qi<cycle.length;qi++){
+      var p=cycle[qi], q=queues[p];
+      if(mark[p]<ptr[p]) mark[p]=ptr[p];
+      var pris=[];
+      for(var i=q.length-1;i>=ptr[p];i--){ if(ckey(q[i])===k) pris.unshift(q.splice(i,1)[0]); }
+      if(pris.length){ for(var z=0;z<pris.length;z++) q.splice(mark[p]+z,0,pris[z]); mark[p]+=pris.length; return; }
+    }
+  }
+  function tete(p){                                        // 1er morceau servable de la file p
+    for(var i=ptr[p];i<queues[p].length;i++){ if(!bloque(queues[p][i])) return i; }
+    return -1;
+  }
+  // On démarre malgré tout sur le poste du 1er client de Benoît.
+  var forceFirst=(chunks.length?posteOf(chunks[0]):null);
+  while(remaining()>0 && guard++<200000){
+    var p=null;
+    if(forced && tete(forced)>=0 && ATT[ckey(queues[forced][tete(forced)])]!=null){ p=forced; }
+    else if(forceFirst && tete(forceFirst)>=0){ p=forceFirst; forceFirst=null; }
+    else{
+      forced=null;
+      // ARBITRE = TON ORDRE DE SAISIE. Entre deux postes servables, on prend celui dont le prochain client
+      // a le plus petit rang d'origine (le plus haut dans ta liste). La charge ne départage que les égalités.
+      for(var t=0;t<cycle.length;t++){
+        var q2=cycle[t];
+        var ti2=tete(q2); if(ti2<0) continue;             // rien de servable ici (fini ou bloqué)
+        if(p===null){ p=q2; continue; }
+        var rNew=queues[q2][ti2]._arr, rCur=queues[p][tete(p)]._arr;
+        if(rNew<rCur || (rNew===rCur && charge[q2]<charge[p])) p=q2;
+      }
+    }
+    if(p===null){
+      // Sécurité : plus rien de servable alors qu'il reste du linge = blocage d'attelages. On verse le
+      // restant dans le plan (ordre de saisie) plutôt que de le faire disparaître silencieusement.
+      var rest=[];
+      cycle.forEach(function(q3){ for(var z=ptr[q3];z<queues[q3].length;z++) rest.push(queues[q3][z]); ptr[q3]=queues[q3].length; });
+      rest.sort(function(a,b){return (a._arr||0)-(b._arr||0);});
+      rest.forEach(function(r3){ seq.push(r3); });
+      if(rest.length) construireTourniquet.bloques=rest.length;
+      break;
+    }
+    var ti=tete(p);
+    if(ti>ptr[p]){ var it=queues[p].splice(ti,1)[0]; queues[p].splice(ptr[p],0,it); }  // saute les bloqués
+    var c=queues[p][ptr[p]];
+    var g=parseInt(c.nbTransferts)||0;
+    var cl=ckey(c); var isNew=(cl!==lastCli);
+    // Frontière (= tampon draps ici) dès que le bloc d'éponge atteint SOIT 8 galettes, SOIT 3 clients
+    // distincts. Raison : on ne mélange pas deux clients dans un séchoir, donc chaque client occupe un
+    // séchoir entier ; avec 4 séchoirs on en garde 1 libre pour que les draps traversent -> max 3 clients.
+    if(acc>0 && (acc+g>serieMax || (isNew && cliBloc>=maxCli))){ bnd.push({i:seq.length, dure:(acc+g>serieMax)}); acc=0; cliBloc=0; lastCli=null; isNew=true; }
+    seq.push(c); ptr[p]++; acc+=g; charge[p]+=g;
+    if(isNew){ cliBloc++; lastCli=cl; }
+    cnt[cl]--;
+    if(cnt[cl]===0){
+      var nx=atteleDe(cl); if(nx && cnt[nx]>0) promote(nx); else forced=null;
+      // un peignoir de Therme vient de finir -> sa serviette prend rang (FIFO des Thermes engagés)
+      for(var _s in ATT){ if(ATT[_s]===cl && cnt[_s]>0 && _s!==nx) prendRang(_s); }
+    }
+  }
+  // PASSE 2 : répartir TOUS les draps sur les tampons = chaque frontière des 8 (PAS de tampon d'ouverture
+  // forcé : les cases vides en tête de tunnel font déjà le tampon de départ, et on veut démarrer sur le
+  // 1er client). Chaque tampon >= minTampon (3 par défaut), en combinant plusieurs clients de draps si
+  // besoin (chante grelet 1 + sac à gaz 2 = tampon de 3). S'il y a du rab, tampons plus gros et réguliers,
+  // pour que le dernier drap tombe avec la dernière case lente. Draps rapides -> gros tampon = mieux drainé.
+  var startTampon = false;                                // plus de tampon de draps au tout début
+  // Toutes les frontières ne se valent pas. Une frontière DURE (règle des 8) protège du blocage tunnel :
+  // elle doit recevoir un drap coûte que coûte. Une frontière SOUPLE (3 clients / séchoirs) est un confort.
+  // On sert donc les dures d'abord ; le reste des draps se répartit ensuite équitablement sur toutes.
+  var slots = bnd.length;
+  var sizes = new Array(slots); for(var i=0;i<slots;i++) sizes[i]=0;
+  var reste = totalDrapGal;
+  var dures=[], souples=[];
+  bnd.forEach(function(b,ix){ (b.dure?dures:souples).push(ix); });
+  dures.forEach(function(ix){ if(reste>0){ sizes[ix]=1; reste--; } });       // 1 drap minimum aux vitales
+  souples.forEach(function(ix){ if(reste>0){ sizes[ix]=1; reste--; } });     // puis 1 aux confortables
+  var ordreServi = dures.concat(souples);
+  if(ordreServi.length && reste>0){                                          // le rab, réparti en tournant
+    var minT=(CFG.blocDraps==null?3:CFG.blocDraps);
+    for(var pass=0; pass<minT && reste>0; pass++){
+      for(var z=0; z<ordreServi.length && reste>0; z++){ sizes[ordreServi[z]]++; reste--; }
+    }
+    var z2=0; while(reste>0){ sizes[ordreServi[z2%ordreServi.length]]++; reste--; z2++; }
+  }
+  var manqueTampon = dures.filter(function(ix){return sizes[ix]===0;}).length;
+  construireTourniquet.manqueTampon = manqueTampon;
+  var pi=0, tk=0;
+  var pris={};                                            // galettes déjà tirées du pool
+  function grpCli(k){ return noyauClient(k); }
+  function pullTampon(sz, pref){                          // tire sz galettes, en servant d'abord les draps du client `pref`
+    var res=[], need=sz;
+    function prendre(idx){
+      var d=pool[idx]; pris[idx]=1;
+      var last=res[res.length-1];
+      if(last && last.src===d.id){ last.nbTransferts=String((parseInt(last.nbTransferts)||0)+1); }
+      else { res.push(Object.assign({},d,{id:d.id+'#T'+(tk++),src:d.id,nbTransferts:'1'})); }
+      need--;
+    }
+    if(pref){                                             // 1) les draps du même client : on le finit sur place
+      for(var i=0;i<pool.length && need>0;i++){
+        if(pris[i]) continue;
+        if(grpCli((pool[i].client||'').trim())===pref) prendre(i);
+      }
+    }
+    for(var j=0;j<pool.length && need>0;j++){ if(!pris[j]) prendre(j); }   // 2) puis le reste, dans l'ordre
+    return res;
+  }
+  var out=[];
+  var bset={}; bnd.forEach(function(b,ix){ bset[b.i]=ix; });
+  for(var i=0;i<seq.length;i++){
+    if(bset[i]!=null){ var av=(i>0?grpCli((seq[i-1].client||'').trim()):null); pullTampon(sizes[bset[i]], av).forEach(function(x){out.push(x);}); }
+    out.push(seq[i]);
+  }
+  var reste2=[]; for(var q=0;q<pool.length;q++){ if(!pris[q]) reste2.push(q); }
+  if(reste2.length){ pullTampon(reste2.length).forEach(function(x){out.push(x);}); } // reliquat -> fin de journée
+
+  /* RÉPARATION : le moteur relit son propre plan. Tant qu'une série lente dépasse la règle des 8, il prend
+     UNE galette à un tampon de draps trop gras (ailleurs dans la journée) et la pose là où elle manque.
+     On ne crée pas de drap : on redistribue. S'il n'y a vraiment plus de drap disponible, on s'arrête. */
+  (function reparer(){
+    var ML=serieMax, tours=0;
+    function estDrap(r){ return rowType(r)==='drap'; }
+    while(tours++<500){
+      var run=0, faute=-1;
+      for(var i=0;i<out.length;i++){
+        if(estDrap(out[i])){ run=0; continue; }
+        run+=parseInt(out[i].nbTransferts)||0;
+        if(run>ML){ faute=i; break; }                       // c'est ici qu'il manque un tampon
+      }
+      if(faute<0) return;                                    // plus de violation
+      // chercher un tampon de draps à plus d'une galette, le plus proche possible
+      var don=-1, best=1e9;
+      for(var j=0;j<out.length;j++){
+        if(!estDrap(out[j])) continue;
+        if((parseInt(out[j].nbTransferts)||0)<2) continue;   // ne pas vider un tampon d'une seule galette
+        var d=Math.abs(j-faute); if(d<best){best=d;don=j;}
+      }
+      if(don<0) return;                                      // vraiment pas assez de draps ce jour-là
+      out[don].nbTransferts=String((parseInt(out[don].nbTransferts)||0)-1);
+      var g=Object.assign({},out[don],{id:out[don].id+'#R'+(tk++),nbTransferts:'1'});
+      out.splice(faute,0,g);                                 // le drap prend la place qui manquait
+    }
+  })();
+  return out;
+}
+/* CADENAS 🔒 : les clients verrouillés ne sont pas confiés au tourniquet ; ils sont réinsérés
+   à l'index exact qu'ils occupaient dans la liste d'origine. */
+function clesCadenas(){var C=(CFG.cadenas||{}),o={};for(var k in C){if(C[k])o[k]=1;}return o;}
+function cliKey(r){return (r.client||'').trim().toLowerCase();}
+/* Contexte d'une ré-optimisation partielle : ce que les postes ont déjà encaissé
+   et quels clients sont déjà passés, avant la ligne figée. */
+function contexteDepuis(figes){
+  var ch={faxm:0,pliage_table:0,repassage:0}, faits=[];
+  (figes||[]).forEach(function(r){
+    var g=parseInt(r.nbTransferts)||0;
+    var p=(r.postes&&r.postes.length?r.postes[0]:'repassage');
+    if(ch[p]!=null) ch[p]+=g;
+    var k=(r.client||'').trim().toLowerCase(); if(k) faits.push(k);
+  });
+  return {charge:ch, faits:faits};
+}
+function optimiserOrdre(list,speed,start,ctx){
+  var W=(CFG.camionCli==null?15:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin);
+  // MOTEUR TOURNIQUET : sert le poste le moins chargé, tampon draps réparti (règle des 8 + des séchoirs).
+  var LOCK=clesCadenas();
+  var libres=[], fixes=[];
+  list.forEach(function(r,i){ if(LOCK[cliKey(r)]) fixes.push({i:i,r:r}); else libres.push(r); });
+  var best=construireTourniquet(libres, W, ctx);
+  var orph=construireTourniquet.orphelins||[];
+  best=mergeChunks(best);
+  // réinsertion des lignes verrouillées à leur place d'origine
+  fixes.forEach(function(f){ var at=Math.min(f.i,best.length); best.splice(at,0,f.r); });
+  // CONTRÔLE DU BILAN : aucune galette ne doit disparaître entre l'entrée et la sortie.
+  var gIn=list.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
+  var gOut=best.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
+  var bouchons=attenteRegle(best);
+  var fin=simulerTunnel(best).fin;
+  var sf=simSechoirs(best,0,start);
+  return {order:best, fin:fin, trous:trousTotal(sf), vides:sf.vides, run:maxLentRun(best), bouchons:bouchons, attenteMin:bouchons*bMin, galIn:gIn, galOut:gOut, orphelins:orph};
+}
+
+/* ---------- Saisie ---------- */
+function rowInfo(r){var c=codeByNum(r.code);var s;if(r.code===''||r.code==null)s='Aucun code';else if(c&&c.taux>0)s='Code '+c.num+(c.lib?' ('+esc(c.lib)+')':'')+' \u2192 '+galParH(c)+' galettes/h \u00b7 '+typeLabel(typeOfCode(c))+' '+(c.sechageMin!=null?c.sechageMin+' min':'');else s='<span style="color:var(--danger)">Code '+esc(r.code)+' non défini — à renseigner dans Réglages</span>';if(r.machine==='laveuse')s+=' \u00b7 <span class="pill">hors séchoirs</span>';return s;}
+function makeRow(r,i,charg){
+  var el=document.createElement('div');el.className='row';
+  var ma=MACHINES.map(function(m){return '<option value="'+m[0]+'"'+(r.machine===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('');
+  var chips=POSTES.map(function(p){var on=(r.postes||[]).indexOf(p[0])>=0;return '<span class="chip'+(on?' on':'')+'" data-p="'+p[0]+'">'+p[1]+'</span>';}).join('');
+  var hr=(charg!=null)?'<span class="pill" style="margin-left:6px">~'+fmtHHMM(charg)+'</span>':'';
+  var _k=(r.client||'').trim().toLowerCase();
+  var _lock=!!((CFG.cadenas||{})[_k]);
+  var _anc=((CFG.attelages||{})[_k])||'';
+  var _drapKeys={}; (rows||[]).forEach(function(x){ if(isDrapRow(x)){ var kk=(x.client||'').trim().toLowerCase(); if(kk)_drapKeys[kk]=1; } });
+  var _lockKeys=(CFG.cadenas||{});   // un client figé sort du tourniquet : il ne peut pas servir d'ancre
+  var _opts='<option value="">— libre —</option>'+(clientNames||[]).filter(function(n){var k=n.trim().toLowerCase();return k!==_k && !_drapKeys[k] && !_lockKeys[k];}).map(function(n){var k=n.trim().toLowerCase();return '<option value="'+esc(k)+'"'+(_anc===k?' selected':'')+'>'+esc(n)+'</option>';}).join('');
+  var att='<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn-ghost r-lock" title="Cadenas : cette ligne ne bouge pas quand j\'optimise" style="'+(_lock?'background:#fde7c8':'')+'">'+(_lock?'\u{1F512} figé':'\u{1F513} libre')+'</button><span class="lab" style="margin:0">\u26D3\uFE0F juste après</span><select class="r-att" style="flex:1;min-width:140px">'+_opts+'</select></div>';
+  el.innerHTML='<div class="row-top"><span class="badge">'+(i+1)+'</span>'+hr+'<input type="text" class="r-client" list="client-list" placeholder="Nom du client" value="'+esc(r.client)+'" style="flex:1;min-width:0"><button class="btn-ghost r-up" aria-label="Monter">\u2191</button><button class="btn-ghost r-down" aria-label="Descendre">\u2193</button><button class="btn-ghost r-del" aria-label="Supprimer">\u2715</button></div><div class="grid3"><div><span class="lab">Machine</span><select class="r-machine">'+ma+'</select></div><div><span class="lab">Code (0–30)</span><input type="number" inputmode="numeric" min="0" max="30" step="1" class="r-code mono" value="'+(r.code==null?'':r.code)+'"></div><div><span class="lab">Galettes</span><input type="number" inputmode="numeric" min="0" step="1" class="r-nb mono" value="'+(r.nbTransferts==null?'':r.nbTransferts)+'"></div></div><div><span class="lab" style="margin-top:9px">Postes de finition</span><div class="chips">'+chips+'</div></div>'+att+'<div class="info r-info"></div>';
+  el.querySelector('.r-lock').addEventListener('click',function(){
+    var k=(r.client||'').trim().toLowerCase(); if(!k){alert('Nommez d\'abord le client.');return;}
+    if(!CFG.cadenas)CFG.cadenas={};
+    if(!CFG.cadenas[k]){
+      var dep=[]; for(var kk in (CFG.attelages||{})){ if(CFG.attelages[kk]===k) dep.push(kk); }
+      if(dep.length){ alert('Impossible de figer « '+(r.client||'')+' » : ce client sert d\'ancre à '+dep.join(', ')+'.\n\nUn client figé sort du tourniquet et ne peut plus servir d\'ancre. Détachez d\'abord, ou utilisez seulement l\'attelage.'); return; }
+      if((CFG.attelages||{})[k]){ alert('« '+(r.client||'')+' » est déjà attelé à un autre client : l\'attelage impose déjà son ordre, le cadenas est inutile ici.'); return; }
+    }
+    if(CFG.cadenas[k]) delete CFG.cadenas[k]; else CFG.cadenas[k]=1;
+    saveConfig(); renderRows();
+  });
+  el.querySelector('.r-att').addEventListener('change',function(e){
+    var k=(r.client||'').trim().toLowerCase(); if(!k){alert('Nommez d\'abord le client.');e.target.value='';return;}
+    if(!CFG.attelages)CFG.attelages={};
+    var v=e.target.value;
+    if(!v){ delete CFG.attelages[k]; }
+    else {
+      var seen={},cur=v;                       // refuse les boucles (A après B, B après A)
+      while(cur){ if(cur===k){alert('Impossible : cela créerait une boucle d\'attelage.');e.target.value=_anc;return;} if(seen[cur])break; seen[cur]=1; cur=CFG.attelages[cur]; }
+      CFG.attelages[k]=v;
+    }
+    saveConfig();
+  });
+  el.querySelector('.r-client').addEventListener('input',function(e){r.client=e.target.value;sync();});
+  el.querySelector('.r-machine').addEventListener('change',function(e){r.machine=e.target.value;el.querySelector('.r-info').innerHTML=rowInfo(r);sync();});
+  el.querySelector('.r-code').addEventListener('input',function(e){var v=e.target.value;if(v!==''){var n=Math.max(0,Math.min(30,parseInt(v)||0));v=String(n);e.target.value=v;}r.code=v;el.querySelector('.r-info').innerHTML=rowInfo(r);sync();});
+  el.querySelector('.r-nb').addEventListener('input',function(e){r.nbTransferts=e.target.value;sync();});
+  var ch=el.querySelectorAll('.chip');for(var ci=0;ci<ch.length;ci++)ch[ci].addEventListener('click',function(){var p=this.getAttribute('data-p');if(!r.postes)r.postes=[];var idx=r.postes.indexOf(p);if(idx>=0){if(r.postes.length>1)r.postes.splice(idx,1);}else r.postes.push(p);this.classList.toggle('on');sync();});
+  el.querySelector('.r-up').addEventListener('click',function(){move(r.id,-1);});
+  el.querySelector('.r-down').addEventListener('click',function(){move(r.id,1);});
+  el.querySelector('.r-del').addEventListener('click',function(){rows=rows.filter(function(x){return x.id!==r.id;});renderRows();sync();});
+  el.querySelector('.r-info').innerHTML=rowInfo(r);
+  return el;
+}
+function renderRows(){var c=document.getElementById('rows');c.innerHTML='';if(rows.length===0){c.innerHTML='<div class="empty">Aucune saisie pour cette journée. Appuyez sur « + Ajouter un client » pour commencer.</div>';updateSummary();return;}var sim=simulerTunnel(rows);rows.forEach(function(r,i){var L=sim.lots[r.id];var charg=(r.machine==='tunnel'&&L&&isFinite(L.charg))?L.charg:null;c.appendChild(makeRow(r,i,charg));});updateSummary();if(document.getElementById('sr-find')&&document.getElementById('sr-find').value)srHighlight();}
+function srHighlight(){var fEl=document.getElementById('sr-find');if(!fEl)return;var q=(fEl.value||'').trim().toLowerCase();var els=document.querySelectorAll('#rows .row');var n=0,first=null;els.forEach(function(el){var ci=el.querySelector('.r-client');var v=ci?(ci.value||'').toLowerCase():'';var on=q&&v.indexOf(q)>=0;el.style.outline=on?'2px solid #c8901a':'';el.style.outlineOffset=on?'2px':'';if(on){n++;if(!first)first=el;}});var cEl=document.getElementById('sr-count');if(cEl&&!/modifi/.test(cEl.textContent||''))cEl.textContent=q?(n+' trouvé'+(n>1?'s':'')):'';if(first)first.scrollIntoView({behavior:'smooth',block:'center'});}
+function srReplace(){var f=(document.getElementById('sr-find').value||'').trim();var t=(document.getElementById('sr-replace').value||'').trim();if(!f){alert('Indiquez le nom à chercher.');return;}if(!t){alert('Indiquez le nouveau nom (Remplacer par…).');return;}var re=new RegExp(f.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig');var n=0;rows.forEach(function(r){var c=r.client||'';if(c.toLowerCase().indexOf(f.toLowerCase())>=0){r.client=c.replace(re,t);n++;}});if(n){renderRows();sync();mergeClientNames();}var cEl=document.getElementById('sr-count');if(cEl)cEl.textContent=n+' ligne'+(n>1?'s':'')+' modifiée'+(n>1?'s':'');}
+function add(){
+  rows.push({id:uid(),client:'',postes:['repassage'],machine:'tunnel',code:'',nbTransferts:''});
+  renderRows();sync();
+  var inp=document.getElementById('rows').querySelectorAll('.r-client');
+  if(inp.length){var last=inp[inp.length-1];last.scrollIntoView({block:'center',behavior:'smooth'});setTimeout(function(){last.focus();},120);}
+}
+/* ---------- Déplacer une ligne dans le Plan de travail ----------
+   deplacerLigne(from,to) : `to` = index DEVANT lequel on pose (rows.length = à la fin). */
+var pickedId=null, dragFrom=-1;
+function deplacerLigne(from,to){
+  if(from<0||from>=rows.length||to<0||to>rows.length||from===to)return;
+  var r=rows.splice(from,1)[0];
+  if(to>from)to--;
+  rows.splice(Math.max(0,Math.min(rows.length,to)),0,r);
+  renderRows();sync();
+}
+function clearDropMarks(){
+  var els=document.querySelectorAll('#results .bline');
+  for(var i=0;i<els.length;i++)els[i].classList.remove('drop-before','drop-after','dragging');
+}
+function move(id,d){var i=-1;for(var k=0;k<rows.length;k++)if(rows[k].id===id)i=k;var j=i+d;if(i<0||j<0||j>=rows.length)return;var a=rows[i];rows[i]=rows[j];rows[j]=a;renderRows();sync();}
+/* position d'insertion d'après l'heure : juste avant le 1er client tunnel chargé >= horaire */
+function posParHoraire(list,horSec){var sim=simulerTunnel(list);for(var i=0;i<list.length;i++){var r=list[i];if(r.machine!=='tunnel')continue;var L=sim.lots[r.id];if(L&&isFinite(L.charg)&&L.charg>=horSec)return i;}return list.length;}
+var insPostes=['repassage'];
+function renderInsChips(){var box=document.getElementById('ins-chips');if(!box)return;
+  box.innerHTML=POSTES.map(function(p){var on=insPostes.indexOf(p[0])>=0;return '<span class="chip'+(on?' on':'')+'" data-p="'+p[0]+'">'+p[1]+'</span>';}).join('');
+  var ch=box.querySelectorAll('.chip');for(var i=0;i<ch.length;i++)ch[i].addEventListener('click',function(){var p=this.getAttribute('data-p');var idx=insPostes.indexOf(p);if(idx>=0){if(insPostes.length>1)insPostes.splice(idx,1);}else insPostes.push(p);this.classList.toggle('on');});}
+function openInsert(){var p=document.getElementById('ins-panel');
+  if(!p.classList.contains('hidden')){p.classList.add('hidden');return;}
+  document.getElementById('ins-date').value=curDate;
+  document.getElementById('ins-machine').innerHTML=MACHINES.map(function(m){return '<option value="'+m[0]+'">'+m[1]+'</option>';}).join('');
+  insPostes=['repassage'];renderInsChips();
+  document.getElementById('ins-msg').textContent='';
+  document.getElementById('ins-client').value='';document.getElementById('ins-code').value='';document.getElementById('ins-nb').value='';document.getElementById('ins-time').value='08:00';
+  p.classList.remove('hidden');p.scrollIntoView({block:'center',behavior:'smooth'});
+  setTimeout(function(){document.getElementById('ins-client').focus();},100);}
+async function insererClient(){
+  var date=document.getElementById('ins-date').value||curDate;
+  var hor=document.getElementById('ins-time').value||'08:00';var horSec=parseHeure(hor);
+  var newRow={id:uid(),client:(document.getElementById('ins-client').value||'').trim(),machine:document.getElementById('ins-machine').value||'tunnel',code:document.getElementById('ins-code').value||'',nbTransferts:document.getElementById('ins-nb').value||'',postes:insPostes.slice()};
+  var msg=document.getElementById('ins-msg');
+  if(date===curDate){
+    var pos=posParHoraire(rows,horSec);rows.splice(pos,0,newRow);renderRows();sync();
+    document.getElementById('ins-panel').classList.add('hidden');
+    setTimeout(function(){var rws=document.getElementById('rows').children;if(rws[pos])rws[pos].scrollIntoView({block:'center',behavior:'smooth'});},120);
+  } else {
+    msg.textContent='Enregistrement dans le plan du '+date+'…';
+    try{var target=await loadDay(date);var pos2=posParHoraire(target,horSec);target.splice(pos2,0,newRow);
+      await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',date);
+      var payload=target.map(function(r,i){return rowToDb(r,date,i);});if(payload.length)await sb.from('plan_charges').insert(payload);netOk();
+      msg.innerHTML='<span style="color:#2e7d32">\u2713 Client inséré dans le plan du '+date+' (position '+(pos2+1)+', vers '+hor+'). Ouvrez cette date pour le voir.</span>';
+    }catch(e){netErr();msg.innerHTML='<span style="color:var(--danger)">Échec de l\'enregistrement — réessayez.</span>';}
+  }}
+
+/* ---------- Réglages ---------- */
+function makeCode(c){var el=document.createElement('div');el.className='reg-row';var topts=TYPES.map(function(p){return '<option value="'+p[0]+'"'+(typeOfCode(c)===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');var copts=COULEURS.map(function(p){return '<option value="'+p[0]+'"'+(colOfCode(c)===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><input type="number" inputmode="decimal" min="0" step="0.5" class="c-sech mono" value="'+(c.sechageMin==null?'':c.sechageMin)+'"><select class="c-type">'+topts+'</select><select class="c-couleur">'+copts+'</select><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
+  el.querySelector('.c-type').addEventListener('change',function(e){c.type=e.target.value;renderRows();scheduleSaveConfig();});
+  el.querySelector('.c-couleur').addEventListener('change',function(e){c.couleur=e.target.value;renderRows();scheduleSaveConfig();});
+  el.querySelector('.c-num').addEventListener('input',function(e){var n=Math.max(0,Math.min(30,parseInt(e.target.value)||0));e.target.value=String(n);c.num=n;});
+  el.querySelector('.c-num').addEventListener('change',function(){renderRows();renderResults();scheduleSaveConfig();});
+  el.querySelector('.c-lib').addEventListener('input',function(e){c.lib=e.target.value;});
+  el.querySelector('.c-lib').addEventListener('change',function(){renderRows();renderResults();scheduleSaveConfig();});
+  el.querySelector('.c-taux').addEventListener('input',function(e){c.taux=Math.max(0,parseInt(e.target.value)||0);el.querySelector('.c-cad').textContent=c.taux>0?galParH(c)+' /h':'—';renderRows();renderResults();scheduleSaveConfig();});
+  el.querySelector('.c-sech').addEventListener('input',function(e){var v=e.target.value;c.sechageMin=v===''?null:Math.max(0,parseFloat(v)||0);renderRows();scheduleSaveConfig();});
+  el.querySelector('.c-del').addEventListener('click',function(){if(codes.length>1){codes=codes.filter(function(x){return x!==c;});renderCodes();renderRows();renderResults();scheduleSaveConfig();}});
+  return el;
+}
+function renderCodes(){var c=document.getElementById('codes');c.innerHTML='';codes.forEach(function(x){c.appendChild(makeCode(x));});}
+function addCode(){codes.push({num:0,lib:'',taux:0,sechageMin:20,type:'eponge',couleur:'blanc'});renderCodes();scheduleSaveConfig();}
+
+/* ---------- Plan de travail ---------- */
+function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
+function renderResults(){
+  var out=document.getElementById('results');
+  if(rows.length===0){out.innerHTML='<div class="empty">Aucune donnée. Saisissez des clients dans l\'onglet « Saisie ».</div>';return;}
+  var sim=simulerTunnel();
+  var totalG=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
+  var N=CFG.nbStockage+CFG.nbLavage;
+  var agg={};
+  rows.forEach(function(r){var nm=(r.client||'').trim()||'(sans nom)';if(!agg[nm])agg[nm]={name:nm,gal:0,postes:{},charg:Infinity,sortie:0,hasTunnel:false,hasLav:false};var A=agg[nm];A.gal+=parseInt(r.nbTransferts)||0;(r.postes||[]).forEach(function(p){A.postes[p]=true;});if(r.machine==='tunnel'){A.hasTunnel=true;var L=sim.lots[r.id];if(L){if(L.charg<A.charg)A.charg=L.charg;if(L.sortie>A.sortie)A.sortie=L.sortie;}}else{A.hasLav=true;}});
+  var clients=Object.keys(agg).map(function(k){return agg[k];});
+  var prevTot=prevTotals;
+  var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée — '+esc(curDate)+'</div>';
+  var tRows=rows.filter(function(r){return r.machine==='tunnel';});
+  var blocPlan=blocageSechoirRows(tRows);
+  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReelle(rows)))+metric('Blocage séchoir',fmtDuree(blocPlan*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
+  h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
+  if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
+  if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
+  h+='<div class="sech">Ordre de lavage</div>';
+  if(pickedId!=null) h+='<div class="info no-print" style="margin-bottom:8px">\u270B Ligne prise. Cliquez « poser ici » sur la ligne devant laquelle vous voulez la placer \u2014 ou « annuler ».</div>';
+  rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
+    var _kk=(r.client||'').trim().toLowerCase();
+    var _mk=(((CFG.cadenas||{})[_kk])?'<span class="pill" title="Figé : l\'optimiseur ne le déplace pas">\u{1F512}</span>':'')+(((CFG.attelages||{})[_kk])?'<span class="pill" title="Attelé juste après : '+esc((CFG.attelages||{})[_kk])+'">\u26D3\uFE0F</span>':'');
+    var L=(r.machine==='tunnel')?sim.lots[r.id]:null;
+    var _hr=(L&&isFinite(L.charg))?'<span class="pill" style="margin-left:6px">~'+fmtHHMM(L.charg)+'</span>':'';
+    var pris=(pickedId===r.id);
+    var btn;
+    if(pickedId==null) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Prendre cette ligne pour la poser ailleurs">\u270B prendre</button>';
+    else if(pris) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Annuler">\u2715 annuler</button>';
+    else btn='<button class="btn-ghost pick-btn poser no-print" data-pick="'+i+'" title="Poser la ligne prise juste avant celle-ci">\u2935 poser ici</button>';
+    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+(pris?' picked':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+btn+'<button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button></div></div>';
+  });
+  if(pickedId!=null) h+='<div class="pose-fin no-print"><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2935 poser à la fin de la journée</button></div>';
+  h+='<div class="sech">Production par client</div>';
+  clients.forEach(function(A){
+    var line=Object.keys(A.postes).map(function(p){return lbl(POSTES,p);}).join(', ');
+    if(A.hasTunnel&&isFinite(A.charg))line+=' \u00b7 '+fmtHHMM(A.charg)+' \u2192 '+fmtHHMM(A.sortie)+' \u00b7 '+fmtDuree(A.sortie-A.charg);
+    if(A.hasLav)line+=' \u00b7 laveuse';
+    var delta='';
+    if(prevTot.hasOwnProperty(A.name)){var d=A.gal-prevTot[A.name];if(d>0)delta='<span style="color:var(--up)">\u2191 +'+d+' galettes vs sem. dernière</span>';else if(d<0)delta='<span style="color:var(--down)">\u2193 '+d+' galettes vs sem. dernière</span>';else delta='<span style="color:var(--muted)">= identique à la sem. dernière</span>';delta+=' <span style="color:var(--faint)">('+prevTot[A.name]+' \u2192 '+A.gal+')</span>';}
+    else delta='<span style="color:var(--faint)">pas de données la semaine dernière</span>';
+    h+='<div class="cli"><div class="cli-top"><span class="cli-name">'+esc(A.name)+'</span><span class="cli-gal">'+A.gal+' galettes</span></div><div class="cli-line">'+line+'</div><div class="cli-delta">'+delta+'</div></div>';
+  });
+  h+='</div>';
+  out.innerHTML=h;
+}
+/* Ré-optimise UNIQUEMENT la suite à partir de la ligne i : le dessus (déjà lavé) reste figé,
+   le tourniquet reprend sur les lignes du dessous avec les draps restants. */
+function reOptimiserDepuis(i){
+  if(i<=0){ if(!confirm('Ré-optimiser toute la journée depuis le début ?'))return; }
+  else if(!confirm('Ré-optimiser la suite à partir de la ligne '+(i+1)+' ?\nLes '+i+' lignes du dessus restent figées (déjà lavées).'))return;
+  var figes=rows.slice(0,i), suite=rows.slice(i);
+  var suiteTunnel=suite.filter(function(r){return r.machine==='tunnel';});
+  var suiteAutres=suite.filter(function(r){return r.machine!=='tunnel';});
+  if(suiteTunnel.length===0){alert('Aucune ligne tunnel à ré-optimiser après cette ligne.');return;}
+  var start=parseHeure(CFG.heureDemarrage);
+  var opt=optimiserOrdre(fusionnerMemeClient(suiteTunnel),0,start,contexteDepuis(figes));
+  rows=figes.concat(opt.order).concat(suiteAutres);
+  renderRows();renderResults();sync();
+}
+
+/* ---------- Brouillon ---------- */
+function bSpeed(){return (CFG.tFixe||36)+9*(CFG.tParTaux||10);}
+function renderBrouillon(){
+  var listEl=document.getElementById('b-list'),resEl=document.getElementById('b-results'),act=document.getElementById('b-actions');
+  if(!bLoaded){listEl.innerHTML='';resEl.innerHTML='';act.classList.add('hidden');return;}
+  act.classList.remove('hidden');
+  var tunnelRows=bRows.filter(function(r){return r.machine==='tunnel';});
+  var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
+  var s=simSechoirs(bRows,CFG.tempsGaletteOpt,start);
+  var blocBrou=Math.round(s.wait/60);
+  var serie=maxLentRun(tunnelRows);
+  var finAff=s.finSec; // même simulation que le tableau -> l'heure de fin et le tableau finissent ensemble
+  var labelFin='Heure de fin (optimisé)';
+  var noteFin='<b>Heure de fin</b> = sortie du dernier linge des séchoirs (le tableau ci-dessous), avec le temps moyen par galette optimisé (réglable en haut). ';
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric(labelFin,fmtHHMM(finAff))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'<b>Attente séchoir</b> = temps où la chaîne attend qu\'un séchoir se libère. L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser cette attente.</div></div>';
+  var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
+  h+='<div class="sech">Ordre de lavage</div>';
+  var cgTG=(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette());   // même étalon que l'heure de fin optimisée
+  var cgSec=start;                                                       // horloge de chargement, cumulée
+  bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
+    var hh=(r.machine==='tunnel')?'<span class="pill" style="margin-left:6px">~'+fmtHHMM(cgSec)+'</span>':'';
+    if(r.machine==='tunnel') cgSec+=g*cgTG;                              // les galettes de cette ligne défilent
+    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+'"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+hh+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal</div></div>';
+  });
+  listEl.innerHTML=h;
+}
+async function bLoad(){
+  var d=document.getElementById('b-base').value||isoMinus(todayISO(),1);
+  document.getElementById('b-status').textContent='Chargement…';
+  bRows=await loadDay(d);bBase=bRows.slice();bBaseDate=d;bLoaded=true;bProposFin=null;bOptimized=false;
+  document.getElementById('b-target').value=isoPlus(d,7);
+  document.getElementById('b-status').textContent=bRows.length?('Jour chargé : '+bRows.length+' client(s). Vous pouvez optimiser puis diffuser.'):'Aucune donnée pour ce jour.';
+  renderBrouillon();
+}
+function bOptimize(){
+  if(!bLoaded||!bBase.length)return;
+  var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
+  // on repart TOUJOURS du plan chargé (bBase), jamais de l'ordre déjà optimisé -> résultat stable si on reclique
+  var tunnelRows=bBase.filter(function(r){return r.machine==='tunnel';});
+  var others=bBase.filter(function(r){return r.machine!=='tunnel';});
+  var ML=(CFG.maxLent==null?8:CFG.maxLent);
+  var tunnelMerged=fusionnerMemeClient(tunnelRows); // même nom+code = un seul client
+  var runBefore=maxLentRun(tunnelRows);
+  var opt=optimiserOrdre(tunnelMerged,speed,start);
+  bRows=opt.order.concat(others);
+  bOptimized=true;
+  if(opt.galIn!==opt.galOut){ alert('\u26a0 Contrôle : '+opt.galIn+' galettes en entrée, '+opt.galOut+' en sortie. '+Math.abs(opt.galIn-opt.galOut)+' galette(s) '+(opt.galOut<opt.galIn?'perdues':'en trop')+' — signalez-le, c\'est un bug.'); }
+  if(opt.orphelins&&opt.orphelins.length){ alert('\u26a0 Attelage ignoré : l\'ancre n\'est pas un client lavé au tunnel (souvent un drap, qui sert de tampon et ne peut pas servir d\'ancre).\n\n'+opt.orphelins.join('\n')+'\n\nAttelez plutôt à un client éponge/vêtement.'); }
+  // Contrôle règle des 8 : le moteur se dénonce s'il produit une série lente trop longue.
+  (function(){var s=0,worst=0;opt.order.forEach(function(r){if(isDrapRow(r))s=0;else{s+=parseInt(r.nbTransferts)||0;if(s>worst)worst=s;}});
+    if(worst>ML) alert('\u26a0 Règle des '+ML+' non respectée : '+worst+' galettes lentes d\'affilée sans tampon de draps. Trop peu de draps disponibles, ou un attelage force la main.');})();
+  var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
+  var sBase=simSechoirs(tunnelRows,CFG.tempsGalette,start);   // plan actuel (temps plan de travail)
+  var sOpt=simSechoirs(opt.order,CFG.tempsGaletteOpt,start);  // optimisé (temps optimisé)
+  var finAvant=sBase.finSec, finReelOpt=sOpt.finSec;
+  var blocAvant=Math.round(sBase.wait/60), blocApres=Math.round(sOpt.wait/60);
+  var gainNet=Math.round((finAvant-finReelOpt)/60);           // écart entre les deux heures = le gain
+  var dRun=runBefore-opt.run;
+  var trousAvant=trousTotal(sBase), trousApres=trousTotal(sOpt);
+  var dTrous=trousAvant-trousApres;
+  renderBrouillon();
+  var resEl=document.getElementById('b-results');
+  var L=(CFG.camionCli==null?2:CFG.camionCli);
+  var finTxt = gainNet>0 ? ' <span style="color:var(--down)"><b>\u2014 tu gagnes '+gainNet+' min</b></span>' : (gainNet<0 ? ' <span style="color:var(--muted)">(+'+(-gainNet)+' min)</span>' : ' (identique)');
+  var msg='<div class="note ok"><b>Proposition trouvée</b> \u2014 tourniquet des postes (on sert chaque poste à tour de rôle, on reprend là où on s\'était arrêté ; tampon draps pour les séchoirs). Chaque poste tourne jusqu\'à ce qu\'il n\'ait plus de linge \u2014 puis son équipe part.<br>'
+      +'• <b>Heure de fin : plan actuel '+fmtHHMM(finAvant)+' \u2192 optimisé '+fmtHHMM(finReelOpt)+finTxt+'</b><br>'
+      +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocAvant-blocApres>0?' (\u2212'+(blocAvant-blocApres)+' min d\'arrêts en moins)':'')+'<br>'
+      +'• Trous de postes : '+trousAvant+' \u2192 '+trousApres+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':(dTrous<0?' (+'+(-dTrous)+')':''))+'<br>'
+      +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
+      +(manques.length?'<span style="color:var(--danger)">Pas assez de draps pour tamponner : <b>'+manques.join(', ')+'</b> tourne(nt) en bloc.</span><br>':'')
+      +'Si ça vous convient, diffusez-le.</div>';
+  resEl.insertAdjacentHTML('beforeend',msg);
+}
+/* PLAN DE TRAVAIL D'UN POSTE : les clients qui passent par ce poste, dans l'ordre de lavage,
+   CHAQUE CLIENT UNE SEULE FOIS (on ignore les tampons, qui sont une logique de lavage — on
+   additionne toutes les occurrences d'un même client+code). Une feuille = un poste à afficher. */
+function listePoste(poste){
+  var seen={}, out=[];
+  bRows.forEach(function(r){
+    if(poste==='laveuse'){ if(r.machine!=='laveuse') return; }
+    else if((r.postes||[]).indexOf(poste)<0) return;
+    var nm=(r.client||'').trim();
+    var pil=(poste==='laveuse')?typeLabel(rowType(r)):'';
+    var key=nm.toLowerCase()+'|'+(r.code==null?'':r.code);
+    if(key in seen){ out[seen[key]].g+=parseInt(r.nbTransferts)||0; }
+    else { seen[key]=out.length; out.push({nm:nm||'(sans nom)', g:parseInt(r.nbTransferts)||0, pil:pil}); }
+  });
+  return out;
+}
+function imprimerPlanPoste(poste){
+  if(!bLoaded||!bRows.length){alert('Chargez et optimisez d\'abord un jour dans le brouillon.');return;}
+  var nom=(poste==='laveuse')?'Laveuse':lbl(POSTES,poste);
+  var target=document.getElementById('b-target').value, titreDate=target||bBaseDate||'';
+  var list=listePoste(poste);
+  var css='body{font-family:-apple-system,Segoe UI,Arial,sans-serif;color:#111;margin:24px}'
+    +'h1{font-size:32px;margin:0 0 2px}.d{color:#666;font-size:16px;margin:0 0 20px}'
+    +'ol{font-size:24px;line-height:1.5;padding-left:46px;margin:0}'
+    +'li{border-bottom:1px solid #e5e5e5;padding:8px 0}'
+    +'.n{font-weight:600}.g{float:right;color:#555;font-size:20px}'
+    +'.vide{color:#999;font-size:22px;font-style:italic}'
+    +'@media print{body{margin:12mm}}';
+  var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Plan '+esc(nom)+' — '+esc(titreDate)+'</title><style>'+css+'</style></head><body>'
+    +'<h1>Plan de travail — '+esc(nom)+'</h1><div class="d">'+esc(titreDate)+' · clients dans l\'ordre de lavage</div>';
+  if(!list.length){ html+='<div class="vide">Aucun client sur ce poste ce jour-là.</div>'; }
+  else { html+='<ol>'; list.forEach(function(c){ html+='<li><span class="n">'+esc(c.nm)+'</span>'+(c.pil?' <span style="color:#7c3aed;font-size:18px">'+esc(c.pil)+'</span>':'')+'<span class="g">'+c.g+' gal</span></li>'; }); html+='</ol>'; }
+  html+='</body></html>';
+  var blob=new Blob([html],{type:'text/html'}), url=URL.createObjectURL(blob);
+  var w=window.open(url,'_blank');
+  if(w){ w.addEventListener('load',function(){setTimeout(function(){try{w.focus();w.print();}catch(e){}},300);}); }
+  else { alert('Autorisez les fenêtres pop-up pour imprimer le plan.'); }
+}
+async function bDiffuse(){
+  if(!bLoaded||!bRows.length){alert('Chargez d\'abord un jour de base.');return;}
+  var target=document.getElementById('b-target').value;
+  if(!target){alert('Choisissez une date cible.');return;}
+  var kind=bOptimized?'ordre OPTIMISÉ':'ordre BRUT (non optimisé)';
+  if(!bOptimized){
+    if(!confirm('Attention : cet ordre n\'est PAS optimisé (vous n\'avez pas cliqué « Optimiser l\'ordre »).\n\nDiffuser quand même l\'ordre brut vers le '+target+' ?'))return;
+  } else {
+    if(!confirm('Diffuser l\'ordre OPTIMISÉ ('+bRows.length+' lignes) vers le '+target+' ?\nCela remplacera le contenu de cette date.'))return;
+  }
+  try{
+    var del=await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',target);
+    if(del.error){netErr();alert('La suppression de l\'ancien plan du '+target+' a été refusée :\n'+del.error.message+'\n\nC\'est probablement ça qui te ramène l\'ordre brut.');return;}
+    var chk0=await sb.from('plan_charges').select('ordre').eq('user_id',USER.id).eq('date_jour',target);
+    if((chk0.data||[]).length>0){netErr();alert('\u26a0 '+chk0.data.length+' anciennes lignes subsistent pour le '+target+' malgré la suppression. C\'est ça qui fait revenir l\'ordre brut (l\'ancien et le nouveau cohabitent). Il faut débloquer la suppression côté Supabase.');return;}
+    var payload=bRows.map(function(r,i){return rowToDb(r,target,i);});
+    var ins=payload.length?await sb.from('plan_charges').insert(payload):{error:null};
+    if(ins&&ins.error){netErr();alert('L\'écriture du plan a été refusée :\n'+ins.error.message);return;}
+    var chk1=await sb.from('plan_charges').select('ordre').eq('user_id',USER.id).eq('date_jour',target);
+    var n=(chk1.data||[]).length;
+    document.getElementById('b-status').textContent='Diffusé ('+kind+', '+payload.length+' lignes, '+n+' en base) vers le '+target+'. Ouvrez cette date dans Plan de travail.';
+    if(curDate===target){await loadPlan(curDate);renderRows();renderResults();updateSummary();}
+    alert('Diffusé : '+kind+' ('+payload.length+' lignes) vers le '+target+'.'+(n!==payload.length?'\n\u26a0 Attention : '+n+' lignes en base au lieu de '+payload.length+' \u2014 d\'anciennes lignes traînent.':''));
+  }catch(e){netErr();alert('Échec de la diffusion (réseau).');}
+}
+
+async function refreshFromCloud(){if(pendingSave)return;prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();}
+
+async function startApp(){
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('who').textContent=(USER&&USER.email)||'';
+  await loadConfig();
+  await maybeMigrate();
+  curDate=todayISO();
+  document.getElementById('date').value=curDate;
+  document.getElementById('start').value=CFG.heureDemarrage;
+  document.getElementById('rot').value=tempsGalette();
+  if(document.getElementById('r-serie')){document.getElementById('r-serie').value=(CFG.maxLent==null?8:CFG.maxLent);document.getElementById('r-bloc').value=(CFG.blocDraps==null?4:CFG.blocDraps);document.getElementById('r-bouchon').value=(CFG.bouchonMin==null?10:CFG.bouchonMin);}
+  document.getElementById('b-rot').value=(CFG.tempsGaletteOpt==null?tempsGalette():CFG.tempsGaletteOpt);
+  document.getElementById('b-cvide').value=(CFG.casesVide==null?2:CFG.casesVide);
+  document.getElementById('b-camion').value=(CFG.camionCli==null?2:CFG.camionCli);
+  document.getElementById('b-base').value=isoMinus(curDate,1);
+  document.getElementById('b-target').value=isoPlus(curDate,6);
+  prevTotals=await loadPrevTotals(curDate);
+  await loadPlan(curDate);
+  loadClientNames();
+  renderCodes();renderRows();renderResults();updateSummary();
+  setView('saisie');
+}
+async function doLogin(){
+  var email=document.getElementById('li-email').value.trim();
+  var pw=document.getElementById('li-pw').value;
+  var err=document.getElementById('li-err');err.style.display='none';
+  var r=await sb.auth.signInWithPassword({email:email,password:pw});
+  if(r.error){err.textContent='Connexion impossible : '+r.error.message;err.style.display='block';return;}
+  var u=await sb.auth.getUser();USER=u.data.user;startApp();
+}
+async function init(){
+  var s=await sb.auth.getSession();
+  if(s.data&&s.data.session){USER=s.data.session.user;startApp();}
+  else{document.getElementById('login').style.display='block';document.getElementById('app').style.display='none';}
+}
+
+document.getElementById('li-btn').addEventListener('click',doLogin);
+document.getElementById('li-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
+var tabBtns=document.querySelectorAll('.tab');for(var ti=0;ti<tabBtns.length;ti++)tabBtns[ti].addEventListener('click',function(){setView(this.getAttribute('data-view'));});
+document.getElementById('btn-print').addEventListener('click',function(){setView('plan');setTimeout(function(){window.print();},150);});
+document.getElementById('btn-export').addEventListener('click',exporterTout);
+async function exporterTout(){
+  var btn=document.getElementById('btn-export');var old=btn.textContent;btn.textContent='Sauvegarde…';btn.disabled=true;
+  try{
+    var plans=await sb.from('plan_charges').select('*').eq('user_id',USER.id).order('date_jour').order('ordre');
+    var reg=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
+    if(plans.error)throw plans.error;
+    var rowsP=plans.data||[];
+    var jours={};rowsP.forEach(function(r){(jours[r.date_jour]=jours[r.date_jour]||[]).push(r);});
+    var backup={app:'plan-travail-lavage',exportLe:new Date().toISOString(),userId:USER.id,nbJours:Object.keys(jours).length,nbLignes:rowsP.length,reglages:(reg.data&&reg.data.data)||null,plans:rowsP};
+    var blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;
+    a.download='sauvegarde-plans-bdl-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},2000);
+    btn.textContent='✅ '+Object.keys(jours).length+' jours sauvegardés';
+    setTimeout(function(){btn.textContent=old;btn.disabled=false;},3500);
+  }catch(e){
+    btn.textContent='❌ Échec — réessayez';
+    setTimeout(function(){btn.textContent=old;btn.disabled=false;},3500);
+  }
+}
+document.getElementById('btn-refresh').addEventListener('click',refreshFromCloud);
+document.getElementById('btn-logout').addEventListener('click',async function(){await sb.auth.signOut();location.reload();});
+document.getElementById('btn-addcode').addEventListener('click',addCode);
+document.getElementById('btn-add').addEventListener('click',add);
+document.getElementById('btn-insert').addEventListener('click',openInsert);
+document.getElementById('ins-do').addEventListener('click',insererClient);
+document.getElementById('ins-cancel').addEventListener('click',function(){document.getElementById('ins-panel').classList.add('hidden');});
+document.getElementById('b-load').addEventListener('click',bLoad);
+document.getElementById('b-opt').addEventListener('click',bOptimize);
+document.getElementById('b-diffuse').addEventListener('click',bDiffuse);
+(function(){var bp=document.querySelectorAll('.b-poste');for(var i=0;i<bp.length;i++){bp[i].addEventListener('click',function(){imprimerPlanPoste(this.getAttribute('data-poste'));});}})();
+document.getElementById('b-rot').addEventListener('input',function(e){CFG.tempsGaletteOpt=Math.max(1,parseInt(e.target.value)||120);renderBrouillon();scheduleSaveConfig();});
+document.getElementById('b-cvide').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.casesVide=isNaN(v)?0:Math.max(0,Math.min(10,v));renderBrouillon();scheduleSaveConfig();});
+document.getElementById('b-camion').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.camionCli=isNaN(v)?2:Math.max(0,Math.min(50,v));scheduleSaveConfig();});
+document.getElementById('btn-restore').addEventListener('click',async function(){
+  if(!confirm('Envoyer les saisies stockées sur CET appareil vers le cloud ? (à faire sur l\'ordinateur qui a vos données)'))return;
+  localStorage.removeItem('pdt_synced');
+  var n=await pushLocalToCloud();
+  await loadConfig();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderCodes();renderRows();renderResults();updateSummary();
+  alert(n>0?('Données envoyées : '+n+' galettes importées dans le cloud.'):'Aucune donnée locale trouvée sur cet appareil.');
+});
+document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;renderResults();renderBrouillon();scheduleSaveConfig();});
+document.getElementById('rot').addEventListener('input',function(e){CFG.tempsGalette=Math.max(1,parseInt(e.target.value)||120);renderCodes();renderRows();renderResults();renderBrouillon();scheduleSaveConfig();});
+document.getElementById('r-serie').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.maxLent=isNaN(v)?8:Math.max(1,v);scheduleSaveConfig();});
+document.getElementById('r-bloc').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.blocDraps=isNaN(v)?4:Math.max(1,v);scheduleSaveConfig();});
+document.getElementById('r-bouchon').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.bouchonMin=isNaN(v)?10:Math.max(0,v);scheduleSaveConfig();});
+document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();mergeClientNames();});
+document.getElementById('sr-find').addEventListener('input',srHighlight);
+document.getElementById('sr-do').addEventListener('click',srReplace);
+document.getElementById('results').addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('.reopt-here');if(!b)return;var i=parseInt(b.getAttribute('data-i'));if(!isNaN(i))reOptimiserDepuis(i);});
+/* ----- Plan de travail : glisser-déposer + « prendre / poser ici » ----- */
+(function(){
+  var res=document.getElementById('results');
+  res.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('.pick-btn'); if(!b)return;
+    var i=parseInt(b.getAttribute('data-pick')); if(isNaN(i))return;
+    if(pickedId==null){ pickedId=(rows[i]||{}).id||null; renderResults(); return; }
+    var from=-1; for(var k=0;k<rows.length;k++) if(rows[k].id===pickedId) from=k;
+    if(from===i){ pickedId=null; renderResults(); return; }          // annuler
+    pickedId=null;
+    if(from>=0) deplacerLigne(from,i); else renderResults();
+  });
+  res.addEventListener('dragstart',function(e){
+    var el=e.target.closest&&e.target.closest('.bline'); if(!el)return;
+    dragFrom=parseInt(el.getAttribute('data-i'));
+    el.classList.add('dragging');
+    if(e.dataTransfer){e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',String(dragFrom));}catch(_){}}
+  });
+  res.addEventListener('dragover',function(e){
+    if(dragFrom<0)return;
+    var el=e.target.closest&&e.target.closest('.bline'); if(!el)return;
+    e.preventDefault(); if(e.dataTransfer)e.dataTransfer.dropEffect='move';
+    var r=el.getBoundingClientRect(), apres=(e.clientY-r.top)>r.height/2;
+    var els=res.querySelectorAll('.bline');
+    for(var i=0;i<els.length;i++)els[i].classList.remove('drop-before','drop-after');
+    el.classList.add(apres?'drop-after':'drop-before');
+  });
+  res.addEventListener('drop',function(e){
+    if(dragFrom<0)return;
+    var el=e.target.closest&&e.target.closest('.bline'); if(!el)return;
+    e.preventDefault();
+    var to=parseInt(el.getAttribute('data-i'));
+    var r=el.getBoundingClientRect(); if((e.clientY-r.top)>r.height/2) to++;
+    var f=dragFrom; dragFrom=-1; clearDropMarks();
+    deplacerLigne(f,to);
+  });
+  res.addEventListener('dragend',function(){dragFrom=-1;clearDropMarks();});
+})();
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&pickedId!=null){pickedId=null;renderResults();} });
+window.addEventListener('focus',refreshFromCloud);
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refreshFromCloud();});
+
+init();
+</script>
+</body>
+</html>
