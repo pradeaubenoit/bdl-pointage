@@ -163,7 +163,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v85</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v86</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -687,17 +687,19 @@ function construireTourniquet(rows, W, ctx){
   var chunks=splitSlow(slow,serieMax);
   var totalDrapGal=drapsRaw.reduce(function(s,d){return s+(parseInt(d.nbTransferts)||0);},0);
   // Toutes les galettes de draps mises en commun (chacune garde sa ligne source pour l'affichage/postes).
-  // Les draps d'un hôtel doivent sortir AVANT ses éponges (le linge arrive mélangé, on sort les draps
-  // d'abord). Les draps servant de tampons, on ne peut pas les figer : on biaise la réserve pour que
-  // ceux des hôtels ayant aussi de l'éponge soient piochés en premier.
+  // Les draps ne sont pas interchangeables : un drap saisi tôt (déjà arrivé à l'atelier) doit servir de
+  // tampon AVANT un drap saisi tard (pas encore livré). On garde donc l'ordre de saisie comme critère
+  // principal ; la préférence « hôtel qui a aussi de l'éponge » ne départage que deux draps de même rang.
   (function(){
     function sa(s){return s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;}
     function gH(k){return noyauClient(k);}
     var avecEponge={};
     rows.forEach(function(r){ if(!isDrapRow(r) && rowType(r)==='eponge'){ var k=(r.client||'').trim().toLowerCase(); if(k && !/therm/.test(sa(k))) avecEponge[gH(k)]=1; } });
     drapsRaw.sort(function(a,b){
+      var ra=(a._arr==null?1e9:a._arr), rb=(b._arr==null?1e9:b._arr);
+      if(ra!==rb) return ra-rb;                            // ordre de saisie d'abord
       var ka=gH((a.client||'').trim().toLowerCase()), kb=gH((b.client||'').trim().toLowerCase());
-      return (avecEponge[kb]?1:0)-(avecEponge[ka]?1:0);   // draps d'hôtels « à éponge » d'abord
+      return (avecEponge[kb]?1:0)-(avecEponge[ka]?1:0);   // à rang égal : draps d'hôtels « à éponge » d'abord
     });
   })();
   var pool=[]; drapsRaw.forEach(function(d){var g=parseInt(d.nbTransferts)||0;for(var i=0;i<g;i++)pool.push(d);});
