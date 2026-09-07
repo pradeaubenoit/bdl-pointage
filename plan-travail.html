@@ -186,7 +186,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v92</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v93</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -395,6 +395,19 @@ function applyFaits(){
 function toggleFait(r){ if(!r)return; r._fait=!r._fait; persistFaits(); scheduleSaveConfig(); renderResults(); }
 function toggleLav(r){ if(!r||r.machine!=='tunnel')return; r._lav=!r._lav; persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); updateSummary(); }
 function rowsForTiming(){ return rows.map(function(r){ return (estLav(r)&&estFait(r)) ? Object.assign({},r,{machine:'laveuse'}) : r; }); }
+function nowSec(){var d=new Date();return d.getHours()*3600+d.getMinutes()*60+d.getSeconds();}
+/* Heure de fin « à l'envers » : on ne compte QUE le linge qui reste à laver (tunnel, pas encore « fait »,
+   pas en laveuse). Pour aujourd'hui, on part de l'heure qu'il est maintenant ; pour une autre date (plan
+   prévisionnel), on part de l'heure de démarrage. Ainsi elle reflète toujours le vrai travail restant. */
+function heureFinReste(){
+  var reste=rows.filter(function(r){return r.machine==='tunnel' && !r._lav && !estFait(r);});
+  var dep=parseHeure(CFG.heureDemarrage);
+  var start=(curDate===todayISO())?Math.max(nowSec(),dep):dep;
+  if(reste.length===0) return start;
+  var s=simSechoirs(reste,tempsGalette(),start);
+  return (s&&s.finSec!=null)?s.finSec:start;
+}
+function galettesRestantes(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&!estFait(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
 async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});rows=clean.map(mapRow);applyFaits();netOk();}catch(e){rows=[];netErr();}}
 var clientNames=[];
 function fillClientDatalist(){var dl=document.getElementById('client-list');if(!dl)return;dl.innerHTML=clientNames.map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}
@@ -1167,7 +1180,10 @@ function renderResults(){
   var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée — '+esc(curDate)+'</div>';
   var tRows=timingRows.filter(function(r){return r.machine==='tunnel';});
   var blocPlan=blocageSechoirRows(tRows);
-  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReelle(timingRows)))+metric('Blocage séchoir',fmtDuree(blocPlan*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  var _gReste=galettesRestantes();
+  var _finReste=heureFinReste();
+  var _finLabel=(curDate===todayISO())?'Fin estimée (reste)':'Heure de fin';
+  h+='<div class="metrics">'+metric(_finLabel,fmtHHMM(_finReste))+metric('Reste à laver',_gReste+' gal')+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
