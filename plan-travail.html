@@ -110,6 +110,12 @@
   .pick-btn.poser{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
   .pose-fin{margin:2px 0 10px;text-align:center}
   .bl-add,.bl-del{font-size:12px;padding:2px 7px;margin-left:6px}
+  .bl-fait{font-size:12px;padding:2px 7px;margin-left:6px}
+  .bl-fait.on{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
+  .bl-lav{font-size:12px;padding:2px 7px;margin-left:6px;color:#6d28d9}
+  .bline.fait .b-name{text-decoration:line-through;color:var(--faint)}
+  .bline.fait{opacity:.6}
+  .fait-count{font-size:13px;color:var(--muted);margin-left:8px}
   .bl-del{color:var(--danger)}
   .bl-add{color:var(--teal)}
   .modal-bg{position:fixed;inset:0;background:rgba(20,30,35,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -176,7 +182,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v87</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v89</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -365,6 +371,22 @@ async function loadConfig(){
 async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.id,data:{cfg:CFG,codes:codes},updated_at:new Date().toISOString()},{onConflict:'user_id'});netOk();}catch(e){netErr();}}
 function mapRow(x){return {id:uid(),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
 function rowToDb(r,date,i){return {user_id:USER.id,date_jour:date,ordre:i,client:r.client||'',poste:(r.postes&&r.postes.length?r.postes.join(','):'repassage'),machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};}
+/* POINTAGE « fait » : purement visuel, sans effet sur l'heure de fin. Stocké dans les réglages cloud
+   (CFG.faits[date] = liste de clés « ordre|client »), donc conservé au rechargement, sans toucher au
+   schéma de la base. Clé par position+client pour rester stable après relecture. */
+function faitKey(r,i){return i+'|'+((r.client||'').trim().toLowerCase());}
+function faitSetOf(date){ if(!CFG.faits)CFG.faits={}; if(!CFG.faits[date])CFG.faits[date]={}; return CFG.faits[date]; }
+function estFait(r,i){ return !!faitSetOf(curDate)[faitKey(r,i)]; }
+function toggleFait(r,i){ var s=faitSetOf(curDate), k=faitKey(r,i); if(s[k])delete s[k]; else s[k]=1; scheduleSaveConfig(); renderResults(); }
+/* MARQUEUR « → laveuse » : dit qu'on fait ce linge à la laveuse plutôt qu'au tunnel. Il ne change PAS
+   l'heure de fin à lui seul. C'est seulement quand la ligne est AUSSI pointée « fait » que sa galette
+   sort du calcul du tunnel (le tunnel n'a plus à la traiter) et que l'heure de fin recule. */
+function lavSetOf(date){ if(!CFG.lav)CFG.lav={}; if(!CFG.lav[date])CFG.lav[date]={}; return CFG.lav[date]; }
+function estLav(r,i){ return !!lavSetOf(curDate)[faitKey(r,i)]; }
+function toggleLav(r,i){ var s=lavSetOf(curDate), k=faitKey(r,i); if(s[k])delete s[k]; else s[k]=1; scheduleSaveConfig(); renderRows(); renderResults(); updateSummary(); }
+/* Liste « effective » pour le CALCUL du temps : une ligne laveuse+faite est traitée comme laveuse
+   (hors tunnel) ; tout le reste garde sa machine réelle. Ne modifie pas les données enregistrées. */
+function rowsForTiming(){ return rows.map(function(r,i){ return (estLav(r,i)&&estFait(r,i)) ? Object.assign({},r,{machine:'laveuse'}) : r; }); }
 async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});rows=clean.map(mapRow);netOk();}catch(e){rows=[];netErr();}}
 var clientNames=[];
 function fillClientDatalist(){var dl=document.getElementById('client-list');if(!dl)return;dl.innerHTML=clientNames.map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}
@@ -1120,22 +1142,24 @@ function metric(l,v){return '<div class="metric"><div class="l">'+l+'</div><div 
 function renderResults(){
   var out=document.getElementById('results');
   if(rows.length===0){out.innerHTML='<div class="empty">Aucune donnée. Saisissez des clients dans l\'onglet « Saisie ».</div>';return;}
-  var sim=simulerTunnel();
+  var timingRows=rowsForTiming();
+  var sim=simulerTunnel(timingRows);
   var totalG=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
   var N=CFG.nbStockage+CFG.nbLavage;
   var agg={};
-  rows.forEach(function(r){var nm=(r.client||'').trim()||'(sans nom)';if(!agg[nm])agg[nm]={name:nm,gal:0,postes:{},charg:Infinity,sortie:0,hasTunnel:false,hasLav:false};var A=agg[nm];A.gal+=parseInt(r.nbTransferts)||0;(r.postes||[]).forEach(function(p){A.postes[p]=true;});if(r.machine==='tunnel'){A.hasTunnel=true;var L=sim.lots[r.id];if(L){if(L.charg<A.charg)A.charg=L.charg;if(L.sortie>A.sortie)A.sortie=L.sortie;}}else{A.hasLav=true;}});
+  rows.forEach(function(r,ri){var nm=(r.client||'').trim()||'(sans nom)';if(!agg[nm])agg[nm]={name:nm,gal:0,postes:{},charg:Infinity,sortie:0,hasTunnel:false,hasLav:false};var A=agg[nm];A.gal+=parseInt(r.nbTransferts)||0;(r.postes||[]).forEach(function(p){A.postes[p]=true;});var horsTunnel=(r.machine!=='tunnel')||(estLav(r,ri)&&estFait(r,ri));if(!horsTunnel){A.hasTunnel=true;var L=sim.lots[r.id];if(L){if(L.charg<A.charg)A.charg=L.charg;if(L.sortie>A.sortie)A.sortie=L.sortie;}}else{A.hasLav=true;}});
   var clients=Object.keys(agg).map(function(k){return agg[k];});
   var prevTot=prevTotals;
   var h='<div class="card"><div style="font-weight:600;margin-bottom:10px">Résultats de la journée — '+esc(curDate)+'</div>';
-  var tRows=rows.filter(function(r){return r.machine==='tunnel';});
+  var tRows=timingRows.filter(function(r){return r.machine==='tunnel';});
   var blocPlan=blocageSechoirRows(tRows);
-  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReelle(rows)))+metric('Blocage séchoir',fmtDuree(blocPlan*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReelle(timingRows)))+metric('Blocage séchoir',fmtDuree(blocPlan*60))+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
   if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
-  h+='<div class="sech">Ordre de lavage</div>';
+  var _nf=rows.filter(function(r,i){return estFait(r,i);}).length;
+  h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span></div>';
   if(pickedId!=null) h+='<div class="info no-print" style="margin-bottom:8px">\u270B Ligne prise. Cliquez « poser ici » sur la ligne devant laquelle vous voulez la placer \u2014 ou « annuler ».</div>';
   rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
     var _kk=(r.client||'').trim().toLowerCase();
@@ -1147,7 +1171,10 @@ function renderResults(){
     if(pickedId==null) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Prendre cette ligne pour la poser ailleurs">\u270B prendre</button>';
     else if(pris) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Annuler">\u2715 annuler</button>';
     else btn='<button class="btn-ghost pick-btn poser no-print" data-pick="'+i+'" title="Poser la ligne prise juste avant celle-ci">\u2935 poser ici</button>';
-    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+(pris?' picked':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+btn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button></div></div>';
+    var _fait=estFait(r,i);
+    var _lav=estLav(r,i)||r.machine==='laveuse';
+    var _lavBtn='<button class="btn-ghost bl-lav no-print'+(_lav?' on':'')+'" data-lav="'+i+'" title="Fait à la laveuse (recalcule l\'heure seulement si aussi coché « fait »)">'+(_lav?'\u2713 laveuse':'\u2192 laveuse')+'</button>';
+    h+='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait (visuel, sans changer l\'heure)">'+(_fait?'\u2713 fait':'fait')+'</button><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+btn+_lavBtn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button></div></div>';
   });
   if(pickedId!=null) h+='<div class="pose-fin no-print"><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2935 poser à la fin de la journée</button></div>';
   h+='<div class="sech">Production par client</div>';
@@ -1455,6 +1482,10 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&pickedId!=
 (function(){
   var res=document.getElementById('results');
   res.addEventListener('click',function(e){
+    var fait=e.target.closest&&e.target.closest('.bl-fait');
+    if(fait){ var fi=parseInt(fait.getAttribute('data-fait')); if(!isNaN(fi)&&rows[fi]) toggleFait(rows[fi],fi); return; }
+    var lav=e.target.closest&&e.target.closest('.bl-lav');
+    if(lav){ var li=parseInt(lav.getAttribute('data-lav')); if(!isNaN(li)&&rows[li]&&rows[li].machine==='tunnel') toggleLav(rows[li],li); return; }
     var del=e.target.closest&&e.target.closest('.bl-del');
     if(del){ var di=parseInt(del.getAttribute('data-del')); if(!isNaN(di)&&rows[di]){
       if(confirm('Retirer « '+((rows[di].client||'').trim()||'cette ligne')+' » de la journée ?')){ rows.splice(di,1); renderRows(); sync(); }
