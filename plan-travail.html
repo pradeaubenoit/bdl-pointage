@@ -186,7 +186,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v91</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v92</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1501,7 +1501,11 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
   });
   res.addEventListener('dragend',function(){dragFrom=-1;clearDropMarks();});
 })();
-document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&pickedId!=null){pickedId=null;renderResults();} });
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  if(pickedId!=null){pickedId=null;renderResults();return;}
+  if(planQuery){ planQuery=''; var pf=document.getElementById('pr-find'); if(pf){pf.value='';pf.blur();} prHighlight(); }
+});
 
 /* ----- Plan de travail : ajouter (+) et supprimer (✕) un client ----- */
 (function(){
