@@ -116,6 +116,10 @@
   .bline.fait .b-name{text-decoration:line-through;color:var(--faint)}
   .bline.fait{opacity:.6}
   .fait-count{font-size:13px;color:var(--muted);margin-left:8px}
+  .pr-search{display:flex;gap:8px;align-items:center;margin:2px 0 10px}
+  .pr-search input{flex:1;min-width:130px}
+  .done-sep{margin:14px 0 8px;padding-top:10px;border-top:1px dashed var(--line2);font-size:12px;color:var(--faint);font-weight:600}
+  .bline.hit{outline:2px solid #c8901a;outline-offset:2px}
   .bl-del{color:var(--danger)}
   .bl-add{color:var(--teal)}
   .modal-bg{position:fixed;inset:0;background:rgba(20,30,35,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -182,7 +186,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v89</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v90</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1075,7 +1079,13 @@ function add(){
 }
 /* ---------- Déplacer une ligne dans le Plan de travail ----------
    deplacerLigne(from,to) : `to` = index DEVANT lequel on pose (rows.length = à la fin). */
-var pickedId=null, dragFrom=-1;
+var pickedId=null, dragFrom=-1, planQuery='';
+function prHighlight(){
+  var els=document.querySelectorAll('#results .bline');var q=(planQuery||'').trim().toLowerCase();var n=0,first=null;
+  els.forEach(function(el){var nm=el.querySelector('.b-name');var v=nm?(nm.textContent||'').toLowerCase():'';var on=q&&v.indexOf(q)>=0;el.classList.toggle('hit',!!on);if(on){n++;if(!first)first=el;}});
+  var cEl=document.getElementById('pr-count');if(cEl)cEl.textContent=q?(n+' trouvé'+(n>1?'s':'')):'';
+  if(first)first.scrollIntoView({behavior:'smooth',block:'center'});
+}
 function deplacerLigne(from,to){
   if(from<0||from>=rows.length||to<0||to>rows.length||from===to)return;
   var r=rows.splice(from,1)[0];
@@ -1159,8 +1169,10 @@ function renderResults(){
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
   if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
   var _nf=rows.filter(function(r,i){return estFait(r,i);}).length;
+  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><span id="pr-count" class="sub"></span></div>';
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span></div>';
   if(pickedId!=null) h+='<div class="info no-print" style="margin-bottom:8px">\u270B Ligne prise. Cliquez « poser ici » sur la ligne devant laquelle vous voulez la placer \u2014 ou « annuler ».</div>';
+  var _pend=[], _done=[];
   rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
     var _kk=(r.client||'').trim().toLowerCase();
     var _mk=(((CFG.cadenas||{})[_kk])?'<span class="pill" title="Figé : l\'optimiseur ne le déplace pas">\u{1F512}</span>':'')+(((CFG.attelages||{})[_kk])?'<span class="pill" title="Attelé juste après : '+esc((CFG.attelages||{})[_kk])+'">\u26D3\uFE0F</span>':'');
@@ -1174,8 +1186,12 @@ function renderResults(){
     var _fait=estFait(r,i);
     var _lav=estLav(r,i)||r.machine==='laveuse';
     var _lavBtn='<button class="btn-ghost bl-lav no-print'+(_lav?' on':'')+'" data-lav="'+i+'" title="Fait à la laveuse (recalcule l\'heure seulement si aussi coché « fait »)">'+(_lav?'\u2713 laveuse':'\u2192 laveuse')+'</button>';
-    h+='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait (visuel, sans changer l\'heure)">'+(_fait?'\u2713 fait':'fait')+'</button><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+btn+_lavBtn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button></div></div>';
+    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait (visuel, sans changer l\'heure)">'+(_fait?'\u2713 fait':'fait')+'</button><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+btn+_lavBtn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button></div></div>';
+    (_fait?_done:_pend).push(rowHtml);
   });
+  h+=_pend.join('');
+  if(_done.length) h+='<div class="done-sep no-print">\u2713 Fait ('+_done.length+') \u2014 pour référence, l\'ordre réel ne change pas</div>';
+  h+=_done.join('');
   if(pickedId!=null) h+='<div class="pose-fin no-print"><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2935 poser à la fin de la journée</button></div>';
   h+='<div class="sech">Production par client</div>';
   clients.forEach(function(A){
@@ -1189,6 +1205,8 @@ function renderResults(){
   });
   h+='</div>';
   out.innerHTML=h;
+  var pf=document.getElementById('pr-find');
+  if(pf){ pf.addEventListener('input',function(){planQuery=pf.value;prHighlight();}); if(planQuery){prHighlight();} }
 }
 /* Ré-optimise UNIQUEMENT la suite à partir de la ligne i : le dessus (déjà lavé) reste figé,
    le tourniquet reprend sur les lignes du dessous avec les draps restants. */
