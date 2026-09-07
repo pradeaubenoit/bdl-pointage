@@ -109,6 +109,19 @@
   .pick-btn{font-size:12px;padding:2px 8px;margin-left:6px}
   .pick-btn.poser{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
   .pose-fin{margin:2px 0 10px;text-align:center}
+  .bl-add,.bl-del{font-size:12px;padding:2px 7px;margin-left:6px}
+  .bl-del{color:var(--danger)}
+  .bl-add{color:var(--teal)}
+  .modal-bg{position:fixed;inset:0;background:rgba(20,30,35,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .modal-card{background:var(--card);border:1px solid var(--line2);border-radius:14px;max-width:420px;width:100%;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+  .modal-card h3{margin:0 0 4px;font-size:16px}
+  .modal-card .sub{margin-bottom:12px}
+  .modal-card label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  .modal-card input,.modal-card select{width:100%;box-sizing:border-box}
+  .modal-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .modal-row{display:flex;gap:10px}
+  .modal-row>div{flex:1}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
   .bline .b-meta{font-size:12px;color:var(--muted)}
   .bline.lav{border-left:5px solid #7c3aed;background:linear-gradient(90deg,rgba(124,58,237,.10),var(--card) 60px)}
   .lavtag{padding:1px 7px;border-radius:5px;font-size:12px;font-weight:600;background:#7c3aed;color:#fff;margin-left:6px}
@@ -163,7 +176,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v86</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v87</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -357,6 +370,19 @@ var clientNames=[];
 function fillClientDatalist(){var dl=document.getElementById('client-list');if(!dl)return;dl.innerHTML=clientNames.map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}
 async function loadClientNames(){try{var r=await sb.from('plan_charges').select('client').eq('user_id',USER.id);var seen={},list=[];(r.data||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;list.push(c);}});(rows||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;list.push(c);}});list.sort(function(a,b){return a.localeCompare(b,'fr');});clientNames=list;fillClientDatalist();}catch(e){}}
 function mergeClientNames(){var seen={};clientNames.forEach(function(n){seen[n.toLowerCase()]=1;});var added=false;(rows||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;clientNames.push(c);added=true;}});if(added){clientNames.sort(function(a,b){return a.localeCompare(b,'fr');});fillClientDatalist();}}
+/* Linge type : pour chaque client déjà saisi, on retient son dernier profil connu (machine, code,
+   galettes, postes). Sert à pré-remplir quand on rajoute un client connu dans le Plan de travail. */
+var lingeType={};
+async function loadLingeType(){
+  try{
+    var r=await sb.from('plan_charges').select('client,poste,machine,code,galettes,date_jour').eq('user_id',USER.id);
+    var byDate={};
+    (r.data||[]).forEach(function(x){var k=(x.client||'').trim().toLowerCase();if(!k)return;
+      if(!lingeType[k]||x.date_jour>byDate[k]){ byDate[k]=x.date_jour; lingeType[k]={client:(x.client||'').trim(),poste:x.poste||'repassage',machine:x.machine||'tunnel',code:(x.code==null?'':String(x.code)),galettes:(x.galettes==null?'':String(x.galettes))}; }
+    });
+    (rows||[]).forEach(function(x){var k=(x.client||'').trim().toLowerCase();if(k&&!lingeType[k])lingeType[k]={client:(x.client||'').trim(),poste:(x.postes&&x.postes.length?x.postes.join(','):'repassage'),machine:x.machine||'tunnel',code:(x.code==null?'':String(x.code)),nbTransferts:(x.nbTransferts==null?'':String(x.nbTransferts))};});
+  }catch(e){}
+}
 async function loadDay(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});return clean.map(mapRow);}catch(e){netErr();return [];}}
 var saveRunning=false, saveQueued=false;
 async function savePlan(){
@@ -1121,7 +1147,7 @@ function renderResults(){
     if(pickedId==null) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Prendre cette ligne pour la poser ailleurs">\u270B prendre</button>';
     else if(pris) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Annuler">\u2715 annuler</button>';
     else btn='<button class="btn-ghost pick-btn poser no-print" data-pick="'+i+'" title="Poser la ligne prise juste avant celle-ci">\u2935 poser ici</button>';
-    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+(pris?' picked':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+btn+'<button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button></div></div>';
+    h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+(pris?' picked':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+btn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button></div></div>';
   });
   if(pickedId!=null) h+='<div class="pose-fin no-print"><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2935 poser à la fin de la journée</button></div>';
   h+='<div class="sech">Production par client</div>';
@@ -1310,6 +1336,7 @@ async function startApp(){
   prevTotals=await loadPrevTotals(curDate);
   await loadPlan(curDate);
   loadClientNames();
+  loadLingeType();
   renderCodes();renderRows();renderResults();updateSummary();
   setView('saisie');
 }
@@ -1423,6 +1450,51 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
   res.addEventListener('dragend',function(){dragFrom=-1;clearDropMarks();});
 })();
 document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&pickedId!=null){pickedId=null;renderResults();} });
+
+/* ----- Plan de travail : ajouter (+) et supprimer (✕) un client ----- */
+(function(){
+  var res=document.getElementById('results');
+  res.addEventListener('click',function(e){
+    var del=e.target.closest&&e.target.closest('.bl-del');
+    if(del){ var di=parseInt(del.getAttribute('data-del')); if(!isNaN(di)&&rows[di]){
+      if(confirm('Retirer « '+((rows[di].client||'').trim()||'cette ligne')+' » de la journée ?')){ rows.splice(di,1); renderRows(); sync(); }
+    } return; }
+    var add=e.target.closest&&e.target.closest('.bl-add');
+    if(add){ var ai=parseInt(add.getAttribute('data-add')); if(!isNaN(ai)) ouvrirAjout(ai+1); return; }
+  });
+})();
+
+function ouvrirAjout(pos){
+  var chips=POSTES.map(function(p){return '<button type="button" class="chip" data-p="'+p[0]+'">'+p[1]+'</button>';}).join('');
+  var wrap=document.createElement('div'); wrap.className='modal-bg';
+  wrap.innerHTML='<div class="modal-card"><h3>Ajouter un client</h3><div class="sub">Il sera inséré à la position '+(pos+1)+'. Choisissez un client connu : son linge se pré-remplit.</div>'+
+    '<label>Nom du client</label><input type="text" id="ax-client" list="client-list" placeholder="Nom du client">'+
+    '<div class="modal-row"><div><label>Machine</label><select id="ax-machine"><option value="tunnel">Tunnel</option><option value="laveuse">Laveuse</option></select></div>'+
+    '<div><label>Code (0–30)</label><input type="number" id="ax-code" min="0" max="30" step="1"></div>'+
+    '<div><label>Galettes</label><input type="number" id="ax-nb" min="0" step="1"></div></div>'+
+    '<label>Postes de finition</label><div class="modal-chips" id="ax-chips">'+chips+'</div>'+
+    '<div class="modal-actions"><button type="button" class="btn-ghost" id="ax-cancel">Annuler</button><button type="button" class="btn-primary" id="ax-ok">Ajouter</button></div></div>';
+  document.body.appendChild(wrap);
+  var postes=['repassage'];
+  function paintChips(){var cs=wrap.querySelectorAll('#ax-chips .chip');for(var i=0;i<cs.length;i++){cs[i].classList.toggle('on',postes.indexOf(cs[i].getAttribute('data-p'))>=0);}}
+  paintChips();
+  wrap.querySelectorAll('#ax-chips .chip').forEach(function(c){c.addEventListener('click',function(){var p=this.getAttribute('data-p');var ix=postes.indexOf(p);if(ix>=0){if(postes.length>1)postes.splice(ix,1);}else postes.push(p);paintChips();});});
+  var cli=wrap.querySelector('#ax-client');
+  cli.addEventListener('change',function(){
+    var lt=lingeType[(cli.value||'').trim().toLowerCase()];
+    if(lt){ wrap.querySelector('#ax-machine').value=lt.machine||'tunnel'; wrap.querySelector('#ax-code').value=(lt.code||''); wrap.querySelector('#ax-nb').value=(lt.nbTransferts||lt.galettes||''); postes=normPostes(lt.poste); paintChips(); }
+  });
+  function close(){ document.body.removeChild(wrap); }
+  wrap.querySelector('#ax-cancel').addEventListener('click',close);
+  wrap.addEventListener('click',function(e){ if(e.target===wrap) close(); });
+  wrap.querySelector('#ax-ok').addEventListener('click',function(){
+    var nom=(cli.value||'').trim(); if(!nom){alert('Indiquez le nom du client.');return;}
+    var nr={id:uid(),client:nom,machine:wrap.querySelector('#ax-machine').value||'tunnel',code:(wrap.querySelector('#ax-code').value||''),nbTransferts:(wrap.querySelector('#ax-nb').value||''),postes:postes.slice()};
+    rows.splice(Math.max(0,Math.min(rows.length,pos)),0,nr);
+    close(); renderRows(); sync(); mergeClientNames();
+  });
+  setTimeout(function(){cli.focus();},30);
+}
 window.addEventListener('focus',refreshFromCloud);
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refreshFromCloud();});
 
