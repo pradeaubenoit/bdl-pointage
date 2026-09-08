@@ -186,7 +186,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v97</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v98</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -402,11 +402,15 @@ function nowSec(){var d=new Date();return d.getHours()*3600+d.getMinutes()*60+d.
 function galettesRestantes(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&!estFait(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
 function galettesFaites(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&estFait(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
 function galettesTunnelTotal(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav)?s+(parseInt(r.nbTransferts)||0):s;},0);}
-/* HEURE DE FIN unique et STABLE : heure de démarrage (6h) + le linge qui reste (non « fait », non
-   laveuse) × la cadence réglée. Elle ne dépend JAMAIS de l'horloge : elle ne bouge que quand Benoît
-   pointe « fait », supprime ou modifie du linge — auquel cas il reste moins de galettes, donc elle
-   descend. On ne touche à rien -> elle ne bouge pas. */
-function heureFinReste(){ return parseHeure(CFG.heureDemarrage) + galettesRestantes()*tempsGalette(); }
+/* HEURE DE FIN, formule de Benoît : l'heure qu'il est MAINTENANT + (galettes restantes × cadence réglée).
+   Ex. : 16h, 194 galettes restantes, 150 s/galette -> 194×150 = 8h05 -> fin 00h05. Plus on lave vite, moins
+   il reste de galettes à un instant donné, plus l'heure est tôt. Pour une autre date (prévisionnel, pas
+   aujourd'hui), on part de l'heure de démarrage au lieu de l'heure actuelle. */
+function heureFinReste(){
+  var dep=parseHeure(CFG.heureDemarrage);
+  var start=(curDate===todayISO())?Math.max(nowSec(),dep):dep;
+  return start + galettesRestantes()*tempsGalette();
+}
 async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});rows=clean.map(mapRow);applyFaits();netOk();}catch(e){rows=[];netErr();}}
 var clientNames=[];
 function fillClientDatalist(){var dl=document.getElementById('client-list');if(!dl)return;dl.innerHTML=clientNames.map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}
