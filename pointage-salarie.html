@@ -867,6 +867,7 @@ async function doPointage() {
     }
     // Recharger les stats (jour/semaine/mois/année) car le pointage vient d'être enregistré
     loadStats();
+        armerVeille(); // 5 min apres le badge, l'app se met en veille.
   } catch (e) {
     // Réseau ? On enfile en file d'attente.
     enqueuePointage(payload);
@@ -1034,7 +1035,47 @@ el.style.color = (supHeures < 0) ? '#9C2B2B' : '#B8742A';
 // ============================================================
 // INIT
 // ============================================================
-function init() {
+// ============================================================
+// V4.9.34 — MODE VEILLE : coupe tout apres 5 min (batterie + serveur)
+// ============================================================
+var _veilleTimer = null;
+var _enVeille = false;
+
+function armerVeille() {
+  clearTimeout(_veilleTimer);
+  if (_enVeille) return;
+  _veilleTimer = setTimeout(entrerEnVeille, 5 * 60 * 1000);
+}
+
+function entrerEnVeille() {
+  _enVeille = true;
+  var dernier = '';
+  try {
+    var pts = (currentState && currentState.pointagesAujourdhui) || [];
+    if (pts.length) {
+      var t = pts[pts.length - 1].time || '';
+      dernier = (currentState.estPresent ? 'Arrivée pointée à ' : 'Départ pointé à ') + t;
+    }
+  } catch (e) {}
+  var el = document.createElement('div');
+  el.id = 'veille-screen';
+  el.style.cssText = 'position:fixed;inset:0;background:#1F4A47;color:#F4EFE6;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:12px';
+  el.innerHTML = '<div style="font-size:40px">😴</div>' +
+    '<div style="font-size:18px;font-weight:600">Application en veille</div>' +
+    (dernier ? '<div style="font-size:15px;opacity:.85">✓ ' + dernier + '</div>' : '') +
+    '<div style="font-size:13px;opacity:.6;margin-top:8px">Touchez l\'écran pour réactiver</div>';
+  el.addEventListener('click', sortirDeVeille);
+  document.body.appendChild(el);
+}
+
+function sortirDeVeille() {
+  _enVeille = false;
+  var el = document.getElementById('veille-screen');
+  if (el) el.remove();
+  refresh();
+  armerVeille();
+}
+  function init() {
   $('date').textContent = fmtDateFR(new Date()).charAt(0).toUpperCase() + fmtDateFR(new Date()).slice(1);
 
   if (!config.apiUrl) {
@@ -1060,12 +1101,14 @@ function init() {
   });
 
   refresh();
+      armerVeille();
+  document.addEventListener('click', function() { if (!_enVeille) armerVeille(); });
   // Refresh toutes les 60 secondes
-  setInterval(refresh, 60000);
-  // Mise à jour temps écoulé toutes les 30 secondes (visuel)
+  setInterval(function() { if (!_enVeille && !document.hidden) refresh(); }, 60000);
+    // Mise à jour temps écoulé toutes les 30 secondes (visuel)
   setInterval(() => {
-    if (currentState && currentState.estPresent) {
-      const pts = currentState.pointagesAujourdhui;
+    if (!_enVeille && !document.hidden && currentState && currentState.estPresent) {
+    const pts = currentState.pointagesAujourdhui;
       const now = Date.now();
       const times = pts.map(p => new Date(p.timestamp).getTime()).sort();
       let total = 0;
