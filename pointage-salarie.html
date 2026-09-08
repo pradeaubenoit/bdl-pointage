@@ -615,6 +615,7 @@ function apiCall(params) {
       reject(new Error('Délai dépassé'));
     }, (params && params.action === 'pointer') ? 8000 : 60000);
       const script = document.createElement('script');
+        script.async = true; // V4.9.34 - Ne jamais bloquer l'affichage en attendant le serveur.
 
     function cleanup() {
       if (cleanedUp) return;
