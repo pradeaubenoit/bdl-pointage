@@ -613,8 +613,8 @@ function apiCall(params) {
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error('Délai dépassé'));
-    }, 60000);
-    const script = document.createElement('script');
+    }, (params && params.action === 'pointer') ? 8000 : 60000);
+      const script = document.createElement('script');
 
     function cleanup() {
       if (cleanedUp) return;
@@ -826,11 +826,12 @@ function openScanner() {
 // ACTION : POINTER (avec scan du QR de site)
 // ============================================================
 async function doPointage() {
-  if (!currentState) return;
+  // V4.9.33 - On peut pointer meme si l'etat n'a pas fini de charger : le badge est prioritaire.
+  const etatConnu = !!currentState;
   const btn = $('action-btn');
   const lbl = $('action-label');
-  const wasDepart = currentState.estPresent;
-
+  const wasDepart = etatConnu ? currentState.estPresent : null;
+  
   // Étape 1 : scanner le QR de site
   let qrData;
   try {
@@ -859,7 +860,7 @@ async function doPointage() {
     btn.classList.add('just-pulse');
     setTimeout(() => btn.classList.remove('just-pulse'), 800);
     if (result.justRegistered) {
-      const action = wasDepart ? 'Départ' : 'Arrivée';
+      const action = wasDepart === null ? 'Pointage' : (wasDepart ? 'Départ' : 'Arrivée');
       toast(`✓ ${action} pointée à ${result.justRegistered.time}`, 'success');
       setBodyState('arrive');
       setTimeout(() => setBodyState(wasDepart ? null : 'depart'), 1800);
@@ -870,19 +871,19 @@ async function doPointage() {
     // Réseau ? On enfile en file d'attente.
     enqueuePointage(payload);
     toast('🔵 Pointage enregistré localement (sera envoyé dès que possible)', 'success');
-    // Estimer le nouvel état localement
-    const now = new Date();
-    const fakeScan = { id: 'queued', time: now.toTimeString().slice(0,5), timestamp: now.toISOString() };
-    currentState.pointagesAujourdhui.push(fakeScan);
-    currentState.estPresent = !currentState.estPresent;
-    currentState.nextAction = currentState.estPresent ? 'depart' : 'arrivee';
-    // Recalculer heures locales
-    const times = currentState.pointagesAujourdhui.map(p => new Date(p.timestamp).getTime()).sort();
-    let total = 0;
-    for (let i = 0; i + 1 < times.length; i += 2) total += (times[i+1] - times[i]) / 3600000;
-    currentState.heuresAujourdhui = Math.round(total * 100) / 100;
-    renderState(currentState);
-    updateConnectionStatus();
+    // Estimer le nouvel état localement (seulement si on le connait)
+    if (etatConnu) {
+      const now = new Date();
+      const fakeScan = { id: 'queued', time: now.toTimeString().slice(0,5), timestamp: now.toISOString() };
+      currentState.pointagesAujourdhui.push(fakeScan);
+      currentState.estPresent = !currentState.estPresent;
+      currentState.nextAction = currentState.estPresent ? 'depart' : 'arrivee';
+      const times = currentState.pointagesAujourdhui.map(p => new Date(p.timestamp).getTime()).sort();
+      let total = 0;
+      for (let i = 0; i + 1 < times.length; i += 2) total += (times[i+1] - times[i]) / 3600000;
+      currentState.heuresAujourdhui = Math.round(total * 100) / 100;
+      renderState(currentState);
+    }    updateConnectionStatus();
   }
 }
 
