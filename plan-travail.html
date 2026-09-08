@@ -186,7 +186,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v96</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v97</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -402,22 +402,11 @@ function nowSec(){var d=new Date();return d.getHours()*3600+d.getMinutes()*60+d.
 function galettesRestantes(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&!estFait(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
 function galettesFaites(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&estFait(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
 function galettesTunnelTotal(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav)?s+(parseInt(r.nbTransferts)||0):s;},0);}
-/* HEURE PRÉVUE : le plan complet depuis l'heure de démarrage (6h), à la cadence réglée. Objectif de
-   départ, stable dans la journée (ne bouge que si on ajoute/retire du linge). */
-function heureFinPrevue(){ return parseHeure(CFG.heureDemarrage) + galettesTunnelTotal()*tempsGalette(); }
-/* HEURE ESTIMÉE (en direct) : on déduit le RYTHME RÉEL du jour — temps écoulé depuis 6h ÷ galettes déjà
-   faites — puis on l'applique au linge restant. Ex. de Benoît : 14h30, 300 faites depuis 6h = 1,7 min/gal ;
-   100 restantes × 1,7 = 2h50 ; fin ≈ 17h20. Autocorrectif, et si on n'a pas encore assez pointé, on
-   retombe sur la cadence réglée. */
-function heureFinEstimee(){
-  if(curDate!==todayISO()) return heureFinPrevue();
-  var dep=parseHeure(CFG.heureDemarrage), maintenant=Math.max(nowSec(),dep);
-  var faits=galettesFaites(), reste=galettesRestantes();
-  if(reste<=0) return maintenant;
-  var ecoule=maintenant-dep;
-  var rythme=(faits>0 && ecoule>0)?(ecoule/faits):tempsGalette();   // sec/galette réel, sinon cadence réglée
-  return maintenant + reste*rythme;
-}
+/* HEURE DE FIN unique et STABLE : heure de démarrage (6h) + le linge qui reste (non « fait », non
+   laveuse) × la cadence réglée. Elle ne dépend JAMAIS de l'horloge : elle ne bouge que quand Benoît
+   pointe « fait », supprime ou modifie du linge — auquel cas il reste moins de galettes, donc elle
+   descend. On ne touche à rien -> elle ne bouge pas. */
+function heureFinReste(){ return parseHeure(CFG.heureDemarrage) + galettesRestantes()*tempsGalette(); }
 async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});rows=clean.map(mapRow);applyFaits();netOk();}catch(e){rows=[];netErr();}}
 var clientNames=[];
 function fillClientDatalist(){var dl=document.getElementById('client-list');if(!dl)return;dl.innerHTML=clientNames.map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}
@@ -1191,11 +1180,7 @@ function renderResults(){
   var tRows=timingRows.filter(function(r){return r.machine==='tunnel';});
   var blocPlan=blocageSechoirRows(tRows);
   var _gReste=galettesRestantes();
-  var _estAuj=(curDate===todayISO());
-  var _metaFin=_estAuj
-    ? metric('Fin prévue',fmtHHMM(heureFinPrevue()))+metric('Fin estimée',fmtHHMM(heureFinEstimee()))
-    : metric('Heure de fin',fmtHHMM(heureFinPrevue()));
-  h+='<div class="metrics">'+_metaFin+metric('Reste à laver',_gReste+' gal')+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReste()))+metric('Reste à laver',_gReste+' gal')+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
