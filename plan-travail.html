@@ -191,7 +191,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v100</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v101</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -288,7 +288,7 @@
       <div class="card no-print">
         <div style="font-weight:600">Quantités du jour — une ligne par client et par catégorie</div>
         <div class="sub" style="margin-top:2px">Ajuste les quantités prévisionnelles ici : chaque total regroupe les morceaux éparpillés d'un même client et d'une même catégorie. Change le chiffre, tout le reste (Plan de travail, Brouillon) se recale.</div>
-        <div class="pr-search" style="margin-top:10px"><input type="text" id="q-find" list="client-list" placeholder="🔍 Rechercher un client…"><span id="q-count" class="sub"></span></div>
+        <div class="pr-search" style="margin-top:10px"><input type="text" id="q-find" list="client-list" placeholder="🔍 Rechercher un client…"><button type="button" id="q-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">✕</button><span id="q-count" class="sub"></span></div>
         <div id="q-list" style="margin-top:6px"></div>
       </div>
     </section>
@@ -492,7 +492,7 @@ function setView(name){
   document.getElementById('addbar').classList.toggle('show',name==='saisie');
   var tabs=document.querySelectorAll('.tab');for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('active',tabs[i].getAttribute('data-view')===name);
   if(name==='plan')renderResults();
-  if(name==='quantites'){renderQuantites();var qf=document.getElementById('q-find');if(qf&&!qf._wired){qf._wired=1;qf.addEventListener('input',function(){qQuery=qf.value;renderQuantites();});}}
+  if(name==='quantites'){renderQuantites();var qf=document.getElementById('q-find');if(qf&&!qf._wired){qf._wired=1;qf.addEventListener('change',function(){qQuery=qf.value;renderQuantites();});qf.addEventListener('keydown',function(e){if(e.key==='Enter'){qQuery=qf.value;renderQuantites();qf.blur();}});var qc=document.getElementById('q-clear');if(qc)qc.addEventListener('click',function(){qf.value='';qQuery='';renderQuantites();qf.focus();});}}
   window.scrollTo({top:0,behavior:'auto'});
 }
 
@@ -1207,7 +1207,7 @@ function renderResults(){
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
   if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
   var _nf=rows.filter(function(r){return estFait(r);}).length;
-  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><span id="pr-count" class="sub"></span></div>';
+  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button><span id="pr-count" class="sub"></span></div>';
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span></div>';
   if(pickedId!=null) h+='<div class="info no-print" style="margin-bottom:8px">\u270B Ligne prise. Cliquez « poser ici » sur la ligne devant laquelle vous voulez la placer \u2014 ou « annuler ».</div>';
   var _pend=[], _done=[];
@@ -1244,7 +1244,7 @@ function renderResults(){
   h+='</div>';
   out.innerHTML=h;
   var pf=document.getElementById('pr-find');
-  if(pf){ pf.addEventListener('input',function(){planQuery=pf.value;prHighlight();}); if(planQuery){prHighlight();} }
+  if(pf){ pf.addEventListener('change',function(){planQuery=pf.value;prHighlight();}); pf.addEventListener('keydown',function(e){if(e.key==='Enter'){planQuery=pf.value;prHighlight();pf.blur();}}); var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prHighlight();pf.focus();}); if(planQuery){prHighlight();} }
 }
 /* Ré-optimise UNIQUEMENT la suite à partir de la ligne i : le dessus (déjà lavé) reste figé,
    le tourniquet reprend sur les lignes du dessous avec les draps restants. */
