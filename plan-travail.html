@@ -120,6 +120,11 @@
   .pr-search input{flex:1;min-width:130px}
   .done-sep{margin:14px 0 8px;padding-top:10px;border-top:1px dashed var(--line2);font-size:12px;color:var(--faint);font-weight:600}
   .bline.hit{outline:2px solid #c8901a;outline-offset:2px}
+  .qrow{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}
+  .qrow .qname{flex:1;min-width:0;font-weight:500}
+  .qrow .qmorc{color:var(--faint);font-size:12px;margin-left:6px;font-weight:400}
+  .qrow input{width:74px;text-align:center}
+  .qrow.hit{outline:2px solid #c8901a;outline-offset:2px;border-radius:8px}
   .bl-del{color:var(--danger)}
   .bl-add{color:var(--teal)}
   .modal-bg{position:fixed;inset:0;background:rgba(20,30,35,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -186,7 +191,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v99</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v100</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -200,6 +205,7 @@
       <div class="tabs">
         <button class="tab active" data-view="saisie">Saisie</button>
         <button class="tab" data-view="plan">Plan de travail</button>
+        <button class="tab" data-view="quantites">Quantités</button>
         <button class="tab" data-view="brouillon">Brouillon</button>
         <button class="tab" data-view="reglages">Réglages</button>
       </div>
@@ -274,6 +280,16 @@
         <button class="b-poste" data-poste="pliage_table">🖨️ Table</button>
         <button class="b-poste" data-poste="faxm">🖨️ FAXM</button>
         <button class="b-poste" data-poste="laveuse" style="border-color:#7c3aed;color:#7c3aed">🖨️ Laveuse</button>
+      </div>
+    </section>
+
+    <!-- ONGLET QUANTITÉS -->
+    <section id="view-quantites" class="hidden">
+      <div class="card no-print">
+        <div style="font-weight:600">Quantités du jour — une ligne par client et par catégorie</div>
+        <div class="sub" style="margin-top:2px">Ajuste les quantités prévisionnelles ici : chaque total regroupe les morceaux éparpillés d'un même client et d'une même catégorie. Change le chiffre, tout le reste (Plan de travail, Brouillon) se recale.</div>
+        <div class="pr-search" style="margin-top:10px"><input type="text" id="q-find" list="client-list" placeholder="🔍 Rechercher un client…"><span id="q-count" class="sub"></span></div>
+        <div id="q-list" style="margin-top:6px"></div>
       </div>
     </section>
 
@@ -472,10 +488,11 @@ function sync(){persistFaits();scheduleSaveConfig();renderResults();updateSummar
 
 function setView(name){
   curView=name;
-  ['saisie','plan','brouillon','reglages'].forEach(function(v){document.getElementById('view-'+v).classList.toggle('hidden',name!==v);});
+  ['saisie','plan','quantites','brouillon','reglages'].forEach(function(v){document.getElementById('view-'+v).classList.toggle('hidden',name!==v);});
   document.getElementById('addbar').classList.toggle('show',name==='saisie');
   var tabs=document.querySelectorAll('.tab');for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('active',tabs[i].getAttribute('data-view')===name);
   if(name==='plan')renderResults();
+  if(name==='quantites'){renderQuantites();var qf=document.getElementById('q-find');if(qf&&!qf._wired){qf._wired=1;qf.addEventListener('input',function(){qQuery=qf.value;renderQuantites();});}}
   window.scrollTo({top:0,behavior:'auto'});
 }
 
@@ -1231,6 +1248,43 @@ function renderResults(){
 }
 /* Ré-optimise UNIQUEMENT la suite à partir de la ligne i : le dessus (déjà lavé) reste figé,
    le tourniquet reprend sur les lignes du dessous avec les draps restants. */
+/* ONGLET QUANTITÉS : une ligne par client + catégorie (même nom + même code = les morceaux éparpillés
+   d'un même linge). Modifier le total réajuste les morceaux : on ajoute au 1er, on retire depuis le
+   dernier. Puis Plan de travail et Brouillon se recalculent sur les nouvelles quantités. */
+var qQuery='';
+function qKey(r){return (r.client||'').trim().toLowerCase()+'|'+(r.code==null?'':String(r.code));}
+function renderQuantites(){
+  var host=document.getElementById('q-list'); if(!host)return;
+  var groups={}, order=[];
+  rows.forEach(function(r){
+    var k=qKey(r); if(!groups[k]){var c=codeByNum(r.code);groups[k]={name:(r.client||'').trim()||'(sans nom)',key:k,t:c?typeOfCode(c):'eponge',co:c?colOfCode(c):'blanc',total:0,n:0};order.push(k);}
+    groups[k].total+=parseInt(r.nbTransferts)||0; groups[k].n++;
+  });
+  var q=(qQuery||'').trim().toLowerCase(), shown=0, h='';
+  order.forEach(function(k){var g=groups[k]; if(q && g.name.toLowerCase().indexOf(q)<0)return; shown++;
+    h+='<div class="qrow'+(q&&g.name.toLowerCase().indexOf(q)>=0?' hit':'')+'" data-key="'+esc(k)+'"><span class="qname">'+esc(g.name)+(g.n>1?'<span class="qmorc">('+g.n+' morceaux)</span>':'')+'</span><span class="tag '+g.t+'">'+typeLabel(g.t)+'</span><span class="dot '+g.co+'">'+colLabel(g.co)+'</span><input type="number" min="0" step="1" class="mono q-in" data-key="'+esc(k)+'" value="'+g.total+'"> gal</div>';
+  });
+  host.innerHTML=h||'<div class="sub">Aucun client dans la journée.</div>';
+  var cEl=document.getElementById('q-count'); if(cEl)cEl.textContent=q?(shown+' trouvé'+(shown>1?'s':'')):(order.length+' lignes');
+  host.querySelectorAll('.q-in').forEach(function(inp){
+    inp.addEventListener('change',function(){ ajusterQuantite(inp.getAttribute('data-key'), parseInt(inp.value)); });
+  });
+}
+function ajusterQuantite(key,newTotal){
+  if(isNaN(newTotal)||newTotal<0){renderQuantites();return;}
+  var idx=[]; rows.forEach(function(r,i){ if(qKey(r)===key) idx.push(i); });
+  if(!idx.length)return;
+  var cur=idx.reduce(function(s,i){return s+(parseInt(rows[i].nbTransferts)||0);},0);
+  var diff=newTotal-cur;
+  if(diff>0){ rows[idx[0]].nbTransferts=String((parseInt(rows[idx[0]].nbTransferts)||0)+diff); }
+  else if(diff<0){
+    var need=-diff;
+    for(var k=idx.length-1;k>=0 && need>0;k--){ var g=parseInt(rows[idx[k]].nbTransferts)||0; var take=Math.min(g,need); rows[idx[k]].nbTransferts=String(g-take); need-=take; }
+    rows.forEach(function(r){ if(qKey(r)===key && (parseInt(r.nbTransferts)||0)===0) r._delQ=true; });
+    rows=rows.filter(function(r){ return !r._delQ; });
+  }
+  renderRows(); sync(); renderQuantites();
+}
 function reOptimiserDepuis(i){
   var nFige=rows.filter(function(r){return estFait(r)||estLav(r);}).length;
   if(i<=0){ if(!confirm('Ré-optimiser la journée ?\nTout ce qui est déjà « fait » ou « laveuse » ('+nFige+' ligne'+(nFige>1?'s':'')+') reste FIGÉ — on ne réorganise que le reste à faire.'))return; }
