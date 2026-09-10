@@ -198,7 +198,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v109</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v110</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1526,14 +1526,21 @@ async function bDiffuse(){
 }
 
 async function refreshFromCloud(){
-  if(pendingSave||pickedId!=null||dragFrom>=0||document.querySelector('.modal-bg'))return; // pas pendant une action
-  if(!cfgPending) await loadPriorites();                              // remonter les demandes de priorité des autres écrans
-  prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();
-  if(curView==='quantites')renderQuantites();
+  if(dragFrom>=0||pickedId!=null||document.querySelector('.modal-bg'))return;  // pas pendant un geste en cours
+  if(pendingSave&&!isOperateur)return;                                         // ne pas écraser une modif locale non enregistrée
+  try{
+    if(isOperateur){ await loadConfig(); }          // lecture seule : on peut tout relire sans risque
+    else if(!cfgPending){ await loadPriorites(); }  // éditeur : on relit juste les priorités des autres
+    prevTotals=await loadPrevTotals(curDate);
+    await loadPlan(curDate);
+    renderRows();renderResults();updateSummary();
+    if(curView==='quantites')renderQuantites();
+  }catch(e){}
 }
-/* Synchro à deux : chaque écran se réactualise depuis le cloud toutes les 15 s, pour voir ce que l'autre
-   a fait — sauf pendant une action en cours (déplacement, saisie), pour ne rien écraser. */
-setInterval(function(){ if(USER)refreshFromCloud(); }, 15000);
+/* Synchro permanente dans les deux sens : chaque écran (admin, laveur, finition) se réactualise depuis le
+   cloud toutes les 10 s — plan, pointages, quantités, priorités — pour voir ce que les autres ont fait.
+   Seuls les gestes réellement en cours (glissement, fenêtre ouverte) mettent la synchro en pause. */
+setInterval(function(){ if(USER)refreshFromCloud(); }, 10000);
 
 async function startApp(){
   document.getElementById('login').style.display='none';
