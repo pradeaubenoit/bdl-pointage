@@ -196,7 +196,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v105</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v107</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -502,11 +502,24 @@ function sync(){persistFaits();scheduleSaveConfig();renderResults();updateSummar
    pour pointer et ajuster les galettes). Saisie, Brouillon et Réglages sont bloqués tant qu'on n'a pas
    entré le code admin. Le code est choisi par Benoît et stocké dans les réglages cloud (CFG.adminCode). */
 var adminUnlocked=false;
-function lockedView(v){ return v==='saisie'||v==='brouillon'||v==='reglages'; }
+var isOperateur=/[?&]role=operateur/i.test(location.search||'');
+var posteFilter='tous';
+/* DEMANDES DE PRIORITÉ : un opérateur peut lever la main pour réclamer un client. Stocké dans les
+   réglages cloud (CFG.priorites[date] = liste de clés client), donc l'admin le voit à la synchro. */
+function prioKey(r){return (r.client||'').trim().toLowerCase();}
+function prioSet(){ if(!CFG.priorites)CFG.priorites={}; if(!CFG.priorites[curDate])CFG.priorites[curDate]=[]; return CFG.priorites[curDate]; }
+function prioriteDemandee(r){ return prioSet().indexOf(prioKey(r))>=0; }
+function demanderPriorite(r){
+  var s=prioSet(), k=prioKey(r); if(s.indexOf(k)<0){ s.push(k); scheduleSaveConfig(); }
+  renderResults(); alert('Demande envoyée : « '+((r.client||'').trim())+' » signalé en priorité.');
+}
+function retirerPriorite(k){ var s=prioSet(); var ix=s.indexOf(k); if(ix>=0){ s.splice(ix,1); scheduleSaveConfig(); renderResults(); } }
+function lockedView(v){ if(isOperateur) return v!=='plan'; return v==='saisie'||v==='brouillon'||v==='reglages'; }
 function updateLockUI(){
   var tabs=document.querySelectorAll('.tab');
   for(var i=0;i<tabs.length;i++){ var v=tabs[i].getAttribute('data-view'); tabs[i].classList.toggle('locked', lockedView(v)&&!adminUnlocked); }
   var ab=document.getElementById('btn-admin'); if(ab) ab.textContent=adminUnlocked?'🔒 Verrouiller':'🔓 Admin';
+  if(curView==='plan')renderResults();
 }
 function demanderAdmin(){
   if(adminUnlocked){ adminUnlocked=false; updateLockUI(); if(lockedView(curView))setView('plan'); return; }
@@ -1243,6 +1256,10 @@ function renderResults(){
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
   if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
   var _nf=rows.filter(function(r){return estFait(r);}).length;
+  // Bannière des demandes de priorité (visible par l'admin)
+  if(adminUnlocked){ var _ps=prioSet(); if(_ps.length){ h+='<div class="pickbar no-print" style="background:#fde7c8;border-color:#f0d9a8"><span class="pb-name">\u{1F64B} Demande'+(_ps.length>1?'s':'')+' de priorité : '+_ps.map(function(k){return esc(k);}).join(', ')+'</span><button class="btn-ghost" id="prio-clear">\u2715 tout effacer</button></div>'; } }
+  // Filtre par poste (opérateur)
+  if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' poser':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
   h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button><span id="pr-count" class="sub"></span></div>';
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span></div>';
   if(pickedId!=null){ var _pn=''; for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}
@@ -1261,7 +1278,13 @@ function renderResults(){
     var _fait=estFait(r);
     var _lav=estLav(r);
     var _lavBtn='<button class="btn-ghost bl-lav no-print'+(_lav?' on':'')+'" data-lav="'+i+'" title="Fait à la laveuse (recalcule l\'heure seulement si aussi coché « fait »)">'+(_lav?'\u2713 laveuse':'\u2192 laveuse')+'</button>';
-    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait (visuel, sans changer l\'heure)">'+(_fait?'\u2713 fait':'fait')+'</button><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal <button class="btn-ghost bl-tete no-print" data-tete="'+i+'" title="Envoyer ce client tout en haut (position 1)">\u2b06 en tête</button>'+btn+_lavBtn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button></div></div>';
+    if(isOperateur && posteFilter!=='tous' && (r.postes||[]).indexOf(posteFilter)<0) return;   // filtre par poste
+    var _dragH=adminUnlocked?'<span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span>':'';
+    var _faitBtn=(!isOperateur)?'<button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait">'+(_fait?'\u2713 fait':'fait')+'</button>':(_fait?'<span class="pill" style="color:var(--teal)">\u2713 fait</span>':'');
+    var _admBtns=adminUnlocked?('<button class="btn-ghost bl-tete no-print" data-tete="'+i+'" title="Envoyer ce client tout en haut (position 1)">\u2b06 en tête</button>'+btn+_lavBtn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button>'):'';
+    var _prioMk=prioriteDemandee(r)?'<span class="pill" style="background:#fde7c8;color:#8a5a07" title="Priorité demandée">\u{1F64B} priorité</span>':'';
+    var _opBtn=(isOperateur&&!_fait)?'<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>':'';
+    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+'" draggable="'+(adminUnlocked?'true':'false')+'" data-i="'+i+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_admBtns+_opBtn+'</div></div>';
     (_fait?_done:_pend).push(rowHtml);
   });
   h+=_pend.join('');
@@ -1284,6 +1307,9 @@ function renderResults(){
   out.innerHTML=h;
   var pt2=document.getElementById('prod-toggle'); if(pt2)pt2.addEventListener('click',function(){showProd=!showProd;renderResults();});
   var pf=document.getElementById('pr-find');
+  document.querySelectorAll('#results .bl-prio').forEach(function(b){b.addEventListener('click',function(){var i=parseInt(b.getAttribute('data-prio'));if(!isNaN(i)&&rows[i])demanderPriorite(rows[i]);});});
+  document.querySelectorAll('#results .pfilt').forEach(function(b){b.addEventListener('click',function(){posteFilter=b.getAttribute('data-pf');renderResults();});});
+  var pcl=document.getElementById('prio-clear'); if(pcl)pcl.addEventListener('click',function(){if(confirm('Effacer toutes les demandes de priorité ?')){CFG.priorites[curDate]=[];scheduleSaveConfig();renderResults();}});
   if(pf){ pf.addEventListener('change',function(){planQuery=pf.value;prHighlight();}); pf.addEventListener('keydown',function(e){if(e.key==='Enter'){planQuery=pf.value;prHighlight();pf.blur();}}); var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prHighlight();pf.focus();}); if(planQuery){prHighlight();} }
 }
 /* Ré-optimise UNIQUEMENT la suite à partir de la ligne i : le dessus (déjà lavé) reste figé,
@@ -1488,7 +1514,14 @@ async function bDiffuse(){
   }catch(e){netErr();alert('Échec de la diffusion (réseau).');}
 }
 
-async function refreshFromCloud(){if(pendingSave)return;prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();}
+async function refreshFromCloud(){
+  if(pendingSave||pickedId!=null||dragFrom>=0||document.querySelector('.modal-bg'))return; // pas pendant une action
+  prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();
+  if(curView==='quantites')renderQuantites();
+}
+/* Synchro à deux : chaque écran se réactualise depuis le cloud toutes les 15 s, pour voir ce que l'autre
+   a fait — sauf pendant une action en cours (déplacement, saisie), pour ne rien écraser. */
+setInterval(function(){ if(USER)refreshFromCloud(); }, 15000);
 
 async function startApp(){
   document.getElementById('login').style.display='none';
@@ -1512,6 +1545,7 @@ async function startApp(){
   loadLingeType();
   renderCodes();renderRows();renderResults();updateSummary();
   setView('plan');updateLockUI();
+  if(isOperateur){ var _ab=document.getElementById('btn-admin'); if(_ab)_ab.style.display='none'; }
 }
 async function doLogin(){
   var email=document.getElementById('li-email').value.trim();
