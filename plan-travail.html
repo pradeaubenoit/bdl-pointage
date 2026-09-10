@@ -108,7 +108,8 @@
   .drag-h{color:var(--faint);cursor:grab;user-select:none;font-size:14px;letter-spacing:-2px;margin-right:2px}
   .pick-btn{font-size:12px;padding:2px 8px;margin-left:6px}
   .pick-btn.poser{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
-  .pose-fin{margin:2px 0 10px;text-align:center}
+  .tab.locked{opacity:.45}
+  .tab.locked::after{content:" 🔒";font-size:11px}
   .bl-tete{font-size:12px;padding:2px 8px;margin-left:6px;color:var(--teal)}
   .pickbar{position:sticky;top:0;z-index:20;background:var(--amber-bg);border:1px solid var(--amber-line);border-radius:10px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 4px 14px rgba(0,0,0,.12)}
   .pickbar .pb-name{font-weight:600;flex:1;min-width:120px}
@@ -195,7 +196,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v104</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v105</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -203,6 +204,7 @@
           <button id="btn-refresh" title="Rafraîchir">Rafraîchir</button>
           <button id="btn-print">Imprimer</button>
           <button id="btn-export" title="Télécharger tous vos plans sur votre Mac">💾 Sauvegarder</button>
+          <button id="btn-admin" class="btn-ghost" title="Déverrouiller les onglets réservés">🔓 Admin</button>
           <button id="btn-logout" class="btn-ghost">Déconnexion</button>
         </div>
       </div>
@@ -317,6 +319,11 @@
         <div class="reg-wrap"><div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
         <div id="codes"></div></div>
         <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
+        <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+          <div style="font-weight:600;margin-bottom:6px">Code admin</div>
+          <div class="sub" style="margin-bottom:8px">Ce code déverrouille les onglets réservés (Saisie, Brouillon, Réglages). Sans lui, le laveur ne peut que pointer et ajuster les galettes.</div>
+          <button id="btn-chgcode" class="btn-primary">Changer le code admin</button>
+        </div>
         <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
           <button id="btn-restore">Importer les données de cet appareil</button>
           <div class="sub" style="margin-top:6px">À utiliser sur l'appareil qui contient des saisies locales pour les envoyer dans le cloud.</div>
@@ -491,7 +498,31 @@ function scheduleSaveConfig(){clearTimeout(cfgTimer);cfgTimer=setTimeout(functio
 function updateSummary(){var n=rows.length,g=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);var el=document.getElementById('saisie-sum');if(el)el.textContent=n+' client'+(n>1?'s':'')+' \u00b7 '+g+' galette'+(g>1?'s':'');}
 function sync(){persistFaits();scheduleSaveConfig();renderResults();updateSummary();scheduleSavePlan();}
 
+/* MODE LAVEUR / ADMIN : par défaut l'appli est verrouillée (le laveur voit Plan de travail + Quantités,
+   pour pointer et ajuster les galettes). Saisie, Brouillon et Réglages sont bloqués tant qu'on n'a pas
+   entré le code admin. Le code est choisi par Benoît et stocké dans les réglages cloud (CFG.adminCode). */
+var adminUnlocked=false;
+function lockedView(v){ return v==='saisie'||v==='brouillon'||v==='reglages'; }
+function updateLockUI(){
+  var tabs=document.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++){ var v=tabs[i].getAttribute('data-view'); tabs[i].classList.toggle('locked', lockedView(v)&&!adminUnlocked); }
+  var ab=document.getElementById('btn-admin'); if(ab) ab.textContent=adminUnlocked?'🔒 Verrouiller':'🔓 Admin';
+}
+function demanderAdmin(){
+  if(adminUnlocked){ adminUnlocked=false; updateLockUI(); if(lockedView(curView))setView('plan'); return; }
+  if(!CFG.adminCode){
+    var c1=prompt('Aucun code admin défini. Créez votre code (chiffres ou lettres) :');
+    if(c1==null||c1==='')return;
+    var c2=prompt('Confirmez le code :');
+    if(c2!==c1){alert('Les deux codes ne correspondent pas.');return;}
+    CFG.adminCode=String(c1); scheduleSaveConfig(); adminUnlocked=true; updateLockUI(); alert('Code créé. Vous êtes en mode admin.'); return;
+  }
+  var c=prompt('Code admin :'); if(c==null)return;
+  if(String(c)===String(CFG.adminCode)){ adminUnlocked=true; updateLockUI(); }
+  else alert('Code incorrect.');
+}
 function setView(name){
+  if(lockedView(name)&&!adminUnlocked){ demanderAdmin(); if(!adminUnlocked)return; }
   curView=name;
   ['saisie','plan','quantites','brouillon','reglages'].forEach(function(v){document.getElementById('view-'+v).classList.toggle('hidden',name!==v);});
   document.getElementById('addbar').classList.toggle('show',name==='saisie');
@@ -1480,7 +1511,7 @@ async function startApp(){
   loadClientNames();
   loadLingeType();
   renderCodes();renderRows();renderResults();updateSummary();
-  setView('saisie');
+  setView('plan');updateLockUI();
 }
 async function doLogin(){
   var email=document.getElementById('li-email').value.trim();
@@ -1499,6 +1530,7 @@ async function init(){
 document.getElementById('li-btn').addEventListener('click',doLogin);
 document.getElementById('li-pw').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
 var tabBtns=document.querySelectorAll('.tab');for(var ti=0;ti<tabBtns.length;ti++)tabBtns[ti].addEventListener('click',function(){setView(this.getAttribute('data-view'));});
+document.getElementById('btn-admin').addEventListener('click',demanderAdmin);
 document.getElementById('btn-print').addEventListener('click',function(){setView('plan');setTimeout(function(){window.print();},150);});
 document.getElementById('btn-export').addEventListener('click',exporterTout);
 async function exporterTout(){
@@ -1538,6 +1570,12 @@ document.getElementById('b-diffuse').addEventListener('click',bDiffuse);
 document.getElementById('b-rot').addEventListener('input',function(e){CFG.tempsGaletteOpt=Math.max(1,parseInt(e.target.value)||120);renderBrouillon();scheduleSaveConfig();});
 document.getElementById('b-cvide').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.casesVide=isNaN(v)?0:Math.max(0,Math.min(10,v));renderBrouillon();scheduleSaveConfig();});
 document.getElementById('b-camion').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.camionCli=isNaN(v)?2:Math.max(0,Math.min(50,v));scheduleSaveConfig();});
+document.getElementById('btn-chgcode').addEventListener('click',function(){
+  if(CFG.adminCode){ var old=prompt('Code actuel :'); if(old==null)return; if(String(old)!==String(CFG.adminCode)){alert('Code actuel incorrect.');return;} }
+  var n1=prompt('Nouveau code :'); if(n1==null||n1==='')return;
+  var n2=prompt('Confirmez le nouveau code :'); if(n2!==n1){alert('Les deux codes ne correspondent pas.');return;}
+  CFG.adminCode=String(n1); scheduleSaveConfig(); alert('Code admin mis à jour.');
+});
 document.getElementById('btn-restore').addEventListener('click',async function(){
   if(!confirm('Envoyer les saisies stockées sur CET appareil vers le cloud ? (à faire sur l\'ordinateur qui a vos données)'))return;
   localStorage.removeItem('pdt_synced');
