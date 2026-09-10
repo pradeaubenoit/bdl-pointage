@@ -191,7 +191,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v101</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v102</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -263,6 +263,7 @@
         <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:12px">
           <div><span class="lab">Jour de base</span><input type="date" id="b-base" class="w-auto"></div>
           <button id="b-load">Charger ce jour</button>
+          <button id="b-load-cur" class="btn-primary" title="Reprendre la journée d'aujourd'hui avec l'ordre que tu viens de réorganiser dans le Plan de travail">↻ Reprendre la journée en cours</button>
           <div><span class="lab">Temps moyen par galette — optimisé (s)</span><input type="number" id="b-rot" class="mono w-auto" style="width:80px" step="1" min="1"></div>
           <div><span class="lab">Cases vides / changement couleur</span><input type="number" id="b-cvide" class="mono w-auto" style="width:80px" step="1" min="0" max="10"></div>
           <div><span class="lab">Limite camions — clients (sauf draps)</span><input type="number" id="b-camion" class="mono w-auto" style="width:80px" step="1" min="0" max="50"></div>
@@ -1116,7 +1117,7 @@ function add(){
 }
 /* ---------- Déplacer une ligne dans le Plan de travail ----------
    deplacerLigne(from,to) : `to` = index DEVANT lequel on pose (rows.length = à la fin). */
-var pickedId=null, dragFrom=-1, planQuery='';
+var pickedId=null, dragFrom=-1, planQuery='', showProd=false;
 function prHighlight(){
   var els=document.querySelectorAll('#results .bline');var q=(planQuery||'').trim().toLowerCase();var n=0,first=null;
   els.forEach(function(el){var nm=el.querySelector('.b-name');var v=nm?(nm.textContent||'').toLowerCase():'';var on=q&&v.indexOf(q)>=0;el.classList.toggle('hit',!!on);if(on){n++;if(!first)first=el;}});
@@ -1231,7 +1232,8 @@ function renderResults(){
   if(_done.length) h+='<div class="done-sep no-print">\u2713 Fait ('+_done.length+') \u2014 pour référence, l\'ordre réel ne change pas</div>';
   h+=_done.join('');
   if(pickedId!=null) h+='<div class="pose-fin no-print"><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2935 poser à la fin de la journée</button></div>';
-  h+='<div class="sech">Production par client</div>';
+  h+='<div class="sech no-print" style="display:flex;align-items:center;gap:10px">Production par client<button class="btn-ghost no-print" id="prod-toggle" style="font-size:12px;padding:2px 10px">'+(showProd?'\u25be masquer':'\u25b8 afficher ('+clients.length+')')+'</button></div>';
+  if(showProd){
   clients.forEach(function(A){
     var line=Object.keys(A.postes).map(function(p){return lbl(POSTES,p);}).join(', ');
     if(A.hasTunnel&&isFinite(A.charg))line+=' \u00b7 '+fmtHHMM(A.charg)+' \u2192 '+fmtHHMM(A.sortie)+' \u00b7 '+fmtDuree(A.sortie-A.charg);
@@ -1241,8 +1243,10 @@ function renderResults(){
     else delta='<span style="color:var(--faint)">pas de données la semaine dernière</span>';
     h+='<div class="cli"><div class="cli-top"><span class="cli-name">'+esc(A.name)+'</span><span class="cli-gal">'+A.gal+' galettes</span></div><div class="cli-line">'+line+'</div><div class="cli-delta">'+delta+'</div></div>';
   });
+  }
   h+='</div>';
   out.innerHTML=h;
+  var pt2=document.getElementById('prod-toggle'); if(pt2)pt2.addEventListener('click',function(){showProd=!showProd;renderResults();});
   var pf=document.getElementById('pr-find');
   if(pf){ pf.addEventListener('change',function(){planQuery=pf.value;prHighlight();}); pf.addEventListener('keydown',function(e){if(e.key==='Enter'){planQuery=pf.value;prHighlight();pf.blur();}}); var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prHighlight();pf.focus();}); if(planQuery){prHighlight();} }
 }
@@ -1326,6 +1330,16 @@ function renderBrouillon(){
     h+='<div class="bline'+(r.machine==='laveuse'?' lav':'')+'"><div><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+hh+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+(r.machine==='laveuse'?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal</div></div>';
   });
   listEl.innerHTML=h;
+}
+/* Reprendre la JOURNÉE EN COURS (celle du Plan de travail, avec l'ordre que tu viens de réorganiser)
+   directement dans le Brouillon, prête à optimiser puis diffuser. Plus besoin de retaper la date. */
+function bLoadCurrent(){
+  bRows=rows.map(function(r){return Object.assign({},r);});
+  bBase=bRows.slice(); bBaseDate=curDate; bLoaded=true; bProposFin=null; bOptimized=false;
+  var bb=document.getElementById('b-base'); if(bb)bb.value=curDate;
+  var bt=document.getElementById('b-target'); if(bt)bt.value=isoPlus(curDate,7);
+  document.getElementById('b-status').textContent=bRows.length?('Journée en cours ('+curDate+') reprise : '+bRows.length+' ligne(s), dans ton ordre actuel. Optimisez puis diffusez.'):'La journée en cours est vide.';
+  renderBrouillon();
 }
 async function bLoad(){
   var d=document.getElementById('b-base').value||isoMinus(todayISO(),1);
@@ -1512,6 +1526,7 @@ document.getElementById('btn-insert').addEventListener('click',openInsert);
 document.getElementById('ins-do').addEventListener('click',insererClient);
 document.getElementById('ins-cancel').addEventListener('click',function(){document.getElementById('ins-panel').classList.add('hidden');});
 document.getElementById('b-load').addEventListener('click',bLoad);
+document.getElementById('b-load-cur').addEventListener('click',bLoadCurrent);
 document.getElementById('b-opt').addEventListener('click',bOptimize);
 document.getElementById('b-diffuse').addEventListener('click',bDiffuse);
 (function(){var bp=document.querySelectorAll('.b-poste');for(var i=0;i<bp.length;i++){bp[i].addEventListener('click',function(){imprimerPlanPoste(this.getAttribute('data-poste'));});}})();
