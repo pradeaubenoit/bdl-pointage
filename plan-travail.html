@@ -113,6 +113,8 @@
   .bl-tete{font-size:12px;padding:2px 8px;margin-left:6px;color:var(--teal)}
   .pickbar{position:sticky;top:0;z-index:20;background:var(--amber-bg);border:1px solid var(--amber-line);border-radius:10px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 4px 14px rgba(0,0,0,.12)}
   .pickbar .pb-name{font-weight:600;flex:1;min-width:120px}
+  .priobar{position:sticky;top:0;z-index:30;background:#f8b34a;color:#3a2200;border:1px solid #d98a1a;border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 4px 16px rgba(200,120,20,.35);font-weight:600}
+  .priobar .pb-name{flex:1;min-width:120px}
   .bl-add,.bl-del{font-size:12px;padding:2px 7px;margin-left:6px}
   .bl-fait{font-size:12px;padding:2px 7px;margin-left:6px}
   .bl-fait.on{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
@@ -196,7 +198,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v107</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v108</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1256,8 +1258,9 @@ function renderResults(){
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
   if(sim.total>0&&sim.bMax>sim.cMin+0.5)h+='<div class="note warn">Bridage : quand un programme lent est en cuve, la cadence descend jusqu\'à 1 galette / '+fmtCad(sim.bMax)+' et ralentit tout le tunnel.</div>';
   var _nf=rows.filter(function(r){return estFait(r);}).length;
-  // Bannière des demandes de priorité (visible par l'admin)
-  if(adminUnlocked){ var _ps=prioSet(); if(_ps.length){ h+='<div class="pickbar no-print" style="background:#fde7c8;border-color:#f0d9a8"><span class="pb-name">\u{1F64B} Demande'+(_ps.length>1?'s':'')+' de priorité : '+_ps.map(function(k){return esc(k);}).join(', ')+'</span><button class="btn-ghost" id="prio-clear">\u2715 tout effacer</button></div>'; } }
+  // Bannière des demandes de priorité — collante, visible par TOUS (admin, laveur, finition)
+  var _ps=prioSet();
+  if(_ps.length){ h+='<div class="priobar no-print"><span class="pb-name">\u{1F64B} Priorité demandée : '+_ps.map(function(k){return esc(k);}).join(' \u00b7 ')+'</span>'+(adminUnlocked?'<button class="btn-ghost" id="prio-clear">\u2715 tout effacer</button>':'')+'</div>'; }
   // Filtre par poste (opérateur)
   if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' poser':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
   h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button><span id="pr-count" class="sub"></span></div>';
@@ -1283,7 +1286,7 @@ function renderResults(){
     var _faitBtn=(!isOperateur)?'<button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait">'+(_fait?'\u2713 fait':'fait')+'</button>':(_fait?'<span class="pill" style="color:var(--teal)">\u2713 fait</span>':'');
     var _admBtns=adminUnlocked?('<button class="btn-ghost bl-tete no-print" data-tete="'+i+'" title="Envoyer ce client tout en haut (position 1)">\u2b06 en tête</button>'+btn+_lavBtn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button>'):'';
     var _prioMk=prioriteDemandee(r)?'<span class="pill" style="background:#fde7c8;color:#8a5a07" title="Priorité demandée">\u{1F64B} priorité</span>':'';
-    var _opBtn=(isOperateur&&!_fait)?'<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>':'';
+    var _opBtn=isOperateur?(prioriteDemandee(r)?'<button class="btn-ghost bl-unprio no-print" data-unprio="'+esc(prioKey(r))+'" title="Annuler ma demande de priorité" style="color:var(--danger)">\u2715 annuler ma demande</button>':(!_fait?'<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>':'')):'';
     var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+'" draggable="'+(adminUnlocked?'true':'false')+'" data-i="'+i+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_admBtns+_opBtn+'</div></div>';
     (_fait?_done:_pend).push(rowHtml);
   });
@@ -1308,6 +1311,7 @@ function renderResults(){
   var pt2=document.getElementById('prod-toggle'); if(pt2)pt2.addEventListener('click',function(){showProd=!showProd;renderResults();});
   var pf=document.getElementById('pr-find');
   document.querySelectorAll('#results .bl-prio').forEach(function(b){b.addEventListener('click',function(){var i=parseInt(b.getAttribute('data-prio'));if(!isNaN(i)&&rows[i])demanderPriorite(rows[i]);});});
+  document.querySelectorAll('#results .bl-unprio').forEach(function(b){b.addEventListener('click',function(){retirerPriorite(b.getAttribute('data-unprio'));});});
   document.querySelectorAll('#results .pfilt').forEach(function(b){b.addEventListener('click',function(){posteFilter=b.getAttribute('data-pf');renderResults();});});
   var pcl=document.getElementById('prio-clear'); if(pcl)pcl.addEventListener('click',function(){if(confirm('Effacer toutes les demandes de priorité ?')){CFG.priorites[curDate]=[];scheduleSaveConfig();renderResults();}});
   if(pf){ pf.addEventListener('change',function(){planQuery=pf.value;prHighlight();}); pf.addEventListener('keydown',function(e){if(e.key==='Enter'){planQuery=pf.value;prHighlight();pf.blur();}}); var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prHighlight();pf.focus();}); if(planQuery){prHighlight();} }
