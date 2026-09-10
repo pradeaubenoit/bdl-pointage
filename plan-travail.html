@@ -109,6 +109,8 @@
   .pick-btn{font-size:12px;padding:2px 8px;margin-left:6px}
   .pick-btn.poser{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
   .poste-banner{border-radius:12px;padding:12px 16px;margin:8px 0 4px;color:#fff;font-weight:800;font-size:18px;letter-spacing:.5px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+  .pfilt{font-weight:600}
+  .pfilt.on{background:var(--teal);color:#fff;border-color:var(--teal);box-shadow:0 2px 8px rgba(15,118,110,.35)}
   .poste-banner.faxm{background:#7c3aed}
   .poste-banner.table{background:#0f766e}
   .poste-banner.repassage{background:#1d4ed8}
@@ -203,7 +205,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v113</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v114</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1295,7 +1297,7 @@ function renderResults(){
     h+='<div class="priobar no-print">'+_items+(adminUnlocked?'<div class="prio-item" style="justify-content:flex-end"><button class="btn-ghost" id="prio-clear">\u2715 tout effacer</button></div>':'')+'</div>';
   }
   // Filtre par poste (opérateur)
-  if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' poser':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
+  if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' on':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
   h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button><span id="pr-count" class="sub"></span></div>';
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span></div>';
   if(pickedId!=null){ var _pn=''; for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}
