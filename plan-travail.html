@@ -108,7 +108,11 @@
   .drag-h{color:var(--faint);cursor:grab;user-select:none;font-size:14px;letter-spacing:-2px;margin-right:2px}
   .pick-btn{font-size:12px;padding:2px 8px;margin-left:6px}
   .pick-btn.poser{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
-  .tab.locked{opacity:.45}
+  .poste-banner{border-radius:12px;padding:12px 16px;margin:8px 0 4px;color:#fff;font-weight:800;font-size:18px;letter-spacing:.5px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+  .poste-banner.faxm{background:#7c3aed}
+  .poste-banner.table{background:#0f766e}
+  .poste-banner.repassage{background:#1d4ed8}
+  .poste-banner.autre{background:#475569}
   .tab.locked::after{content:" 🔒";font-size:11px}
   .bl-tete{font-size:12px;padding:2px 8px;margin-left:6px;color:var(--teal)}
   .pickbar{position:sticky;top:0;z-index:20;background:var(--amber-bg);border:1px solid var(--amber-line);border-radius:10px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 4px 14px rgba(0,0,0,.12)}
@@ -199,7 +203,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v112</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v113</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -211,6 +215,7 @@
           <button id="btn-logout" class="btn-ghost">Déconnexion</button>
         </div>
       </div>
+      <div id="poste-banner" class="hidden"></div>
       <div class="tabs">
         <button class="tab active" data-view="saisie">Saisie</button>
         <button class="tab" data-view="plan">Plan de travail</button>
@@ -1596,7 +1601,12 @@ async function startApp(){
   loadLingeType();
   renderCodes();renderRows();renderResults();updateSummary();
   setView('plan');updateLockUI();
-  if(isOperateur){ var _ab=document.getElementById('btn-admin'); if(_ab)_ab.style.display='none'; }
+  if(isOperateur){ var _ab=document.getElementById('btn-admin'); if(_ab)_ab.style.display='none';
+    var pb=document.getElementById('poste-banner');
+    if(pb){ var _cls=(operateurPoste==='faxm')?'faxm':(operateurPoste==='table'||operateurPoste==='pliage_table')?'table':(operateurPoste==='repassage')?'repassage':'autre';
+      pb.className='poste-banner '+_cls; pb.textContent='\u{1F4CD} POSTE : '+(operateurPoste?posteLabel(operateurPoste).toUpperCase():'FINITION')+'  \u2014  lecture seule';
+      pb.classList.remove('hidden'); }
+  }
 }
 async function doLogin(){
   var email=document.getElementById('li-email').value.trim();
