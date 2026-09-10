@@ -109,6 +109,9 @@
   .pick-btn{font-size:12px;padding:2px 8px;margin-left:6px}
   .pick-btn.poser{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
   .pose-fin{margin:2px 0 10px;text-align:center}
+  .bl-tete{font-size:12px;padding:2px 8px;margin-left:6px;color:var(--teal)}
+  .pickbar{position:sticky;top:0;z-index:20;background:var(--amber-bg);border:1px solid var(--amber-line);border-radius:10px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+  .pickbar .pb-name{font-weight:600;flex:1;min-width:120px}
   .bl-add,.bl-del{font-size:12px;padding:2px 7px;margin-left:6px}
   .bl-fait{font-size:12px;padding:2px 7px;margin-left:6px}
   .bl-fait.on{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
@@ -191,7 +194,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v102</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v103</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1210,7 +1213,8 @@ function renderResults(){
   var _nf=rows.filter(function(r){return estFait(r);}).length;
   h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button><span id="pr-count" class="sub"></span></div>';
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span></div>';
-  if(pickedId!=null) h+='<div class="info no-print" style="margin-bottom:8px">\u270B Ligne prise. Cliquez « poser ici » sur la ligne devant laquelle vous voulez la placer \u2014 ou « annuler ».</div>';
+  if(pickedId!=null){ var _pn=''; for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}
+    h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
   var _pend=[], _done=[];
   rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
     var _kk=(r.client||'').trim().toLowerCase();
@@ -1225,7 +1229,7 @@ function renderResults(){
     var _fait=estFait(r);
     var _lav=estLav(r);
     var _lavBtn='<button class="btn-ghost bl-lav no-print'+(_lav?' on':'')+'" data-lav="'+i+'" title="Fait à la laveuse (recalcule l\'heure seulement si aussi coché « fait »)">'+(_lav?'\u2713 laveuse':'\u2192 laveuse')+'</button>';
-    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait (visuel, sans changer l\'heure)">'+(_fait?'\u2713 fait':'fait')+'</button><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+btn+_lavBtn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button></div></div>';
+    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+'" draggable="true" data-i="'+i+'"><div><span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span><button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait (visuel, sans changer l\'heure)">'+(_fait?'\u2713 fait':'fait')+'</button><span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal <button class="btn-ghost bl-tete no-print" data-tete="'+i+'" title="Envoyer ce client tout en haut (position 1)">\u2b06 en tête</button>'+btn+_lavBtn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button></div></div>';
     (_fait?_done:_pend).push(rowHtml);
   });
   h+=_pend.join('');
@@ -1555,11 +1559,16 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
   res.addEventListener('click',function(e){
     var b=e.target.closest&&e.target.closest('.pick-btn'); if(!b)return;
     var i=parseInt(b.getAttribute('data-pick')); if(isNaN(i))return;
+    if(i===-1){ pickedId=null; renderResults(); return; }               // annuler (bandeau)
     if(pickedId==null){ pickedId=(rows[i]||{}).id||null; renderResults(); return; }
     var from=-1; for(var k=0;k<rows.length;k++) if(rows[k].id===pickedId) from=k;
-    if(from===i){ pickedId=null; renderResults(); return; }          // annuler
+    if(from===i){ pickedId=null; renderResults(); return; }             // reclic sur la même = annuler
     pickedId=null;
     if(from>=0) deplacerLigne(from,i); else renderResults();
+  });
+  res.addEventListener('click',function(e){
+    var t=e.target.closest&&e.target.closest('.bl-tete'); if(!t)return;
+    var i=parseInt(t.getAttribute('data-tete')); if(!isNaN(i)) deplacerLigne(i,0);   // envoyer en position 1
   });
   res.addEventListener('dragstart',function(e){
     var el=e.target.closest&&e.target.closest('.bline'); if(!el)return;
