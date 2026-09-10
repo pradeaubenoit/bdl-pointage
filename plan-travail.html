@@ -98,7 +98,7 @@
   .empty{border:1px dashed var(--line2);border-radius:14px;padding:26px;text-align:center;color:var(--muted)}
   .foot{font-size:11px;color:var(--faint);text-align:center;margin:16px 0}
   .neterr{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber);border-radius:10px;padding:8px 12px;margin:10px 0;font-size:13px;display:none}
-  .bline{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:6px}
+  .bline{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:6px}
   .bline .b-name{font-weight:500}
   .bline[draggable="true"]{cursor:grab}
   .bline.dragging{opacity:.35;cursor:grabbing}
@@ -140,7 +140,8 @@
   .modal-row{display:flex;gap:10px}
   .modal-row>div{flex:1}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
-  .bline .b-meta{font-size:12px;color:var(--muted)}
+  .bline .b-meta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;justify-content:flex-end}
+  .bl-del{margin-left:auto}
   .bline.lav{border-left:5px solid #7c3aed;background:linear-gradient(90deg,rgba(124,58,237,.10),var(--card) 60px)}
   .lavtag{padding:1px 7px;border-radius:5px;font-size:12px;font-weight:600;background:#7c3aed;color:#fff;margin-left:6px}
   .tag{display:inline-block;padding:0 6px;border-radius:5px;font-size:11px;margin-left:6px}
@@ -194,7 +195,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v103</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v104</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
