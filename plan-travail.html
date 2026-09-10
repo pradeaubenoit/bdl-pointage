@@ -198,7 +198,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v108</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v109</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -351,7 +351,7 @@
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
-var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, curView='saisie';
+var USER=null, prevTotals={}, pendingSave=false, saveTimer=null, cfgTimer=null, cfgPending=false, curView='saisie';
 
 var POSTES=[['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']];
 var MACHINES=[['tunnel','Tunnel'],['laveuse','Laveuse']];
@@ -402,7 +402,14 @@ async function loadConfig(){
     return false;
   }catch(e){netErr();return false;}
 }
-async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.id,data:{cfg:CFG,codes:codes},updated_at:new Date().toISOString()},{onConflict:'user_id'});netOk();}catch(e){netErr();}}
+async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.id,data:{cfg:CFG,codes:codes},updated_at:new Date().toISOString()},{onConflict:'user_id'});cfgPending=false;netOk();}catch(e){netErr();}}
+/* Relit UNIQUEMENT les demandes de priorité depuis le cloud (léger), pour que la bannière apparaisse sur
+   tous les écrans sans tout recharger, et sans écraser les réglages que l'écran local modifie. */
+async function loadPriorites(){
+  try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
+    if(r.data&&r.data.data&&r.data.data.cfg){ CFG.priorites=r.data.data.cfg.priorites||{}; }
+  }catch(e){}
+}
 function mapRow(x){return {id:uid(),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
 function rowToDb(r,date,i){return {user_id:USER.id,date_jour:date,ordre:i,client:r.client||'',poste:(r.postes&&r.postes.length?r.postes.join(','):'repassage'),machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};}
 /* POINTAGE « fait » : purement visuel, sans effet sur l'heure de fin. Stocké dans les réglages cloud
@@ -496,7 +503,7 @@ async function pushLocalToCloud(){
 async function maybeMigrate(){try{if(localStorage.getItem('pdt_synced')==='1')return;await pushLocalToCloud();}catch(e){}}
 
 function scheduleSavePlan(){pendingSave=true;clearTimeout(saveTimer);saveTimer=setTimeout(function(){savePlan();},700);}
-function scheduleSaveConfig(){clearTimeout(cfgTimer);cfgTimer=setTimeout(function(){saveConfig();},500);}
+function scheduleSaveConfig(){cfgPending=true;clearTimeout(cfgTimer);cfgTimer=setTimeout(function(){saveConfig();},500);}
 function updateSummary(){var n=rows.length,g=rows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);var el=document.getElementById('saisie-sum');if(el)el.textContent=n+' client'+(n>1?'s':'')+' \u00b7 '+g+' galette'+(g>1?'s':'');}
 function sync(){persistFaits();scheduleSaveConfig();renderResults();updateSummary();scheduleSavePlan();}
 
@@ -1520,6 +1527,7 @@ async function bDiffuse(){
 
 async function refreshFromCloud(){
   if(pendingSave||pickedId!=null||dragFrom>=0||document.querySelector('.modal-bg'))return; // pas pendant une action
+  if(!cfgPending) await loadPriorites();                              // remonter les demandes de priorité des autres écrans
   prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();
   if(curView==='quantites')renderQuantites();
 }
