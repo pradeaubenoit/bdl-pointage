@@ -198,7 +198,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v110</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v111</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1529,8 +1529,10 @@ async function refreshFromCloud(){
   if(dragFrom>=0||pickedId!=null||document.querySelector('.modal-bg'))return;  // pas pendant un geste en cours
   if(pendingSave&&!isOperateur)return;                                         // ne pas écraser une modif locale non enregistrée
   try{
-    if(isOperateur){ await loadConfig(); }          // lecture seule : on peut tout relire sans risque
-    else if(!cfgPending){ await loadPriorites(); }  // éditeur : on relit juste les priorités des autres
+    if(!cfgPending){                                 // ne rien relire tant que notre propre modif n'est pas enregistrée
+      if(isOperateur) await loadConfig();            // lecture seule : on peut tout relire
+      else await loadPriorites();                    // éditeur : on relit juste les priorités des autres
+    }
     prevTotals=await loadPrevTotals(curDate);
     await loadPlan(curDate);
     renderRows();renderResults();updateSummary();
