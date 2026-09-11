@@ -206,7 +206,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v119</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v120</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1203,13 +1203,17 @@ function prHighlight(reset){
   if(m.length)m[prIdx].scrollIntoView({behavior:'smooth',block:'center'});
 }
 function prNext(){ var m=prMatches(); if(!m.length)return; prIdx=(prIdx+1)%m.length; prHighlight(false); }
+var undoSnap=null;
+function snapshotOrder(){ undoSnap=rows.slice(); }   // mémorise l'ordre AVANT un déplacement (annuler à 1 cran)
+function undoMove(){ if(!undoSnap)return; rows=undoSnap.slice(); undoSnap=null; renderRows(); sync(); }
 function remonterToutesEnTete(){
   var q=(planQuery||'').trim().toLowerCase(); if(!q)return;
   var match=[],rest=[]; rows.forEach(function(r){ (((r.client||'').trim().toLowerCase()).indexOf(q)>=0?match:rest).push(r); });
-  if(!match.length)return; rows=match.concat(rest); renderRows(); sync();
+  if(!match.length)return; snapshotOrder(); rows=match.concat(rest); renderRows(); sync();
 }
 function deplacerLigne(from,to){
   if(from<0||from>=rows.length||to<0||to>rows.length||from===to)return;
+  snapshotOrder();
   var r=rows.splice(from,1)[0];
   if(to>from)to--;
   rows.splice(Math.max(0,Math.min(rows.length,to)),0,r);
@@ -1219,7 +1223,7 @@ function clearDropMarks(){
   var els=document.querySelectorAll('#results .bline');
   for(var i=0;i<els.length;i++)els[i].classList.remove('drop-before','drop-after','dragging');
 }
-function move(id,d){var i=-1;for(var k=0;k<rows.length;k++)if(rows[k].id===id)i=k;var j=i+d;if(i<0||j<0||j>=rows.length)return;var a=rows[i];rows[i]=rows[j];rows[j]=a;renderRows();sync();}
+function move(id,d){var i=-1;for(var k=0;k<rows.length;k++)if(rows[k].id===id)i=k;var j=i+d;if(i<0||j<0||j>=rows.length)return;snapshotOrder();var a=rows[i];rows[i]=rows[j];rows[j]=a;renderRows();sync();}
 /* position d'insertion d'après l'heure : juste avant le 1er client tunnel chargé >= horaire */
 function posParHoraire(list,horSec){var sim=simulerTunnel(list);for(var i=0;i<list.length;i++){var r=list[i];if(r.machine!=='tunnel')continue;var L=sim.lots[r.id];if(L&&isFinite(L.charg)&&L.charg>=horSec)return i;}return list.length;}
 var insPostes=['repassage'];
@@ -1310,7 +1314,7 @@ function renderResults(){
   // Filtre par poste (opérateur)
   if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' on':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
   h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button>'+(adminUnlocked?'<button type="button" id="pr-alltop" class="btn-ghost" title="Remonter tous les morceaux de ce client tout en haut" style="color:var(--teal)">\u2b06 toutes en tête</button>':'')+'<span id="pr-count" class="sub"></span></div>';
-  h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span></div>';
+  h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span>'+((adminUnlocked&&undoSnap)?'<button class="btn-ghost no-print" id="undo-move" title="Annuler le dernier déplacement" style="margin-left:10px;color:#8a1a12;font-size:12px;padding:2px 10px">\u21b6 annuler le déplacement</button>':'')+'</div>';
   if(pickedId!=null){ var _pn=''; for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}
     h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
   var _pend=[], _done=[];
@@ -1369,6 +1373,7 @@ function renderResults(){
   document.querySelectorAll('#results .prio-del').forEach(function(b){b.addEventListener('click',function(){retirerPriorite(b.getAttribute('data-k'));});});
   document.querySelectorAll('#results .pfilt').forEach(function(b){b.addEventListener('click',function(){posteFilter=b.getAttribute('data-pf');renderResults();});});
   var pcl=document.getElementById('prio-clear'); if(pcl)pcl.addEventListener('click',function(){if(confirm('Effacer toutes les demandes de priorité ?')){CFG.priorites[curDate]=[];scheduleSaveConfig();renderResults();}});
+  var umv=document.getElementById('undo-move'); if(umv)umv.addEventListener('click',undoMove);
   if(pf){
     pf.addEventListener('change',function(){ if(planQuery!==pf.value){planQuery=pf.value;prHighlight(true);} });
     pf.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); if(planQuery!==pf.value){planQuery=pf.value;prHighlight(true);} else {prNext();} } });
@@ -1592,6 +1597,7 @@ async function refreshFromCloud(){
     }
     prevTotals=await loadPrevTotals(curDate);
     await loadPlan(curDate);
+    undoSnap=null;                                   // l'annulation ne vaut plus après un rechargement
     var _sy=window.scrollY||window.pageYOffset||0;   // mémoriser la position avant de rebâtir la liste
     var _afEl=document.activeElement, _afId=_afEl&&_afEl.id, _afSel=(_afEl&&_afEl.selectionStart!=null)?_afEl.selectionStart:null;
     renderRows();renderResults();updateSummary();
