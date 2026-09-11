@@ -208,7 +208,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v123</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v124</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1611,6 +1611,7 @@ async function bDiffuse(){
 
 async function refreshFromCloud(){
   if(dragFrom>=0||pickedId!=null||document.querySelector('.modal-bg'))return;  // pas pendant un geste en cours
+  if(prSel&&Object.keys(prSel).length)return;                                  // pas pendant qu'une sélection est en cours
   var _ae=document.activeElement;                                              // pas pendant qu'on tape dans un champ
   if(_ae&&(_ae.tagName==='INPUT'||_ae.tagName==='SELECT'||_ae.tagName==='TEXTAREA'))return;
   if(pendingSave&&!isOperateur)return;                                         // ne pas écraser une modif locale non enregistrée
