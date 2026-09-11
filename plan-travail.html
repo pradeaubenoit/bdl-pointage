@@ -132,7 +132,9 @@
   .pr-search{display:flex;gap:8px;align-items:center;margin:2px 0 10px}
   .pr-search input{flex:1;min-width:130px}
   .done-sep{margin:14px 0 8px;padding-top:10px;border-top:1px dashed var(--line2);font-size:12px;color:var(--faint);font-weight:600}
-  .bline.hit{outline:2px solid #c8901a;outline-offset:2px}
+  .bline.hit{outline:2px solid #c8901a;outline-offset:2px;cursor:pointer}
+  .bline.sel{background:var(--teal-bg);outline:3px solid var(--teal);outline-offset:2px}
+  .bline.sel .b-name::before{content:"\2713 ";color:var(--teal);font-weight:800}
   .bline.hit-cur{outline:3px solid #1d4ed8;outline-offset:2px;box-shadow:0 0 0 4px rgba(29,78,216,.18)}
   .qrow{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}
   .qrow .qname{flex:1;min-width:0;font-weight:500}
@@ -206,7 +208,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v120</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v121</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1206,10 +1208,14 @@ function prNext(){ var m=prMatches(); if(!m.length)return; prIdx=(prIdx+1)%m.len
 var undoSnap=null;
 function snapshotOrder(){ undoSnap=rows.slice(); }   // mémorise l'ordre AVANT un déplacement (annuler à 1 cran)
 function undoMove(){ if(!undoSnap)return; rows=undoSnap.slice(); undoSnap=null; renderRows(); sync(); }
+var prSel={};
+function prSelCount(){ return Object.keys(prSel).length; }
+function updateAlltopLabel(){ var pa=document.getElementById('pr-alltop'); if(pa){ var n=prSelCount(); pa.textContent=n?('\u2b06 remonter la sélection ('+n+')'):'\u2b06 toutes en tête'; } }
 function remonterToutesEnTete(){
-  var q=(planQuery||'').trim().toLowerCase(); if(!q)return;
-  var match=[],rest=[]; rows.forEach(function(r){ (((r.client||'').trim().toLowerCase()).indexOf(q)>=0?match:rest).push(r); });
-  if(!match.length)return; snapshotOrder(); rows=match.concat(rest); renderRows(); sync();
+  var match=[],rest=[], n=prSelCount();
+  if(n){ rows.forEach(function(r){ (prSel[r.id]?match:rest).push(r); }); }
+  else { var q=(planQuery||'').trim().toLowerCase(); if(!q)return; rows.forEach(function(r){ (((r.client||'').trim().toLowerCase()).indexOf(q)>=0?match:rest).push(r); }); }
+  if(!match.length)return; snapshotOrder(); rows=match.concat(rest); prSel={}; renderRows(); sync();
 }
 function deplacerLigne(from,to){
   if(from<0||from>=rows.length||to<0||to>rows.length||from===to)return;
@@ -1343,7 +1349,7 @@ function renderResults(){
         _opBtn=_sl+'<button class="btn-ghost bl-unprio no-print" data-unprio="'+esc(prioKey(r))+'" title="Annuler ma demande" style="color:var(--danger)">\u2715 annuler</button>'; }
       else if(!_fait){ _opBtn='<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>'; }
     }
-    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+'" draggable="'+(adminUnlocked?'true':'false')+'" data-i="'+i+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_admBtns+_opBtn+'</div></div>';
+    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(adminUnlocked?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_admBtns+_opBtn+'</div></div>';
     (_fait?_done:_pend).push(rowHtml);
   });
   h+=_pend.join('');
@@ -1375,10 +1381,11 @@ function renderResults(){
   var pcl=document.getElementById('prio-clear'); if(pcl)pcl.addEventListener('click',function(){if(confirm('Effacer toutes les demandes de priorité ?')){CFG.priorites[curDate]=[];scheduleSaveConfig();renderResults();}});
   var umv=document.getElementById('undo-move'); if(umv)umv.addEventListener('click',undoMove);
   if(pf){
-    pf.addEventListener('change',function(){ if(planQuery!==pf.value){planQuery=pf.value;prHighlight(true);} });
-    pf.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); if(planQuery!==pf.value){planQuery=pf.value;prHighlight(true);} else {prNext();} } });
-    var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prIdx=0;prHighlight(true);pf.focus();});
+    pf.addEventListener('change',function(){ if(planQuery!==pf.value){planQuery=pf.value;prSel={};prHighlight(true);updateAlltopLabel();} });
+    pf.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); if(planQuery!==pf.value){planQuery=pf.value;prSel={};prHighlight(true);updateAlltopLabel();} else {prNext();} } });
+    var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prIdx=0;prSel={};prHighlight(true);updateAlltopLabel();pf.focus();});
     var pa=document.getElementById('pr-alltop'); if(pa)pa.addEventListener('click',function(){planQuery=pf.value;remonterToutesEnTete();});
+    updateAlltopLabel();
     if(planQuery){prHighlight(false);}
   }
 }
@@ -1735,6 +1742,13 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
   res.addEventListener('click',function(e){
     var t=e.target.closest&&e.target.closest('.bl-tete'); if(!t)return;
     var i=parseInt(t.getAttribute('data-tete')); if(!isNaN(i)) deplacerLigne(i,0);   // envoyer en position 1
+  });
+  res.addEventListener('click',function(e){
+    if(e.target.closest('button')||e.target.closest('.drag-h')||e.target.closest('input'))return; // pas sur un bouton
+    var line=e.target.closest&&e.target.closest('.bline'); if(!line||!line.classList.contains('hit'))return; // seulement les lignes encadrées
+    var id=line.getAttribute('data-id'); if(!id)return;
+    if(prSel[id]){delete prSel[id];line.classList.remove('sel');} else {prSel[id]=true;line.classList.add('sel');}
+    updateAlltopLabel();
   });
   res.addEventListener('dragstart',function(e){
     var el=e.target.closest&&e.target.closest('.bline'); if(!el)return;
