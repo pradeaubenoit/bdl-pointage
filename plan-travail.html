@@ -133,6 +133,7 @@
   .pr-search input{flex:1;min-width:130px}
   .done-sep{margin:14px 0 8px;padding-top:10px;border-top:1px dashed var(--line2);font-size:12px;color:var(--faint);font-weight:600}
   .bline.hit{outline:2px solid #c8901a;outline-offset:2px}
+  .bline.hit-cur{outline:3px solid #1d4ed8;outline-offset:2px;box-shadow:0 0 0 4px rgba(29,78,216,.18)}
   .qrow{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}
   .qrow .qname{flex:1;min-width:0;font-weight:500}
   .qrow .qmorc{color:var(--faint);font-size:12px;margin-left:6px;font-weight:400}
@@ -205,7 +206,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v116</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v118</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1190,12 +1191,22 @@ function add(){
 }
 /* ---------- Déplacer une ligne dans le Plan de travail ----------
    deplacerLigne(from,to) : `to` = index DEVANT lequel on pose (rows.length = à la fin). */
-var pickedId=null, dragFrom=-1, planQuery='', showProd=false;
-function prHighlight(){
-  var els=document.querySelectorAll('#results .bline');var q=(planQuery||'').trim().toLowerCase();var n=0,first=null;
-  els.forEach(function(el){var nm=el.querySelector('.b-name');var v=nm?(nm.textContent||'').toLowerCase():'';var on=q&&v.indexOf(q)>=0;el.classList.toggle('hit',!!on);if(on){n++;if(!first)first=el;}});
-  var cEl=document.getElementById('pr-count');if(cEl)cEl.textContent=q?(n+' trouvé'+(n>1?'s':'')):'';
-  if(first)first.scrollIntoView({behavior:'smooth',block:'center'});
+var pickedId=null, dragFrom=-1, planQuery='', showProd=false, prIdx=0;
+function prMatches(){ var q=(planQuery||'').trim().toLowerCase(); var out=[]; if(!q)return out;
+  document.querySelectorAll('#results .bline').forEach(function(el){var nm=el.querySelector('.b-name');var v=nm?(nm.textContent||'').toLowerCase():'';if(v.indexOf(q)>=0)out.push(el);}); return out; }
+function prHighlight(reset){
+  var q=(planQuery||'').trim().toLowerCase(); var m=prMatches();
+  if(reset||prIdx>=m.length||prIdx<0)prIdx=0;
+  document.querySelectorAll('#results .bline').forEach(function(el){el.classList.remove('hit','hit-cur');});
+  m.forEach(function(el,i){el.classList.add('hit'); if(i===prIdx)el.classList.add('hit-cur');});
+  var cEl=document.getElementById('pr-count');if(cEl)cEl.textContent=q?(m.length?((prIdx+1)+' / '+m.length+' \u2014 Entrée = suivant'):'0 trouvé'):'';
+  if(m.length)m[prIdx].scrollIntoView({behavior:'smooth',block:'center'});
+}
+function prNext(){ var m=prMatches(); if(!m.length)return; prIdx=(prIdx+1)%m.length; prHighlight(false); }
+function remonterToutesEnTete(){
+  var q=(planQuery||'').trim().toLowerCase(); if(!q)return;
+  var match=[],rest=[]; rows.forEach(function(r){ (((r.client||'').trim().toLowerCase()).indexOf(q)>=0?match:rest).push(r); });
+  if(!match.length)return; rows=match.concat(rest); renderRows(); sync();
 }
 function deplacerLigne(from,to){
   if(from<0||from>=rows.length||to<0||to>rows.length||from===to)return;
@@ -1298,7 +1309,7 @@ function renderResults(){
   }
   // Filtre par poste (opérateur)
   if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' on':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
-  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button><span id="pr-count" class="sub"></span></div>';
+  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button>'+(adminUnlocked?'<button type="button" id="pr-alltop" class="btn-ghost" title="Remonter tous les morceaux de ce client tout en haut" style="color:var(--teal)">\u2b06 toutes en tête</button>':'')+'<span id="pr-count" class="sub"></span></div>';
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span></div>';
   if(pickedId!=null){ var _pn=''; for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}
     h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
@@ -1358,7 +1369,13 @@ function renderResults(){
   document.querySelectorAll('#results .prio-del').forEach(function(b){b.addEventListener('click',function(){retirerPriorite(b.getAttribute('data-k'));});});
   document.querySelectorAll('#results .pfilt').forEach(function(b){b.addEventListener('click',function(){posteFilter=b.getAttribute('data-pf');renderResults();});});
   var pcl=document.getElementById('prio-clear'); if(pcl)pcl.addEventListener('click',function(){if(confirm('Effacer toutes les demandes de priorité ?')){CFG.priorites[curDate]=[];scheduleSaveConfig();renderResults();}});
-  if(pf){ pf.addEventListener('change',function(){planQuery=pf.value;prHighlight();}); pf.addEventListener('keydown',function(e){if(e.key==='Enter'){planQuery=pf.value;prHighlight();pf.blur();}}); var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prHighlight();pf.focus();}); if(planQuery){prHighlight();} }
+  if(pf){
+    pf.addEventListener('change',function(){ if(planQuery!==pf.value){planQuery=pf.value;prHighlight(true);} });
+    pf.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); if(planQuery!==pf.value){planQuery=pf.value;prHighlight(true);} else {prNext();} } });
+    var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prIdx=0;prHighlight(true);pf.focus();});
+    var pa=document.getElementById('pr-alltop'); if(pa)pa.addEventListener('click',function(){planQuery=pf.value;remonterToutesEnTete();});
+    if(planQuery){prHighlight(false);}
+  }
 }
 /* Ré-optimise UNIQUEMENT la suite à partir de la ligne i : le dessus (déjà lavé) reste figé,
    le tourniquet reprend sur les lignes du dessous avec les draps restants. */
@@ -1381,10 +1398,10 @@ function renderQuantites(){
   host.innerHTML=h||'<div class="sub">Aucun client dans la journée.</div>';
   var cEl=document.getElementById('q-count'); if(cEl)cEl.textContent=q?(shown+' trouvé'+(shown>1?'s':'')):(order.length+' lignes');
   host.querySelectorAll('.q-in').forEach(function(inp){
-    inp.addEventListener('change',function(){ ajusterQuantite(inp.getAttribute('data-key'), parseInt(inp.value)); });
+    inp.addEventListener('change',function(){ ajusterQuantite(inp.getAttribute('data-key'), parseInt(inp.value), inp); });
   });
 }
-function ajusterQuantite(key,newTotal){
+function ajusterQuantite(key,newTotal,inp){
   if(isNaN(newTotal)||newTotal<0){renderQuantites();return;}
   var idx=[]; rows.forEach(function(r,i){ if(qKey(r)===key) idx.push(i); });
   if(!idx.length)return;
@@ -1397,7 +1414,8 @@ function ajusterQuantite(key,newTotal){
     rows.forEach(function(r){ if(qKey(r)===key && (parseInt(r.nbTransferts)||0)===0) r._delQ=true; });
     rows=rows.filter(function(r){ return !r._delQ; });
   }
-  renderRows(); sync(); renderQuantites();
+  renderRows(); sync();                       // met à jour le plan, sans toucher à la liste des quantités
+  if(inp) inp.value=newTotal;                 // on garde le même champ (les flèches restent utilisables)
 }
 function reOptimiserDepuis(i){
   var nFige=rows.filter(function(r){return estFait(r)||estLav(r);}).length;
