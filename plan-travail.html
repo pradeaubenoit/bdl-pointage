@@ -208,7 +208,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v122</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v123</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -423,22 +423,33 @@ async function loadPriorites(){
 }
 function mapRow(x){return {id:uid(),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
 function rowToDb(r,date,i){return {user_id:USER.id,date_jour:date,ordre:i,client:r.client||'',poste:(r.postes&&r.postes.length?r.postes.join(','):'repassage'),machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};}
-/* POINTAGE « fait » : purement visuel, sans effet sur l'heure de fin. Stocké dans les réglages cloud
-   (CFG.faits[date] = liste de clés « ordre|client »), donc conservé au rechargement, sans toucher au
-   schéma de la base. Clé par position+client pour rester stable après relecture. */
-function faitKey(r,i){return i+'|'+((r.client||'').trim().toLowerCase());}
-/* « fait » et « laveuse » sont désormais portés PAR LA LIGNE (r._fait / r._lav) : ils la suivent quand on
-   supprime, déplace ou ré-optimise — fini le décalage par position. On les enregistre dans les réglages
-   cloud (par position+client au moment de la sauvegarde) et on les ré-applique aux lignes au chargement. */
+/* POINTAGE « fait » / « laveuse » : porté par la ligne (r._fait / r._lav). Persisté par CLIENT + TYPE en
+   nombre de galettes faites (CFG.faitsG[date] = { "client|code": galettes }) — donc INSENSIBLE au réordre
+   et au redécoupage des draps : le total de galettes faites reste exact, et c'est lui qui pilote l'heure.
+   L'ancien format (par position) est migré automatiquement au premier chargement. */
+function faitKey(r,i){return i+'|'+((r.client||'').trim().toLowerCase());}   // ancien format (migration seulement)
+function keyCC(r){return ((r.client||'').trim().toLowerCase())+'|'+(r.code==null?'':String(r.code));}
 function estFait(r){ return !!(r&&r._fait); }
 function estLav(r){ return !!(r&&(r._lav||r.machine==='laveuse')); }
 function persistFaits(){
-  var f={},l={}; rows.forEach(function(r,i){var k=faitKey(r,i); if(r._fait)f[k]=1; if(r._lav)l[k]=1;});
-  if(!CFG.faits)CFG.faits={}; if(!CFG.lav)CFG.lav={}; CFG.faits[curDate]=f; CFG.lav[curDate]=l;
+  var fg={},lg={};
+  rows.forEach(function(r){ var k=keyCC(r),g=parseInt(r.nbTransferts)||0; if(r._fait)fg[k]=(fg[k]||0)+g; if(r._lav)lg[k]=(lg[k]||0)+g; });
+  if(!CFG.faitsG)CFG.faitsG={}; if(!CFG.lavG)CFG.lavG={}; CFG.faitsG[curDate]=fg; CFG.lavG[curDate]=lg;
+}
+function applyGroupFlags(map,prop){
+  var need={}; for(var k in map) need[k]=map[k];
+  rows.forEach(function(r){ r[prop]=false; });
+  rows.forEach(function(r){ var k=keyCC(r); if(need[k]>0){ r[prop]=true; need[k]-=(parseInt(r.nbTransferts)||0); } });
 }
 function applyFaits(){
-  var f=(CFG.faits&&CFG.faits[curDate])||{}, l=(CFG.lav&&CFG.lav[curDate])||{};
-  rows.forEach(function(r,i){var k=faitKey(r,i); r._fait=!!f[k]; r._lav=!!l[k];});
+  if(CFG.faitsG && CFG.faitsG[curDate]){
+    applyGroupFlags(CFG.faitsG[curDate],'_fait');
+    applyGroupFlags((CFG.lavG&&CFG.lavG[curDate])||{},'_lav');
+  } else {
+    var f=(CFG.faits&&CFG.faits[curDate])||{}, l=(CFG.lav&&CFG.lav[curDate])||{};   // migration ancien format
+    rows.forEach(function(r,i){var k=faitKey(r,i); r._fait=!!f[k]; r._lav=!!l[k];});
+    persistFaits(); scheduleSaveConfig();
+  }
 }
 function toggleFait(r){ if(!r)return; r._fait=!r._fait; persistFaits(); scheduleSaveConfig(); renderResults(); }
 function toggleLav(r){ if(!r||r.machine!=='tunnel')return; r._lav=!r._lav; persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); updateSummary(); }
@@ -1204,7 +1215,13 @@ function prHighlight(reset){
   var cEl=document.getElementById('pr-count');if(cEl)cEl.textContent=q?(m.length?((prIdx+1)+' / '+m.length+' \u2014 Entrée = suivant'):'0 trouvé'):'';
   if(m.length)m[prIdx].scrollIntoView({behavior:'smooth',block:'center'});
 }
-function prNext(){ var m=prMatches(); if(!m.length)return; prIdx=(prIdx+1)%m.length; prHighlight(false); }
+function prVisible(el){ if(!el||!el.getBoundingClientRect)return false; var r=el.getBoundingClientRect(); return r.top>=60 && r.bottom<=(window.innerHeight-20); }
+function prNext(){
+  var m=prMatches(); if(!m.length)return; if(m.length===1){prIdx=0;prHighlight(false);return;}
+  var next=(prIdx+1)%m.length, guard=0;
+  while(guard<m.length && prVisible(m[next]) && next!==prIdx){ next=(next+1)%m.length; guard++; } // saute celles déjà visibles
+  prIdx=next; prHighlight(false);
+}
 var undoSnap=null;
 function snapshotOrder(){ undoSnap=rows.slice(); }   // mémorise l'ordre AVANT un déplacement (annuler à 1 cran)
 function undoMove(){ if(!undoSnap)return; rows=undoSnap.slice(); undoSnap=null; renderRows(); sync(); }
