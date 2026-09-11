@@ -208,7 +208,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v125</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v126</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1348,7 +1348,8 @@ function renderResults(){
     var _kk=(r.client||'').trim().toLowerCase();
     var _mk=(((CFG.cadenas||{})[_kk])?'<span class="pill" title="Figé : l\'optimiseur ne le déplace pas">\u{1F512}</span>':'')+(((CFG.attelages||{})[_kk])?'<span class="pill" title="Attelé juste après : '+esc((CFG.attelages||{})[_kk])+'">\u26D3\uFE0F</span>':'');
     var L=(r.machine==='tunnel')?sim.lots[r.id]:null;
-    var _hr=(L&&isFinite(L.charg))?'<span class="pill" style="margin-left:6px">~'+fmtHHMM(L.charg)+'</span>':'';
+    var _hr=(L&&isFinite(L.charg))?'<span class="pill" title="Heure de chargement au tunnel" style="margin-left:6px">\u21b3 charg. '+fmtHHMM(L.charg)+'</span>':'';
+    if(L&&isFinite(L.sortie)){ var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:20)*60; _hr+='<span class="pill" title="Estimation : linge sec, prêt pour la finition (sortie séchoir)" style="margin-left:4px;background:var(--teal-bg);color:var(--teal)">\u2600 sec ~'+fmtHHMM(L.sortie+_dry)+'</span>'; }
     var pris=(pickedId===r.id);
     var btn;
     if(pickedId==null) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Prendre cette ligne pour la poser ailleurs">\u270B prendre</button>';
