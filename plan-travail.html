@@ -206,7 +206,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v118</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v119</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1445,8 +1445,8 @@ function renderBrouillon(){
   var blocBrou=Math.round(s.wait/60);
   var serie=maxLentRun(tunnelRows);
   var finAff=s.finSec; // sortie du dernier linge sec des séchoirs = fin réelle (équipes rentrent)
-  var finTunnel=start + s.total*(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette()); // tunnel seul : galettes × cadence
-  var noteFin='<b>Fin tunnel</b> = quand le tunnel a fini de laver (galettes × cadence) — l\'heure où tu arrêtes de charger. <b>Tout sec</b> = sortie du dernier linge sec des séchoirs — l\'heure où les équipes de finition peuvent rentrer (c\'est elle qui commande les heures sup). L\'écart entre les deux, c\'est le séchage + l\'attente séchoir. ';
+  var finTunnel=s.fin; // dernière galette entrée dans le tunnel — ATTENTES SÉCHOIR COMPRISES (vraie fin de lavage)
+  var noteFin='<b>Fin tunnel</b> = quand la dernière galette entre dans le tunnel, attentes séchoir comprises — l\'heure où tu arrêtes de charger. <b>Tout sec</b> = sortie du dernier linge sec des séchoirs — l\'heure où les équipes de finition peuvent rentrer (elle commande les heures sup). L\'écart entre les deux, c\'est le séchage de la dernière fournée. ';
   resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Fin tunnel',fmtHHMM(finTunnel))+metric('Tout sec (fin réelle)',fmtHHMM(finAff))+metric('Attente séchoir',fmtDuree(s.wait))+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser l\'attente.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
