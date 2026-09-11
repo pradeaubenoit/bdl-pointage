@@ -205,7 +205,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v114</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v115</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1572,8 +1572,12 @@ async function refreshFromCloud(){
     }
     prevTotals=await loadPrevTotals(curDate);
     await loadPlan(curDate);
+    var _sy=window.scrollY||window.pageYOffset||0;   // mémoriser la position avant de rebâtir la liste
+    var _afEl=document.activeElement, _afId=_afEl&&_afEl.id, _afSel=(_afEl&&_afEl.selectionStart!=null)?_afEl.selectionStart:null;
     renderRows();renderResults();updateSummary();
     if(curView==='quantites')renderQuantites();
+    window.scrollTo(0,_sy);                           // remettre la position : l'écran ne saute plus en haut
+    if(_afId){ var _re=document.getElementById(_afId); if(_re){ try{_re.focus(); if(_afSel!=null&&_re.setSelectionRange)_re.setSelectionRange(_afSel,_afSel);}catch(e){} } }
   }catch(e){}
 }
 /* Synchro permanente dans les deux sens : chaque écran (admin, laveur, finition) se réactualise depuis le
