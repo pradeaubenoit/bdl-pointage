@@ -208,7 +208,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v124</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v125</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -416,9 +416,12 @@ async function loadConfig(){
 async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.id,data:{cfg:CFG,codes:codes},updated_at:new Date().toISOString()},{onConflict:'user_id'});cfgPending=false;netOk();}catch(e){netErr();}}
 /* Relit UNIQUEMENT les demandes de priorité depuis le cloud (léger), pour que la bannière apparaisse sur
    tous les écrans sans tout recharger, et sans écraser les réglages que l'écran local modifie. */
+/* Relit les états PARTAGÉS depuis le cloud (léger) : demandes de priorité ET pointages faits/laveuse,
+   pour que chaque écran (admin, laveur) voie ce que les autres ont validé. Appelé seulement quand aucune
+   modif locale n'est en attente (cfgPending), donc sans risque d'écraser un pointage qu'on vient de faire. */
 async function loadPriorites(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data&&r.data.data.cfg){ CFG.priorites=r.data.data.cfg.priorites||{}; }
+    if(r.data&&r.data.data&&r.data.data.cfg){ var c=r.data.data.cfg; CFG.priorites=c.priorites||{}; CFG.faitsG=c.faitsG||{}; CFG.lavG=c.lavG||{}; }
   }catch(e){}
 }
 function mapRow(x){return {id:uid(),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
