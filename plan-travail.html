@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v129</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v130</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1765,9 +1765,10 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
   });
   res.addEventListener('click',function(e){
     if(e.target.closest('button')||e.target.closest('.drag-h')||e.target.closest('input'))return; // pas sur un bouton
-    var line=e.target.closest&&e.target.closest('.bline'); if(!line||!line.classList.contains('hit'))return; // seulement les lignes encadrées
+    var line=e.target.closest&&e.target.closest('.bline'); if(!line)return;
     var id=line.getAttribute('data-id'); if(!id)return;
-    if(prSel[id]){delete prSel[id];line.classList.remove('sel');} else {prSel[id]=true;line.classList.add('sel');}
+    if(prSel[id]){ delete prSel[id]; line.classList.remove('sel'); }              // décocher : toujours possible
+    else { if(!line.classList.contains('hit'))return; prSel[id]=true; line.classList.add('sel'); } // cocher : seulement les lignes encadrées
     updateAlltopLabel();
   });
   res.addEventListener('dragstart',function(e){
@@ -1798,6 +1799,7 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
 })();
 document.addEventListener('keydown',function(e){
   if(e.key!=='Escape')return;
+  if(prSel && Object.keys(prSel).length){ prSel={}; renderResults(); return; }   // vider la sélection
   if(pickedId!=null){pickedId=null;renderResults();return;}
   if(planQuery){ planQuery=''; var pf=document.getElementById('pr-find'); if(pf){pf.value='';pf.blur();} prHighlight(); }
 });
