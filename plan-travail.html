@@ -208,7 +208,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v121</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v122</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1195,7 +1195,7 @@ function add(){
    deplacerLigne(from,to) : `to` = index DEVANT lequel on pose (rows.length = à la fin). */
 var pickedId=null, dragFrom=-1, planQuery='', showProd=false, prIdx=0;
 function prMatches(){ var q=(planQuery||'').trim().toLowerCase(); var out=[]; if(!q)return out;
-  document.querySelectorAll('#results .bline').forEach(function(el){var nm=el.querySelector('.b-name');var v=nm?(nm.textContent||'').toLowerCase():'';if(v.indexOf(q)>=0)out.push(el);}); return out; }
+  document.querySelectorAll('#results .bline').forEach(function(el){if(el.classList.contains('fait'))return;var nm=el.querySelector('.b-name');var v=nm?(nm.textContent||'').toLowerCase():'';if(v.indexOf(q)>=0)out.push(el);}); return out; }
 function prHighlight(reset){
   var q=(planQuery||'').trim().toLowerCase(); var m=prMatches();
   if(reset||prIdx>=m.length||prIdx<0)prIdx=0;
