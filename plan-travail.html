@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v134</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v135</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1348,7 +1348,7 @@ function renderResults(){
      compris), et non l'horaire théorique depuis le démarrage. Uniquement pour aujourd'hui. */
   var _dec=0;
   if(curDate===todayISO()){
-    for(var _z=0;_z<rows.length;_z++){ var _rz=rows[_z]; if(_rz.machine==='tunnel' && !estFait(_rz) && !estLav(_rz)){ var _Lz=sim.lots[_rz.id]; if(_Lz&&isFinite(_Lz.charg)){ _dec=nowSec()-_Lz.charg; break; } } }
+    /* recalage désactivé : les heures s'enchaînent depuis le démarrage, dans l'ordre du plan */
   }
   rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
     var _kk=(r.client||'').trim().toLowerCase();
