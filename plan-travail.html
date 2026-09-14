@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v131</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v134</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -455,7 +455,11 @@ function applyFaits(){
     persistFaits(); scheduleSaveConfig();
   }
 }
-function toggleFait(r){ if(!r)return; r._fait=!r._fait; persistFaits(); scheduleSaveConfig(); renderResults(); }
+function toggleFait(r){ if(!r)return; r._fait=!r._fait;
+  var idx=rows.indexOf(r); if(idx>=0) rows.splice(idx,1);
+  if(r._fait){ rows.push(r); }                                                                    // fait -> tout en bas (dernier pointé en dernier)
+  else { var pos=rows.length; for(var k=0;k<rows.length;k++){ if(rows[k]._fait){ pos=k; break; } } rows.splice(pos,0,r); }  // dé-pointé -> en fin des non-faits
+  persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); scheduleSavePlan(); }
 function toggleLav(r){ if(!r||r.machine!=='tunnel')return; r._lav=!r._lav; persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); updateSummary(); }
 function rowsForTiming(){ return rows.map(function(r){ return (estLav(r)&&estFait(r)) ? Object.assign({},r,{machine:'laveuse'}) : r; }); }
 function nowSec(){var d=new Date();return d.getHours()*3600+d.getMinutes()*60+d.getSeconds();}
