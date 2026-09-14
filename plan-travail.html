@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v132</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v133</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -459,8 +459,8 @@ function toggleFait(r){
   if(!r)return;
   r._fait=!r._fait;
   var idx=rows.indexOf(r); if(idx>=0) rows.splice(idx,1);
-  if(r._fait){ var last=-1; for(var k=0;k<rows.length;k++){ if(rows[k]._fait) last=k; } rows.splice(last+1,0,r); }   // après le dernier fait
-  else { var pos=0; for(var k2=0;k2<rows.length;k2++){ if(rows[k2]._fait) pos=k2+1; } rows.splice(pos,0,r); }        // en tête des non-faits
+  if(r._fait){ rows.push(r); }                                                                    // fait -> tout en bas (dernier pointé en dernier)
+  else { var pos=rows.length; for(var k=0;k<rows.length;k++){ if(rows[k]._fait){ pos=k; break; } } rows.splice(pos,0,r); }  // dé-pointé -> en fin des non-faits
   persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); scheduleSavePlan();
 }
 function toggleLav(r){ if(!r||r.machine!=='tunnel')return; r._lav=!r._lav; persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); updateSummary(); }
@@ -1383,9 +1383,10 @@ function renderResults(){
     var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(adminUnlocked?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_admBtns+_opBtn+'</div></div>';
     _rowsHtml.push({fait:_fait,html:rowHtml});
   });
-  // Affichage dans l'ORDRE RÉEL (faits empilés en tête dans l'ordre où ils ont été pointés, puis le reste).
+  // Affichage dans l'ORDRE RÉEL : le reste à faire en haut, puis les faits empilés en bas dans l'ordre de pointage (dernier tout en bas).
   var _nfaits=0; for(var _q=0;_q<rows.length;_q++){ if(estFait(rows[_q]))_nfaits++; }
-  _rowsHtml.forEach(function(x,i){ if(i===_nfaits && _nfaits>0 && _nfaits<rows.length) h+='<div class="done-sep no-print">\u25be reste à laver (l\'ordre ci-dessus = ordre réel déjà fait)</div>'; h+=x.html; });
+  var _bound=rows.length-_nfaits;   // index où commence le bloc des faits
+  _rowsHtml.forEach(function(x,i){ if(i===_bound && _nfaits>0 && _bound>0) h+='<div class="done-sep no-print">\u2713 fait \u2014 ordre réel de lavage (dernier tout en bas)</div>'; h+=x.html; });
   if(pickedId!=null) h+='<div class="pose-fin no-print"><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2935 poser à la fin de la journée</button></div>';
   h+='<div class="sech no-print" style="display:flex;align-items:center;gap:10px">Production par client<button class="btn-ghost no-print" id="prod-toggle" style="font-size:12px;padding:2px 10px">'+(showProd?'\u25be masquer':'\u25b8 afficher ('+clients.length+')')+'</button></div>';
   if(showProd){
