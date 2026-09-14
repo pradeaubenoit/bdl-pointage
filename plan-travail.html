@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v131</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v132</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -455,7 +455,14 @@ function applyFaits(){
     persistFaits(); scheduleSaveConfig();
   }
 }
-function toggleFait(r){ if(!r)return; r._fait=!r._fait; persistFaits(); scheduleSaveConfig(); renderResults(); }
+function toggleFait(r){
+  if(!r)return;
+  r._fait=!r._fait;
+  var idx=rows.indexOf(r); if(idx>=0) rows.splice(idx,1);
+  if(r._fait){ var last=-1; for(var k=0;k<rows.length;k++){ if(rows[k]._fait) last=k; } rows.splice(last+1,0,r); }   // après le dernier fait
+  else { var pos=0; for(var k2=0;k2<rows.length;k2++){ if(rows[k2]._fait) pos=k2+1; } rows.splice(pos,0,r); }        // en tête des non-faits
+  persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); scheduleSavePlan();
+}
 function toggleLav(r){ if(!r||r.machine!=='tunnel')return; r._lav=!r._lav; persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); updateSummary(); }
 function rowsForTiming(){ return rows.map(function(r){ return (estLav(r)&&estFait(r)) ? Object.assign({},r,{machine:'laveuse'}) : r; }); }
 function nowSec(){var d=new Date();return d.getHours()*3600+d.getMinutes()*60+d.getSeconds();}
@@ -1338,7 +1345,7 @@ function renderResults(){
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span>'+((adminUnlocked&&undoSnap)?'<button class="btn-ghost no-print" id="undo-move" title="Annuler le dernier déplacement" style="margin-left:10px;color:#8a1a12;font-size:12px;padding:2px 10px">\u21b6 annuler le déplacement</button>':'')+'</div>';
   if(pickedId!=null){ var _pn=''; for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}
     h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
-  var _pend=[], _done=[];
+  var _rowsHtml=[];
   /* RECALAGE sur la progression réelle : on décale les lignes RESTANTES pour que la prochaine à charger
      reparte de l'heure qu'il est. Ainsi la finition voit la vraie heure d'arrivée du linge (avance/retard
      compris), et non l'horaire théorique depuis le démarrage. Uniquement pour aujourd'hui. */
@@ -1374,11 +1381,11 @@ function renderResults(){
       else if(!_fait){ _opBtn='<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>'; }
     }
     var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(adminUnlocked?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_admBtns+_opBtn+'</div></div>';
-    (_fait?_done:_pend).push(rowHtml);
+    _rowsHtml.push({fait:_fait,html:rowHtml});
   });
-  h+=_pend.join('');
-  if(_done.length) h+='<div class="done-sep no-print">\u2713 Fait ('+_done.length+') \u2014 pour référence, l\'ordre réel ne change pas</div>';
-  h+=_done.join('');
+  // Affichage dans l'ORDRE RÉEL (faits empilés en tête dans l'ordre où ils ont été pointés, puis le reste).
+  var _nfaits=0; for(var _q=0;_q<rows.length;_q++){ if(estFait(rows[_q]))_nfaits++; }
+  _rowsHtml.forEach(function(x,i){ if(i===_nfaits && _nfaits>0 && _nfaits<rows.length) h+='<div class="done-sep no-print">\u25be reste à laver (l\'ordre ci-dessus = ordre réel déjà fait)</div>'; h+=x.html; });
   if(pickedId!=null) h+='<div class="pose-fin no-print"><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2935 poser à la fin de la journée</button></div>';
   h+='<div class="sech no-print" style="display:flex;align-items:center;gap:10px">Production par client<button class="btn-ghost no-print" id="prod-toggle" style="font-size:12px;padding:2px 10px">'+(showProd?'\u25be masquer':'\u25b8 afficher ('+clients.length+')')+'</button></div>';
   if(showProd){
