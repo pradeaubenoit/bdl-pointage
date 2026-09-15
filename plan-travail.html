@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v135</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v136</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -436,26 +436,36 @@ function keyCC(r){return ((r.client||'').trim().toLowerCase())+'|'+(r.code==null
 function estFait(r){ return !!(r&&r._fait); }
 function estLav(r){ return !!(r&&(r._lav||r.machine==='laveuse')); }
 function persistFaits(){
-  var fg={},lg={};
-  rows.forEach(function(r){ var k=keyCC(r),g=parseInt(r.nbTransferts)||0; if(r._fait)fg[k]=(fg[k]||0)+g; if(r._lav)lg[k]=(lg[k]||0)+g; });
-  if(!CFG.faitsG)CFG.faitsG={}; if(!CFG.lavG)CFG.lavG={}; CFG.faitsG[curDate]=fg; CFG.lavG[curDate]=lg;
+  var fg={},lg={},ag={};
+  rows.forEach(function(r){ var k=keyCC(r),g=parseInt(r.nbTransferts)||0;
+    if(r._fait){ fg[k]=(fg[k]||0)+g; (ag[k]=ag[k]||[]).push(r._faitAt!=null?r._faitAt:-1); }
+    if(r._lav)lg[k]=(lg[k]||0)+g; });
+  if(!CFG.faitsG)CFG.faitsG={}; if(!CFG.lavG)CFG.lavG={}; if(!CFG.faitAtG)CFG.faitAtG={};
+  CFG.faitsG[curDate]=fg; CFG.lavG[curDate]=lg; CFG.faitAtG[curDate]=ag;
 }
 function applyGroupFlags(map,prop){
   var need={}; for(var k in map) need[k]=map[k];
   rows.forEach(function(r){ r[prop]=false; });
   rows.forEach(function(r){ var k=keyCC(r); if(need[k]>0){ r[prop]=true; need[k]-=(parseInt(r.nbTransferts)||0); } });
 }
+function applyFaitsAvecHeure(map,times){
+  var need={}; for(var k in map) need[k]=map[k];
+  var ti={}; for(var k2 in (times||{})) ti[k2]=(times[k2]||[]).slice();
+  rows.forEach(function(r){ r._fait=false; r._faitAt=null; });
+  rows.forEach(function(r){ var k=keyCC(r); if(need[k]>0){ r._fait=true; need[k]-=(parseInt(r.nbTransferts)||0); if(ti[k]&&ti[k].length){ var t=ti[k].shift(); r._faitAt=(t!=null&&t>=0)?t:null; } } });
+}
 function applyFaits(){
   if(CFG.faitsG && CFG.faitsG[curDate]){
-    applyGroupFlags(CFG.faitsG[curDate],'_fait');
+    applyFaitsAvecHeure(CFG.faitsG[curDate],(CFG.faitAtG&&CFG.faitAtG[curDate])||{});
     applyGroupFlags((CFG.lavG&&CFG.lavG[curDate])||{},'_lav');
   } else {
     var f=(CFG.faits&&CFG.faits[curDate])||{}, l=(CFG.lav&&CFG.lav[curDate])||{};   // migration ancien format
-    rows.forEach(function(r,i){var k=faitKey(r,i); r._fait=!!f[k]; r._lav=!!l[k];});
+    rows.forEach(function(r,i){var k=faitKey(r,i); r._fait=!!f[k]; r._lav=!!l[k]; r._faitAt=null;});
     persistFaits(); scheduleSaveConfig();
   }
 }
 function toggleFait(r){ if(!r)return; r._fait=!r._fait;
+  if(r._fait){ r._faitAt=nowSec(); } else { r._faitAt=null; }                                     // fige/libère l'heure réelle d'engagement
   var idx=rows.indexOf(r); if(idx>=0) rows.splice(idx,1);
   if(r._fait){ rows.push(r); }                                                                    // fait -> tout en bas (dernier pointé en dernier)
   else { var pos=rows.length; for(var k=0;k<rows.length;k++){ if(rows[k]._fait){ pos=k; break; } } rows.splice(pos,0,r); }  // dé-pointé -> en fin des non-faits
@@ -1343,20 +1353,25 @@ function renderResults(){
   if(pickedId!=null){ var _pn=''; for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}
     h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
   var _pend=[], _done=[];
-  /* RECALAGE sur la progression réelle : on décale les lignes RESTANTES pour que la prochaine à charger
-     reparte de l'heure qu'il est. Ainsi la finition voit la vraie heure d'arrivée du linge (avance/retard
-     compris), et non l'horaire théorique depuis le démarrage. Uniquement pour aujourd'hui. */
-  var _dec=0;
-  if(curDate===todayISO()){
-    /* recalage désactivé : les heures s'enchaînent depuis le démarrage, dans l'ordre du plan */
-  }
+  /* HEURES. Lignes FAITES : heure réelle d'engagement gelée (r._faitAt) — copier-coller, jamais recalculée.
+     Lignes RESTANTES : on recalcule leur enchaînement à partir de MAINTENANT (la prochaine à charger = now,
+     les suivantes chaînées à la cadence), comme le moteur le fait pour le plan global. */
+  var _reste = rows.filter(function(r){ return r.machine==='tunnel' && !estFait(r) && !estLav(r); });
+  var _sim2 = simulerTunnel(_reste);
+  var _shift = 0;
+  if(_reste.length){ var _L0=_sim2.lots[_reste[0].id]; if(_L0&&isFinite(_L0.charg)) _shift = (curDate===todayISO()?nowSec():parseHeure(CFG.heureDemarrage)) - _L0.charg; }
   rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
     var _kk=(r.client||'').trim().toLowerCase();
     var _mk=(((CFG.cadenas||{})[_kk])?'<span class="pill" title="Figé : l\'optimiseur ne le déplace pas">\u{1F512}</span>':'')+(((CFG.attelages||{})[_kk])?'<span class="pill" title="Attelé juste après : '+esc((CFG.attelages||{})[_kk])+'">\u26D3\uFE0F</span>':'');
-    var L=(r.machine==='tunnel')?sim.lots[r.id]:null;
-    var _sh=(!estFait(r)&&!estLav(r))?_dec:0;   // décalage appliqué aux lignes restantes seulement
-    var _hr=(L&&isFinite(L.charg))?'<span class="pill" title="Heure de chargement au tunnel" style="margin-left:6px">\u21b3 charg. '+fmtHHMM(L.charg+_sh)+'</span>':'';
-    if(L&&isFinite(L.sortie)){ var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:20)*60; _hr+='<span class="pill" title="Estimation : linge sec, prêt pour la finition (sortie séchoir)" style="margin-left:4px;background:var(--teal-bg);color:var(--teal)">\u2600 sec ~'+fmtHHMM(L.sortie+_sh+_dry)+'</span>'; }
+    var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:20)*60;
+    var _hr='';
+    if(estFait(r) && r.machine==='tunnel'){
+      var _fc=(r._faitAt!=null)?r._faitAt:( (sim.lots[r.id]&&isFinite(sim.lots[r.id].charg))?sim.lots[r.id].charg:null );  // gelé, sinon repli théorique
+      if(_fc!=null){ _hr='<span class="pill" title="Heure réelle d\'engagement (figée)" style="margin-left:6px">\u21b3 charg. '+fmtHHMM(_fc)+'</span><span class="pill" title="Sortie séchoir (figée)" style="margin-left:4px;background:var(--teal-bg);color:var(--teal)">\u2600 sec ~'+fmtHHMM(_fc+_dry)+'</span>'; }
+    } else if(r.machine==='tunnel'){
+      var L=_sim2.lots[r.id];
+      if(L&&isFinite(L.charg)){ _hr='<span class="pill" title="Heure de chargement estimée (recalée sur maintenant)" style="margin-left:6px">\u21b3 charg. '+fmtHHMM(L.charg+_shift)+'</span>'; if(isFinite(L.sortie)) _hr+='<span class="pill" title="Estimation : linge sec, prêt pour la finition" style="margin-left:4px;background:var(--teal-bg);color:var(--teal)">\u2600 sec ~'+fmtHHMM(L.sortie+_shift+_dry)+'</span>'; }
+    }
     var pris=(pickedId===r.id);
     var btn;
     if(pickedId==null) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Prendre cette ligne pour la poser ailleurs">\u270B prendre</button>';
