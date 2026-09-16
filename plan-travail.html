@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v139</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v140</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -422,11 +422,11 @@ async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.i
    modif locale n'est en attente (cfgPending), donc sans risque d'écraser un pointage qu'on vient de faire. */
 async function loadPriorites(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data&&r.data.data.cfg){ var c=r.data.data.cfg; CFG.priorites=c.priorites||{}; CFG.faitsG=c.faitsG||{}; CFG.lavG=c.lavG||{}; }
+    if(r.data&&r.data.data&&r.data.data.cfg){ var c=r.data.data.cfg; CFG.priorites=c.priorites||{}; CFG.faitById=c.faitById||{}; CFG.lavById=c.lavById||{}; CFG.faitsG=c.faitsG||{}; CFG.lavG=c.lavG||{}; CFG.faitAtG=c.faitAtG||{}; }
   }catch(e){}
 }
-function mapRow(x){return {id:uid(),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
-function rowToDb(r,date,i){return {user_id:USER.id,date_jour:date,ordre:i,client:r.client||'',poste:(r.postes&&r.postes.length?r.postes.join(','):'repassage'),machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};}
+function mapRow(x){return {id:(x.lid||uid()),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
+function rowToDb(r,date,i){return {user_id:USER.id,date_jour:date,ordre:i,lid:r.id,client:r.client||'',poste:(r.postes&&r.postes.length?r.postes.join(','):'repassage'),machine:r.machine||'tunnel',code:(r.code===''||r.code==null)?null:parseInt(r.code),galettes:parseInt(r.nbTransferts)||0};}
 /* POINTAGE « fait » / « laveuse » : porté par la ligne (r._fait / r._lav). Persisté par CLIENT + TYPE en
    nombre de galettes faites (CFG.faitsG[date] = { "client|code": galettes }) — donc INSENSIBLE au réordre
    et au redécoupage des draps : le total de galettes faites reste exact, et c'est lui qui pilote l'heure.
@@ -436,12 +436,10 @@ function keyCC(r){return ((r.client||'').trim().toLowerCase())+'|'+(r.code==null
 function estFait(r){ return !!(r&&r._fait); }
 function estLav(r){ return !!(r&&(r._lav||r.machine==='laveuse')); }
 function persistFaits(){
-  var fg={},lg={},ag={};
-  rows.forEach(function(r){ var k=keyCC(r),g=parseInt(r.nbTransferts)||0;
-    if(r._fait){ fg[k]=(fg[k]||0)+g; (ag[k]=ag[k]||[]).push(r._faitAt!=null?r._faitAt:-1); }
-    if(r._lav)lg[k]=(lg[k]||0)+g; });
-  if(!CFG.faitsG)CFG.faitsG={}; if(!CFG.lavG)CFG.lavG={}; if(!CFG.faitAtG)CFG.faitAtG={};
-  CFG.faitsG[curDate]=fg; CFG.lavG[curDate]=lg; CFG.faitAtG[curDate]=ag;
+  var fb={},lb={};
+  rows.forEach(function(r){ if(r._fait) fb[r.id]=(r._faitAt!=null?r._faitAt:-1); if(r._lav) lb[r.id]=1; });
+  if(!CFG.faitById)CFG.faitById={}; if(!CFG.lavById)CFG.lavById={};
+  CFG.faitById[curDate]=fb; CFG.lavById[curDate]=lb;
 }
 function applyGroupFlags(map,prop){
   var need={}; for(var k in map) need[k]=map[k];
@@ -455,11 +453,15 @@ function applyFaitsAvecHeure(map,times){
   rows.forEach(function(r){ var k=keyCC(r); if(need[k]>0){ r._fait=true; need[k]-=(parseInt(r.nbTransferts)||0); if(ti[k]&&ti[k].length){ var t=ti[k].shift(); r._faitAt=(t!=null&&t>=0)?t:null; } } });
 }
 function applyFaits(){
-  if(CFG.faitsG && CFG.faitsG[curDate]){
+  if(CFG.faitById && CFG.faitById[curDate]){                       // format stable par identifiant de ligne
+    var fb=CFG.faitById[curDate], lb=(CFG.lavById&&CFG.lavById[curDate])||{};
+    rows.forEach(function(r){ if(Object.prototype.hasOwnProperty.call(fb,r.id)){ r._fait=true; var t=fb[r.id]; r._faitAt=(t!=null&&t>=0)?t:null; } else { r._fait=false; r._faitAt=null; } r._lav=!!lb[r.id]; });
+  } else if(CFG.faitsG && CFG.faitsG[curDate]){                    // migration depuis l'ancien format par galettes
     applyFaitsAvecHeure(CFG.faitsG[curDate],(CFG.faitAtG&&CFG.faitAtG[curDate])||{});
     applyGroupFlags((CFG.lavG&&CFG.lavG[curDate])||{},'_lav');
-  } else {
-    var f=(CFG.faits&&CFG.faits[curDate])||{}, l=(CFG.lav&&CFG.lav[curDate])||{};   // migration ancien format
+    persistFaits(); scheduleSaveConfig(); scheduleSavePlan();
+  } else {                                                         // très ancien format par position
+    var f=(CFG.faits&&CFG.faits[curDate])||{}, l=(CFG.lav&&CFG.lav[curDate])||{};
     rows.forEach(function(r,i){var k=faitKey(r,i); r._fait=!!f[k]; r._lav=!!l[k]; r._faitAt=null;});
     persistFaits(); scheduleSaveConfig();
   }
