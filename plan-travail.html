@@ -1368,7 +1368,7 @@ function renderResults(){
   rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
     var _kk=(r.client||'').trim().toLowerCase();
     var _mk=(((CFG.cadenas||{})[_kk])?'<span class="pill" title="Figé : l\'optimiseur ne le déplace pas">\u{1F512}</span>':'')+(((CFG.attelages||{})[_kk])?'<span class="pill" title="Attelé juste après : '+esc((CFG.attelages||{})[_kk])+'">\u26D3\uFE0F</span>':'');
-    var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:20)*60;
+var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:(typeOfCode(_cS)==='drap'?2.5:35))*60;
     var _hr='';
     if(estFait(r) && r.machine==='tunnel'){
       var _fc=(r._faitAt!=null)?r._faitAt:(_lastFaitAt!=null?_lastFaitAt:(curDate===todayISO()?nowSec():parseHeure(CFG.heureDemarrage)));  // gelé, sinon on comble avec l'heure du fait précédent
