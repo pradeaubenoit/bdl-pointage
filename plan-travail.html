@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v136</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v137</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1367,7 +1367,9 @@ function renderResults(){
     var _hr='';
     if(estFait(r) && r.machine==='tunnel'){
       var _fc=(r._faitAt!=null)?r._faitAt:( (sim.lots[r.id]&&isFinite(sim.lots[r.id].charg))?sim.lots[r.id].charg:null );  // gelé, sinon repli théorique
-      if(_fc!=null){ _hr='<span class="pill" title="Heure réelle d\'engagement (figée)" style="margin-left:6px">\u21b3 charg. '+fmtHHMM(_fc)+'</span><span class="pill" title="Sortie séchoir (figée)" style="margin-left:4px;background:var(--teal-bg);color:var(--teal)">\u2600 sec ~'+fmtHHMM(_fc+_dry)+'</span>'; }
+      var _Lg=sim.lots[r.id];
+      var _trav=(_Lg&&isFinite(_Lg.sortie)&&isFinite(_Lg.charg))?(_Lg.sortie-_Lg.charg):(CFG.nbStockage+CFG.nbLavage)*tempsGalette();   // traversée du tunnel avant le séchoir
+      if(_fc!=null){ _hr='<span class="pill" title="Heure réelle d\'engagement (figée)" style="margin-left:6px">\u21b3 charg. '+fmtHHMM(_fc)+'</span><span class="pill" title="Sortie séchoir = engagement + traversée tunnel + séchage" style="margin-left:4px;background:var(--teal-bg);color:var(--teal)">\u2600 sec ~'+fmtHHMM(_fc+_trav+_dry)+'</span>'; }
     } else if(r.machine==='tunnel'){
       var L=_sim2.lots[r.id];
       if(L&&isFinite(L.charg)){ _hr='<span class="pill" title="Heure de chargement estimée (recalée sur maintenant)" style="margin-left:6px">\u21b3 charg. '+fmtHHMM(L.charg+_shift)+'</span>'; if(isFinite(L.sortie)) _hr+='<span class="pill" title="Estimation : linge sec, prêt pour la finition" style="margin-left:4px;background:var(--teal-bg);color:var(--teal)">\u2600 sec ~'+fmtHHMM(L.sortie+_shift+_dry)+'</span>'; }
