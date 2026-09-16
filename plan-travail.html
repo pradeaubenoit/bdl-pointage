@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v137</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v139</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1325,7 +1325,9 @@ function renderResults(){
   var tRows=timingRows.filter(function(r){return r.machine==='tunnel';});
   var blocPlan=blocageSechoirRows(tRows);
   var _gReste=galettesRestantes();
-  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReste()))+metric('Reste à laver',_gReste+' gal')+metric('Total galettes',String(totalG))+metric('Clients',String(clients.length))+'</div>';
+  var _gTunnel=galettesTunnelTotal();
+  var _gLav=rows.reduce(function(s,r){return (r.machine!=='tunnel'||r._lav)?s+(parseInt(r.nbTransferts)||0):s;},0);
+  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReste()))+metric('Reste à laver',_gReste+' gal')+metric('Total tunnel',_gTunnel+' gal')+metric('Laveuse',_gLav+' gal')+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
@@ -1360,13 +1362,15 @@ function renderResults(){
   var _sim2 = simulerTunnel(_reste);
   var _shift = 0;
   if(_reste.length){ var _L0=_sim2.lots[_reste[0].id]; if(_L0&&isFinite(_L0.charg)) _shift = (curDate===todayISO()?nowSec():parseHeure(CFG.heureDemarrage)) - _L0.charg; }
+  var _lastFaitAt=null;   // dernière heure d'engagement réelle rencontrée (pour combler les morceaux sans heure gelée)
   rows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
     var _kk=(r.client||'').trim().toLowerCase();
     var _mk=(((CFG.cadenas||{})[_kk])?'<span class="pill" title="Figé : l\'optimiseur ne le déplace pas">\u{1F512}</span>':'')+(((CFG.attelages||{})[_kk])?'<span class="pill" title="Attelé juste après : '+esc((CFG.attelages||{})[_kk])+'">\u26D3\uFE0F</span>':'');
     var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:20)*60;
     var _hr='';
     if(estFait(r) && r.machine==='tunnel'){
-      var _fc=(r._faitAt!=null)?r._faitAt:( (sim.lots[r.id]&&isFinite(sim.lots[r.id].charg))?sim.lots[r.id].charg:null );  // gelé, sinon repli théorique
+      var _fc=(r._faitAt!=null)?r._faitAt:(_lastFaitAt!=null?_lastFaitAt:(curDate===todayISO()?nowSec():parseHeure(CFG.heureDemarrage)));  // gelé, sinon on comble avec l'heure du fait précédent
+      if(r._faitAt!=null) _lastFaitAt=r._faitAt;
       var _Lg=sim.lots[r.id];
       var _trav=(_Lg&&isFinite(_Lg.sortie)&&isFinite(_Lg.charg))?(_Lg.sortie-_Lg.charg):(CFG.nbStockage+CFG.nbLavage)*tempsGalette();   // traversée du tunnel avant le séchoir
       if(_fc!=null){ _hr='<span class="pill" title="Heure réelle d\'engagement (figée)" style="margin-left:6px">\u21b3 charg. '+fmtHHMM(_fc)+'</span><span class="pill" title="Sortie séchoir = engagement + traversée tunnel + séchage" style="margin-left:4px;background:var(--teal-bg);color:var(--teal)">\u2600 sec ~'+fmtHHMM(_fc+_trav+_dry)+'</span>'; }
