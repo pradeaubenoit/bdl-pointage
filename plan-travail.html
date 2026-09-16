@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v140</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v141</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1353,7 +1353,7 @@ function renderResults(){
   // Filtre par poste (opérateur)
   if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' on':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
   h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-next" class="btn-ghost" title="Occurrence suivante" style="padding:4px 10px;color:#1d4ed8">\u2193 suivant</button><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button>'+(adminUnlocked?'<button type="button" id="pr-alltop" class="btn-ghost" title="Remonter tous les morceaux de ce client tout en haut" style="color:var(--teal)">\u2b06 toutes en tête</button>':'')+'<span id="pr-count" class="sub"></span></div>';
-  h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span>'+((adminUnlocked&&undoSnap)?'<button class="btn-ghost no-print" id="undo-move" title="Annuler le dernier déplacement" style="margin-left:10px;color:#8a1a12;font-size:12px;padding:2px 10px">\u21b6 annuler le déplacement</button>':'')+'</div>';
+  h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span>'+(((adminUnlocked||!isOperateur)&&undoSnap)?'<button class="btn-ghost no-print" id="undo-move" title="Annuler le dernier déplacement" style="margin-left:10px;color:#8a1a12;font-size:12px;padding:2px 10px">\u21b6 annuler le déplacement</button>':'')+'</div>';
   if(pickedId!=null){ var _pn=''; for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}
     h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
   var _pend=[], _done=[];
@@ -1389,9 +1389,11 @@ function renderResults(){
     var _lav=estLav(r);
     var _lavBtn='<button class="btn-ghost bl-lav no-print'+(_lav?' on':'')+'" data-lav="'+i+'" title="Fait à la laveuse (recalcule l\'heure seulement si aussi coché « fait »)">'+(_lav?'\u2713 laveuse':'\u2192 laveuse')+'</button>';
     if(isOperateur && posteFilter!=='tous' && (r.postes||[]).indexOf(posteFilter)<0) return;   // filtre par poste
-    var _dragH=adminUnlocked?'<span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span>':'';
+    var _isEditor=adminUnlocked||!isOperateur;   // admin OU laveur (la finition reste en lecture seule)
+    var _dragH=_isEditor?'<span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span>':'';
     var _faitBtn=(!isOperateur)?'<button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait">'+(_fait?'\u2713 fait':'fait')+'</button>':(_fait?'<span class="pill" style="color:var(--teal)">\u2713 fait</span>':'');
-    var _admBtns=adminUnlocked?('<button class="btn-ghost bl-tete no-print" data-tete="'+i+'" title="Envoyer ce client tout en haut (position 1)">\u2b06 en tête</button>'+btn+_lavBtn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button><button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button>'):'';
+    var _moveBtns=_isEditor?('<button class="btn-ghost bl-tete no-print" data-tete="'+i+'" title="Envoyer ce client tout en haut (position 1)">\u2b06 en tête</button>'+btn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button>'):'';
+    var _admBtns=adminUnlocked?(_lavBtn+'<button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button><button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button>'):'';
     var _prioMk=prioriteDemandee(r)?'<span class="pill" style="background:#fde7c8;color:#8a5a07" title="Priorité demandée">\u{1F64B} priorité</span>':'';
     var _pe=prioFind(prioKey(r));
     var _opBtn='';
@@ -1400,7 +1402,7 @@ function renderResults(){
         _opBtn=_sl+'<button class="btn-ghost bl-unprio no-print" data-unprio="'+esc(prioKey(r))+'" title="Annuler ma demande" style="color:var(--danger)">\u2715 annuler</button>'; }
       else if(!_fait){ _opBtn='<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>'; }
     }
-    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(adminUnlocked?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_admBtns+_opBtn+'</div></div>';
+    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(i+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+'</div></div>';
     (_fait?_done:_pend).push(rowHtml);
   });
   h+=_pend.join('');
