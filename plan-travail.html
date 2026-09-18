@@ -1568,7 +1568,9 @@ function bOptimize(){
   var sOpt=simSechoirs(opt.order,CFG.tempsGaletteOpt,start);  // optimisé (temps optimisé)
   var vBase=simulerTunnel(tunnelRows), vOpt=simulerTunnel(opt.order);
 var blocAvant=blocageSechoir(chargesFrom(tunnelRows)), blocApres=blocageSechoir(chargesFrom(opt.order));
-  var finAvant=vBase.fin+blocAvant*60, finReelOpt=vOpt.fin+blocApres*60;
+var galTot=tunnelRows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
+var finAvant=start+galTot*tempsGalette();
+var finReelOpt=finAvant-((vBase.fin+blocAvant*60)-(vOpt.fin+blocApres*60));
   var gainNet=Math.round((finAvant-finReelOpt)/60);           // écart entre les deux heures = le gain
   var dRun=runBefore-opt.run;
   var trousAvant=trousTotal(sBase), trousApres=trousTotal(sOpt);
