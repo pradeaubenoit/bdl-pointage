@@ -1516,7 +1516,10 @@ function renderBrouillon(){
   var finAff=s.finSec; // sortie du dernier linge sec des séchoirs = fin réelle (équipes rentrent)
   var finTunnel=s.fin; // dernière galette entrée dans le tunnel — ATTENTES SÉCHOIR COMPRISES (vraie fin de lavage)
 var noteFin='<b>Heure de fin</b> = fin de journée estimée avec ta formule (galettes × cadence), la même que le Plan de travail. ';
-  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin',fmtHHMM(start+s.total*(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette())))+metric('Attente séchoir',blocageSechoir(chargesFrom(tunnelRows))+' min')+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser l\'attente.</div></div>';
+var _tb=bBase.filter(function(r){return r.machine==='tunnel';});
+var _delta=(simulerTunnel(tunnelRows).duree+blocageSechoir(chargesFrom(tunnelRows))*60)-(simulerTunnel(_tb).duree+blocageSechoir(chargesFrom(_tb))*60);
+var _finB=start+s.total*(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette())+_delta;
+  resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin',fmtHHMM(_finB))+metric('Attente séchoir',blocageSechoir(chargesFrom(tunnelRows))+' min')+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser l\'attente.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
   var cgTG=(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette());   // même étalon que l'heure de fin optimisée
@@ -1569,8 +1572,8 @@ function bOptimize(){
   var vBase=simulerTunnel(tunnelRows), vOpt=simulerTunnel(opt.order);
 var blocAvant=blocageSechoir(chargesFrom(tunnelRows)), blocApres=blocageSechoir(chargesFrom(opt.order));
 var galTot=tunnelRows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
-var finAvant=start+galTot*tempsGalette();
-var finReelOpt=finAvant-((vBase.fin+blocAvant*60)-(vOpt.fin+blocApres*60));
+var finAvant=start+galTot*(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette());
+  var finReelOpt=finAvant-((vBase.fin+blocAvant*60)-(vOpt.fin+blocApres*60));
   var gainNet=Math.round((finAvant-finReelOpt)/60);           // écart entre les deux heures = le gain
   var dRun=runBefore-opt.run;
   var trousAvant=trousTotal(sBase), trousApres=trousTotal(sOpt);
