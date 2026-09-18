@@ -488,7 +488,8 @@ function galettesTunnelTotal(){return rows.reduce(function(s,r){return (r.machin
 function heureFinReste(){
   var dep=parseHeure(CFG.heureDemarrage);
   var start=(curDate===todayISO())?Math.max(nowSec(),dep):dep;
-  return start + galettesRestantes()*tempsGalette();
+if(CFG.optFin&&CFG.optFin[curDate]!=null&&galettesFaites()===0) return CFG.optFin[curDate];
+return start + galettesRestantes()*tempsGalette();
 }
 async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});rows=clean.map(mapRow);applyFaits();netOk();}catch(e){rows=[];netErr();}}
 var clientNames=[];
