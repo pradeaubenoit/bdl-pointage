@@ -209,7 +209,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v143</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v144</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1242,8 +1242,8 @@ function snapshotOrder(){ undoSnap=rows.slice(); }   // mémorise l'ordre AVANT 
 function undoMove(){ if(!undoSnap)return; rows=undoSnap.slice(); undoSnap=null; renderRows(); sync(); }
 var prSel={}, prLast='';
 function prSelCount(){ return Object.keys(prSel).length; }
-function updateAlltopLabel(){ var pa=document.getElementById('pr-alltop'); if(pa){ var n=prSelCount(); pa.textContent=n?('\u2b06 remonter la sélection ('+n+')'):'\u2b06 toutes en tête'; } }
-function remonterToutesEnTete(){
+function updateAlltopLabel(){ var n=prSelCount(); var pa=document.getElementById('pr-alltop'); if(pa){ pa.textContent=n?('\u2b06 remonter la sélection ('+n+')'):'\u2b06 toutes en tête'; } var pt=document.getElementById('pr-take'); if(pt){ pt.textContent='\u270B prendre la sélection'+(n?' ('+n+')':''); } }
+  function remonterToutesEnTete(){
   var match=[],rest=[], n=prSelCount();
   if(n){ rows.forEach(function(r){ (prSel[r.id]?match:rest).push(r); }); }
   else { var q=(planQuery||'').trim().toLowerCase(); if(!q)return; rows.forEach(function(r){ (((r.client||'').trim().toLowerCase()).indexOf(q)>=0?match:rest).push(r); }); }
