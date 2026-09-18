@@ -1518,7 +1518,8 @@ function renderBrouillon(){
 var noteFin='<b>Heure de fin</b> = fin de journée estimée avec ta formule (galettes × cadence), la même que le Plan de travail. ';
 var _tb=bBase.filter(function(r){return r.machine==='tunnel';});
 var _delta=(simulerTunnel(tunnelRows).duree+blocageSechoir(chargesFrom(tunnelRows))*60)-(simulerTunnel(_tb).duree+blocageSechoir(chargesFrom(_tb))*60);
-var _finB=start+s.total*(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette())+_delta;
+var _anc=(CFG.optFin&&CFG.optFin[bBaseDate]!=null)?CFG.optFin[bBaseDate]:(start+s.total*(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette()));
+var _finB=_anc+_delta;
   resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin',fmtHHMM(_finB))+metric('Attente séchoir',blocageSechoir(chargesFrom(tunnelRows))+' min')+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser l\'attente.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
@@ -1572,8 +1573,9 @@ function bOptimize(){
   var vBase=simulerTunnel(tunnelRows), vOpt=simulerTunnel(opt.order);
 var blocAvant=blocageSechoir(chargesFrom(tunnelRows)), blocApres=blocageSechoir(chargesFrom(opt.order));
 var galTot=tunnelRows.reduce(function(s,r){return s+(parseInt(r.nbTransferts)||0);},0);
-var finAvant=start+galTot*(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette());
+var finAvant=(CFG.optFin&&CFG.optFin[bBaseDate]!=null)?CFG.optFin[bBaseDate]:(start+galTot*(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette()));
   var finReelOpt=finAvant-((vBase.fin+blocAvant*60)-(vOpt.fin+blocApres*60));
+  window.bFinOpt=finReelOpt;
   var gainNet=Math.round((finAvant-finReelOpt)/60);           // écart entre les deux heures = le gain
   var dRun=runBefore-opt.run;
   var trousAvant=trousTotal(sBase), trousApres=trousTotal(sOpt);
@@ -1649,6 +1651,7 @@ async function bDiffuse(){
     if(ins&&ins.error){netErr();alert('L\'écriture du plan a été refusée :\n'+ins.error.message);return;}
     var chk1=await sb.from('plan_charges').select('ordre').eq('user_id',USER.id).eq('date_jour',target);
     var n=(chk1.data||[]).length;
+    if(bOptimized&&window.bFinOpt!=null){ if(!CFG.optFin)CFG.optFin={}; CFG.optFin[target]=window.bFinOpt; scheduleSaveConfig(); }
     document.getElementById('b-status').textContent='Diffusé ('+kind+', '+payload.length+' lignes, '+n+' en base) vers le '+target+'. Ouvrez cette date dans Plan de travail.';
     if(curDate===target){await loadPlan(curDate);renderRows();renderResults();updateSummary();}
     alert('Diffusé : '+kind+' ('+payload.length+' lignes) vers le '+target+'.'+(n!==payload.length?'\n\u26a0 Attention : '+n+' lignes en base au lieu de '+payload.length+' \u2014 d\'anciennes lignes traînent.':''));
