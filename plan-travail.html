@@ -1225,8 +1225,8 @@ function add(){
 }
 /* ---------- Déplacer une ligne dans le Plan de travail ----------
    deplacerLigne(from,to) : `to` = index DEVANT lequel on pose (rows.length = à la fin). */
-var pickedId=null, dragFrom=-1, planQuery='', showProd=false, prIdx=0;
-function prMatches(){ var q=(planQuery||'').trim().toLowerCase(); var out=[]; if(!q)return out;
+var pickedId=null, pickedSel=null, dragFrom=-1, planQuery='', showProd=false, prIdx=0;
+  function prMatches(){ var q=(planQuery||'').trim().toLowerCase(); var out=[]; if(!q)return out;
   document.querySelectorAll('#results .bline').forEach(function(el){if(el.classList.contains('fait'))return;var nm=el.querySelector('.b-name');var v=nm?(nm.textContent||'').toLowerCase():'';if(v.indexOf(q)>=0)out.push(el);}); return out; }
 function prHighlight(reset){
   var q=(planQuery||'').trim().toLowerCase(); var m=prMatches();
@@ -1353,10 +1353,10 @@ function renderResults(){
   }
   // Filtre par poste (opérateur)
   if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' on':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
-  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-next" class="btn-ghost" title="Occurrence suivante" style="padding:4px 10px;color:#1d4ed8">\u2193 suivant</button><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button>'+(adminUnlocked?'<button type="button" id="pr-alltop" class="btn-ghost" title="Remonter tous les morceaux de ce client tout en haut" style="color:var(--teal)">\u2b06 toutes en tête</button>':'')+'<span id="pr-count" class="sub"></span></div>';
+  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-next" class="btn-ghost" title="Occurrence suivante" style="padding:4px 10px;color:#1d4ed8">\u2193 suivant</button><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button>'+(adminUnlocked?'<button type="button" id="pr-alltop" class="btn-ghost" title="Remonter tous les morceaux de ce client tout en haut" style="color:var(--teal)">\u2b06 toutes en tête</button><button type="button" id="pr-take" class="btn-ghost" style="color:var(--teal)" title="Prendre les lignes sélectionnées pour les poser où tu veux">\u270B prendre la sélection</button>':'')+'<span id="pr-count" class="sub"></span></div>';
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span>'+(((adminUnlocked||!isOperateur)&&undoSnap)?'<button class="btn-ghost no-print" id="undo-move" title="Annuler le dernier déplacement" style="margin-left:10px;color:#8a1a12;font-size:12px;padding:2px 10px">\u21b6 annuler le déplacement</button>':'')+'</div>';
-  if(pickedId!=null){ var _pn=''; for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}
-    h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
+if(pickedId!=null||(pickedSel&&pickedSel.length)){ var _pn=''; if(pickedId!=null){for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}} else {_pn='s\u00e9lection ('+pickedSel.length+' lignes)';}
+  h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
   var _pend=[], _done=[];
     var _ordreJour = rows.filter(estFait).concat(rows.filter(function(x){ return !estFait(x); }));
   /* HEURES. Lignes FAITES : heure réelle d'engagement gelée (r._faitAt) — copier-coller, jamais recalculée.
@@ -1382,9 +1382,9 @@ var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:(t
       var L=_sim2.lots[r.id];
       if(L&&isFinite(L.charg)){ _hr='<span class="pill" title="Heure de chargement estimée (recalée sur maintenant)" style="margin-left:6px">\u21b3 charg. '+fmtHHMM(L.charg+_shift)+'</span>'; if(isFinite(L.sortie)) _hr+='<span class="pill" title="Estimation : linge sec, prêt pour la finition" style="margin-left:4px;background:var(--teal-bg);color:var(--teal)">\u2600 sec ~'+fmtHHMM(L.sortie+_shift+_dry)+'</span>'; }
     }
-    var pris=(pickedId===r.id);
-    var btn;
-    if(pickedId==null) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Prendre cette ligne pour la poser ailleurs">\u270B prendre</button>';
+var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
+                             var btn;
+    if(pickedId==null&&!(pickedSel&&pickedSel.length)) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Prendre cette ligne pour la poser ailleurs">\u270B prendre</button>';
     else if(pris) btn='<button class="btn-ghost pick-btn no-print" data-pick="'+i+'" title="Annuler">\u2715 annuler</button>';
     else btn='<button class="btn-ghost pick-btn poser no-print" data-pick="'+i+'" title="Poser la ligne prise juste avant celle-ci">\u2935 poser ici</button>';
     var _fait=estFait(r);
@@ -1442,6 +1442,7 @@ var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:(t
     var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prLast='';prIdx=0;prSel={};prHighlight(true);updateAlltopLabel();pf.focus();});
     var pnx=document.getElementById('pr-next'); if(pnx)pnx.addEventListener('click',function(){ var v=(pf.value||'').trim().toLowerCase(); if(v!==prLast){ prLast=v; planQuery=pf.value; prSel={}; prHighlight(true); updateAlltopLabel(); } else { prNext(); } });
     var pa=document.getElementById('pr-alltop'); if(pa)pa.addEventListener('click',function(){planQuery=pf.value;remonterToutesEnTete();});
+       var pt=document.getElementById('pr-take'); if(pt)pt.addEventListener('click',function(){ var ids=rows.filter(function(r){return prSel[r.id];}).map(function(r){return r.id;}); if(!ids.length){alert('S\u00e9lectionne d\u2019abord des lignes (recherche, puis clic sur les lignes encadr\u00e9es).');return;} pickedSel=ids; prSel={}; pickedId=null; renderResults(); });
     updateAlltopLabel();
     prLast=(planQuery||'').trim().toLowerCase();
     if(planQuery){prHighlight(false);}
@@ -1660,7 +1661,7 @@ async function bDiffuse(){
 }
 
 async function refreshFromCloud(){
-  if(dragFrom>=0||pickedId!=null||document.querySelector('.modal-bg'))return;  // pas pendant un geste en cours
+  if(dragFrom>=0||pickedId!=null||(pickedSel&&pickedSel.length)||document.querySelector('.modal-bg'))return;  // pas pendant un geste en cours
   if(prSel&&Object.keys(prSel).length)return;                                  // pas pendant qu'une sélection est en cours
   var _ae=document.activeElement;                                              // pas pendant qu'on tape dans un champ
   if(_ae&&(_ae.tagName==='INPUT'||_ae.tagName==='SELECT'||_ae.tagName==='TEXTAREA'))return;
@@ -1800,6 +1801,18 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
   res.addEventListener('click',function(e){
     var b=e.target.closest&&e.target.closest('.pick-btn'); if(!b)return;
     var i=parseInt(b.getAttribute('data-pick')); if(isNaN(i))return;
+        if(pickedSel&&pickedSel.length){
+      if(i===-1){ pickedSel=null; renderResults(); return; }
+      var selIds={}; pickedSel.forEach(function(x){selIds[x]=true;});
+      var tgt=(i<rows.length&&rows[i])?rows[i].id:null;
+      if(tgt&&selIds[tgt]){ pickedSel=null; renderResults(); return; }
+      snapshotOrder();
+      var moving=rows.filter(function(r){return selIds[r.id];});
+      var restR=rows.filter(function(r){return !selIds[r.id];});
+      var at=restR.length; if(tgt){ for(var z2=0;z2<restR.length;z2++){ if(restR[z2].id===tgt){ at=z2; break; } } }
+      rows=restR.slice(0,at).concat(moving,restR.slice(at));
+      pickedSel=null; renderRows(); sync(); return;
+    }
     if(i===-1){ pickedId=null; renderResults(); return; }               // annuler (bandeau)
     if(pickedId==null){ pickedId=(rows[i]||{}).id||null; renderResults(); return; }
     var from=-1; for(var k=0;k<rows.length;k++) if(rows[k].id===pickedId) from=k;
@@ -1848,7 +1861,7 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
 document.addEventListener('keydown',function(e){
   if(e.key!=='Escape')return;
   if(prSel && Object.keys(prSel).length){ prSel={}; renderResults(); return; }   // vider la sélection
-  if(pickedId!=null){pickedId=null;renderResults();return;}
+if(pickedId!=null||pickedSel){pickedId=null;pickedSel=null;renderResults();return;}
   if(planQuery){ planQuery=''; var pf=document.getElementById('pr-find'); if(pf){pf.value='';pf.blur();} prHighlight(); }
 });
 
