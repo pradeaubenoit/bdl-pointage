@@ -1567,6 +1567,7 @@ function bOptimize(){
   var sBase=simSechoirs(tunnelRows,CFG.tempsGalette,start);   // plan actuel (temps plan de travail)
   var sOpt=simSechoirs(opt.order,CFG.tempsGaletteOpt,start);  // optimisé (temps optimisé)
   var finAvant=sBase.finSec, finReelOpt=sOpt.finSec;
+  var vBase=simulerTunnel(tunnelRows), vOpt=simulerTunnel(opt.order);
   var blocAvant=Math.round(sBase.wait/60), blocApres=Math.round(sOpt.wait/60);
   var gainNet=Math.round((finAvant-finReelOpt)/60);           // écart entre les deux heures = le gain
   var dRun=runBefore-opt.run;
@@ -1578,6 +1579,7 @@ function bOptimize(){
   var finTxt = gainNet>0 ? ' <span style="color:var(--down)"><b>\u2014 tu gagnes '+gainNet+' min</b></span>' : (gainNet<0 ? ' <span style="color:var(--muted)">(+'+(-gainNet)+' min)</span>' : ' (identique)');
   var msg='<div class="note ok"><b>Proposition trouvée</b> \u2014 tourniquet des postes (on sert chaque poste à tour de rôle, on reprend là où on s\'était arrêté ; tampon draps pour les séchoirs). Chaque poste tourne jusqu\'à ce qu\'il n\'ait plus de linge \u2014 puis son équipe part.<br>'
       +'• <b>Heure de fin : plan actuel '+fmtHHMM(finAvant)+' \u2192 optimisé '+fmtHHMM(finReelOpt)+finTxt+'</b><br>'
+    +'• <b>Fin tunnel avec bridage : plan actuel '+fmtHHMM(vBase.fin)+' \u2192 optimisé '+fmtHHMM(vOpt.fin)+'</b><br>'
       +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocAvant-blocApres>0?' (\u2212'+(blocAvant-blocApres)+' min d\'arrêts en moins)':'')+'<br>'
       +'• Trous de postes : '+trousAvant+' \u2192 '+trousApres+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':(dTrous<0?' (+'+(-dTrous)+')':''))+'<br>'
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
