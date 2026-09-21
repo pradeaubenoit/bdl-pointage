@@ -573,8 +573,14 @@ function demanderPriorite(r){
   renderResults(); alert('Demande envoyée : « '+((r.client||'').trim())+' » signalé en priorité'+(operateurPoste?' ('+posteLabel(operateurPoste)+')':'')+'.');
 }
 function retirerPriorite(k){ var a=prioSet(); for(var i=0;i<a.length;i++){ if(a[i].k===k){ a.splice(i,1); scheduleSaveConfig(); renderResults(); return; } } }
-function repondrePriorite(k,statut){ var e=prioFind(k); if(e){ e.statut=statut; scheduleSaveConfig(); renderResults(); } }
-function lockedView(v){ if(isOperateur) return v!=='plan'; return v==='saisie'||v==='brouillon'||v==='reglages'; }
+function repondrePriorite(k,statut){ var e=prioFind(k); if(!e)return;
+  if(statut==='acceptee'){
+    var match=rows.filter(function(r){return !estFait(r)&&prioKey(r)===k;});
+    if(match.length){ snapshotOrder(); var rest=rows.filter(function(r){return match.indexOf(r)<0;}); rows=match.concat(rest); }
+    var a=prioSet(); for(var z=0;z<a.length;z++){ if(a[z].k===k){ a.splice(z,1); break; } }
+    scheduleSaveConfig(); renderRows(); sync(); return; }
+  e.statut=statut; scheduleSaveConfig(); renderResults(); }
+  function lockedView(v){ if(isOperateur) return v!=='plan'; return v==='saisie'||v==='brouillon'||v==='reglages'; }
 function updateLockUI(){
   var tabs=document.querySelectorAll('.tab');
   for(var i=0;i<tabs.length;i++){ var v=tabs[i].getAttribute('data-view'); tabs[i].classList.toggle('locked', lockedView(v)&&!adminUnlocked); }
@@ -1343,10 +1349,8 @@ function renderResults(){
       var lab='\u{1F64B} '+esc(e.k)+(e.poste?' <span style="opacity:.75">('+esc(posteLabel(e.poste))+')</span>':'');
       var st=''; if(e.statut==='acceptee')st=' \u2014 <b style="color:#0a7a34">\u2713 acceptée</b>'; else if(e.statut==='refusee')st=' \u2014 <b style="color:#8a1a12">\u2717 refusée</b>';
       var btns='';
-      if(adminUnlocked){
-        if(e.statut==='demandee')btns='<button class="btn-ghost prio-acc" data-k="'+esc(e.k)+'" style="color:#0a7a34">\u2713 accepter</button><button class="btn-ghost prio-ref" data-k="'+esc(e.k)+'" style="color:#8a1a12">\u2717 refuser</button>';
-        btns+='<button class="btn-ghost prio-del" data-k="'+esc(e.k)+'" title="Effacer">\u2715</button>';
-      }
+      if((adminUnlocked||!isOperateur)&&e.statut==='demandee')btns='<button class="btn-ghost prio-acc" data-k="'+esc(e.k)+'" style="color:#0a7a34">\u2713 accepter</button><button class="btn-ghost prio-ref" data-k="'+esc(e.k)+'" style="color:#8a1a12">\u2717 refuser</button>';
+      if(adminUnlocked)btns+='<button class="btn-ghost prio-del" data-k="'+esc(e.k)+'" title="Effacer">\u2715</button>';
       return '<div class="prio-item">'+lab+st+' '+btns+'</div>';
     }).join('');
     h+='<div class="priobar no-print">'+_items+(adminUnlocked?'<div class="prio-item" style="justify-content:flex-end"><button class="btn-ghost" id="prio-clear">\u2715 tout effacer</button></div>':'')+'</div>';
