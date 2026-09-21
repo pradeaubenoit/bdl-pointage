@@ -1429,7 +1429,7 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
   var pf=document.getElementById('pr-find');
   document.querySelectorAll('#results .bl-prio').forEach(function(b){b.addEventListener('click',function(){var i=parseInt(b.getAttribute('data-prio'));if(!isNaN(i)&&rows[i])demanderPriorite(rows[i]);});});
   document.querySelectorAll('#results .bl-unprio').forEach(function(b){b.addEventListener('click',function(){retirerPriorite(b.getAttribute('data-unprio'));});});
-    document.querySelectorAll('#results .bl-adprio').forEach(function(b){b.addEventListener('click',function(){var i=parseInt(b.getAttribute('data-adprio'));if(isNaN(i)||!rows[i])return;var k=prioKey(rows[i]);if(prioFind(k)){retirerPriorite(k);}else{prioSet().push({k:k,poste:'',statut:'acceptee'});scheduleSaveConfig();renderResults();}});});
+    document.querySelectorAll('#results .bl-adprio').forEach(function(b){b.addEventListener('click',function(){var i=parseInt(b.getAttribute('data-adprio'));if(isNaN(i)||!rows[i])return;var k=prioKey(rows[i]);if(prioFind(k)){retirerPriorite(k);}else{prioSet().push({k:k,poste:'',statut:'demandee'});scheduleSaveConfig();renderResults();}});});
   document.querySelectorAll('#results .prio-acc').forEach(function(b){b.addEventListener('click',function(){repondrePriorite(b.getAttribute('data-k'),'acceptee');});});
   document.querySelectorAll('#results .prio-ref').forEach(function(b){b.addEventListener('click',function(){repondrePriorite(b.getAttribute('data-k'),'refusee');});});
   document.querySelectorAll('#results .prio-del').forEach(function(b){b.addEventListener('click',function(){retirerPriorite(b.getAttribute('data-k'));});});
