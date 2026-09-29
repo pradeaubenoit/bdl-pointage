@@ -1038,28 +1038,23 @@ window.openRetraitModal = async function(empId, empName) {
   $('retrait-note').value = '';
   $('retrait-date').value = todayIso();
   $('mode-paye').checked = true;
-  $('retrait-solde-info').innerHTML = '<span class="spinner-inline"></span> Chargement du solde…';
   $('modal-retrait').classList.add('show');
-  try {
-    const s = await apiGet('getSoldeSup', { empId: empId });
-    if (s.ok) {
-      const soldeColor = s.solde > 0 ? 'var(--warn)' : (s.solde < 0 ? 'var(--bad)' : 'var(--ink-3)');
-      $('retrait-solde-info').innerHTML = `
-        <div><strong style="font-size:14px;color:${soldeColor}">Solde actuel : ${fmtHours(s.solde)}</strong></div>
-        <div style="margin-top:6px;font-size:11px;color:var(--ink-3)">
-          Généré depuis le ${fmtDateFR(s.dateDemarrage)} : ${fmtHours(s.supGenerees)} ·
-          Déjà payé : ${fmtHours(s.supPayees)} ·
-          Déjà récupéré : ${fmtHours(s.supRecuperees)}
-        </div>
-      `;
-    } else {
-      $('retrait-solde-info').innerHTML = '<span style="color:var(--bad)">Erreur de chargement du solde</span>';
-    }
-  } catch (e) {
-    $('retrait-solde-info').innerHTML = '<span style="color:var(--bad)">Erreur : ' + e.message + '</span>';
+  // V4.9.36 - Solde lu dans le rapport deja charge : ouverture instantanee, zero appel serveur.
+  var _r = (currentReport && currentReport.report) ? currentReport.report.find(function(x){ return x.employee.id === empId; }) : null;
+  if (_r && _r.soldeFinMois != null) {
+    var _sf = _r.soldeFinMois;
+    var _c = _sf > 0 ? 'var(--warn)' : (_sf < 0 ? 'var(--bad)' : 'var(--ink-3)');
+    var _ret = (_r.retraitsMois && _r.retraitsMois.total) || 0;
+    $('retrait-solde-info').innerHTML =
+      '<div><strong style="font-size:14px;color:' + _c + '">Solde fin de mois : ' + fmtHours(_sf) + '</strong></div>' +
+      '<div style="margin-top:6px;font-size:11px;color:var(--ink-3)">Début : ' + fmtHours(_r.soldeAvant) +
+      ' · Sup du mois : ' + fmtHours(_r.heuresSupNet != null ? _r.heuresSupNet : _r.heuresSup) +
+      (_ret > 0 ? ' · Déjà retiré ce mois : ' + fmtHours(_ret) : '') + '</div>';
+  } else {
+    $('retrait-solde-info').innerHTML = '<span style="color:var(--ink-3)">Solde non disponible — charge d\'abord le rapport</span>';
   }
 };
-
+  
 $('modal-retrait-close').addEventListener('click', () => $('modal-retrait').classList.remove('show'));
 $('btn-cancel-retrait').addEventListener('click', () => $('modal-retrait').classList.remove('show'));
 $('modal-retrait').addEventListener('click', (e) => { if (e.target.id === 'modal-retrait') $('modal-retrait').classList.remove('show'); });
