@@ -1185,8 +1185,8 @@ window.toggleDetailSalarie = async function(empId, empName) {
     
     html += '</tbody></table>';
         // V4.9.27 - Synthese des deductions et anomalies, jour par jour
-    if (_r && ((_r.joursManquants && _r.joursManquants.length) || (_r.joursInjustifies && _r.joursInjustifies.length) || (_r.anomalies && _r.anomalies.length))) {
-      html += '<div style="margin-top:10px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:12px;color:#7c2d12">';
+    if (_r && ((_r.joursManquants && _r.joursManquants.length) || (_r.joursInjustifies && _r.joursInjustifies.length) || (_r.anomalies && _r.anomalies.length) || (_r.joursConges && _r.joursConges.length) || (_r.joursMaladie && _r.joursMaladie.length))) {
+    html += '<div style="margin-top:10px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:12px;color:#7c2d12">';
       html += '<strong>Détail des heures non retenues :</strong><br>';
       (_r.joursInjustifies || []).forEach(function(j) {
         html += '— ' + fmtDateFR(j.date) + ' : journée injustifiée (−7h00)<br>';
@@ -1197,6 +1197,13 @@ window.toggleDetailSalarie = async function(empId, empName) {
       (_r.anomalies || []).forEach(function(a) {
         html += '— ' + fmtDateFR(a) + ' : ⚠ pointage incomplet ce jour (entrée ou sortie manquante)<br>';
       });
+            // V4.9.37 - Absences justifiees : mentionnees pour que le bilan raconte le mois complet.
+      if (_r.joursConges && _r.joursConges.length) {
+        html += '— ' + _r.joursConges.map(fmtDateFR).join(', ') + ' : 🏖️ congé (' + _r.joursConges.length + ' jour' + (_r.joursConges.length > 1 ? 's' : '') + ', non décompté' + (_r.joursConges.length > 1 ? 's' : '') + ')<br>';
+      }
+      if (_r.joursMaladie && _r.joursMaladie.length) {
+        html += '— ' + _r.joursMaladie.map(fmtDateFR).join(', ') + ' : 🤒 maladie (' + _r.joursMaladie.length + ' jour' + (_r.joursMaladie.length > 1 ? 's' : '') + ', non décompté' + (_r.joursMaladie.length > 1 ? 's' : '') + ')<br>';
+      }
       html += '</div>';
     }
     // V4.9.31 - Recit du solde, identique a celui de l'app salarie.
