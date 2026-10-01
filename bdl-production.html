@@ -842,7 +842,13 @@ function callApi(action, params) {
     const cbName = 'cb_' + (Date.now()) + '_' + (++jsonpCounter);
     const timeout = setTimeout(() => {
       delete window[cbName];
-      document.body.removeChild(s);
+      if (s.parentNode) document.body.removeChild(s);
+      // V2 - un timeout sur une lecture declenche un second essai : le serveur
+      // continue son calcul et aura rempli son cache entre-temps.
+      if (/^get/i.test(String(action || '')) && !(params && params._retry)) {
+        setTimeout(() => { callApi(action, Object.assign({}, params || {}, { _retry: 1 })).then(resolve, reject); }, 5000);
+        return;
+      }
       reject(new Error('Timeout API'));
     }, 30000);
     window[cbName] = function(data) {
@@ -861,11 +867,17 @@ function callApi(action, params) {
       });
     }
     const s = document.createElement('script');
+    s.async = true; // V2 - ne jamais bloquer l'affichage
     s.src = API_URL + '?' + queryParts.join('&');
     s.onerror = () => {
       clearTimeout(timeout);
       delete window[cbName];
       if (s.parentNode) document.body.removeChild(s);
+      // V2 - une lecture a droit a un second essai apres 3 s ; jamais une ecriture (doublon)
+      if (/^get/i.test(String(action || '')) && !(params && params._retry)) {
+        setTimeout(() => { callApi(action, Object.assign({}, params || {}, { _retry: 1 })).then(resolve, reject); }, 3000);
+        return;
+      }
       reject(new Error('Échec de chargement'));
     };
     document.body.appendChild(s);
