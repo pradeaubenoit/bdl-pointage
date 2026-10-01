@@ -845,8 +845,8 @@ function callApi(action, params) {
       if (s.parentNode) document.body.removeChild(s);
       // V2 - un timeout sur une lecture declenche un second essai : le serveur
       // continue son calcul et aura rempli son cache entre-temps.
-      if (/^get/i.test(String(action || '')) && !(params && params._retry)) {
-        setTimeout(() => { callApi(action, Object.assign({}, params || {}, { _retry: 1 })).then(resolve, reject); }, 5000);
+      if (/^(get|setReleveMatin$)/i.test(String(action || '')) && !(params && params._retry)) {
+      setTimeout(() => { callApi(action, Object.assign({}, params || {}, { _retry: 1 })).then(resolve, reject); }, 5000);
         return;
       }
       reject(new Error('Timeout API'));
