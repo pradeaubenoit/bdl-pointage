@@ -1,24 +1,306 @@
-Last login: Fri Sep 25 08:22:56 on ttys004
-benoitpradeau@device-134 ~ % pbcopy < ~/Downloads/linge.html
-benoitpradeau@device-134 ~ % 
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Linge">
+<title>BdL Linge — Pointage clients</title>
+<style>
+  :root {
+    --fond: #E8EDF0;
+    --encre: #1D2B34;
+    --doux: #5B6B75;
+    --carte: #FFFFFF;
+    --accent: #0F6E8A;
+    --ok: #2E7D4F;
+    --alerte: #B3412B;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--fond);
+    color: var(--encre);
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+    -webkit-user-select: none; user-select: none;
+  }
+  header {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 24px; background: var(--encre); color: #fff;
+  }
+  header h1 { margin: 0; font-size: 26px; font-weight: 700; flex: 1; }
+  #retour {
+    display: none; font-size: 22px; padding: 12px 22px; border: 0;
+    border-radius: 10px; background: #fff; color: var(--encre); font-weight: 600;
+  }
+  #operateur {
+    font-size: 18px; padding: 10px 16px; border: 1px solid #ffffff55;
+    border-radius: 10px; background: transparent; color: #fff;
+  }
+  #statut { font-size: 18px; padding: 8px 14px; border-radius: 10px; background: var(--ok); }
+  #statut.attente { background: var(--alerte); }
+  main { padding: 24px 24px 140px; }
+  #etat { font-size: 20px; color: var(--doux); margin: 0 0 16px; }
+  #etat.erreur { color: var(--alerte); font-weight: 600; }
+  .grille {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .tuile {
+    min-height: 110px; padding: 18px; border: 0; border-radius: 14px;
+    background: var(--carte); color: var(--encre);
+    font-size: 26px; font-weight: 700; text-align: left;
+    border-left: 8px solid var(--accent);
+  }
+  .tuile:active { background: #D4E6EC; }
+  .article {
+    display: flex; align-items: center; gap: 14px; min-height: 88px; padding: 10px 16px 10px 22px;
+    background: var(--carte); border-radius: 12px; margin-bottom: 12px;
+  }
+  .article .nom { flex: 1; font-size: 24px; }
+  .article.rempli { outline: 3px solid var(--accent); }
+  .pm {
+    width: 68px; height: 68px; border: 0; border-radius: 12px;
+    background: var(--fond); color: var(--encre); font-size: 34px; font-weight: 700;
+  }
+  .pm:active { background: #CBD6DC; }
+  .qte {
+    width: 110px; height: 68px; text-align: center; font-size: 30px; font-weight: 700;
+    border: 2px solid #C5D0D6; border-radius: 12px; color: var(--encre);
+  }
+  #barre {
+    display: none; position: fixed; left: 0; right: 0; bottom: 0;
+    padding: 16px 24px calc(16px + env(safe-area-inset-bottom, 0px));
+    background: var(--carte); box-shadow: 0 -2px 12px rgba(29,43,52,.15);
+  }
+  .qte::-webkit-outer-spin-button, .qte::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .qte { -moz-appearance: textfield; appearance: textfield; }
+  #valider {
+    width: 100%; height: 84px; border: 0; border-radius: 14px;
+    background: var(--accent); color: #fff; font-size: 30px; font-weight: 700;
+  }
+  #valider:disabled { background: #9DB3BC; }
+  #toast {
+    position: fixed; left: 50%; top: 110px; transform: translateX(-50%);
+    padding: 18px 28px; border-radius: 14px; background: var(--ok); color: #fff;
+    font-size: 22px; font-weight: 600; display: none; z-index: 10; max-width: 90%;
+  }
+  #toast.erreur { background: var(--alerte); }
+</style>
+</head>
+<body>
+<header>
+  <button id="retour" onclick="afficherClients()">← Clients</button>
+  <h1 id="titre">Choisir un client</h1>
+  <span id="statut">Tout est envoyé</span>
+  <button id="operateur" onclick="changerOperateur()">Opérateur ?</button>
+</header>
+<main>
+  <div id="etat">Chargement du catalogue…</div>
+  <div id="zone"></div>
+</main>
+<div id="barre"><button id="valider" onclick="valider()">Valider</button></div>
+<div id="toast"></div>
 
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
+const CLE_FILE = 'linge_file';
+const CLE_CAT  = 'linge_catalogue';
+const CLE_OP   = 'linge_operateur';
 
+let catalogue = [];
+let clientCourant = null;
+let quantites = {};
+let envoiEnCours = false;
 
+/* ---------- Stockage local (protégé) ---------- */
+function lire(cle, defaut) {
+  try { const v = localStorage.getItem(cle); return v ? JSON.parse(v) : defaut; }
+  catch (e) { return defaut; }
+}
+function ecrire(cle, valeur) {
+  try { localStorage.setItem(cle, JSON.stringify(valeur)); } catch (e) {}
+}
 
+/* ---------- Catalogue ---------- */
+async function chargerCatalogue() {
+  const etat = document.getElementById('etat');
+  const enCache = lire(CLE_CAT, null);
+  if (enCache) { catalogue = enCache; etat.textContent = ''; afficherClients(); }
+  try {
+    const rep = await fetch(API_URL + '?action=catalogue');
+    const data = await rep.json();
+    if (!data.ok) throw new Error(data.error || 'Réponse invalide');
+    catalogue = data.catalogue;
+    ecrire(CLE_CAT, catalogue);
+    etat.className = ''; etat.textContent = '';
+    if (!clientCourant) afficherClients();
+  } catch (err) {
+    if (!enCache) {
+      etat.className = 'erreur';
+      etat.textContent = 'Catalogue introuvable (' + err.message + '). Vérifie le réseau puis recharge la page.';
+    }
+  }
+}
 
+/* ---------- Écrans ---------- */
+function afficherClients() {
+  clientCourant = null; quantites = {};
+  document.getElementById('titre').textContent = 'Choisir un client';
+  document.getElementById('retour').style.display = 'none';
+  document.getElementById('barre').style.display = 'none';
+  const zone = document.getElementById('zone');
+  zone.className = 'grille'; zone.innerHTML = '';
+  catalogue.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'tuile'; b.textContent = c.client;
+    b.onclick = () => afficherArticles(c);
+    zone.appendChild(b);
+  });
+}
 
+function afficherArticles(c) {
+  clientCourant = c; quantites = {};
+  document.getElementById('titre').textContent = c.client;
+  document.getElementById('retour').style.display = 'block';
+  document.getElementById('barre').style.display = 'block';
+  const zone = document.getElementById('zone');
+  zone.className = ''; zone.innerHTML = '';
+  c.articles.forEach(a => {
+    const ligne = document.createElement('div');
+    ligne.className = 'article';
+    ligne.innerHTML =
+      '<span class="nom"></span>' +
+      '<button class="pm moins">−</button>' +
+      '<input class="qte" type="number" inputmode="numeric" min="0" placeholder="0">' +
+      '<button class="pm plus">+</button>';
+    ligne.querySelector('.nom').textContent = a;
+    const champ = ligne.querySelector('.qte');
+    const maj = v => {
+      v = Math.max(0, Math.floor(Number(v) || 0));
+      quantites[a] = v;
+      champ.value = v ? v : '';
+      ligne.classList.toggle('rempli', v > 0);
+      majBouton();
+    };
+    ligne.querySelector('.moins').onclick = () => maj((quantites[a] || 0) - 1);
+    ligne.querySelector('.plus').onclick  = () => maj((quantites[a] || 0) + 1);
+    champ.oninput = () => maj(champ.value);
+    zone.appendChild(ligne);
+  });
+  majBouton();
+}
 
+function majBouton() {
+  const n = Object.values(quantites).filter(q => q > 0).length;
+  const b = document.getElementById('valider');
+  b.disabled = n === 0;
+  b.textContent = n ? 'Valider (' + n + ' article' + (n > 1 ? 's' : '') + ')' : 'Valider';
+}
 
+/* ---------- Opérateur ---------- */
+function afficherOperateur() {
+  const op = lire(CLE_OP, '');
+  document.getElementById('operateur').textContent = op ? op : 'Opérateur ?';
+}
+function changerOperateur() {
+  const nom = prompt('Prénom de la personne qui saisit :', lire(CLE_OP, ''));
+  if (nom !== null && nom.trim()) { ecrire(CLE_OP, nom.trim()); afficherOperateur(); }
+  return lire(CLE_OP, '');
+}
 
+/* ---------- Validation : file locale puis envoi ---------- */
+function nouvelId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
 
+function valider() {
+  let op = lire(CLE_OP, '');
+  if (!op) op = changerOperateur();
+  if (!op) return;
+  const maintenant = new Date().toISOString();
+  const lignes = Object.entries(quantites)
+    .filter(([, q]) => q > 0)
+    .map(([article, quantite]) => ({
+      id: nouvelId(), horodatage: maintenant,
+      client: clientCourant.client, article, quantite, operateur: op
+    }));
+  if (!lignes.length) return;
+  ecrire(CLE_FILE, lire(CLE_FILE, []).concat(lignes));
+  toast('Enregistré : ' + clientCourant.client + ', ' + lignes.length + ' article' + (lignes.length > 1 ? 's' : ''));
+  afficherClients();
+  majStatut();
+  envoyer();
+}
 
+async function envoyer() {
+  if (envoiEnCours) return;
+  const file = lire(CLE_FILE, []);
+  if (!file.length) { majStatut(); return; }
+  envoiEnCours = true;
+  const op = file[0].operateur;
+  const lot = file.filter(l => l.operateur === op).slice(0, 50);
+  try {
+    const rep = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'saisir', operateur: op, lignes: lot })
+    });
+    const data = await rep.json();
+    if (!data.ok) throw new Error(data.error || 'Refus du serveur');
+    const envoyes = new Set(lot.map(l => l.id));
+    ecrire(CLE_FILE, lire(CLE_FILE, []).filter(l => !envoyes.has(l.id)));
+    envoiEnCours = false;
+    majStatut();
+    if (lire(CLE_FILE, []).length) envoyer();
+  } catch (err) {
+    envoiEnCours = false;
+    majStatut();
+  }
+}
 
+function majStatut() {
+  const n = lire(CLE_FILE, []).length;
+  const s = document.getElementById('statut');
+  s.className = n ? 'attente' : '';
+  s.textContent = n ? n + ' en attente d\'envoi' : 'Tout est envoyé';
+}
 
+function toast(msg, erreur) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = erreur ? 'erreur' : '';
+  t.style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
 
+/* ---------- Écran toujours allumé (si l'appareil le permet) ---------- */
+let verrouEcran = null;
+async function garderEcranAllume() {
+  try {
+    if ('wakeLock' in navigator && !document.hidden) {
+      verrouEcran = await navigator.wakeLock.request('screen');
+    }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) garderEcranAllume(); });
+garderEcranAllume();
 
+/* ---------- Catalogue rafraîchi toutes les 10 minutes ---------- */
+setInterval(chargerCatalogue, 10 * 60 * 1000);
 
+/* ---------- Relances automatiques ---------- */
+setInterval(envoyer, 30000);
+window.addEventListener('online', envoyer);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) envoyer(); });
 
-
-
-
-
+afficherOperateur();
+majStatut();
+chargerCatalogue();
+envoyer();
+</script>
+</body>
+</html>
