@@ -78,6 +78,18 @@
   .tuile.vide .badge { background: #fff; color: var(--orange); }
   .tuile.nouveau .badge { background: #E3EEF2; color: var(--accent); }
   .tuile.retire { opacity: .45; text-decoration: line-through; }
+  .tuile.ajoute { border-style: dashed; }
+  .tuile.ajoute .badge { background: #FFF6D6; color: #6B5300; }
+  #compteur:empty { display: none; }
+  #fondAjout {
+    display: none; position: fixed; inset: 0; background: rgba(29,43,52,.45);
+    align-items: center; justify-content: center; padding: 20px; z-index: 20;
+  }
+  #panneauAjout { background: var(--carte); border-radius: 14px; width: 100%; max-width: 520px; max-height: 90vh; display: flex; flex-direction: column; }
+  #panneauAjout h2 { margin: 0; padding: 16px 20px; font-size: 19px; border-bottom: 3px solid var(--accent); }
+  #listeAjout { overflow: auto; padding: 8px 20px; }
+  #listeAjout label { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--trait); font-size: 17px; text-transform: capitalize; cursor: pointer; }
+  #listeAjout input { width: 22px; height: 22px; }
   .croix {
     position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 6px;
     border: 0; background: transparent; color: var(--doux); font-size: 20px; cursor: pointer; line-height: 1;
@@ -144,6 +156,18 @@
   <div class="impression" id="impression"></div>
 </main>
 
+<div id="fondAjout" onclick="if (event.target === this) fermerAjout()">
+  <div id="panneauAjout">
+    <h2>Ajouter à la journée type</h2>
+    <div id="listeAjout"></div>
+    <div class="actions">
+      <button class="btn" onclick="toutCocher()">Tout cocher</button>
+      <button class="btn" onclick="fermerAjout()">Annuler</button>
+      <button class="btn ok" onclick="validerAjout()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
 <div id="fond" onclick="if (event.target === this) fermer()">
   <div id="panneau">
     <h2 id="pNom"></h2>
@@ -161,6 +185,7 @@ const CLE_NOM = 'linge_bureau_nom';
 let mode = 'jour';
 let tableau = null;
 let retires = new Set();
+let ajoutes = [];
 let codeResponsable = '';
 
 /* ---------- Utilitaires ---------- */
@@ -224,6 +249,7 @@ async function charger() {
   const v = document.getElementById('periode').value;
   if (!v) return;
   retires = new Set();
+  ajoutes = [];
   const etat = document.getElementById('etat');
   etat.className = ''; etat.textContent = 'Chargement…';
   try {
@@ -252,7 +278,7 @@ function afficher() {
   document.getElementById('titre').textContent = libelle();
   const zone = document.getElementById('zone');
   zone.innerHTML = '';
-  const clients = tableau.clients;
+  const clients = listeAffichee();
 
   const aCompter = clients.filter(compte);
   const reste = aCompter.filter(c => !c.pointe).length;
@@ -277,22 +303,28 @@ function afficher() {
     t.className = 'tuile';
     if (c.pointe) t.classList.add('pointe');
     else if (!c.recu) t.classList.add('vide');
-    if (mode === 'jour' && !c.attendu) t.classList.add('nouveau');
+    if (mode === 'jour' && !c.attendu && !c.ajoute) t.classList.add('nouveau');
+    if (c.ajoute) t.classList.add('ajoute');
     if (retires.has(k)) t.classList.add('retire');
 
     let html = '<div class="nom"></div><div class="info">' +
       (c.recu ? c.total + ' pièce' + (c.total > 1 ? 's' : '') : 'Aucune pièce') + '</div>';
-    if (!c.recu && !c.pointe) html += '<span class="badge">Rien reçu de l\'atelier</span>';
+    if (c.ajoute) html += '<span class="badge">À diffuser</span>';
+    else if (!c.recu && !c.pointe) html += '<span class="badge">Rien reçu de l\'atelier</span>';
     else if (mode === 'jour' && !c.attendu) html += '<span class="badge">Nouveau ce jour</span>';
     t.innerHTML = html;
     t.querySelector('.nom').textContent = c.client;
 
-    if (mode === 'jour' && c.attendu) {
+    if (mode === 'jour' && (c.attendu || c.ajoute)) {
       const x = document.createElement('button');
       x.className = 'croix';
       x.title = retires.has(k) ? 'Garder dans la journée type' : 'Retirer de la journée type';
       x.textContent = retires.has(k) ? '↺' : '×';
-      x.onclick = ev => { ev.stopPropagation(); basculerRetrait(k); };
+      x.onclick = ev => {
+        ev.stopPropagation();
+        if (c.ajoute) { ajoutes = ajoutes.filter(n => cle(n) !== k); afficher(); }
+        else basculerRetrait(k);
+      };
       t.appendChild(x);
     }
     t.onclick = () => ouvrir(c);
@@ -305,7 +337,7 @@ function afficher() {
 function majAttente() {
   const div = document.getElementById('attente');
   if (mode !== 'jour' || !tableau) { div.style.display = 'none'; return; }
-  const ajouts = tableau.clients.filter(c => !c.attendu && c.recu).map(c => c.client);
+  const ajouts = tableau.clients.filter(c => !c.attendu && c.recu && !retires.has(cle(c.client))).map(c => c.client).concat(ajoutes);
   const retraits = tableau.clients.filter(c => retires.has(cle(c.client))).map(c => c.client);
   if (!ajouts.length && !retraits.length) { div.style.display = 'none'; return; }
   const parts = [];
@@ -370,11 +402,62 @@ async function pointer(c) {
   }
 }
 
+/* ---------- Ajout manuel de clients à la journée ---------- */
+let catalogueClients = [];
+
+function listeAffichee() {
+  if (!tableau) return [];
+  const extra = ajoutes.map(n => ({ client: n, attendu: false, ajoute: true, articles: [], total: 0, recu: false, pointe: false }));
+  return tableau.clients.concat(extra).sort((a, b) => a.client.localeCompare(b.client, 'fr'));
+}
+
+async function ouvrirAjout() {
+  if (!tableau) return;
+  const liste = document.getElementById('listeAjout');
+  liste.innerHTML = '<p class="vide-liste">Chargement…</p>';
+  document.getElementById('fondAjout').style.display = 'flex';
+  try {
+    const rep = await fetch(API_URL + '?action=catalogue');
+    const data = await rep.json();
+    if (!data.ok) throw new Error(data.error || 'Réponse invalide');
+    catalogueClients = data.catalogue.map(c => c.client);
+  } catch (err) {
+    liste.innerHTML = '<p class="vide-liste">Catalogue introuvable (' + err.message + ').</p>';
+    return;
+  }
+  const presents = new Set(listeAffichee().map(c => cle(c.client)));
+  const dispo = catalogueClients.filter(n => !presents.has(cle(n))).sort((a, b) => a.localeCompare(b, 'fr'));
+  liste.innerHTML = '';
+  if (!dispo.length) { liste.innerHTML = '<p class="vide-liste">Tous les clients du catalogue sont déjà dans cette journée.</p>'; return; }
+  dispo.forEach(n => {
+    const l = document.createElement('label');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = n;
+    l.appendChild(cb); l.appendChild(document.createTextNode(n));
+    liste.appendChild(l);
+  });
+}
+
+function toutCocher() {
+  const cases = document.querySelectorAll('#listeAjout input');
+  const tous = Array.from(cases).every(c => c.checked);
+  cases.forEach(c => { c.checked = !tous; });
+}
+
+function fermerAjout() { document.getElementById('fondAjout').style.display = 'none'; }
+
+function validerAjout() {
+  document.querySelectorAll('#listeAjout input:checked').forEach(c => {
+    if (!ajoutes.some(n => cle(n) === cle(c.value))) ajoutes.push(c.value);
+  });
+  fermerAjout();
+  afficher();
+}
+
 /* ---------- Diffusion de la journée type ---------- */
 async function diffuser() {
   if (!tableau || mode !== 'jour') return;
-  const liste = tableau.clients.filter(c => (c.attendu || c.recu) && !retires.has(cle(c.client))).map(c => c.client);
-  const ajouts = tableau.clients.filter(c => !c.attendu && c.recu && !retires.has(cle(c.client))).map(c => c.client);
+  const liste = tableau.clients.filter(c => (c.attendu || c.recu) && !retires.has(cle(c.client))).map(c => c.client).concat(ajoutes);
+  const ajouts = tableau.clients.filter(c => !c.attendu && c.recu && !retires.has(cle(c.client))).map(c => c.client).concat(ajoutes);
   const retraits = tableau.clients.filter(c => c.attendu && retires.has(cle(c.client))).map(c => c.client);
   let msg = 'Diffuser comme journée type de tous les ' + tableau.jour + 's ?\n\n' +
     'Clients retenus (' + liste.length + ') : ' + (liste.join(', ') || 'aucun') + '\n';
