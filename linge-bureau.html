@@ -12,6 +12,10 @@
     --trait: #D9E0E4;
     --carte: #FFFFFF;
     --accent: #0F6E8A;
+    --ok: #2E7D4F;
+    --ok-fond: #E6F2EA;
+    --orange: #C26A12;
+    --orange-fond: #FBEFDF;
     --alerte: #B3412B;
   }
   * { box-sizing: border-box; }
@@ -20,7 +24,7 @@
     font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; font-size: 15px;
   }
   header {
-    background: var(--encre); color: #fff; padding: 16px 28px;
+    background: var(--encre); color: #fff; padding: 14px 28px;
     display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
   }
   header h1 { margin: 0; font-size: 20px; font-weight: 700; flex: 1; }
@@ -30,45 +34,80 @@
     background: transparent; color: #C9D4DA; cursor: pointer;
   }
   .onglets button.actif { background: #fff; color: var(--encre); }
+  #nom { border: 1px solid #ffffff55; background: transparent; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+
   .outils {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 16px 28px; background: var(--carte); border-bottom: 1px solid var(--trait);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 14px 28px; background: var(--carte); border-bottom: 1px solid var(--trait);
   }
-  .outils label { color: var(--doux); font-weight: 600; }
-  .outils input {
-    font-size: 15px; padding: 7px 10px; border: 1px solid var(--trait); border-radius: 8px;
-  }
+  .outils input { font-size: 15px; padding: 7px 10px; border: 1px solid var(--trait); border-radius: 8px; }
   .outils .espace { flex: 1; }
   .btn {
     border: 1px solid var(--trait); background: var(--carte); color: var(--encre);
-    padding: 8px 16px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+    padding: 8px 14px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
   }
   .btn.principal { background: var(--accent); border-color: var(--accent); color: #fff; }
-  main { padding: 24px 28px 48px; max-width: 1200px; }
-  #etat { color: var(--doux); margin-bottom: 16px; }
+  .btn.fleche { padding: 8px 12px; }
+  #diffuser { display: none; }
+
+  main { padding: 20px 28px 48px; }
+  .bandeau { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+  #titre { font-size: 18px; font-weight: 700; }
+  #compteur {
+    font-size: 22px; font-weight: 800; padding: 8px 16px; border-radius: 10px;
+    background: var(--orange-fond); color: var(--orange);
+  }
+  #compteur.fini { background: var(--ok-fond); color: var(--ok); }
+  #etat { color: var(--doux); }
   #etat.erreur { color: var(--alerte); font-weight: 600; }
-  .grille { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-  .client {
-    background: var(--carte); border-radius: 12px; border: 1px solid var(--trait);
-    overflow: hidden; break-inside: avoid;
+  #attente { display: none; margin-bottom: 14px; padding: 10px 14px; border-radius: 8px; background: #FFF6D6; color: #6B5300; font-weight: 600; }
+
+  .grille { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+  .tuile {
+    position: relative; min-height: 104px; padding: 14px 16px; border-radius: 12px; cursor: pointer;
+    background: var(--carte); border: 2px solid var(--trait); border-left: 8px solid var(--accent);
+    text-align: left; font: inherit; color: inherit;
   }
-  .client h2 {
-    margin: 0; padding: 12px 16px; font-size: 17px;
-    border-bottom: 3px solid var(--accent); text-transform: capitalize;
+  .tuile:hover { border-color: var(--accent); }
+  .tuile .nom { font-size: 20px; font-weight: 700; text-transform: capitalize; padding-right: 26px; }
+  .tuile .info { margin-top: 8px; color: var(--doux); font-size: 15px; }
+  .tuile .badge { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .tuile.pointe { background: var(--ok-fond); border-color: #B9DCC5; border-left-color: var(--ok); }
+  .tuile.pointe .nom::before { content: "✓ "; color: var(--ok); }
+  .tuile.vide { background: var(--orange-fond); border-left-color: var(--orange); }
+  .tuile.vide .badge { background: #fff; color: var(--orange); }
+  .tuile.nouveau .badge { background: #E3EEF2; color: var(--accent); }
+  .tuile.retire { opacity: .45; text-decoration: line-through; }
+  .croix {
+    position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 6px;
+    border: 0; background: transparent; color: var(--doux); font-size: 20px; cursor: pointer; line-height: 1;
   }
+  .croix:hover { background: #0001; }
+  .vide-liste { color: var(--doux); font-style: italic; }
+
+  #fond {
+    display: none; position: fixed; inset: 0; background: rgba(29,43,52,.45);
+    align-items: center; justify-content: center; padding: 20px; z-index: 20;
+  }
+  #panneau { background: var(--carte); border-radius: 14px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; }
+  #panneau h2 { margin: 0; padding: 16px 20px; font-size: 20px; text-transform: capitalize; border-bottom: 3px solid var(--accent); }
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 8px 16px; border-bottom: 1px solid var(--trait); }
-  td.q { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; width: 90px; }
-  tr.total td { border-bottom: 0; font-weight: 700; background: #F7F9FA; }
-  .vide { color: var(--doux); font-style: italic; }
-  .titre-impression { display: none; }
+  td { padding: 9px 20px; border-bottom: 1px solid var(--trait); }
+  td.q { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; width: 90px; }
+  tr.total td { font-weight: 800; background: #F7F9FA; }
+  .actions { display: flex; gap: 10px; padding: 16px 20px; }
+  .actions .btn { flex: 1; padding: 12px; }
+  .actions .ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+
+  .impression { display: none; }
   @media print {
-    header, .outils, #etat { display: none; }
+    header, .outils, .bandeau, #attente, .grille, #fond { display: none !important; }
     body { background: #fff; }
-    main { padding: 0; max-width: none; }
-    .titre-impression { display: block; margin: 0 0 16px; font-size: 18px; }
-    .grille { grid-template-columns: 1fr 1fr; }
-    .client { border-color: #999; }
+    .impression { display: block; }
+    .impression h2 { font-size: 18px; margin: 0 0 12px; }
+    .impression section { break-inside: avoid; margin-bottom: 14px; border: 1px solid #999; }
+    .impression h3 { margin: 0; padding: 6px 10px; font-size: 15px; text-transform: capitalize; border-bottom: 1px solid #999; }
+    .impression td { padding: 4px 10px; border-bottom: 1px solid #ddd; }
   }
 </style>
 </head>
@@ -76,124 +115,323 @@
 <header>
   <h1>BdL Linge — Relevés clients</h1>
   <div class="onglets">
-    <button id="ongletJour" class="actif" onclick="choisirVue('jour')">Jour</button>
-    <button id="ongletMois" onclick="choisirVue('mois')">Cumul du mois</button>
+    <button id="ongletJour" class="actif" onclick="choisirMode('jour')">Jour</button>
+    <button id="ongletMois" onclick="choisirMode('mois')">Mois</button>
   </div>
+  <button id="nom" onclick="changerNom()">Qui pointe ?</button>
 </header>
+
 <div class="outils">
-  <label id="libelle" for="periode">Date</label>
+  <button class="btn fleche" onclick="decaler(-1)">◀</button>
   <input id="periode" type="date" onchange="charger()">
+  <button class="btn fleche" onclick="decaler(1)">▶</button>
+  <button class="btn" onclick="allerAujourdhui()">Aujourd'hui</button>
   <button class="btn" onclick="charger()">Actualiser</button>
   <span class="espace"></span>
+  <button class="btn" id="diffuser" onclick="diffuser()">Diffuser ce jour</button>
   <button class="btn" onclick="exporterCSV()">Export CSV</button>
   <button class="btn principal" onclick="window.print()">Imprimer</button>
 </div>
+
 <main>
-  <div id="etat">Chargement…</div>
-  <h2 class="titre-impression" id="titreImpression"></h2>
+  <div class="bandeau">
+    <span id="titre"></span>
+    <span id="compteur"></span>
+    <span id="etat">Chargement…</span>
+  </div>
+  <div id="attente"></div>
   <div id="zone" class="grille"></div>
+  <div class="impression" id="impression"></div>
 </main>
+
+<div id="fond" onclick="if (event.target === this) fermer()">
+  <div id="panneau">
+    <h2 id="pNom"></h2>
+    <table id="pTable"></table>
+    <div class="actions">
+      <button class="btn" onclick="fermer()">Fermer</button>
+      <button class="btn ok" id="pBouton"></button>
+    </div>
+  </div>
+</div>
 
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
-let vue = 'jour';
-let donnees = [];
+const CLE_NOM = 'linge_bureau_nom';
+let mode = 'jour';
+let tableau = null;
+let retires = new Set();
+let codeResponsable = '';
 
-function aujourdhui() {
-  const d = new Date();
-  const p = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+/* ---------- Utilitaires ---------- */
+function p2(n) { return String(n).padStart(2, '0'); }
+function isoJour(d) { return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); }
+function lireNom() { try { return localStorage.getItem(CLE_NOM) || ''; } catch (e) { return ''; } }
+function ecrireNom(n) { try { localStorage.setItem(CLE_NOM, n); } catch (e) {} }
+function cle(s) { return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
+
+function afficherNom() { document.getElementById('nom').textContent = lireNom() || 'Qui pointe ?'; }
+function changerNom() {
+  const n = prompt('Ton prénom (il sera noté sur chaque pointage) :', lireNom());
+  if (n !== null && n.trim()) { ecrireNom(n.trim()); afficherNom(); }
+  return lireNom();
 }
 
-function choisirVue(v) {
-  vue = v;
-  document.getElementById('ongletJour').classList.toggle('actif', v === 'jour');
-  document.getElementById('ongletMois').classList.toggle('actif', v === 'mois');
+/* ---------- Période ---------- */
+function choisirMode(m) {
+  mode = m;
+  document.getElementById('ongletJour').classList.toggle('actif', m === 'jour');
+  document.getElementById('ongletMois').classList.toggle('actif', m === 'mois');
+  document.getElementById('diffuser').style.display = m === 'jour' ? 'inline-block' : 'none';
+  allerAujourdhui();
+}
+
+function allerAujourdhui() {
   const champ = document.getElementById('periode');
-  if (v === 'jour') {
-    document.getElementById('libelle').textContent = 'Date';
-    champ.type = 'date'; champ.value = aujourdhui();
+  const auj = isoJour(new Date());
+  champ.type = mode === 'jour' ? 'date' : 'month';
+  champ.value = mode === 'jour' ? auj : auj.slice(0, 7);
+  charger();
+}
+
+function decaler(sens) {
+  const champ = document.getElementById('periode');
+  if (!champ.value) return;
+  if (mode === 'jour') {
+    const [a, m, j] = champ.value.split('-').map(Number);
+    champ.value = isoJour(new Date(a, m - 1, j + sens));
   } else {
-    document.getElementById('libelle').textContent = 'Mois';
-    champ.type = 'month'; champ.value = aujourdhui().slice(0, 7);
+    const [a, m] = champ.value.split('-').map(Number);
+    const d = new Date(a, m - 1 + sens, 1);
+    champ.value = d.getFullYear() + '-' + p2(d.getMonth() + 1);
   }
   charger();
 }
 
-function libellePeriode() {
-  const v = document.getElementById('periode').value;
-  if (vue === 'jour') {
-    const [a, m, j] = v.split('-');
-    return 'Relevé du ' + j + '/' + m + '/' + a;
+function libelle() {
+  if (!tableau) return '';
+  if (mode === 'jour') {
+    const [a, m, j] = tableau.periode.split('-');
+    return tableau.jour.charAt(0).toUpperCase() + tableau.jour.slice(1) + ' ' + j + '/' + m + '/' + a;
   }
-  const [a, m] = v.split('-');
+  const [a, m] = tableau.periode.split('-');
   const nom = new Date(Number(a), Number(m) - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-  return 'Cumul du mois — ' + nom;
+  return 'Mois de ' + nom;
 }
 
+/* ---------- Chargement ---------- */
 async function charger() {
-  const etat = document.getElementById('etat');
   const v = document.getElementById('periode').value;
   if (!v) return;
+  retires = new Set();
+  const etat = document.getElementById('etat');
   etat.className = ''; etat.textContent = 'Chargement…';
-  const url = API_URL + (vue === 'jour' ? '?action=jour&date=' + v : '?action=mois&mois=' + v);
   try {
-    const rep = await fetch(url);
+    const rep = await fetch(API_URL + '?action=tableau&mode=' + mode + '&periode=' + v);
     const data = await rep.json();
     if (!data.ok) throw new Error(data.error || 'Réponse invalide');
-    donnees = data.recap;
+    tableau = data;
     afficher();
-    etat.textContent = libellePeriode() + ' · mis à jour à ' +
-      new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    etat.textContent = 'mis à jour à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   } catch (err) {
-    donnees = [];
-    afficher();
+    tableau = null;
+    document.getElementById('zone').innerHTML = '';
+    document.getElementById('compteur').textContent = '';
     etat.className = 'erreur';
-    etat.textContent = 'Impossible de charger les données (' + err.message + ').';
+    etat.textContent = 'Impossible de charger (' + err.message + ').';
   }
+}
+
+/* ---------- Affichage ---------- */
+function compte(c) {
+  // Un client retiré sans saisie ne compte plus ; sinon il doit être pointé.
+  return !(retires.has(cle(c.client)) && !c.recu);
 }
 
 function afficher() {
-  document.getElementById('titreImpression').textContent = libellePeriode();
+  document.getElementById('titre').textContent = libelle();
   const zone = document.getElementById('zone');
   zone.innerHTML = '';
-  if (!donnees.length) {
-    zone.innerHTML = '<p class="vide">Aucune saisie sur cette période.</p>';
+  const clients = tableau.clients;
+
+  const aCompter = clients.filter(compte);
+  const reste = aCompter.filter(c => !c.pointe).length;
+  const cpt = document.getElementById('compteur');
+  cpt.textContent = aCompter.length
+    ? (reste ? 'Reste à pointer : ' + reste + ' / ' + aCompter.length : 'Tout est pointé ✓ (' + aCompter.length + ')')
+    : '';
+  cpt.className = reste ? '' : 'fini';
+
+  majAttente();
+
+  if (!clients.length) {
+    zone.innerHTML = '<p class="vide-liste">' + (mode === 'jour'
+      ? 'Aucun client attendu ni saisi ce jour. Quand l\'atelier aura saisi, utilise « Diffuser ce jour » pour enregistrer la journée type.'
+      : 'Aucun client.') + '</p>';
     return;
   }
-  donnees.forEach(c => {
-    const carte = document.createElement('section');
-    carte.className = 'client';
-    const h = document.createElement('h2');
-    h.textContent = c.client;
-    carte.appendChild(h);
-    const t = document.createElement('table');
-    c.articles.forEach(a => {
-      const tr = t.insertRow();
-      tr.insertCell().textContent = a.article;
-      const q = tr.insertCell(); q.className = 'q'; q.textContent = a.quantite;
-    });
-    const tot = t.insertRow(); tot.className = 'total';
-    tot.insertCell().textContent = 'Total pièces';
-    const q = tot.insertCell(); q.className = 'q'; q.textContent = c.total;
-    carte.appendChild(t);
-    zone.appendChild(carte);
+
+  clients.forEach(c => {
+    const k = cle(c.client);
+    const t = document.createElement('div');
+    t.className = 'tuile';
+    if (c.pointe) t.classList.add('pointe');
+    else if (!c.recu) t.classList.add('vide');
+    if (mode === 'jour' && !c.attendu) t.classList.add('nouveau');
+    if (retires.has(k)) t.classList.add('retire');
+
+    let html = '<div class="nom"></div><div class="info">' +
+      (c.recu ? c.total + ' pièce' + (c.total > 1 ? 's' : '') : 'Aucune pièce') + '</div>';
+    if (!c.recu && !c.pointe) html += '<span class="badge">Rien reçu de l\'atelier</span>';
+    else if (mode === 'jour' && !c.attendu) html += '<span class="badge">Nouveau ce jour</span>';
+    t.innerHTML = html;
+    t.querySelector('.nom').textContent = c.client;
+
+    if (mode === 'jour' && c.attendu) {
+      const x = document.createElement('button');
+      x.className = 'croix';
+      x.title = retires.has(k) ? 'Garder dans la journée type' : 'Retirer de la journée type';
+      x.textContent = retires.has(k) ? '↺' : '×';
+      x.onclick = ev => { ev.stopPropagation(); basculerRetrait(k); };
+      t.appendChild(x);
+    }
+    t.onclick = () => ouvrir(c);
+    zone.appendChild(t);
   });
+
+  afficherImpression();
 }
 
+function majAttente() {
+  const div = document.getElementById('attente');
+  if (mode !== 'jour' || !tableau) { div.style.display = 'none'; return; }
+  const ajouts = tableau.clients.filter(c => !c.attendu && c.recu).map(c => c.client);
+  const retraits = tableau.clients.filter(c => retires.has(cle(c.client))).map(c => c.client);
+  if (!ajouts.length && !retraits.length) { div.style.display = 'none'; return; }
+  const parts = [];
+  if (ajouts.length) parts.push('à ajouter : ' + ajouts.join(', '));
+  if (retraits.length) parts.push('à retirer : ' + retraits.join(', '));
+  div.textContent = 'Journée type du ' + tableau.jour + ' non diffusée — ' + parts.join(' · ');
+  div.style.display = 'block';
+}
+
+function basculerRetrait(k) {
+  if (retires.has(k)) retires.delete(k); else retires.add(k);
+  afficher();
+}
+
+/* ---------- Détail et pointage ---------- */
+function ouvrir(c) {
+  document.getElementById('pNom').textContent = c.client;
+  const t = document.getElementById('pTable');
+  t.innerHTML = '';
+  if (!c.articles.length) {
+    const tr = t.insertRow(); const td = tr.insertCell();
+    td.colSpan = 2; td.className = 'vide-liste'; td.textContent = 'Aucune saisie de l\'atelier sur cette période.';
+  }
+  c.articles.forEach(a => {
+    const tr = t.insertRow();
+    tr.insertCell().textContent = a.article;
+    const q = tr.insertCell(); q.className = 'q'; q.textContent = a.quantite;
+  });
+  if (c.articles.length) {
+    const tr = t.insertRow(); tr.className = 'total';
+    tr.insertCell().textContent = 'Total pièces';
+    const q = tr.insertCell(); q.className = 'q'; q.textContent = c.total;
+  }
+  const b = document.getElementById('pBouton');
+  b.textContent = c.pointe ? 'Annuler le pointage' : 'Marquer comme saisi ✓';
+  b.className = c.pointe ? 'btn' : 'btn ok';
+  b.onclick = () => pointer(c);
+  document.getElementById('fond').style.display = 'flex';
+}
+
+function fermer() { document.getElementById('fond').style.display = 'none'; }
+
+async function pointer(c) {
+  let nom = lireNom();
+  if (!nom) nom = changerNom();
+  if (!nom) return;
+  const fait = !c.pointe;
+  fermer();
+  c.pointe = fait;
+  afficher();
+  try {
+    const rep = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'pointer', periode: tableau.periode, client: c.client, fait: fait, par: nom })
+    });
+    const data = await rep.json();
+    if (!data.ok) throw new Error(data.error || 'Refus du serveur');
+  } catch (err) {
+    c.pointe = !fait;
+    afficher();
+    alert('Le pointage n\'a pas pu être enregistré (' + err.message + '). Vérifie la connexion et réessaie.');
+  }
+}
+
+/* ---------- Diffusion de la journée type ---------- */
+async function diffuser() {
+  if (!tableau || mode !== 'jour') return;
+  const liste = tableau.clients.filter(c => (c.attendu || c.recu) && !retires.has(cle(c.client))).map(c => c.client);
+  const ajouts = tableau.clients.filter(c => !c.attendu && c.recu && !retires.has(cle(c.client))).map(c => c.client);
+  const retraits = tableau.clients.filter(c => c.attendu && retires.has(cle(c.client))).map(c => c.client);
+  let msg = 'Diffuser comme journée type de tous les ' + tableau.jour + 's ?\n\n' +
+    'Clients retenus (' + liste.length + ') : ' + (liste.join(', ') || 'aucun') + '\n';
+  msg += '\nAjouts : ' + (ajouts.join(', ') || 'aucun');
+  msg += '\nRetraits : ' + (retraits.join(', ') || 'aucun');
+  if (!confirm(msg)) return;
+  if (!codeResponsable) {
+    const c = prompt('Code responsable :');
+    if (!c || !c.trim()) return;
+    codeResponsable = c.trim();
+  }
+  try {
+    const rep = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'diffuser', code: codeResponsable, date: tableau.periode, clients: liste })
+    });
+    const data = await rep.json();
+    if (!data.ok) {
+      if (data.error === 'Code incorrect') codeResponsable = '';
+      throw new Error(data.error || 'Refus du serveur');
+    }
+    alert('Journée type du ' + data.jour + ' enregistrée : ' + data.clients.length + ' client(s).');
+    charger();
+  } catch (err) {
+    alert('Diffusion impossible : ' + err.message);
+  }
+}
+
+/* ---------- Export et impression ---------- */
 function exporterCSV() {
-  if (!donnees.length) { alert('Rien à exporter sur cette période.'); return; }
-  const lignes = [['Client', 'Article', 'Quantité']];
-  donnees.forEach(c => c.articles.forEach(a => lignes.push([c.client, a.article, a.quantite])));
+  if (!tableau || !tableau.clients.some(c => c.articles.length)) { alert('Rien à exporter sur cette période.'); return; }
+  const lignes = [['Client', 'Article', 'Quantité', 'Pointé']];
+  tableau.clients.forEach(c => c.articles.forEach(a => lignes.push([c.client, a.article, a.quantite, c.pointe ? 'oui' : 'non'])));
   const csv = lignes.map(l => l.map(x => '"' + String(x).replace(/"/g, '""') + '"').join(';')).join('\r\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'linge-' + vue + '-' + document.getElementById('periode').value + '.csv';
+  a.download = 'linge-' + mode + '-' + tableau.periode + '.csv';
   document.body.appendChild(a); a.click(); a.remove();
 }
 
-choisirVue('jour');
+function afficherImpression() {
+  const z = document.getElementById('impression');
+  z.innerHTML = '';
+  const h = document.createElement('h2'); h.textContent = libelle(); z.appendChild(h);
+  tableau.clients.filter(c => c.articles.length).forEach(c => {
+    const s = document.createElement('section');
+    const t = document.createElement('h3'); t.textContent = c.client + (c.pointe ? ' ✓' : ''); s.appendChild(t);
+    const tab = document.createElement('table');
+    c.articles.forEach(a => { const r = tab.insertRow(); r.insertCell().textContent = a.article; const q = r.insertCell(); q.className = 'q'; q.textContent = a.quantite; });
+    const r = tab.insertRow(); r.className = 'total'; r.insertCell().textContent = 'Total'; const q = r.insertCell(); q.className = 'q'; q.textContent = c.total;
+    s.appendChild(tab); z.appendChild(s);
+  });
+}
+
+afficherNom();
+choisirMode('jour');
 </script>
 </body>
 </html>
