@@ -52,8 +52,12 @@
     display: none; position: fixed; inset: 0; background: rgba(29,43,52,.5);
     align-items: center; justify-content: center; padding: 20px; z-index: 30;
   }
-  #panneauJour { background: #fff; border-radius: 16px; width: 100%; max-width: 520px; max-height: 90vh; overflow: auto; padding: 18px; }
-  #panneauJour h2 { margin: 0 0 12px; font-size: 22px; }
+  #fondClient {
+    display: none; position: fixed; inset: 0; background: rgba(29,43,52,.5);
+    align-items: center; justify-content: center; padding: 20px; z-index: 30;
+  }
+  #panneauJour, .panneauClient { background: #fff; border-radius: 16px; width: 100%; max-width: 520px; max-height: 90vh; overflow: auto; padding: 18px; }
+  #panneauJour h2, .panneauClient h2 { margin: 0 0 12px; font-size: 22px; }
   .choixJour {
     display: block; width: 100%; margin-bottom: 10px; padding: 18px; border-radius: 12px;
     border: 2px solid #C5D0D6; background: #fff; color: var(--encre); font-size: 22px; font-weight: 600; text-align: left;
@@ -75,6 +79,7 @@
     border-left: 8px solid var(--accent);
   }
   .tuile:active { background: #D4E6EC; }
+  .vide-jour { grid-column: 1 / -1; font-size: 22px; color: var(--doux); margin: 4px 0 8px; }
   .tuile.ajout {
     background: transparent; border: 3px dashed #9DB3BC; border-left: 3px dashed #9DB3BC;
     color: var(--doux); font-weight: 600;
@@ -130,6 +135,12 @@
   <button id="operateur" onclick="changerOperateur()">Opérateur ?</button>
 </header>
 <div id="bandeauJour" onclick="choisirJour(null)"></div>
+<div id="fondClient" onclick="if (event.target === this) fermerChoixClient()">
+  <div class="panneauClient">
+    <h2>Ajouter un client à cette journée</h2>
+    <div id="listeClients"></div>
+  </div>
+</div>
 <div id="fondJour" onclick="if (event.target === this) fermerJours()">
   <div id="panneauJour">
     <h2>Pour quelle journée ?</h2>
@@ -192,7 +203,15 @@ function afficherClients() {
   document.getElementById('barre').style.display = 'none';
   const zone = document.getElementById('zone');
   zone.className = 'grille'; zone.innerHTML = '';
-  catalogue.forEach(c => {
+  const duJour = clientsDuJour();
+  const liste = duJour || catalogue;
+  if (duJour && !duJour.length) {
+    const p = document.createElement('p');
+    p.className = 'vide-jour';
+    p.textContent = 'Aucun client prévu pour cette journée. Touchez « + Ajouter un client ».';
+    zone.appendChild(p);
+  }
+  liste.forEach(c => {
     const b = document.createElement('button');
     b.className = 'tuile';
     b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile"></span>';
@@ -203,6 +222,13 @@ function afficherClients() {
     b.onclick = () => afficherArticles(c);
     zone.appendChild(b);
   });
+  if (duJour && duJour.length < catalogue.length) {
+    const ajout = document.createElement('button');
+    ajout.className = 'tuile ajout';
+    ajout.textContent = '+ Ajouter un client';
+    ajout.onclick = ouvrirChoixClient;
+    zone.appendChild(ajout);
+  }
   const nouveau = document.createElement('button');
   nouveau.className = 'tuile ajout';
   nouveau.textContent = '+ Nouveau client';
@@ -309,6 +335,7 @@ async function nouveauClient() {
   if (!article || !article.trim()) return;
   const nom = await envoyerAjout(client, article);
   if (nom) {
+    ajouterClientAuJour(nom);
     const c = catalogue.find(x => x.client === nom);
     if (c) afficherArticles(c);
   }
@@ -389,8 +416,63 @@ function choisirJour(iso) {
   jourRecap = { date: '', saisies: [] };
   if (clientCourant) afficherArticles(clientCourant, true); else afficherClients();
   chargerJour();
+  chargerListeJour();
 }
 function jourDeLigne(l) { return l.date || isoLocal(new Date(l.horodatage)); }
+
+/* ---------- Clients prévus pour la journée ---------- */
+const CLE_LISTES = 'linge_listes_jour';
+const CLE_AJOUTS = 'linge_ajouts_jour';
+function cleNom(s) { return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
+
+// Journée type + clients saisis ou créés ce jour (fourni par le serveur), mis en cache.
+async function chargerListeJour() {
+  const date = jourCourant();
+  try {
+    const rep = await fetch(API_URL + '?action=tableau&mode=jour&periode=' + date);
+    const data = await rep.json();
+    if (!data.ok || date !== jourCourant()) return;
+    const listes = lire(CLE_LISTES, {});
+    listes[date] = data.clients.map(c => c.client);
+    Object.keys(listes).forEach(d => { if (d < isoLocal(new Date(Date.now() - 7 * 864e5))) delete listes[d]; });
+    ecrire(CLE_LISTES, listes);
+    if (!clientCourant) afficherClients();
+  } catch (e) {}
+}
+
+// null = liste inconnue (hors-ligne sans cache) : on montre tout le catalogue.
+function clientsDuJour() {
+  const date = jourCourant();
+  const listes = lire(CLE_LISTES, {});
+  if (!listes[date]) return null;
+  const noms = new Set(listes[date].map(cleNom));
+  (lire(CLE_AJOUTS, {})[date] || []).forEach(n => noms.add(cleNom(n)));
+  lire(CLE_FILE, []).forEach(l => { if (jourDeLigne(l) === date) noms.add(cleNom(l.client)); });
+  return catalogue.filter(c => noms.has(cleNom(c.client)));
+}
+
+function ajouterClientAuJour(nom) {
+  const date = jourCourant();
+  const ajouts = lire(CLE_AJOUTS, {});
+  ajouts[date] = ajouts[date] || [];
+  if (!ajouts[date].some(n => cleNom(n) === cleNom(nom))) ajouts[date].push(nom);
+  ecrire(CLE_AJOUTS, ajouts);
+}
+
+function ouvrirChoixClient() {
+  const presents = new Set((clientsDuJour() || []).map(c => cleNom(c.client)));
+  const liste = document.getElementById('listeClients');
+  liste.innerHTML = '';
+  catalogue.filter(c => !presents.has(cleNom(c.client))).forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'choixJour';
+    b.textContent = c.client;
+    b.onclick = () => { fermerChoixClient(); ajouterClientAuJour(c.client); afficherArticles(c); };
+    liste.appendChild(b);
+  });
+  document.getElementById('fondClient').style.display = 'flex';
+}
+function fermerChoixClient() { document.getElementById('fondClient').style.display = 'none'; }
 
 async function chargerJour() {
   const date = jourCourant();
@@ -541,7 +623,8 @@ garderEcranAllume();
 /* ---------- Catalogue rafraîchi toutes les 10 minutes ---------- */
 setInterval(chargerCatalogue, 10 * 60 * 1000);
 setInterval(chargerJour, 2 * 60 * 1000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { majJourAffiche(); chargerJour(); } });
+setInterval(chargerListeJour, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { majJourAffiche(); chargerJour(); chargerListeJour(); } });
 
 /* ---------- Relances automatiques ---------- */
 setInterval(envoyer, 30000);
@@ -551,6 +634,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) envo
 afficherOperateur();
 majJourAffiche();
 chargerJour();
+chargerListeJour();
 majStatut();
 chargerCatalogue();
 envoyer();
