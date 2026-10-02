@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BdL Linge — Relevés clients</title>
+<style>
+  :root {
+    --fond: #F2F4F5;
+    --encre: #1D2B34;
+    --doux: #5B6B75;
+    --trait: #D9E0E4;
+    --carte: #FFFFFF;
+    --accent: #0F6E8A;
+    --alerte: #B3412B;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--fond); color: var(--encre);
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; font-size: 15px;
+  }
+  header {
+    background: var(--encre); color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 700; flex: 1; }
+  .onglets { display: flex; gap: 6px; }
+  .onglets button {
+    border: 0; padding: 9px 18px; border-radius: 8px; font-size: 15px; font-weight: 600;
+    background: transparent; color: #C9D4DA; cursor: pointer;
+  }
+  .onglets button.actif { background: #fff; color: var(--encre); }
+  .outils {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 16px 28px; background: var(--carte); border-bottom: 1px solid var(--trait);
+  }
+  .outils label { color: var(--doux); font-weight: 600; }
+  .outils input {
+    font-size: 15px; padding: 7px 10px; border: 1px solid var(--trait); border-radius: 8px;
+  }
+  .outils .espace { flex: 1; }
+  .btn {
+    border: 1px solid var(--trait); background: var(--carte); color: var(--encre);
+    padding: 8px 16px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .btn.principal { background: var(--accent); border-color: var(--accent); color: #fff; }
+  main { padding: 24px 28px 48px; max-width: 1200px; }
+  #etat { color: var(--doux); margin-bottom: 16px; }
+  #etat.erreur { color: var(--alerte); font-weight: 600; }
+  .grille { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .client {
+    background: var(--carte); border-radius: 12px; border: 1px solid var(--trait);
+    overflow: hidden; break-inside: avoid;
+  }
+  .client h2 {
+    margin: 0; padding: 12px 16px; font-size: 17px;
+    border-bottom: 3px solid var(--accent); text-transform: capitalize;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 8px 16px; border-bottom: 1px solid var(--trait); }
+  td.q { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; width: 90px; }
+  tr.total td { border-bottom: 0; font-weight: 700; background: #F7F9FA; }
+  .vide { color: var(--doux); font-style: italic; }
+  .titre-impression { display: none; }
+  @media print {
+    header, .outils, #etat { display: none; }
+    body { background: #fff; }
+    main { padding: 0; max-width: none; }
+    .titre-impression { display: block; margin: 0 0 16px; font-size: 18px; }
+    .grille { grid-template-columns: 1fr 1fr; }
+    .client { border-color: #999; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>BdL Linge — Relevés clients</h1>
+  <div class="onglets">
+    <button id="ongletJour" class="actif" onclick="choisirVue('jour')">Jour</button>
+    <button id="ongletMois" onclick="choisirVue('mois')">Cumul du mois</button>
+  </div>
+</header>
+<div class="outils">
+  <label id="libelle" for="periode">Date</label>
+  <input id="periode" type="date" onchange="charger()">
+  <button class="btn" onclick="charger()">Actualiser</button>
+  <span class="espace"></span>
+  <button class="btn" onclick="exporterCSV()">Export CSV</button>
+  <button class="btn principal" onclick="window.print()">Imprimer</button>
+</div>
+<main>
+  <div id="etat">Chargement…</div>
+  <h2 class="titre-impression" id="titreImpression"></h2>
+  <div id="zone" class="grille"></div>
+</main>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
+let vue = 'jour';
+let donnees = [];
+
+function aujourdhui() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+function choisirVue(v) {
+  vue = v;
+  document.getElementById('ongletJour').classList.toggle('actif', v === 'jour');
+  document.getElementById('ongletMois').classList.toggle('actif', v === 'mois');
+  const champ = document.getElementById('periode');
+  if (v === 'jour') {
+    document.getElementById('libelle').textContent = 'Date';
+    champ.type = 'date'; champ.value = aujourdhui();
+  } else {
+    document.getElementById('libelle').textContent = 'Mois';
+    champ.type = 'month'; champ.value = aujourdhui().slice(0, 7);
+  }
+  charger();
+}
+
+function libellePeriode() {
+  const v = document.getElementById('periode').value;
+  if (vue === 'jour') {
+    const [a, m, j] = v.split('-');
+    return 'Relevé du ' + j + '/' + m + '/' + a;
+  }
+  const [a, m] = v.split('-');
+  const nom = new Date(Number(a), Number(m) - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  return 'Cumul du mois — ' + nom;
+}
+
+async function charger() {
+  const etat = document.getElementById('etat');
+  const v = document.getElementById('periode').value;
+  if (!v) return;
+  etat.className = ''; etat.textContent = 'Chargement…';
+  const url = API_URL + (vue === 'jour' ? '?action=jour&date=' + v : '?action=mois&mois=' + v);
+  try {
+    const rep = await fetch(url);
+    const data = await rep.json();
+    if (!data.ok) throw new Error(data.error || 'Réponse invalide');
+    donnees = data.recap;
+    afficher();
+    etat.textContent = libellePeriode() + ' · mis à jour à ' +
+      new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  } catch (err) {
+    donnees = [];
+    afficher();
+    etat.className = 'erreur';
+    etat.textContent = 'Impossible de charger les données (' + err.message + ').';
+  }
+}
+
+function afficher() {
+  document.getElementById('titreImpression').textContent = libellePeriode();
+  const zone = document.getElementById('zone');
+  zone.innerHTML = '';
+  if (!donnees.length) {
+    zone.innerHTML = '<p class="vide">Aucune saisie sur cette période.</p>';
+    return;
+  }
+  donnees.forEach(c => {
+    const carte = document.createElement('section');
+    carte.className = 'client';
+    const h = document.createElement('h2');
+    h.textContent = c.client;
+    carte.appendChild(h);
+    const t = document.createElement('table');
+    c.articles.forEach(a => {
+      const tr = t.insertRow();
+      tr.insertCell().textContent = a.article;
+      const q = tr.insertCell(); q.className = 'q'; q.textContent = a.quantite;
+    });
+    const tot = t.insertRow(); tot.className = 'total';
+    tot.insertCell().textContent = 'Total pièces';
+    const q = tot.insertCell(); q.className = 'q'; q.textContent = c.total;
+    carte.appendChild(t);
+    zone.appendChild(carte);
+  });
+}
+
+function exporterCSV() {
+  if (!donnees.length) { alert('Rien à exporter sur cette période.'); return; }
+  const lignes = [['Client', 'Article', 'Quantité']];
+  donnees.forEach(c => c.articles.forEach(a => lignes.push([c.client, a.article, a.quantite])));
+  const csv = lignes.map(l => l.map(x => '"' + String(x).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'linge-' + vue + '-' + document.getElementById('periode').value + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+choisirVue('jour');
+</script>
+</body>
+</html>
