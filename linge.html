@@ -69,6 +69,9 @@
     background: var(--carte); border-radius: 12px; margin-bottom: 12px;
   }
   .article .nom { flex: 1; font-size: 24px; }
+  .article .deja { margin-top: 4px; font-size: 17px; font-weight: 600; color: var(--accent); }
+  .article .deja:empty { display: none; }
+  .tuile .deja-tuile { display: block; margin-top: 8px; font-size: 17px; font-weight: 600; color: var(--doux); }
   .article.rempli { outline: 3px solid var(--accent); }
   .pm {
     width: 68px; height: 68px; border: 0; border-radius: 12px;
@@ -164,7 +167,11 @@ function afficherClients() {
   zone.className = 'grille'; zone.innerHTML = '';
   catalogue.forEach(c => {
     const b = document.createElement('button');
-    b.className = 'tuile'; b.textContent = c.client;
+    b.className = 'tuile';
+    b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile"></span>';
+    b.querySelector('.nom-tuile').textContent = c.client;
+    const tot = totalJourClient(c.client);
+    b.querySelector('.deja-tuile').textContent = tot ? 'Aujourd\'hui : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
     b.onclick = () => afficherArticles(c);
     zone.appendChild(b);
   });
@@ -187,11 +194,13 @@ function afficherArticles(c, garder) {
     const ligne = document.createElement('div');
     ligne.className = 'article';
     ligne.innerHTML =
-      '<span class="nom"></span>' +
+      '<div class="nom"><div class="lib"></div><div class="deja"></div></div>' +
       '<button class="pm moins">−</button>' +
       '<input class="qte" type="number" inputmode="numeric" min="0" placeholder="0">' +
       '<button class="pm plus">+</button>';
-    ligne.querySelector('.nom').textContent = a;
+    ligne.querySelector('.lib').textContent = a;
+    ligne.dataset.article = a;
+    majDeja(ligne, c.client, a);
     const champ = ligne.querySelector('.qte');
     const maj = v => {
       v = Math.max(0, Math.floor(Number(v) || 0));
@@ -211,7 +220,7 @@ function afficherArticles(c, garder) {
   ajout.textContent = '+ Ajouter un article';
   ajout.onclick = nouvelArticle;
   zone.appendChild(ajout);
-  majBouton();
+  majBouton();  chargerJour();
 }
 
 function majBouton() {
@@ -288,6 +297,86 @@ async function nouvelArticle() {
   }
 }
 
+/* ---------- Détail des saisies du jour ---------- */
+const CLE_JOUR = 'linge_jour2';
+let jourRecap = lire(CLE_JOUR, { date: '', saisies: [] });
+
+function isoLocal(d) {
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function heureLocale(d) {
+  const p = n => String(n).padStart(2, '0');
+  return p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+async function chargerJour() {
+  const date = isoLocal(new Date());
+  try {
+    const rep = await fetch(API_URL + '?action=detailJour&date=' + date);
+    const data = await rep.json();
+    if (!data.ok) return;
+    jourRecap = { date: date, saisies: data.saisies || [] };
+    ecrire(CLE_JOUR, jourRecap);
+    rafraichirDeja();
+  } catch (e) {}
+}
+
+// Ajoute localement une ligne qui vient d'être envoyée, en attendant le prochain rechargement.
+function ajouterAuJour(l) {
+  const d = new Date(l.horodatage);
+  const date = isoLocal(new Date());
+  if (isoLocal(d) !== date) return;
+  if (jourRecap.date !== date) jourRecap = { date: date, saisies: [] };
+  jourRecap.saisies.push({ client: l.client, article: l.article, quantite: Number(l.quantite || 0), heure: heureLocale(d) });
+  ecrire(CLE_JOUR, jourRecap);
+}
+
+// Toutes les saisies du jour pour un client et un article : envoyées + en attente d'envoi.
+function entreesJour(client, article) {
+  const date = isoLocal(new Date());
+  const liste = [];
+  if (jourRecap.date === date) {
+    jourRecap.saisies.forEach(x => {
+      if (x.client === client && x.article === article) liste.push({ q: x.quantite, h: x.heure, attente: false });
+    });
+  }
+  lire(CLE_FILE, []).forEach(l => {
+    const d = new Date(l.horodatage);
+    if (l.client === client && l.article === article && isoLocal(d) === date) {
+      liste.push({ q: Number(l.quantite || 0), h: heureLocale(d), attente: true });
+    }
+  });
+  return liste.sort((a, b) => a.h.localeCompare(b.h));
+}
+
+function dejaSaisi(client, article) {
+  return entreesJour(client, article).reduce((t, x) => t + x.q, 0);
+}
+
+function totalJourClient(client) {
+  const c = catalogue.find(x => x.client === client);
+  if (!c) return 0;
+  return c.articles.reduce((t, a) => t + dejaSaisi(client, a), 0);
+}
+
+function majDeja(ligne, client, article) {
+  const e = entreesJour(client, article);
+  if (!e.length) { ligne.querySelector('.deja').textContent = ''; return; }
+  const total = e.reduce((t, x) => t + x.q, 0);
+  const morceaux = e.map(x => x.q + ' (' + x.h + (x.attente ? ', en attente' : '') + ')');
+  ligne.querySelector('.deja').textContent =
+    'Déjà saisi : ' + morceaux.join(' + ') + (e.length > 1 ? ' = ' + total : '');
+}
+
+function rafraichirDeja() {
+  if (clientCourant) {
+    document.querySelectorAll('.article').forEach(l => majDeja(l, clientCourant.client, l.dataset.article));
+  } else if (catalogue.length) {
+    afficherClients();
+  }
+}
+
 /* ---------- Validation : file locale puis envoi ---------- */
 function nouvelId() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -329,6 +418,7 @@ async function envoyer() {
     if (!data.ok) throw new Error(data.error || 'Refus du serveur');
     const envoyes = new Set(lot.map(l => l.id));
     ecrire(CLE_FILE, lire(CLE_FILE, []).filter(l => !envoyes.has(l.id)));
+    lot.forEach(l => ajouterAuJour(l));
     envoiEnCours = false;
     majStatut();
     if (lire(CLE_FILE, []).length) envoyer();
@@ -367,6 +457,8 @@ garderEcranAllume();
 
 /* ---------- Catalogue rafraîchi toutes les 10 minutes ---------- */
 setInterval(chargerCatalogue, 10 * 60 * 1000);
+setInterval(chargerJour, 2 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) chargerJour(); });
 
 /* ---------- Relances automatiques ---------- */
 setInterval(envoyer, 30000);
@@ -374,6 +466,7 @@ window.addEventListener('online', envoyer);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) envoyer(); });
 
 afficherOperateur();
+chargerJour();
 majStatut();
 chargerCatalogue();
 envoyer();
