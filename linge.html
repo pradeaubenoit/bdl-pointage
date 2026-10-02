@@ -40,6 +40,25 @@
     font-size: 18px; padding: 10px 16px; border: 1px solid #ffffff55;
     border-radius: 10px; background: transparent; color: #fff;
   }
+  #jourBtn {
+    font-size: 18px; padding: 10px 16px; border: 1px solid #ffffff55; border-radius: 10px;
+    background: transparent; color: #fff; font-weight: 600;
+  }
+  #bandeauJour {
+    display: none; padding: 14px 24px; background: #E8891A; color: #fff;
+    font-size: 22px; font-weight: 800; text-align: center;
+  }
+  #fondJour {
+    display: none; position: fixed; inset: 0; background: rgba(29,43,52,.5);
+    align-items: center; justify-content: center; padding: 20px; z-index: 30;
+  }
+  #panneauJour { background: #fff; border-radius: 16px; width: 100%; max-width: 520px; max-height: 90vh; overflow: auto; padding: 18px; }
+  #panneauJour h2 { margin: 0 0 12px; font-size: 22px; }
+  .choixJour {
+    display: block; width: 100%; margin-bottom: 10px; padding: 18px; border-radius: 12px;
+    border: 2px solid #C5D0D6; background: #fff; color: var(--encre); font-size: 22px; font-weight: 600; text-align: left;
+  }
+  .choixJour.actif { border-color: var(--accent); background: #E3EEF2; }
   #statut { font-size: 18px; padding: 8px 14px; border-radius: 10px; background: var(--ok); }
   #statut.attente { background: var(--alerte); }
   main { padding: 24px 24px 140px; }
@@ -106,9 +125,17 @@
 <header>
   <button id="retour" onclick="afficherClients()">← Clients</button>
   <h1 id="titre">Choisir un client</h1>
+  <button id="jourBtn" onclick="ouvrirJours()">Journée : …</button>
   <span id="statut">Tout est envoyé</span>
   <button id="operateur" onclick="changerOperateur()">Opérateur ?</button>
 </header>
+<div id="bandeauJour" onclick="choisirJour(null)"></div>
+<div id="fondJour" onclick="if (event.target === this) fermerJours()">
+  <div id="panneauJour">
+    <h2>Pour quelle journée ?</h2>
+    <div id="listeJours"></div>
+  </div>
+</div>
 <main>
   <div id="etat">Chargement du catalogue…</div>
   <div id="zone"></div>
@@ -171,7 +198,8 @@ function afficherClients() {
     b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile"></span>';
     b.querySelector('.nom-tuile').textContent = c.client;
     const tot = totalJourClient(c.client);
-    b.querySelector('.deja-tuile').textContent = tot ? 'Aujourd\'hui : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
+    const etiquette = jourChoisi ? libelleJour(jourChoisi).charAt(0).toUpperCase() + libelleJour(jourChoisi).slice(1) : 'Aujourd\'hui';
+    b.querySelector('.deja-tuile').textContent = tot ? etiquette + ' : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
     b.onclick = () => afficherArticles(c);
     zone.appendChild(b);
   });
@@ -310,12 +338,66 @@ function heureLocale(d) {
   return p(d.getHours()) + ':' + p(d.getMinutes());
 }
 
+/* ---------- Journée choisie (null = aujourd'hui) ---------- */
+let jourChoisi = null;
+const NOMS_J = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
+function jourCourant() { return jourChoisi || isoLocal(new Date()); }
+function dateDe(iso) { const [a, m, j] = iso.split('-').map(Number); return new Date(a, m - 1, j, 12); }
+function libelleJour(iso) {
+  const d = dateDe(iso);
+  const p = n => String(n).padStart(2, '0');
+  return NOMS_J[d.getDay()] + ' ' + p(d.getDate()) + '/' + p(d.getMonth() + 1);
+}
+function majJourAffiche() {
+  const auj = isoLocal(new Date());
+  const iso = jourCourant();
+  const lib = libelleJour(iso);
+  document.getElementById('jourBtn').textContent = 'Journée : ' + (iso === auj ? 'aujourd\'hui' : lib);
+  const b = document.getElementById('bandeauJour');
+  if (iso !== auj) {
+    b.textContent = 'Saisie pour ' + lib.toUpperCase() + ' — toucher ici pour revenir à aujourd\'hui';
+    b.style.display = 'block';
+  } else {
+    b.style.display = 'none';
+  }
+}
+function ouvrirJours() {
+  const liste = document.getElementById('listeJours');
+  liste.innerHTML = '';
+  const auj = new Date();
+  for (let i = -2; i <= 7; i++) {
+    const d = new Date(auj.getFullYear(), auj.getMonth(), auj.getDate() + i, 12);
+    const iso = isoLocal(d);
+    const b = document.createElement('button');
+    b.className = 'choixJour' + (iso === jourCourant() ? ' actif' : '');
+    let lib = libelleJour(iso);
+    lib = lib.charAt(0).toUpperCase() + lib.slice(1);
+    if (i === 0) lib += ' (aujourd\'hui)';
+    if (i === 1) lib += ' (demain)';
+    if (i === -1) lib += ' (hier)';
+    b.textContent = lib;
+    b.onclick = () => { choisirJour(i === 0 ? null : iso); fermerJours(); };
+    liste.appendChild(b);
+  }
+  document.getElementById('fondJour').style.display = 'flex';
+}
+function fermerJours() { document.getElementById('fondJour').style.display = 'none'; }
+function choisirJour(iso) {
+  jourChoisi = iso;
+  majJourAffiche();
+  jourRecap = { date: '', saisies: [] };
+  if (clientCourant) afficherArticles(clientCourant, true); else afficherClients();
+  chargerJour();
+}
+function jourDeLigne(l) { return l.date || isoLocal(new Date(l.horodatage)); }
+
 async function chargerJour() {
-  const date = isoLocal(new Date());
+  const date = jourCourant();
   try {
     const rep = await fetch(API_URL + '?action=detailJour&date=' + date);
     const data = await rep.json();
-    if (!data.ok) return;
+    if (!data.ok || date !== jourCourant()) return;
     jourRecap = { date: date, saisies: data.saisies || [] };
     ecrire(CLE_JOUR, jourRecap);
     rafraichirDeja();
@@ -325,16 +407,16 @@ async function chargerJour() {
 // Ajoute localement une ligne qui vient d'être envoyée, en attendant le prochain rechargement.
 function ajouterAuJour(l) {
   const d = new Date(l.horodatage);
-  const date = isoLocal(new Date());
-  if (isoLocal(d) !== date) return;
-  if (jourRecap.date !== date) jourRecap = { date: date, saisies: [] };
+  const date = jourCourant();
+  if (jourDeLigne(l) !== date) return;
+  if (jourRecap.date !== date) return;
   jourRecap.saisies.push({ client: l.client, article: l.article, quantite: Number(l.quantite || 0), heure: heureLocale(d) });
   ecrire(CLE_JOUR, jourRecap);
 }
 
 // Toutes les saisies du jour pour un client et un article : envoyées + en attente d'envoi.
 function entreesJour(client, article) {
-  const date = isoLocal(new Date());
+  const date = jourCourant();
   const liste = [];
   if (jourRecap.date === date) {
     jourRecap.saisies.forEach(x => {
@@ -343,7 +425,7 @@ function entreesJour(client, article) {
   }
   lire(CLE_FILE, []).forEach(l => {
     const d = new Date(l.horodatage);
-    if (l.client === client && l.article === article && isoLocal(d) === date) {
+    if (l.client === client && l.article === article && jourDeLigne(l) === date) {
       liste.push({ q: Number(l.quantite || 0), h: heureLocale(d), attente: true });
     }
   });
@@ -391,12 +473,13 @@ function valider() {
   const lignes = Object.entries(quantites)
     .filter(([, q]) => q > 0)
     .map(([article, quantite]) => ({
-      id: nouvelId(), horodatage: maintenant,
+      id: nouvelId(), horodatage: maintenant, date: jourCourant(),
       client: clientCourant.client, article, quantite, operateur: op
     }));
   if (!lignes.length) return;
   ecrire(CLE_FILE, lire(CLE_FILE, []).concat(lignes));
-  toast('Enregistré : ' + clientCourant.client + ', ' + lignes.length + ' article' + (lignes.length > 1 ? 's' : ''));
+  toast('Enregistré : ' + clientCourant.client + ', ' + lignes.length + ' article' + (lignes.length > 1 ? 's' : '') +
+    (jourChoisi ? ' — pour ' + libelleJour(jourChoisi) : ''));
   afficherClients();
   majStatut();
   envoyer();
@@ -458,7 +541,7 @@ garderEcranAllume();
 /* ---------- Catalogue rafraîchi toutes les 10 minutes ---------- */
 setInterval(chargerCatalogue, 10 * 60 * 1000);
 setInterval(chargerJour, 2 * 60 * 1000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) chargerJour(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { majJourAffiche(); chargerJour(); } });
 
 /* ---------- Relances automatiques ---------- */
 setInterval(envoyer, 30000);
@@ -466,6 +549,7 @@ window.addEventListener('online', envoyer);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) envoyer(); });
 
 afficherOperateur();
+majJourAffiche();
 chargerJour();
 majStatut();
 chargerCatalogue();
