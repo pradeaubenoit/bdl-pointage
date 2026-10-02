@@ -56,6 +56,14 @@
     border-left: 8px solid var(--accent);
   }
   .tuile:active { background: #D4E6EC; }
+  .tuile.ajout {
+    background: transparent; border: 3px dashed #9DB3BC; border-left: 3px dashed #9DB3BC;
+    color: var(--doux); font-weight: 600;
+  }
+  .ajout-article {
+    width: 100%; min-height: 72px; margin-top: 4px; border: 3px dashed #9DB3BC; border-radius: 12px;
+    background: transparent; color: var(--doux); font-size: 22px; font-weight: 600;
+  }
   .article {
     display: flex; align-items: center; gap: 14px; min-height: 88px; padding: 10px 16px 10px 22px;
     background: var(--carte); border-radius: 12px; margin-bottom: 12px;
@@ -129,7 +137,7 @@ function ecrire(cle, valeur) {
 async function chargerCatalogue() {
   const etat = document.getElementById('etat');
   const enCache = lire(CLE_CAT, null);
-  if (enCache) { catalogue = enCache; etat.textContent = ''; afficherClients(); }
+  if (enCache && !catalogue.length) { catalogue = enCache; etat.textContent = ''; afficherClients(); }
   try {
     const rep = await fetch(API_URL + '?action=catalogue');
     const data = await rep.json();
@@ -160,10 +168,16 @@ function afficherClients() {
     b.onclick = () => afficherArticles(c);
     zone.appendChild(b);
   });
+  const nouveau = document.createElement('button');
+  nouveau.className = 'tuile ajout';
+  nouveau.textContent = '+ Nouveau client';
+  nouveau.onclick = nouveauClient;
+  zone.appendChild(nouveau);
 }
 
-function afficherArticles(c) {
-  clientCourant = c; quantites = {};
+function afficherArticles(c, garder) {
+  clientCourant = c;
+  if (!garder) quantites = {};
   document.getElementById('titre').textContent = c.client;
   document.getElementById('retour').style.display = 'block';
   document.getElementById('barre').style.display = 'block';
@@ -189,8 +203,14 @@ function afficherArticles(c) {
     ligne.querySelector('.moins').onclick = () => maj((quantites[a] || 0) - 1);
     ligne.querySelector('.plus').onclick  = () => maj((quantites[a] || 0) + 1);
     champ.oninput = () => maj(champ.value);
+    if (quantites[a]) maj(quantites[a]);
     zone.appendChild(ligne);
   });
+  const ajout = document.createElement('button');
+  ajout.className = 'ajout-article';
+  ajout.textContent = '+ Ajouter un article';
+  ajout.onclick = nouvelArticle;
+  zone.appendChild(ajout);
   majBouton();
 }
 
@@ -210,6 +230,62 @@ function changerOperateur() {
   const nom = prompt('Prénom de la personne qui saisit :', lire(CLE_OP, ''));
   if (nom !== null && nom.trim()) { ecrire(CLE_OP, nom.trim()); afficherOperateur(); }
   return lire(CLE_OP, '');
+}
+
+/* ---------- Ajout au catalogue (protégé par code) ---------- */
+let codeResponsable = '';
+
+function demanderCode() {
+  if (codeResponsable) return codeResponsable;
+  const c = prompt('Code responsable :');
+  if (c && c.trim()) codeResponsable = c.trim();
+  return codeResponsable;
+}
+
+async function envoyerAjout(client, article) {
+  const code = demanderCode();
+  if (!code) return false;
+  try {
+    const rep = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'ajouterCatalogue', code: code, client: client, article: article })
+    });
+    const data = await rep.json();
+    if (!data.ok) {
+      if (data.error === 'Code incorrect') codeResponsable = '';
+      toast(data.error || 'Ajout refusé', true);
+      return false;
+    }
+    toast('Ajouté : ' + data.client + ' — ' + data.article);
+    await chargerCatalogue();
+    return data.client;
+  } catch (err) {
+    toast('Ajout impossible sans réseau. Réessaie quand le voyant est vert.', true);
+    return false;
+  }
+}
+
+async function nouveauClient() {
+  const client = prompt('Nom du nouveau client :');
+  if (!client || !client.trim()) return;
+  const article = prompt('Premier article pour ' + client.trim() + ' :');
+  if (!article || !article.trim()) return;
+  const nom = await envoyerAjout(client, article);
+  if (nom) {
+    const c = catalogue.find(x => x.client === nom);
+    if (c) afficherArticles(c);
+  }
+}
+
+async function nouvelArticle() {
+  if (!clientCourant) return;
+  const article = prompt('Nouvel article pour ' + clientCourant.client + ' :');
+  if (!article || !article.trim()) return;
+  const nom = await envoyerAjout(clientCourant.client, article);
+  if (nom) {
+    const c = catalogue.find(x => x.client === nom);
+    if (c) afficherArticles(c, true);
+  }
 }
 
 /* ---------- Validation : file locale puis envoi ---------- */
