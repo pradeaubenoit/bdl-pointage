@@ -78,6 +78,16 @@
   .tuile.vide .badge { background: #fff; color: var(--orange); }
   .tuile.nouveau .badge { background: #E3EEF2; color: var(--accent); }
   .tuile.retire { opacity: .45; text-decoration: line-through; }
+  .tuile.saisi { background: #EAF2FB; border-left-color: #2F6FB3; }
+  .tuile.saisi .badge { background: #fff; color: #2F6FB3; }
+  .tuile.absent { background: #F2F4F5; border-left-color: #B8C2C8; opacity: .6; }
+  .tuile.absent .badge { background: #fff; color: var(--doux); }
+  .legende { display: flex; gap: 16px; flex-wrap: wrap; margin: -6px 0 14px; color: var(--doux); font-size: 14px; }
+  .legende span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .legende .l-orange::before { background: var(--orange); }
+  .legende .l-bleu::before { background: #2F6FB3; }
+  .legende .l-vert::before { background: var(--ok); }
+  .legende .l-gris::before { background: #B8C2C8; }
   .tuile.ajoute { border-style: dashed; }
   .tuile.ajoute .badge { background: #FFF6D6; color: #6B5300; }
   #compteur:empty { display: none; }
@@ -151,6 +161,7 @@
     <span id="compteur"></span>
     <span id="etat">Chargement…</span>
   </div>
+  <div id="legende" class="legende"></div>
   <div id="attente"></div>
   <div id="zone" class="grille"></div>
   <div class="impression" id="impression"></div>
@@ -269,16 +280,38 @@ async function charger() {
 }
 
 /* ---------- Affichage ---------- */
+function avecPlan() { return mode === 'jour' && tableau && tableau.planOk; }
+
+// pointe (vert) · oubli (orange) · saisi (bleu) · absent (gris)
+function etat(c) {
+  if (c.pointe) return 'pointe';
+  if (avecPlan()) {
+    if (c.recu) return 'saisi';
+    if (c.lave) return 'oubli';
+    return 'absent';
+  }
+  return c.recu ? 'saisi' : 'oubli';
+}
+
 function compte(c) {
-  // Un client retiré sans saisie ne compte plus ; sinon il doit être pointé.
-  return !(retires.has(cle(c.client)) && !c.recu);
+  if (retires.has(cle(c.client)) && !c.recu) return false;
+  if (avecPlan()) return c.lave || c.recu || c.pointe;
+  return true;
 }
 
 function afficher() {
   document.getElementById('titre').textContent = libelle();
   const zone = document.getElementById('zone');
   zone.innerHTML = '';
-  const clients = listeAffichee();
+  const clients = listeAffichee().slice().sort((a, b) =>
+    ((etat(a) === 'absent') - (etat(b) === 'absent')) || a.client.localeCompare(b.client, 'fr'));
+
+  const leg = document.getElementById('legende');
+  leg.innerHTML = mode === 'jour'
+    ? (avecPlan()
+        ? '<span class="l-orange">Lavé, rien saisi</span><span class="l-bleu">Saisi, à pointer</span><span class="l-vert">Pointé</span><span class="l-gris">Pas lavé aujourd\'hui</span>'
+        : '<span class="l-orange">Rien reçu de l\'atelier</span><span class="l-bleu">Saisi, à pointer</span><span class="l-vert">Pointé</span> · plan de travail injoignable, couleurs selon la journée type')
+    : '';
 
   const aCompter = clients.filter(compte);
   const reste = aCompter.filter(c => !c.pointe).length;
@@ -301,8 +334,11 @@ function afficher() {
     const k = cle(c.client);
     const t = document.createElement('div');
     t.className = 'tuile';
-    if (c.pointe) t.classList.add('pointe');
-    else if (!c.recu) t.classList.add('vide');
+    const et = etat(c);
+    if (et === 'pointe') t.classList.add('pointe');
+    else if (et === 'oubli') t.classList.add('vide');
+    else if (et === 'saisi') t.classList.add('saisi');
+    else t.classList.add('absent');
     if (mode === 'jour' && !c.attendu && !c.ajoute) t.classList.add('nouveau');
     if (c.ajoute) t.classList.add('ajoute');
     if (retires.has(k)) t.classList.add('retire');
@@ -310,7 +346,9 @@ function afficher() {
     let html = '<div class="nom"></div><div class="info">' +
       (c.recu ? c.total + ' pièce' + (c.total > 1 ? 's' : '') : 'Aucune pièce') + '</div>';
     if (c.ajoute) html += '<span class="badge">À diffuser</span>';
-    else if (!c.recu && !c.pointe) html += '<span class="badge">Rien reçu de l\'atelier</span>';
+    else if (et === 'oubli') html += '<span class="badge">' + (avecPlan() ? 'Lavé, rien saisi' : 'Rien reçu de l\'atelier') + '</span>';
+    else if (et === 'absent') html += '<span class="badge">Pas lavé aujourd\'hui</span>';
+    else if (avecPlan() && c.recu && !c.lave && !c.pointe) html += '<span class="badge">Non vu au lavage</span>';
     else if (mode === 'jour' && !c.attendu) html += '<span class="badge">Nouveau ce jour</span>';
     t.innerHTML = html;
     t.querySelector('.nom').textContent = c.client;
