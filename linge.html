@@ -79,6 +79,8 @@
     border-left: 8px solid var(--accent);
   }
   .tuile:active { background: #D4E6EC; }
+  .tuile.alave { background: #FBEFDF; border-left-color: #C26A12; }
+  .tuile .badge-lave { display: inline-block; margin-top: 8px; font-size: 17px; font-weight: 700; color: #C26A12; }
   .vide-jour { grid-column: 1 / -1; font-size: 22px; color: var(--doux); margin: 4px 0 8px; }
   .tuile.ajout {
     background: transparent; border: 3px dashed #9DB3BC; border-left: 3px dashed #9DB3BC;
@@ -211,14 +213,25 @@ function afficherClients() {
     p.textContent = 'Aucun client prévu pour cette journée. Touchez « + Ajouter un client ».';
     zone.appendChild(p);
   }
-  liste.forEach(c => {
+  const laves = lavesDuJourAtelier();
+  const aSaisir = c => laves.has(cleNom(c.client)) && totalJourClient(c.client) === 0;
+  const tries = liste.slice().sort((a, b) => (aSaisir(b) - aSaisir(a)) || a.client.localeCompare(b.client, 'fr'));
+  const nbASaisir = tries.filter(aSaisir).length;
+  if (nbASaisir) document.getElementById('titre').textContent = 'Choisir un client — ' + nbASaisir + ' lavé' + (nbASaisir > 1 ? 's' : '') + ' à saisir';
+  tries.forEach(c => {
     const b = document.createElement('button');
-    b.className = 'tuile';
+    b.className = 'tuile' + (aSaisir(c) ? ' alave' : '');
     b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile"></span>';
     b.querySelector('.nom-tuile').textContent = c.client;
     const tot = totalJourClient(c.client);
     const etiquette = jourChoisi ? libelleJour(jourChoisi).charAt(0).toUpperCase() + libelleJour(jourChoisi).slice(1) : 'Aujourd\'hui';
     b.querySelector('.deja-tuile').textContent = tot ? etiquette + ' : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
+    if (aSaisir(c)) {
+      const badge = document.createElement('span');
+      badge.className = 'badge-lave';
+      badge.textContent = 'Lavé, à saisir';
+      b.appendChild(badge);
+    }
     b.onclick = () => afficherArticles(c);
     zone.appendChild(b);
   });
@@ -433,7 +446,7 @@ async function chargerListeJour() {
     const data = await rep.json();
     if (!data.ok || date !== jourCourant()) return;
     const listes = lire(CLE_LISTES, {});
-    listes[date] = data.clients.map(c => c.client);
+    listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client) };
     Object.keys(listes).forEach(d => { if (d < isoLocal(new Date(Date.now() - 7 * 864e5))) delete listes[d]; });
     ecrire(CLE_LISTES, listes);
     if (!clientCourant) afficherClients();
@@ -445,10 +458,15 @@ function clientsDuJour() {
   const date = jourCourant();
   const listes = lire(CLE_LISTES, {});
   if (!listes[date]) return null;
-  const noms = new Set(listes[date].map(cleNom));
+  const noms = new Set((Array.isArray(listes[date]) ? listes[date] : listes[date].noms).map(cleNom));
   (lire(CLE_AJOUTS, {})[date] || []).forEach(n => noms.add(cleNom(n)));
   lire(CLE_FILE, []).forEach(l => { if (jourDeLigne(l) === date) noms.add(cleNom(l.client)); });
   return catalogue.filter(c => noms.has(cleNom(c.client)));
+}
+
+function lavesDuJourAtelier() {
+  const l = lire(CLE_LISTES, {})[jourCourant()];
+  return new Set(l && !Array.isArray(l) ? l.laves.map(cleNom) : []);
 }
 
 function ajouterClientAuJour(nom) {
