@@ -554,6 +554,21 @@ function afficherImpression() {
 
 afficherNom();
 choisirMode('jour');
+
+/* ---------- Mise à jour automatique ---------- */
+// Toutes les 60 s et au retour sur la page, sauf si une action est en cours
+// (fenêtre ouverte, retraits ou ajouts pas encore diffusés).
+function actualiserSiLibre() {
+  if (document.hidden) return;
+  if (document.getElementById('fond').style.display === 'flex') return;
+  const fa = document.getElementById('fondAjout');
+  if (fa && fa.style.display === 'flex') return;
+  if (retires.size || (typeof ajoutes !== 'undefined' && ajoutes.length)) return;
+  const y = window.scrollY;
+  charger().then(() => window.scrollTo(0, y));
+}
+setInterval(actualiserSiLibre, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) actualiserSiLibre(); });
 </script>
 </body>
 </html>
