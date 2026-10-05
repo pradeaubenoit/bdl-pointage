@@ -2030,7 +2030,8 @@ let jsonpCounter = 0;
   const url = API_URL + '?' + queryParts.join('&');
   // Une ecriture n'est JAMAIS reessayee : cela creerait un doublon.
   // Seules les lectures ont droit a 3 essais.
-  const _lecture = /^(get|salaries$|analyse|reorganiser|assistant)/i.test(String(action));
+  // saveAffectationsJour ecrase les plages d'un salarie pour un jour : le rejouer ne cree pas de doublon.
+  const _lecture = /^(get|salaries$|analyse|reorganiser|assistant|saveAffectationsJour$)/i.test(String(action));
   const _maxEssais = _lecture ? 3 : 1;
   function _tenter(essai) {
     return fetch(url, { method: 'GET', redirect: 'follow' })
