@@ -79,6 +79,11 @@
     border-left: 8px solid var(--accent);
   }
   .tuile:active { background: #D4E6EC; }
+  .tuile { position: relative; }
+  .retirer {
+    position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; border-radius: 10px;
+    border: 0; background: #0000000d; color: var(--doux); font-size: 26px; line-height: 1;
+  }
   .tuile.alave { background: #FBEFDF; border-left-color: #C26A12; }
   .tuile .badge-lave { display: inline-block; margin-top: 8px; font-size: 17px; font-weight: 700; color: #C26A12; }
   .vide-jour { grid-column: 1 / -1; font-size: 22px; color: var(--doux); margin: 4px 0 8px; }
@@ -226,6 +231,13 @@ function afficherClients() {
     const tot = totalJourClient(c.client);
     const etiquette = jourChoisi ? libelleJour(jourChoisi).charAt(0).toUpperCase() + libelleJour(jourChoisi).slice(1) : 'Aujourd\'hui';
     b.querySelector('.deja-tuile').textContent = tot ? etiquette + ' : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
+    if (estAjoutManuel(c.client) && totalJourClient(c.client) === 0) {
+      const x = document.createElement('span');
+      x.className = 'retirer';
+      x.textContent = '×';
+      x.onclick = ev => { ev.stopPropagation(); retirerDuJour(c.client); };
+      b.appendChild(x);
+    }
     if (aSaisir(c)) {
       const badge = document.createElement('span');
       badge.className = 'badge-lave';
@@ -467,6 +479,35 @@ function clientsDuJour() {
 function lavesDuJourAtelier() {
   const l = lire(CLE_LISTES, {})[jourCourant()];
   return new Set(l && !Array.isArray(l) ? l.laves.map(cleNom) : []);
+}
+
+// Ajouté à la main sur cet appareil, et pas fourni par le serveur (journée type, lavé, saisi, créé).
+function estAjoutManuel(nom) {
+  const date = jourCourant();
+  const ajouts = lire(CLE_AJOUTS, {})[date] || [];
+  if (!ajouts.some(n => cleNom(n) === cleNom(nom))) return false;
+  const l = lire(CLE_LISTES, {})[date];
+  const serveur = l ? (Array.isArray(l) ? l : l.noms) : [];
+  return !serveur.some(n => cleNom(n) === cleNom(nom));
+}
+
+async function retirerDuJour(nom) {
+  const code = demanderCode();
+  if (!code) return;
+  try {
+    const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'verifierCode', code: code }) });
+    const data = await rep.json();
+    if (!data.ok) { codeResponsable = ''; toast(data.error || 'Code incorrect', true); return; }
+  } catch (e) {
+    toast('Vérification impossible sans réseau.', true);
+    return;
+  }
+  const date = jourCourant();
+  const ajouts = lire(CLE_AJOUTS, {});
+  ajouts[date] = (ajouts[date] || []).filter(n => cleNom(n) !== cleNom(nom));
+  ecrire(CLE_AJOUTS, ajouts);
+  toast(nom + ' retiré de la journée');
+  afficherClients();
 }
 
 function ajouterClientAuJour(nom) {
