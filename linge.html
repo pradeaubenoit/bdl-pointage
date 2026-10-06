@@ -86,6 +86,8 @@
   }
   .tuile.alave { background: #FBEFDF; border-left-color: #C26A12; }
   .tuile .badge-lave { display: inline-block; margin-top: 8px; font-size: 17px; font-weight: 700; color: #C26A12; }
+  .tuile .sortie { display: block; margin-top: 6px; font-size: 17px; font-weight: 600; color: var(--doux); }
+  .tuile.alave .sortie { color: #8A4A0C; font-size: 19px; font-weight: 800; }
   .vide-jour { grid-column: 1 / -1; font-size: 22px; color: var(--doux); margin: 4px 0 8px; }
   .tuile.ajout {
     background: transparent; border: 3px dashed #9DB3BC; border-left: 3px dashed #9DB3BC;
@@ -220,7 +222,11 @@ function afficherClients() {
   }
   const laves = lavesDuJourAtelier();
   const aSaisir = c => laves.has(cleNom(c.client)) && totalJourClient(c.client) === 0;
-  const tries = liste.slice().sort((a, b) => (aSaisir(b) - aSaisir(a)) || a.client.localeCompare(b.client, 'fr'));
+  const sorties = sortiesDuJour();
+  const premiere = c => ((sorties[cleNom(c.client)] || [])[0]) || '99:99';
+  const tries = liste.slice().sort((a, b) => (aSaisir(b) - aSaisir(a))
+    || (aSaisir(a) && aSaisir(b) ? premiere(a).localeCompare(premiere(b)) : 0)
+    || a.client.localeCompare(b.client, 'fr'));
   const nbASaisir = tries.filter(aSaisir).length;
   if (nbASaisir) document.getElementById('titre').textContent = 'Choisir un client — ' + nbASaisir + ' lavé' + (nbASaisir > 1 ? 's' : '') + ' à saisir';
   tries.forEach(c => {
@@ -237,6 +243,13 @@ function afficherClients() {
       x.textContent = '×';
       x.onclick = ev => { ev.stopPropagation(); retirerDuJour(c.client); };
       b.appendChild(x);
+    }
+    const hs = sorties[cleNom(c.client)];
+    if (hs && hs.length) {
+      const so = document.createElement('span');
+      so.className = 'sortie';
+      so.textContent = 'Sortie séchoir ~' + hs.join(' · ');
+      b.appendChild(so);
     }
     if (aSaisir(c)) {
       const badge = document.createElement('span');
@@ -458,7 +471,9 @@ async function chargerListeJour() {
     const data = await rep.json();
     if (!data.ok || date !== jourCourant()) return;
     const listes = lire(CLE_LISTES, {});
-    listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client) };
+    const sorties = {};
+    data.clients.forEach(c => { if (c.sorties && c.sorties.length) sorties[cleNom(c.client)] = c.sorties; });
+    listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client), sorties: sorties };
     Object.keys(listes).forEach(d => { if (d < isoLocal(new Date(Date.now() - 7 * 864e5))) delete listes[d]; });
     ecrire(CLE_LISTES, listes);
     if (!clientCourant) afficherClients();
@@ -474,6 +489,11 @@ function clientsDuJour() {
   (lire(CLE_AJOUTS, {})[date] || []).forEach(n => noms.add(cleNom(n)));
   lire(CLE_FILE, []).forEach(l => { if (jourDeLigne(l) === date) noms.add(cleNom(l.client)); });
   return catalogue.filter(c => noms.has(cleNom(c.client)));
+}
+
+function sortiesDuJour() {
+  const l = lire(CLE_LISTES, {})[jourCourant()];
+  return (l && !Array.isArray(l) && l.sorties) || {};
 }
 
 function lavesDuJourAtelier() {
