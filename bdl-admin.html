@@ -2494,6 +2494,46 @@ async function loadProductionMonthData(month) {
 }
 
 // ============================================================
+// EDF — période de facturation (du jour J du mois au jour J du mois suivant)
+// Le jour J se règle dans Réglages (jour_facturation_edf), par défaut 9.
+// Une ligne datée D porte la conso du jour D (index relevé le matin de D+1) :
+// la facture « du 9 au 9 » = lignes du 9 du mois au 8 du mois suivant.
+// ============================================================
+async function afficherPeriodeEdf(month, prixEdf) {
+  const el = document.getElementById('statEdfFacture');
+  if (!el) return;
+  try {
+    const j = Math.min(28, Math.max(1, parseInt(state.parametres.jour_facturation_edf, 10) || 9));
+    const [a, m] = month.split('-').map(Number);
+    const suivant = m === 12 ? (a + 1) + '-01' : a + '-' + String(m + 1).padStart(2, '0');
+    const debut = month + '-' + String(j).padStart(2, '0');
+    const fin = suivant + '-' + String(j).padStart(2, '0');
+    const lignes = [];
+    for (const mo of [month, suivant]) {
+      const d = await loadProductionMonthData(mo);
+      (d.production || []).forEach(r => lignes.push(r));
+    }
+    // une seule ligne par jour (évite de compter un doublon deux fois)
+    const parJour = {};
+    lignes.forEach(r => {
+      if (r.date_travail >= debut && r.date_travail < fin && r.edf_kwh != null && r.edf_kwh !== '') {
+        parJour[r.date_travail] = Math.max(parJour[r.date_travail] || 0, Number(r.edf_kwh) || 0);
+      }
+    });
+    const kwh = Object.values(parJour).reduce((t, v) => t + v, 0);
+    const enCours = todayIso() < fin;
+    const jj = s => s.slice(8, 10) + '/' + s.slice(5, 7);
+    el.innerHTML = `
+      <div class="stat-icon">🧾</div>
+      <div class="stat-label">EDF facture ${jj(debut)} → ${jj(fin)}</div>
+      <div class="stat-value">${fmtNum(kwh)} kWh</div>
+      <div class="stat-meta">${fmtEur(kwh * prixEdf)}${enCours ? ' · en cours' : ''}</div>`;
+  } catch (e) {
+    el.querySelector('.stat-value').textContent = '—';
+  }
+}
+
+// ============================================================
 // SECTION PRODUCTION
 // ============================================================
 async function loadProductionMonth(month) {
@@ -2520,7 +2560,9 @@ const prod = await loadProductionMonthData(month);
     a.eau += r.eau_m3 || 0;
     a.gaz += r.gaz_pct || 0;
     a.compr += r.compresseur_h || 0;
-    a.edf += Number(r.edf_kwh) || 0;
+    // EDF : une seule valeur par jour (un doublon de saisie ne compte pas deux fois)
+    const kE = Number(r.edf_kwh) || 0;
+    if (kE) { a._edfJ = a._edfJ || {}; if (!a._edfJ[r.date_travail]) { a._edfJ[r.date_travail] = 1; a.edf += kE; } }
     a.transferts += r.transferts || 0;
     return a;
   }, { kg: 0, eau: 0, gaz: 0, compr: 0, edf: 0, transferts: 0 });
@@ -2559,7 +2601,13 @@ const prod = await loadProductionMonthData(month);
       <div class="stat-value">${fmtNum(tot.edf)} kWh</div>
       <div class="stat-meta">${fmtEur(tot.edf * prixEdf)}</div>
     </div>
+    <div class="stat" id="statEdfFacture">
+      <div class="stat-icon">🧾</div>
+      <div class="stat-label">EDF période de facture</div>
+      <div class="stat-value">…</div>
+    </div>
   `;
+  afficherPeriodeEdf(month, prixEdf);
 
   // Tableau
   if (records.length === 0) {
@@ -3025,6 +3073,8 @@ function renderReglages() {
     { cle: 'prix_gaz_tonne', label: 'Prix du gaz propane', unit: '€/tonne', step: 1 },
     { cle: 'kg_par_transfert', label: 'Conversion linge', unit: 'kg/transfert', step: 1 },
     { cle: 'cuve_gaz_tonnes', label: 'Capacité cuve gaz', unit: 'tonnes', step: 0.5 },
+    { cle: 'prix_edf_kwh', label: 'Prix EDF tout compris (facture HT ÷ kWh)', unit: '€/kWh', step: 0.001 },
+    { cle: 'jour_facturation_edf', label: 'Jour de début de facture EDF', unit: 'du mois', step: 1 },
     { cle: 'cout_kg_cible', label: 'Cible coût/kg', unit: '€/kg', step: 0.01 },
     { cle: 'marge_brute_cible_pct', label: 'Cible marge brute', unit: '%', step: 1 },
     { cle: 'ratio_personnel_ca_cible_pct', label: 'Cible ratio Personnel/CA', unit: '%', step: 1 },    
