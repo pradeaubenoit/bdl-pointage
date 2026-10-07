@@ -347,6 +347,7 @@ function afficher() {
     let html = '<div class="nom"></div><div class="info">' +
       (c.recu ? c.total + ' pièce' + (c.total > 1 ? 's' : '') : 'Aucune pièce') + '</div>';
     if (c.ajoute) html += '<span class="badge">À diffuser</span>';
+    else if (et === 'oubli' && c.reporteDe) html += '<span class="badge">Lavé le ' + c.reporteDe.slice(8, 10) + '/' + c.reporteDe.slice(5, 7) + ', rien saisi</span>';
     else if (et === 'oubli') html += '<span class="badge">' + (avecPlan() ? 'Lavé, rien saisi' : 'Rien reçu de l\'atelier') + '</span>';
     else if (et === 'absent') html += '<span class="badge">Pas lavé aujourd\'hui</span>';
     else if (avecPlan() && c.recu && !c.lave && !c.pointe) html += '<span class="badge">Non vu au lavage</span>';
@@ -447,7 +448,9 @@ let catalogueClients = [];
 function listeAffichee() {
   if (!tableau) return [];
   const extra = ajoutes.map(n => ({ client: n, attendu: false, ajoute: true, articles: [], total: 0, recu: false, pointe: false }));
-  return tableau.clients.concat(extra).sort((a, b) => a.client.localeCompare(b.client, 'fr'));
+  // Lavé ce jour mais livré (et saisi) le jour suivant : il est compté sur le jour de livraison.
+  const gardes = tableau.clients.filter(c => !(c.reporte && !c.recu && !c.pointe));
+  return gardes.concat(extra).sort((a, b) => a.client.localeCompare(b.client, 'fr'));
 }
 
 async function ouvrirAjout() {
