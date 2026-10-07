@@ -231,7 +231,8 @@ function afficherClients() {
   }
   const laves = lavesDuJourAtelier();
   const laveVide = c => laves.has(cleNom(c.client)) && totalJourClient(c.client) === 0;
-  const aSaisir = c => laveVide(c) && !reportDe(c.client);
+  const aTraiter = c => laveVide(c) || relave(c.client);
+  const aSaisir = c => aTraiter(c) && !reportDe(c.client);
   const sorties = sortiesDuJour();
   const premiere = c => ((sorties[cleNom(c.client)] || [])[0]) || '99:99';
   const tries = liste.slice().sort((a, b) => (aSaisir(b) - aSaisir(a))
@@ -241,7 +242,7 @@ function afficherClients() {
   if (nbASaisir) document.getElementById('titre').textContent = 'Choisir un client — ' + nbASaisir + ' lavé' + (nbASaisir > 1 ? 's' : '') + ' à saisir';
   tries.forEach(c => {
     const b = document.createElement('button');
-    const cible = laveVide(c) ? reportDe(c.client) : null;
+    const cible = laves.has(cleNom(c.client)) ? reportDe(c.client) : null;
     b.className = 'tuile' + (aSaisir(c) ? ' alave' : '') + (cible ? ' reporte' : '');
     b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile"></span>';
     b.querySelector('.nom-tuile').textContent = c.client;
@@ -265,7 +266,8 @@ function afficherClients() {
     if (aSaisir(c)) {
       const badge = document.createElement('span');
       badge.className = 'badge-lave';
-      badge.textContent = 'Lavé, à saisir';
+      const rl = relave(c.client);
+      badge.textContent = rl ? 'Relavé à ' + rl + ', à saisir' : 'Lavé, à saisir';
       b.appendChild(badge);
     }
     if (cible) {
@@ -281,7 +283,7 @@ function afficherClients() {
       lv.textContent = 'Lavé ' + libelleJour(veille);
       b.insertBefore(lv, b.querySelector('.deja-tuile').nextSibling);
     }
-    if (laveVide(c) && !veille) {
+    if (cible || (aTraiter(c) && !(veille && laveVide(c)))) {
       const bas = document.createElement('span');
       bas.className = 'bascule';
       const mot = motLivraison(jourCourant());
@@ -511,6 +513,32 @@ function listeCache() { const l = lire(CLE_LISTES, {})[jourCourant()]; return (l
 function reportDe(nom) { return (listeCache().reports || {})[cleNom(nom)] || null; }
 function laveLe(nom) { return (listeCache().reportesDe || {})[cleNom(nom)] || null; }
 
+// Client déjà saisi, relavé après l'heure de bascule (14 h) et après sa dernière saisie du jour :
+// il repasse en orange. Renvoie l'heure du lavage (« 15:20 ») ou null.
+function relave(nom) {
+  const l = listeCache();
+  const df = (l.dernierFait || {})[cleNom(nom)];
+  if (df == null || df < (l.bascule || 14) * 3600) return null;
+  if (totalJourClient(nom) === 0) return null;
+  const date = jourCourant();
+  const enSec = h => { const [a, b] = String(h || '').split(':').map(Number); return (a || 0) * 3600 + (b || 0) * 60; };
+  let derniere = -1;
+  if (jourRecap.date === date) {
+    jourRecap.saisies.forEach(x => {
+      if (cleNom(x.client) === cleNom(nom) && x.le === date) derniere = Math.max(derniere, enSec(x.heure));
+    });
+  }
+  lire(CLE_FILE, []).forEach(x => {
+    const d = new Date(x.horodatage);
+    if (cleNom(x.client) === cleNom(nom) && jourDeLigne(x) === date && isoLocal(d) === date) {
+      derniere = Math.max(derniere, d.getHours() * 3600 + d.getMinutes() * 60);
+    }
+  });
+  if (df <= derniere) return null;
+  const p = n => String(n).padStart(2, '0');
+  return p(Math.floor(df / 3600)) + ':' + p(Math.floor((df % 3600) / 60));
+}
+
 async function basculerReport(nom) {
   const date = jourCourant();
   const cible = reportDe(nom) ? null : lendemain(date);
@@ -571,14 +599,15 @@ async function chargerListeJour() {
     if (!data.ok || date !== jourCourant()) return;
     const listes = lire(CLE_LISTES, {});
     const sorties = {};
-    const reports = {}, reportesDe = {};
+    const reports = {}, reportesDe = {}, dernierFait = {};
     data.clients.forEach(c => {
+      if (c.dernierFait != null) dernierFait[cleNom(c.client)] = c.dernierFait;
       if (c.sorties && c.sorties.length) sorties[cleNom(c.client)] = c.sorties;
       if (c.reporte) reports[cleNom(c.client)] = c.reporte;
       if (c.reporteDe) reportesDe[cleNom(c.client)] = c.reporteDe;
     });
     listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client),
-      sorties: sorties, reports: reports, reportesDe: reportesDe };
+      sorties: sorties, reports: reports, reportesDe: reportesDe, dernierFait: dernierFait, bascule: data.bascule || 14 };
     Object.keys(listes).forEach(d => { if (d < isoLocal(new Date(Date.now() - 7 * 864e5))) delete listes[d]; });
     ecrire(CLE_LISTES, listes);
     if (!clientCourant) afficherClients();
@@ -676,7 +705,7 @@ function ajouterAuJour(l) {
   const date = jourCourant();
   if (jourDeLigne(l) !== date) return;
   if (jourRecap.date !== date) return;
-  jourRecap.saisies.push({ client: l.client, article: l.article, quantite: Number(l.quantite || 0), heure: heureLocale(d) });
+  jourRecap.saisies.push({ client: l.client, article: l.article, quantite: Number(l.quantite || 0), heure: heureLocale(d), le: isoLocal(d) });
   ecrire(CLE_JOUR, jourRecap);
 }
 
