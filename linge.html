@@ -235,7 +235,9 @@ function afficherClients() {
   }
   const laves = lavesDuJourAtelier();
   const laveVide = c => laves.has(cleNom(c.client)) && totalJourClient(c.client) === 0;
-  const aTraiter = c => laveVide(c) || relave(c.client);
+  // Journée terminée : ce qui n'a pas été saisi n'est plus « à saisir » (gris si rien, bleu si saisi).
+  const journeeFinie = jourCourant() < isoLocal(new Date());
+  const aTraiter = c => !journeeFinie && ((laveVide(c) && !dejaSaisiLendemain(c.client)) || relave(c.client));
   const aSaisir = c => aTraiter(c) && !reportDe(c.client);
   const sorties = sortiesDuJour();
   const premiere = c => ((sorties[cleNom(c.client)] || [])[0]) || '99:99';
@@ -517,6 +519,16 @@ function motLivraison(iso) {
 function listeCache() { const l = lire(CLE_LISTES, {})[jourCourant()]; return (l && !Array.isArray(l)) ? l : {}; }
 function reportDe(nom) { return (listeCache().reports || {})[cleNom(nom)] || null; }
 function laveLe(nom) { return (listeCache().reportesDe || {})[cleNom(nom)] || null; }
+
+// Lavé ce jour et déjà saisi sur le jour de livraison suivant, après ce lavage : rien à faire ici.
+function dejaSaisiLendemain(nom) {
+  const l = listeCache();
+  const df = (l.dernierFait || {})[cleNom(nom)];
+  const suite = (l.suites || {})[cleNom(nom)];
+  if (df == null || !suite) return false;
+  const p = n => String(n).padStart(2, '0');
+  return suite > jourCourant() + ' ' + p(Math.floor(df / 3600)) + ':' + p(Math.floor((df % 3600) / 60));
+}
 
 // Client déjà saisi, relavé après l'heure de bascule (14 h) et après sa dernière saisie du jour :
 // il repasse en orange. Renvoie l'heure du lavage (« 15:20 ») ou null.
