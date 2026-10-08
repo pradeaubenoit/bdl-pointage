@@ -78,7 +78,11 @@
     font-size: 26px; font-weight: 700; text-align: left;
     border-left: 8px solid var(--accent);
   }
+  .tuile.ajout { border-left-width: 3px; }
   .tuile:active { background: #D4E6EC; }
+  /* Gris = prévu, rien de lavé ni saisi. Bleu = déjà saisi. */
+  .tuile.attente { background: #F1F3F4; color: #6B7A83; border-left-color: #B8C2C8; }
+  .tuile.saisi { border-left-color: var(--accent); }
   .tuile { position: relative; }
   .retirer {
     position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; border-radius: 10px;
@@ -242,8 +246,9 @@ function afficherClients() {
   if (nbASaisir) document.getElementById('titre').textContent = 'Choisir un client — ' + nbASaisir + ' lavé' + (nbASaisir > 1 ? 's' : '') + ' à saisir';
   tries.forEach(c => {
     const b = document.createElement('button');
-    const cible = laves.has(cleNom(c.client)) ? reportDe(c.client) : null;
-    b.className = 'tuile' + (aSaisir(c) ? ' alave' : '') + (cible ? ' reporte' : '');
+    const cible = reportDe(c.client);
+    const etat = aSaisir(c) || cible ? '' : (totalJourClient(c.client) > 0 ? ' saisi' : ' attente');
+    b.className = 'tuile' + (aSaisir(c) ? ' alave' : '') + (cible ? ' reporte' : '') + etat;
     b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile"></span>';
     b.querySelector('.nom-tuile').textContent = c.client;
     const tot = totalJourClient(c.client);
@@ -536,7 +541,11 @@ function relave(nom) {
   });
   if (df <= derniere) return null;
   const p = n => String(n).padStart(2, '0');
-  return p(Math.floor(df / 3600)) + ':' + p(Math.floor((df % 3600) / 60));
+  const h = p(Math.floor(df / 3600)) + ':' + p(Math.floor((df % 3600) / 60));
+  // Déjà saisi sur le jour de livraison suivant, après ce lavage : rien à faire ici.
+  const suite = (l.suites || {})[cleNom(nom)];
+  if (suite && suite > date + ' ' + h) return null;
+  return h;
 }
 
 async function basculerReport(nom) {
@@ -599,15 +608,16 @@ async function chargerListeJour() {
     if (!data.ok || date !== jourCourant()) return;
     const listes = lire(CLE_LISTES, {});
     const sorties = {};
-    const reports = {}, reportesDe = {}, dernierFait = {};
+    const reports = {}, reportesDe = {}, dernierFait = {}, suites = {};
     data.clients.forEach(c => {
       if (c.dernierFait != null) dernierFait[cleNom(c.client)] = c.dernierFait;
+      if (c.suite) suites[cleNom(c.client)] = c.suite;
       if (c.sorties && c.sorties.length) sorties[cleNom(c.client)] = c.sorties;
       if (c.reporte) reports[cleNom(c.client)] = c.reporte;
       if (c.reporteDe) reportesDe[cleNom(c.client)] = c.reporteDe;
     });
     listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client),
-      sorties: sorties, reports: reports, reportesDe: reportesDe, dernierFait: dernierFait, bascule: data.bascule || 14 };
+      sorties: sorties, reports: reports, reportesDe: reportesDe, dernierFait: dernierFait, suites: suites, bascule: data.bascule || 14 };
     Object.keys(listes).forEach(d => { if (d < isoLocal(new Date(Date.now() - 7 * 864e5))) delete listes[d]; });
     ecrire(CLE_LISTES, listes);
     if (!clientCourant) afficherClients();
