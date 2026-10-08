@@ -71,6 +71,9 @@
   .tuile:hover { border-color: var(--accent); }
   .tuile .nom { font-size: 20px; font-weight: 700; text-transform: capitalize; padding-right: 26px; }
   .tuile .info { margin-top: 8px; color: var(--doux); font-size: 15px; }
+  .tuile .jours { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tuile .jours .lib { width: 100%; font-size: 13px; font-weight: 700; color: var(--orange); }
+  .tuile .jours button { border: 1px solid var(--orange); background: #fff; color: var(--orange); border-radius: 6px; padding: 4px 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
   .tuile .badge { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
   .tuile.pointe { background: var(--ok-fond); border-color: #B9DCC5; border-left-color: var(--ok); }
   .tuile.pointe .nom::before { content: "✓ "; color: var(--ok); }
@@ -231,6 +234,18 @@ function allerAujourdhui() {
   charger();
 }
 
+// Depuis la vue mois : ouvrir directement une journée.
+function allerAuJour(iso) {
+  mode = 'jour';
+  document.getElementById('ongletJour').classList.toggle('actif', true);
+  document.getElementById('ongletMois').classList.toggle('actif', false);
+  document.getElementById('diffuser').style.display = 'inline-block';
+  const champ = document.getElementById('periode');
+  champ.type = 'date';
+  champ.value = iso;
+  charger();
+}
+
 function decaler(sens) {
   const champ = document.getElementById('periode');
   if (!champ.value) return;
@@ -356,6 +371,22 @@ function afficher() {
     else if (mode === 'jour' && !c.attendu) html += '<span class="badge">Nouveau ce jour</span>';
     t.innerHTML = html;
     t.querySelector('.nom').textContent = c.client;
+
+    // Vue mois : jours saisis mais pas encore pointés, cliquables pour aller sur la journée.
+    const aPointer = mode === 'mois' ? (c.jours || []).filter(j => !j.pointe) : [];
+    if (aPointer.length) {
+      const z = document.createElement('div');
+      z.className = 'jours';
+      z.innerHTML = '<span class="lib">Jours non pointés :</span>';
+      aPointer.forEach(j => {
+        const b = document.createElement('button');
+        b.textContent = j.date.slice(8, 10) + '/' + j.date.slice(5, 7) + ' (' + j.total + ')';
+        b.title = 'Ouvrir la journée du ' + b.textContent;
+        b.onclick = ev => { ev.stopPropagation(); allerAuJour(j.date); };
+        z.appendChild(b);
+      });
+      t.appendChild(z);
+    }
 
     if (mode === 'jour' && (c.attendu || c.ajoute)) {
       const x = document.createElement('button');
