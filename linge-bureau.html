@@ -93,6 +93,8 @@
   .legende .l-vert::before { background: var(--ok); }
   .legende .l-gris::before { background: #B8C2C8; }
   .tuile.ajoute { border-style: dashed; }
+  .tuile.reporte { background: #EEEAF7; border-left-color: #6B4FA8; }
+  .tuile.reporte .badge { background: #fff; color: #6B4FA8; }
   .tuile.ajoute .badge { background: #FFF6D6; color: #6B5300; }
   #compteur:empty { display: none; }
   #fondAjout {
@@ -302,6 +304,7 @@ function journeeFinie() { return mode === 'jour' && tableau && tableau.periode <
 
 // pointe (vert) · oubli (orange) · saisi (bleu) · absent (gris)
 function etat(c) {
+  if (c.reporte && !c.recu && !c.pointe) return 'reporte';   // livré le lendemain : visuel seulement
   if (c.pointe) return 'pointe';
   if (avecPlan()) {
     if (c.recu) return 'saisi';
@@ -312,6 +315,7 @@ function etat(c) {
 }
 
 function compte(c) {
+  if (etat(c) === 'reporte') return false;
   if (retires.has(cle(c.client)) && !c.recu) return false;
   if (avecPlan()) return (c.lave && !journeeFinie()) || c.recu || c.pointe;
   return true;
@@ -356,6 +360,7 @@ function afficher() {
     if (et === 'pointe') t.classList.add('pointe');
     else if (et === 'oubli') t.classList.add('vide');
     else if (et === 'saisi') t.classList.add('saisi');
+    else if (et === 'reporte') t.classList.add('reporte');
     else t.classList.add('absent');
     if (mode === 'jour' && !c.attendu && !c.ajoute) t.classList.add('nouveau');
     if (c.ajoute) t.classList.add('ajoute');
@@ -363,7 +368,8 @@ function afficher() {
 
     let html = '<div class="nom"></div><div class="info">' +
       (c.recu ? c.total + ' pièce' + (c.total > 1 ? 's' : '') : 'Aucune pièce') + '</div>';
-    if (c.ajoute) html += '<span class="badge">À diffuser</span>';
+    if (et === 'reporte') html += '<span class="badge">Livré le ' + c.reporte.slice(8, 10) + '/' + c.reporte.slice(5, 7) + ' — à pointer ce jour-là</span>';
+    else if (c.ajoute) html += '<span class="badge">À diffuser</span>';
     else if (et === 'oubli' && c.reporteDe) html += '<span class="badge">Lavé le ' + c.reporteDe.slice(8, 10) + '/' + c.reporteDe.slice(5, 7) + ', rien saisi</span>';
     else if (et === 'oubli') html += '<span class="badge">' + (avecPlan() ? 'Lavé, rien saisi' : 'Rien reçu de l\'atelier') + '</span>';
     else if (et === 'absent') html += '<span class="badge">' + (c.lave ? 'Lavé, rien saisi' : 'Pas lavé aujourd\'hui') + '</span>';
@@ -388,7 +394,7 @@ function afficher() {
       t.appendChild(z);
     }
 
-    if (mode === 'jour' && (c.attendu || c.ajoute)) {
+    if (mode === 'jour' && (c.attendu || c.ajoute) && !c.parent) {
       const x = document.createElement('button');
       x.className = 'croix';
       x.title = retires.has(k) ? 'Garder dans la journée type' : 'Retirer de la journée type';
@@ -460,6 +466,7 @@ async function pointer(c) {
   const fait = !c.pointe;
   fermer();
   c.pointe = fait;
+  if (c.parent) c.parent.lot2.pointe = fait;
   afficher();
   try {
     const rep = await fetch(API_URL, {
@@ -470,6 +477,7 @@ async function pointer(c) {
     if (!data.ok) throw new Error(data.error || 'Refus du serveur');
   } catch (err) {
     c.pointe = !fait;
+    if (c.parent) c.parent.lot2.pointe = !fait;
     afficher();
     alert('Le pointage n\'a pas pu être enregistré (' + err.message + '). Vérifie la connexion et réessaie.');
   }
@@ -482,7 +490,15 @@ function listeAffichee() {
   if (!tableau) return [];
   const extra = ajoutes.map(n => ({ client: n, attendu: false, ajoute: true, articles: [], total: 0, recu: false, pointe: false }));
   // Lavé ce jour mais livré (et saisi) le jour suivant : il est compté sur le jour de livraison.
-  const gardes = tableau.clients.filter(c => !(c.reporte && !c.recu && !c.pointe));
+  // Un client relavé après l'heure de bascule a une 2ᵉ tuile : « 2ᵉ livraison » (ou violette si livrée le lendemain).
+  const gardes = [];
+  tableau.clients.forEach(c => {
+    gardes.push(c);
+    if (c.lot2) gardes.push(Object.assign({}, c.lot2, {
+      client: c.client + ' — 2ᵉ livraison', parent: c, attendu: true, lave: true,
+      recu: c.lot2.total > 0, pointe: !!c.lot2.pointe, reporte: c.lot2.reporte || null, sorties: []
+    }));
+  });
   return gardes.concat(extra).sort((a, b) => a.client.localeCompare(b.client, 'fr'));
 }
 
