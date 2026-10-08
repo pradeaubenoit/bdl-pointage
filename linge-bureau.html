@@ -282,13 +282,15 @@ async function charger() {
 
 /* ---------- Affichage ---------- */
 function avecPlan() { return mode === 'jour' && tableau && tableau.planOk; }
+// Journée terminée : un client lavé mais jamais saisi n'est plus « à saisir », il passe en gris.
+function journeeFinie() { return mode === 'jour' && tableau && tableau.periode < isoJour(new Date()); }
 
 // pointe (vert) · oubli (orange) · saisi (bleu) · absent (gris)
 function etat(c) {
   if (c.pointe) return 'pointe';
   if (avecPlan()) {
     if (c.recu) return 'saisi';
-    if (c.lave) return 'oubli';
+    if (c.lave && !journeeFinie()) return 'oubli';
     return 'absent';
   }
   return c.recu ? 'saisi' : 'oubli';
@@ -296,7 +298,7 @@ function etat(c) {
 
 function compte(c) {
   if (retires.has(cle(c.client)) && !c.recu) return false;
-  if (avecPlan()) return c.lave || c.recu || c.pointe;
+  if (avecPlan()) return (c.lave && !journeeFinie()) || c.recu || c.pointe;
   return true;
 }
 
@@ -349,7 +351,7 @@ function afficher() {
     if (c.ajoute) html += '<span class="badge">À diffuser</span>';
     else if (et === 'oubli' && c.reporteDe) html += '<span class="badge">Lavé le ' + c.reporteDe.slice(8, 10) + '/' + c.reporteDe.slice(5, 7) + ', rien saisi</span>';
     else if (et === 'oubli') html += '<span class="badge">' + (avecPlan() ? 'Lavé, rien saisi' : 'Rien reçu de l\'atelier') + '</span>';
-    else if (et === 'absent') html += '<span class="badge">Pas lavé aujourd\'hui</span>';
+    else if (et === 'absent') html += '<span class="badge">' + (c.lave ? 'Lavé, rien saisi' : 'Pas lavé aujourd\'hui') + '</span>';
     else if (avecPlan() && c.recu && !c.lave && !c.pointe) html += '<span class="badge">Non vu au lavage</span>';
     else if (mode === 'jour' && !c.attendu) html += '<span class="badge">Nouveau ce jour</span>';
     t.innerHTML = html;
