@@ -233,30 +233,49 @@ function afficherClients() {
     p.textContent = 'Aucun client prévu pour cette journée. Touchez « + Ajouter un client ».';
     zone.appendChild(p);
   }
+  lotFiltre = null;
   const laves = lavesDuJourAtelier();
   const laveVide = c => laves.has(cleNom(c.client)) && totalJourClient(c.client) === 0;
   // Journée terminée : ce qui n'a pas été saisi n'est plus « à saisir » (gris si rien, bleu si saisi).
   const journeeFinie = jourCourant() < isoLocal(new Date());
-  const aTraiter = c => !journeeFinie && ((laveVide(c) && !dejaSaisiLendemain(c.client)) || relave(c.client));
-  const aSaisir = c => aTraiter(c) && !reportDe(c.client);
   const sorties = sortiesDuJour();
-  const premiere = c => ((sorties[cleNom(c.client)] || [])[0]) || '99:99';
-  const tries = liste.slice().sort((a, b) => (aSaisir(b) - aSaisir(a))
-    || (aSaisir(a) && aSaisir(b) ? premiere(a).localeCompare(premiere(b)) : 0)
-    || a.client.localeCompare(b.client, 'fr'));
-  const nbASaisir = tries.filter(aSaisir).length;
+  const suites = listeCache().suites || {};
+  const etiquette = jourChoisi ? libelleJour(jourChoisi).charAt(0).toUpperCase() + libelleJour(jourChoisi).slice(1) : 'Aujourd\'hui';
+
+  // Une tuile par client ; deux si le client a été relavé (2ᵉ livraison) après l'heure de bascule.
+  const items = [];
+  liste.forEach(c => {
+    const L = lot2De(c.client);
+    if (!L) {
+      const cible = reportDe(c.client);
+      const orange = !journeeFinie && laveVide(c) && !dejaSaisiLendemain(c.client) && !cible;
+      items.push({ c, lot: 0, cible, orange, tot: totalJourClient(c.client, null) });
+    } else {
+      const avant = { mode: 'avant', cut: L.depuis }, apres = { mode: 'apres', cut: L.depuis };
+      items.push({ c, lot: 1, cible: null, orange: false, tot: totalJourClient(c.client, avant) });
+      const tot2 = totalJourClient(c.client, apres);
+      const cible = reportDe(c.client);
+      const dejaDemain = (suites[cleNom(c.client)] || '') > jourCourant() + ' ' + hhmmSec(L.depuis);
+      const orange = !journeeFinie && tot2 === 0 && !cible && !dejaDemain;
+      items.push({ c, lot: 2, cible, orange, tot: tot2, filtre: apres, depuis: hhmmSec(L.depuis) });
+    }
+  });
+  const premiere = it => ((sorties[cleNom(it.c.client)] || [])[0]) || '99:99';
+  items.sort((a, b) => (b.orange - a.orange)
+    || (a.orange && b.orange ? premiere(a).localeCompare(premiere(b)) : 0)
+    || a.c.client.localeCompare(b.c.client, 'fr') || a.lot - b.lot);
+  const nbASaisir = items.filter(it => it.orange).length;
   if (nbASaisir) document.getElementById('titre').textContent = 'Choisir un client — ' + nbASaisir + ' lavé' + (nbASaisir > 1 ? 's' : '') + ' à saisir';
-  tries.forEach(c => {
+
+  items.forEach(it => {
+    const c = it.c, cible = it.cible, tot = it.tot;
     const b = document.createElement('button');
-    const cible = reportDe(c.client);
-    const etat = aSaisir(c) || cible ? '' : (totalJourClient(c.client) > 0 ? ' saisi' : ' attente');
-    b.className = 'tuile' + (aSaisir(c) ? ' alave' : '') + (cible ? ' reporte' : '') + etat;
+    const etat = it.orange || cible ? '' : (tot > 0 ? ' saisi' : ' attente');
+    b.className = 'tuile' + (it.orange ? ' alave' : '') + (cible ? ' reporte' : '') + etat;
     b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile"></span>';
-    b.querySelector('.nom-tuile').textContent = c.client;
-    const tot = totalJourClient(c.client);
-    const etiquette = jourChoisi ? libelleJour(jourChoisi).charAt(0).toUpperCase() + libelleJour(jourChoisi).slice(1) : 'Aujourd\'hui';
+    b.querySelector('.nom-tuile').textContent = c.client + (it.lot === 2 ? ' — 2ᵉ livraison' : '');
     b.querySelector('.deja-tuile').textContent = tot ? etiquette + ' : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
-    if (estAjoutManuel(c.client) && totalJourClient(c.client) === 0) {
+    if (it.lot === 0 && estAjoutManuel(c.client) && tot === 0) {
       const x = document.createElement('span');
       x.className = 'retirer';
       x.textContent = '×';
@@ -264,17 +283,22 @@ function afficherClients() {
       b.appendChild(x);
     }
     const hs = sorties[cleNom(c.client)];
-    if (hs && hs.length) {
+    if (hs && hs.length && it.lot !== 1) {
       const so = document.createElement('span');
       so.className = 'sortie';
-      so.textContent = 'Sortie séchoir ~' + hs.join(' · ');
+      so.textContent = 'Sortie séchoir ~' + (it.lot === 2 ? hs.filter(h => h >= it.depuis) : hs).join(' · ');
       b.appendChild(so);
     }
-    if (aSaisir(c)) {
+    if (it.lot === 1) {
+      const so = document.createElement('span');
+      so.className = 'sortie';
+      so.textContent = 'Livraison du matin';
+      b.appendChild(so);
+    }
+    if (it.orange) {
       const badge = document.createElement('span');
       badge.className = 'badge-lave';
-      const rl = relave(c.client);
-      badge.textContent = rl ? 'Relavé à ' + rl + ', à saisir' : 'Lavé, à saisir';
+      badge.textContent = it.lot === 2 ? 'Relavé à ' + it.depuis + ', à saisir' : 'Lavé, à saisir';
       b.appendChild(badge);
     }
     if (cible) {
@@ -283,14 +307,14 @@ function afficherClients() {
       badge.textContent = 'Saisie sur ' + libelleJour(cible);
       b.appendChild(badge);
     }
-    const veille = laveLe(c.client);
+    const veille = it.lot === 0 ? laveLe(c.client) : null;
     if (veille && laveVide(c)) {
       const lv = document.createElement('span');
       lv.className = 'sortie';
       lv.textContent = 'Lavé ' + libelleJour(veille);
       b.insertBefore(lv, b.querySelector('.deja-tuile').nextSibling);
     }
-    if (cible || (aTraiter(c) && !(veille && laveVide(c)))) {
+    if (cible || (it.orange && !veille)) {
       const bas = document.createElement('span');
       bas.className = 'bascule';
       const mot = motLivraison(jourCourant());
@@ -298,7 +322,9 @@ function afficherClients() {
       bas.onclick = ev => { ev.stopPropagation(); basculerReport(c.client); };
       b.appendChild(bas);
     }
-    b.onclick = () => cible ? ouvrirReporte(c, cible) : afficherArticles(c);
+    if (it.lot === 1) b.onclick = () => toast('Livraison du matin partie : saisir sur la tuile « 2ᵉ livraison ».', true);
+    else if (cible) b.onclick = () => ouvrirReporte(c, cible);
+    else b.onclick = () => afficherArticles(c, false, it.filtre);
     zone.appendChild(b);
   });
   if (duJour && duJour.length < catalogue.length) {
@@ -315,10 +341,10 @@ function afficherClients() {
   zone.appendChild(nouveau);
 }
 
-function afficherArticles(c, garder) {
+function afficherArticles(c, garder, filtre) {
   clientCourant = c;
-  if (!garder) quantites = {};
-  document.getElementById('titre').textContent = c.client;
+  if (!garder) { quantites = {}; lotFiltre = filtre || null; }
+  document.getElementById('titre').textContent = c.client + (lotFiltre && lotFiltre.mode === 'apres' ? ' — 2ᵉ livraison' : '');
   document.getElementById('retour').style.display = 'block';
   document.getElementById('barre').style.display = 'block';
   const zone = document.getElementById('zone');
@@ -518,6 +544,10 @@ function motLivraison(iso) {
 }
 function listeCache() { const l = lire(CLE_LISTES, {})[jourCourant()]; return (l && !Array.isArray(l)) ? l : {}; }
 function reportDe(nom) { return (listeCache().reports || {})[cleNom(nom)] || null; }
+let lotFiltre = null;   // saisie en cours limitée à un lot (2ᵉ livraison)
+function lot2De(nom) { return (listeCache().lots2 || {})[cleNom(nom)] || null; }
+function hhmmSec(t) { const p = n => String(n).padStart(2, '0'); return p(Math.floor(t / 3600)) + ':' + p(Math.floor((t % 3600) / 60)); }
+
 function laveLe(nom) { return (listeCache().reportesDe || {})[cleNom(nom)] || null; }
 
 // Lavé ce jour et déjà saisi sur le jour de livraison suivant, après ce lavage : rien à faire ici.
@@ -620,16 +650,17 @@ async function chargerListeJour() {
     if (!data.ok || date !== jourCourant()) return;
     const listes = lire(CLE_LISTES, {});
     const sorties = {};
-    const reports = {}, reportesDe = {}, dernierFait = {}, suites = {};
+    const reports = {}, reportesDe = {}, dernierFait = {}, suites = {}, lots2 = {};
     data.clients.forEach(c => {
       if (c.dernierFait != null) dernierFait[cleNom(c.client)] = c.dernierFait;
       if (c.suite) suites[cleNom(c.client)] = c.suite;
       if (c.sorties && c.sorties.length) sorties[cleNom(c.client)] = c.sorties;
       if (c.reporte) reports[cleNom(c.client)] = c.reporte;
+      if (c.lot2) { lots2[cleNom(c.client)] = { depuis: c.lot2.depuis }; if (c.lot2.reporte) reports[cleNom(c.client)] = c.lot2.reporte; }
       if (c.reporteDe) reportesDe[cleNom(c.client)] = c.reporteDe;
     });
     listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client),
-      sorties: sorties, reports: reports, reportesDe: reportesDe, dernierFait: dernierFait, suites: suites, bascule: data.bascule || 14 };
+      sorties: sorties, reports: reports, reportesDe: reportesDe, dernierFait: dernierFait, suites: suites, lots2: lots2, bascule: data.bascule || 14 };
     Object.keys(listes).forEach(d => { if (d < isoLocal(new Date(Date.now() - 7 * 864e5))) delete listes[d]; });
     ecrire(CLE_LISTES, listes);
     if (!clientCourant) afficherClients();
@@ -732,31 +763,37 @@ function ajouterAuJour(l) {
 }
 
 // Toutes les saisies du jour pour un client et un article : envoyées + en attente d'envoi.
-function entreesJour(client, article) {
+// filtre : null = tout ; { mode: 'apres' | 'avant', cut: secondes } = 2ᵉ livraison / livraison du matin
+function entreesJour(client, article, filtre = lotFiltre) {
   const date = jourCourant();
   const liste = [];
   if (jourRecap.date === date) {
     jourRecap.saisies.forEach(x => {
-      if (x.client === client && x.article === article) liste.push({ q: x.quantite, h: x.heure, attente: false });
+      if (x.client === client && x.article === article) liste.push({ q: x.quantite, h: x.heure, le: x.le || '', attente: false });
     });
   }
   lire(CLE_FILE, []).forEach(l => {
     const d = new Date(l.horodatage);
     if (l.client === client && l.article === article && jourDeLigne(l) === date) {
-      liste.push({ q: Number(l.quantite || 0), h: heureLocale(d), attente: true });
+      liste.push({ q: Number(l.quantite || 0), h: heureLocale(d), le: isoLocal(d), attente: true });
     }
   });
-  return liste.sort((a, b) => a.h.localeCompare(b.h));
+  const res = filtre ? liste.filter(e => {
+    const [a, b] = e.h.split(':').map(Number);
+    const dansLot2 = e.le === date && (a * 3600 + b * 60) >= filtre.cut;
+    return filtre.mode === 'apres' ? dansLot2 : !dansLot2;
+  }) : liste;
+  return res.sort((a, b) => a.h.localeCompare(b.h));
 }
 
-function dejaSaisi(client, article) {
-  return entreesJour(client, article).reduce((t, x) => t + x.q, 0);
+function dejaSaisi(client, article, filtre = lotFiltre) {
+  return entreesJour(client, article, filtre).reduce((t, x) => t + x.q, 0);
 }
 
-function totalJourClient(client) {
+function totalJourClient(client, filtre = lotFiltre) {
   const c = catalogue.find(x => x.client === client);
   if (!c) return 0;
-  return c.articles.reduce((t, a) => t + dejaSaisi(client, a), 0);
+  return c.articles.reduce((t, a) => t + dejaSaisi(client, a, filtre), 0);
 }
 
 function majDeja(ligne, client, article) {
