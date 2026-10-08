@@ -100,6 +100,7 @@
   .tuile.reporte { background: #EEEAF7; border-left-color: #6B4FA8; }
   .tuile.reporte .bascule { border-color: #6B4FA8; background: #6B4FA8; color: #fff; }
   .tuile .badge-report { display: inline-block; margin-top: 8px; font-size: 17px; font-weight: 700; color: #6B4FA8; }
+  .avis-lecture { margin: 0 0 16px; padding: 14px 18px; border-radius: 12px; background: #FBEFDF; color: #8A4A0C; font-size: 19px; font-weight: 700; }
   .vide-jour { grid-column: 1 / -1; font-size: 22px; color: var(--doux); margin: 4px 0 8px; }
   .tuile.ajout {
     background: transparent; border: 3px dashed #9DB3BC; border-left: 3px dashed #9DB3BC;
@@ -322,7 +323,7 @@ function afficherClients() {
       bas.onclick = ev => { ev.stopPropagation(); basculerReport(c.client); };
       b.appendChild(bas);
     }
-    if (it.lot === 1) b.onclick = () => toast('Livraison du matin partie : saisir sur la tuile « 2ᵉ livraison ».', true);
+    if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).depuis, lecture: true });
     else if (cible) b.onclick = () => ouvrirReporte(c, cible);
     else b.onclick = () => afficherArticles(c, false, it.filtre);
     zone.appendChild(b);
@@ -344,11 +345,18 @@ function afficherClients() {
 function afficherArticles(c, garder, filtre) {
   clientCourant = c;
   if (!garder) { quantites = {}; lotFiltre = filtre || null; }
-  document.getElementById('titre').textContent = c.client + (lotFiltre && lotFiltre.mode === 'apres' ? ' — 2ᵉ livraison' : '');
+  const lecture = !!(lotFiltre && lotFiltre.lecture);   // livraison du matin : consultation seule
+  document.getElementById('titre').textContent = c.client + (lotFiltre && lotFiltre.mode === 'apres' ? ' — 2ᵉ livraison' : (lecture ? ' — livraison du matin' : ''));
   document.getElementById('retour').style.display = 'block';
-  document.getElementById('barre').style.display = 'block';
+  document.getElementById('barre').style.display = lecture ? 'none' : 'block';
   const zone = document.getElementById('zone');
   zone.className = ''; zone.innerHTML = '';
+  if (lecture) {
+    const avis = document.createElement('p');
+    avis.className = 'avis-lecture';
+    avis.textContent = 'Livraison du matin partie : consultation seulement. Pour ajouter des pièces, utilisez la tuile « 2ᵉ livraison ».';
+    zone.appendChild(avis);
+  }
   c.articles.forEach(a => {
     const ligne = document.createElement('div');
     ligne.className = 'article';
@@ -372,8 +380,11 @@ function afficherArticles(c, garder, filtre) {
     ligne.querySelector('.plus').onclick  = () => maj((quantites[a] || 0) + 1);
     champ.oninput = () => maj(champ.value);
     if (quantites[a]) maj(quantites[a]);
+    if (lecture) ligne.querySelectorAll('.pm, .qte').forEach(x => x.remove());
+    if (lecture && !dejaSaisi(c.client, a)) return;
     zone.appendChild(ligne);
   });
+  if (lecture) { chargerJour(); return; }
   const ajout = document.createElement('button');
   ajout.className = 'ajout-article';
   ajout.textContent = '+ Ajouter un article';
