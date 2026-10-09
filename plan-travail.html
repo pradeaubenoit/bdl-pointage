@@ -128,6 +128,9 @@
   .bl-lav{font-size:12px;padding:2px 7px;margin-left:6px;color:#6d28d9}
   .bline.fait .b-name{text-decoration:line-through;color:var(--faint)}
   .bline.fait{opacity:.6}
+  .bline.ign{opacity:.45}
+  .bline.ign .b-name{text-decoration:line-through;color:var(--faint)}
+  .bl-ign{font-size:12px;padding:2px 7px;margin-left:4px;color:#8a1a12}
   .fait-count{font-size:13px;color:var(--muted);margin-left:8px}
   .pr-search{display:flex;gap:8px;align-items:center;margin:2px 0 10px;position:sticky;top:0;z-index:15;background:var(--card);padding:8px 6px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
   .pr-search input{flex:1;min-width:130px}
@@ -422,7 +425,7 @@ async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.i
    modif locale n'est en attente (cfgPending), donc sans risque d'écraser un pointage qu'on vient de faire. */
 async function loadPriorites(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data&&r.data.data.cfg){ var c=r.data.data.cfg; CFG.priorites=c.priorites||{}; CFG.faitById=c.faitById||{}; CFG.lavById=c.lavById||{}; CFG.faitsG=c.faitsG||{}; CFG.lavG=c.lavG||{}; CFG.faitAtG=c.faitAtG||{}; }
+    if(r.data&&r.data.data&&r.data.data.cfg){ var c=r.data.data.cfg; CFG.priorites=c.priorites||{}; CFG.faitById=c.faitById||{}; CFG.lavById=c.lavById||{}; CFG.faitsG=c.faitsG||{}; CFG.lavG=c.lavG||{}; CFG.faitAtG=c.faitAtG||{}; CFG.ignById=c.ignById||{}; }
   }catch(e){}
 }
 function mapRow(x){return {id:(x.lid||uid()),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
@@ -435,11 +438,17 @@ function faitKey(r,i){return i+'|'+((r.client||'').trim().toLowerCase());}   // 
 function keyCC(r){return ((r.client||'').trim().toLowerCase())+'|'+(r.code==null?'':String(r.code));}
 function estFait(r){ return !!(r&&r._fait); }
 function estLav(r){ return !!(r&&(r._lav||r.machine==='laveuse')); }
+/* ABSENT / IGNORÉ : client prévu mais pas de linge ce jour. Reste sur le plan (barré), n'est pas compté
+   dans le travail, et n'est PAS envoyé comme « lavé » à l'atelier. Persisté par ligne : CFG.ignById[date][id]. */
+function estIgn(r){ return !!(r&&r._ign); }
+function toggleIgn(r){ if(!r)return; r._ign=!r._ign; if(r._ign){ r._fait=false; r._faitAt=null; r._lav=false; }
+  persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); scheduleSavePlan(); }
 function persistFaits(){
   var fb={},lb={};
-  rows.forEach(function(r){ if(r._fait) fb[r.id]=(r._faitAt!=null?r._faitAt:-1); if(r._lav) lb[r.id]=1; });
-  if(!CFG.faitById)CFG.faitById={}; if(!CFG.lavById)CFG.lavById={};
-  CFG.faitById[curDate]=fb; CFG.lavById[curDate]=lb;
+  var ib={};
+  rows.forEach(function(r){ if(r._fait) fb[r.id]=(r._faitAt!=null?r._faitAt:-1); if(r._lav) lb[r.id]=1; if(r._ign) ib[r.id]=1; });
+  if(!CFG.faitById)CFG.faitById={}; if(!CFG.lavById)CFG.lavById={}; if(!CFG.ignById)CFG.ignById={};
+  CFG.faitById[curDate]=fb; CFG.lavById[curDate]=lb; CFG.ignById[curDate]=ib;
 }
 function applyGroupFlags(map,prop){
   var need={}; for(var k in map) need[k]=map[k];
@@ -453,6 +462,13 @@ function applyFaitsAvecHeure(map,times){
   rows.forEach(function(r){ var k=keyCC(r); if(need[k]>0){ r._fait=true; need[k]-=(parseInt(r.nbTransferts)||0); if(ti[k]&&ti[k].length){ var t=ti[k].shift(); r._faitAt=(t!=null&&t>=0)?t:null; } } });
 }
 function applyFaits(){
+  var ib=Object.assign({},(CFG.ignById&&CFG.ignById[curDate])||{});   // lu AVANT : la migration ré-enregistre les pointages
+  rows.forEach(function(r){ r._ign=!!ib[r.id]; });
+  applyFaitsBase();
+  rows.forEach(function(r){ r._ign=!!ib[r.id]; });
+  if(!CFG.ignById)CFG.ignById={}; CFG.ignById[curDate]=ib;
+}
+function applyFaitsBase(){
   if(CFG.faitById && CFG.faitById[curDate]){                       // format stable par identifiant de ligne
     var fb=CFG.faitById[curDate], lb=(CFG.lavById&&CFG.lavById[curDate])||{};
     rows.forEach(function(r){ if(Object.prototype.hasOwnProperty.call(fb,r.id)){ r._fait=true; var t=fb[r.id]; r._faitAt=(t!=null&&t>=0)?t:null; } else { r._fait=false; r._faitAt=null; } r._lav=!!lb[r.id]; });
@@ -473,14 +489,14 @@ function toggleFait(r){ if(!r)return; r._fait=!r._fait;
   else { var pos=rows.length; for(var k=0;k<rows.length;k++){ if(rows[k]._fait){ pos=k; break; } } rows.splice(pos,0,r); }  // dé-pointé -> en fin des non-faits
   persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); scheduleSavePlan(); }
 function toggleLav(r){ if(!r||r.machine!=='tunnel')return; r._lav=!r._lav; persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); updateSummary(); }
-function rowsForTiming(){ return rows.map(function(r){ return (estLav(r)&&estFait(r)) ? Object.assign({},r,{machine:'laveuse'}) : r; }); }
+function rowsForTiming(){ return rows.filter(function(r){ return !estIgn(r); }).map(function(r){ return (estLav(r)&&estFait(r)) ? Object.assign({},r,{machine:'laveuse'}) : r; }); }
 function nowSec(){var d=new Date();return d.getHours()*3600+d.getMinutes()*60+d.getSeconds();}
 /* Heure de fin = MAINTENANT + (galettes restantes × temps par galette). Exactement la formule de Benoît :
    « 16h + 170 galettes × 2min30 ≈ 23h ». Reste = tunnel, pas « fait », pas laveuse. Pour une autre date
    (prévisionnel), on part de l'heure de démarrage au lieu de l'heure actuelle. */
-function galettesRestantes(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&!estFait(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
+function galettesRestantes(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&!estFait(r)&&!estIgn(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
 function galettesFaites(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&estFait(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
-function galettesTunnelTotal(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav)?s+(parseInt(r.nbTransferts)||0):s;},0);}
+function galettesTunnelTotal(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&!estIgn(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
 /* HEURE DE FIN, formule de Benoît : l'heure qu'il est MAINTENANT + (galettes restantes × cadence réglée).
    Ex. : 16h, 194 galettes restantes, 150 s/galette -> 194×150 = 8h05 -> fin 00h05. Plus on lave vite, moins
    il reste de galettes à un instant donné, plus l'heure est tôt. Pour une autre date (prévisionnel, pas
@@ -1362,11 +1378,11 @@ function renderResults(){
 if(pickedId!=null||(pickedSel&&pickedSel.length)){ var _pn=''; if(pickedId!=null){for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}} else {_pn='s\u00e9lection ('+pickedSel.length+' lignes)';}
   h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
   var _pend=[], _done=[];
-    var _ordreJour = rows.filter(estFait).concat(rows.filter(function(x){ return !estFait(x); }));
+    var _ordreJour = rows.filter(estFait).concat(rows.filter(function(x){ return !estFait(x) && !estIgn(x); })).concat(rows.filter(estIgn));
   /* HEURES. Lignes FAITES : heure réelle d'engagement gelée (r._faitAt) — copier-coller, jamais recalculée.
      Lignes RESTANTES : on recalcule leur enchaînement à partir de MAINTENANT (la prochaine à charger = now,
      les suivantes chaînées à la cadence), comme le moteur le fait pour le plan global. */
-  var _reste = rows.filter(function(r){ return r.machine==='tunnel' && !estFait(r) && !estLav(r); });
+  var _reste = rows.filter(function(r){ return r.machine==='tunnel' && !estFait(r) && !estLav(r) && !estIgn(r); });
   var _sim2 = simulerTunnel(_reste);
   var _shift = 0;
   if(_reste.length){ var _L0=_sim2.lots[_reste[0].id]; if(_L0&&isFinite(_L0.charg)) _shift = (curDate===todayISO()?nowSec():parseHeure(CFG.heureDemarrage)) - _L0.charg; }
@@ -1376,7 +1392,9 @@ if(pickedId!=null||(pickedSel&&pickedSel.length)){ var _pn=''; if(pickedId!=null
     var _mk=(((CFG.cadenas||{})[_kk])?'<span class="pill" title="Figé : l\'optimiseur ne le déplace pas">\u{1F512}</span>':'')+(((CFG.attelages||{})[_kk])?'<span class="pill" title="Attelé juste après : '+esc((CFG.attelages||{})[_kk])+'">\u26D3\uFE0F</span>':'');
 var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:(typeOfCode(_cS)==='drap'?2.5:35))*60;
     var _hr='';
-    if(estFait(r) && r.machine==='tunnel'){
+    if(estIgn(r)){
+      _hr='<span class="pill" style="margin-left:6px;color:#8a1a12" title="Client absent ce jour : pas lavé, pas envoyé à l\'atelier">\u2205 absent ce jour</span>';
+    } else if(estFait(r) && r.machine==='tunnel'){
       var _fc=(r._faitAt!=null)?r._faitAt:(_lastFaitAt!=null?_lastFaitAt:(curDate===todayISO()?nowSec():parseHeure(CFG.heureDemarrage)));  // gelé, sinon on comble avec l'heure du fait précédent
       if(r._faitAt!=null) _lastFaitAt=r._faitAt;
       var _Lg=sim.lots[r.id];
@@ -1397,7 +1415,10 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
     if(isOperateur && posteFilter!=='tous' && (r.postes||[]).indexOf(posteFilter)<0) return;   // filtre par poste
     var _isEditor=adminUnlocked||!isOperateur;   // admin OU laveur (la finition reste en lecture seule)
     var _dragH=_isEditor?'<span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span>':'';
-    var _faitBtn=(!isOperateur)?'<button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait">'+(_fait?'\u2713 fait':'fait')+'</button>':(_fait?'<span class="pill" style="color:var(--teal)">\u2713 fait</span>':'');
+    var _ign=estIgn(r);
+    var _faitBtn=(!isOperateur)?((_ign?'':'<button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait">'+(_fait?'\u2713 fait':'fait')+'</button>')
+      +(_fait?'':'<button class="btn-ghost bl-ign no-print'+(_ign?' on':'')+'" data-ign="'+i+'" title="Client absent ce jour : reste sur le plan mais n\'apparaît pas à l\'atelier">'+(_ign?'\u21b6 présent':'absent')+'</button>'))
+      :(_fait?'<span class="pill" style="color:var(--teal)">\u2713 fait</span>':'');
     var _moveBtns=_isEditor?('<button class="btn-ghost bl-tete no-print" data-tete="'+i+'" title="Envoyer ce client tout en haut (position 1)">\u2b06 en tête</button>'+btn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button>'):'';
     var _admBtns=adminUnlocked?(_lavBtn+'<button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button>'+(prioFind(prioKey(r))?'<button class="btn-ghost bl-adprio no-print" data-adprio="'+i+'" title="Retirer la priorité" style="color:var(--danger)">\u2715 priorité</button>':(_fait?'':'<button class="btn-ghost bl-adprio no-print" data-adprio="'+i+'" title="Mettre ce client en priorité (marquage orange)" style="color:#8a5a07">\u{1F64B} priorité</button>'))+'<button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button>'):'';
     var _prioMk=prioriteDemandee(r)?'<span class="pill" style="background:#fde7c8;color:#8a5a07" title="Priorité demandée">\u{1F64B} priorité</span>':'';
@@ -1408,8 +1429,8 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
         _opBtn=_sl+'<button class="btn-ghost bl-unprio no-print" data-unprio="'+esc(prioKey(r))+'" title="Annuler ma demande" style="color:var(--danger)">\u2715 annuler</button>'; }
       else if(!_fait){ _opBtn='<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>'; }
     }
-    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(_ordreJour.indexOf(r)+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+'</div></div>';
-    (_fait?_done:_pend).push(rowHtml);
+    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+(_ign?' ign':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(_ordreJour.indexOf(r)+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+'</div></div>';
+    ((_fait||_ign)?_done:_pend).push(rowHtml);
   });
   h+=_pend.join('');
   if(_done.length) h+='<div class="done-sep no-print">\u2713 Fait ('+_done.length+') \u2014 pour référence, l\'ordre réel ne change pas</div>';
@@ -1499,7 +1520,7 @@ function reOptimiserDepuis(i){
   else if(!confirm('Ré-optimiser à partir de la ligne '+(i+1)+' ?\nLes lignes du dessus, ET tout ce qui est déjà « fait » ou « laveuse », restent figés.'))return;
   var figes=[], pool=[];
   rows.forEach(function(r,idx){
-    if(idx<i || estFait(r) || estLav(r) || r.machine!=='tunnel') figes.push(r);
+    if(idx<i || estFait(r) || estLav(r) || estIgn(r) || r.machine!=='tunnel') figes.push(r);
     else pool.push(r);
   });
   if(pool.length===0){alert('Rien à ré-optimiser : tout est déjà fait, en laveuse, ou figé.');return;}
@@ -1874,6 +1895,8 @@ if(pickedId!=null||pickedSel){pickedId=null;pickedSel=null;renderResults();retur
 (function(){
   var res=document.getElementById('results');
   res.addEventListener('click',function(e){
+    var ign=e.target.closest&&e.target.closest('.bl-ign');
+    if(ign){ var ii=parseInt(ign.getAttribute('data-ign')); if(!isNaN(ii)&&rows[ii]) toggleIgn(rows[ii]); return; }
     var fait=e.target.closest&&e.target.closest('.bl-fait');
     if(fait){ var fi=parseInt(fait.getAttribute('data-fait')); if(!isNaN(fi)&&rows[fi]) toggleFait(rows[fi]); return; }
     var lav=e.target.closest&&e.target.closest('.bl-lav');
