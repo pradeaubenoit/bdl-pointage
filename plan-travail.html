@@ -1552,7 +1552,7 @@ var _finB=_anc+_delta;
   resEl.innerHTML='<div class="card"><div style="font-weight:600;margin-bottom:10px">Simulation séchoirs — base du '+esc(bBaseDate)+'</div><div class="metrics">'+metric('Heure de fin',fmtHHMM(_finB))+metric('Attente séchoir',blocageSechoir(chargesFrom(tunnelRows))+' min')+metric('Plus longue série lente',serie+' gal')+metric('Galettes tunnel',String(s.total))+'</div><div class="info" style="margin-top:8px">'+noteFin+'L\'éponge sèche ~35 min (séchoirs 1-2-3), les draps traversent ~2 min (séchoir 4) et drainent le tampon. Bien cadencer (8 éponge + bloc de draps) fait baisser l\'attente.</div></div>';
   var h='<div class="card"><div class="sech" style="margin-top:0">Alimentation des postes (galettes / heure)</div>'+feedTable(s)+'</div>';
   h+='<div class="sech">Ordre de lavage</div>';
-  var cgTG=(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette());   // même étalon que l'heure de fin optimisée
+  var cgTG=(s.total>0&&_finB>start)?(_finB-start)/s.total:(CFG.tempsGaletteOpt>0?CFG.tempsGaletteOpt:tempsGalette());   // étalé pour que la dernière galette tombe à l'heure de fin
   var cgSec=start;                                                       // horloge de chargement, cumulée
   bRows.forEach(function(r,i){var c=codeByNum(r.code);var t=c?typeOfCode(c):'eponge';var co=c?colOfCode(c):'blanc';var g=parseInt(r.nbTransferts)||0;
     var hh=(r.machine==='tunnel')?'<span class="pill" style="margin-left:6px">~'+fmtHHMM(cgSec)+'</span>':'';
