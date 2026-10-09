@@ -71,6 +71,7 @@
   .tuile:hover { border-color: var(--accent); }
   .tuile .nom { font-size: 20px; font-weight: 700; text-transform: capitalize; padding-right: 26px; }
   .tuile .info { margin-top: 8px; color: var(--doux); font-size: 15px; }
+  #recherche { display: block; width: 100%; max-width: 520px; margin: 0 0 14px; padding: 10px 14px; font-size: 16px; border: 1px solid #C5D0D6; border-radius: 10px; background: #fff; }
   .tuile .jours { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
   .tuile .jours .lib { width: 100%; font-size: 13px; font-weight: 700; color: var(--orange); }
   .tuile .jours button { border: 1px solid var(--orange); background: #fff; color: var(--orange); border-radius: 6px; padding: 4px 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -129,7 +130,7 @@
 
   .impression { display: none; }
   @media print {
-    header, .outils, .bandeau, #attente, .grille, #fond { display: none !important; }
+    header, .outils, .bandeau, #attente, #recherche, .grille, #fond { display: none !important; }
     body { background: #fff; }
     .impression { display: block; }
     .impression h2 { font-size: 18px; margin: 0 0 12px; }
@@ -169,6 +170,7 @@
   </div>
   <div id="legende" class="legende"></div>
   <div id="attente"></div>
+  <input type="search" id="recherche" placeholder="🔍 Rechercher un client…" oninput="filtrerTuiles()">
   <div id="zone" class="grille"></div>
   <div class="impression" id="impression"></div>
 </main>
@@ -321,6 +323,15 @@ function compte(c) {
   return true;
 }
 
+// Recherche : filtre les tuiles par nom (sans tenir compte des accents ni des majuscules).
+function sansAccent(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+function filtrerTuiles() {
+  const q = sansAccent(document.getElementById('recherche').value);
+  document.querySelectorAll('#zone .tuile[data-nom]').forEach(t => {
+    t.style.display = !q || t.dataset.nom.includes(q) ? '' : 'none';
+  });
+}
+
 function afficher() {
   document.getElementById('titre').textContent = libelle();
   const zone = document.getElementById('zone');
@@ -407,10 +418,12 @@ function afficher() {
       t.appendChild(x);
     }
     t.onclick = () => ouvrir(c);
+    t.dataset.nom = sansAccent(c.client);
     zone.appendChild(t);
   });
 
   afficherImpression();
+  filtrerTuiles();
 }
 
 function majAttente() {
