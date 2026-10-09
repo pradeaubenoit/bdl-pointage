@@ -491,12 +491,21 @@ function listeAffichee() {
   const extra = ajoutes.map(n => ({ client: n, attendu: false, ajoute: true, articles: [], total: 0, recu: false, pointe: false }));
   // Lavé ce jour mais livré (et saisi) le jour suivant : il est compté sur le jour de livraison.
   // Un client relavé après l'heure de bascule a une 2ᵉ tuile : « 2ᵉ livraison » (ou violette si livrée le lendemain).
+  // Lot lavé ce jour, rien saisi ce jour, mais saisi sur le jour suivant après son lavage
+  // (bouton « Livré demain » oublié ou correction dans le tableur) : violet automatique.
+  const p = n => String(n).padStart(2, '0');
+  const hh = t => p(Math.floor(t / 3600)) + ':' + p(Math.floor((t % 3600) / 60));
+  const suivant = () => { const [a, m, j] = tableau.periode.split('-').map(Number); const d = new Date(a, m - 1, j + 1);
+    if (d.getDay() === 0) d.setDate(d.getDate() + 1); return isoJour(d); };
+  const saisiApres = (c, t) => mode === 'jour' && t != null && c.suite && c.suite > tableau.periode + ' ' + hh(t);
   const gardes = [];
   tableau.clients.forEach(c => {
+    if (!c.lot2 && !c.reporte && c.lave && !c.recu && saisiApres(c, c.dernierFait)) c.reporte = suivant();
     gardes.push(c);
     if (c.lot2) gardes.push(Object.assign({}, c.lot2, {
       client: c.client + ' — 2ᵉ livraison', parent: c, attendu: true, lave: true,
-      recu: c.lot2.total > 0, pointe: !!c.lot2.pointe, reporte: c.lot2.reporte || null, sorties: []
+      recu: c.lot2.total > 0, pointe: !!c.lot2.pointe, sorties: [],
+      reporte: c.lot2.reporte || (c.lot2.total === 0 && saisiApres(c, c.lot2.depuis) ? suivant() : null)
     }));
   });
   return gardes.concat(extra).sort((a, b) => a.client.localeCompare(b.client, 'fr'));
