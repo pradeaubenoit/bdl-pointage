@@ -1579,6 +1579,24 @@ async function bLoad(){
   document.getElementById('b-status').textContent=bRows.length?('Jour chargé : '+bRows.length+' client(s). Vous pouvez optimiser puis diffuser.'):'Aucune donnée pour ce jour.';
   renderBrouillon();
 }
+/* Heure de bascule (11 h) : ce qui a été lavé AVANT part le jour même, ce qui est lavé APRÈS part le
+   lendemain. On optimise les deux parties séparément (le matin reste le matin), et on ne fusionne
+   jamais le Royat du matin avec celui du soir. */
+function optimiserParLot(tunnelRows,speed,start){
+  var bas=(CFG.heureBascule==null?11:CFG.heureBascule)*3600;
+  var fb=((CFG.faitById||{})[bBaseDate])||{};
+  var sim=simulerTunnel(tunnelRows);
+  function heureDe(r){ var t=fb[r.id]; if(t!=null&&t>=0) return t; var L=sim.lots[r.id]; return (L&&isFinite(L.charg))?L.charg:0; }
+  var tri=tunnelRows.map(function(r,i){return {r:r,h:heureDe(r),i:i};}).sort(function(a,b){return (a.h-b.h)||(a.i-b.i);});
+  var matin=tri.filter(function(x){return x.h<bas;}).map(function(x){return x.r;});
+  var soir=tri.filter(function(x){return x.h>=bas;}).map(function(x){return x.r;});
+  if(!matin.length||!soir.length) return optimiserOrdre(fusionnerMemeClient(tri.map(function(x){return x.r;})),speed,start);
+  var o1=optimiserOrdre(fusionnerMemeClient(matin),speed,start);
+  var o2=optimiserOrdre(fusionnerMemeClient(soir),speed,start,contexteDepuis(o1.order));
+  var order=o1.order.concat(o2.order);
+  return {order:order, run:maxLentRun(order), galIn:o1.galIn+o2.galIn, galOut:o1.galOut+o2.galOut,
+    orphelins:(o1.orphelins||[]).concat(o2.orphelins||[]), bouchons:attenteRegle(order)};
+}  
 function bOptimize(){
   if(!bLoaded||!bBase.length)return;
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
@@ -1586,9 +1604,8 @@ function bOptimize(){
   var tunnelRows=bBase.filter(function(r){return r.machine==='tunnel';});
   var others=bBase.filter(function(r){return r.machine!=='tunnel';});
   var ML=(CFG.maxLent==null?8:CFG.maxLent);
-  var tunnelMerged=fusionnerMemeClient(tunnelRows); // même nom+code = un seul client
   var runBefore=maxLentRun(tunnelRows);
-  var opt=optimiserOrdre(tunnelMerged,speed,start);
+  var opt=optimiserParLot(tunnelRows,speed,start);
   bRows=opt.order.concat(others);
   bOptimized=true;
   if(opt.galIn!==opt.galOut){ alert('\u26a0 Contrôle : '+opt.galIn+' galettes en entrée, '+opt.galOut+' en sortie. '+Math.abs(opt.galIn-opt.galOut)+' galette(s) '+(opt.galOut<opt.galIn?'perdues':'en trop')+' — signalez-le, c\'est un bug.'); }
