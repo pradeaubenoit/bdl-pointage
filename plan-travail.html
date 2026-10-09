@@ -1526,7 +1526,7 @@ function reOptimiserDepuis(i){
   if(pool.length===0){alert('Rien à ré-optimiser : tout est déjà fait, en laveuse, ou figé.');return;}
   var start=parseHeure(CFG.heureDemarrage);
   var opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,contexteDepuis(figes));
-  rows=figes.concat(opt.order);
+  snapshotOrder(); rows=figes.concat(opt.order);
   renderRows();sync();
 }
 
