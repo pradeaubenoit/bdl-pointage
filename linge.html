@@ -248,17 +248,20 @@ function afficherClients() {
   liste.forEach(c => {
     const L = lot2De(c.client);
     if (!L) {
-      const cible = reportDe(c.client);
-      const orange = !journeeFinie && laveVide(c) && !dejaSaisiLendemain(c.client) && !cible;
-      items.push({ c, lot: 0, cible, orange, tot: totalJourClient(c.client, null) });
+      // Saisi sur le jour suivant après son lavage (bouton oublié, ou correction dans le tableur) : violet automatique.
+      const auto = !reportDe(c.client) && laveVide(c) && dejaSaisiLendemain(c.client);
+      const cible = reportDe(c.client) || (auto ? lendemain(jourCourant()) : null);
+      const orange = !journeeFinie && laveVide(c) && !cible;
+      items.push({ c, lot: 0, cible, auto, orange, tot: totalJourClient(c.client, null) });
     } else {
       const avant = { mode: 'avant', cut: L.depuis }, apres = { mode: 'apres', cut: L.depuis };
       items.push({ c, lot: 1, cible: null, orange: false, tot: totalJourClient(c.client, avant) });
       const tot2 = totalJourClient(c.client, apres);
-      const cible = reportDe(c.client);
       const dejaDemain = (suites[cleNom(c.client)] || '') > jourCourant() + ' ' + hhmmSec(L.depuis);
-      const orange = !journeeFinie && tot2 === 0 && !cible && !dejaDemain;
-      items.push({ c, lot: 2, cible, orange, tot: tot2, filtre: apres, depuis: hhmmSec(L.depuis) });
+      const auto = !reportDe(c.client) && tot2 === 0 && dejaDemain;
+      const cible = reportDe(c.client) || (auto ? lendemain(jourCourant()) : null);
+      const orange = !journeeFinie && tot2 === 0 && !cible;
+      items.push({ c, lot: 2, cible, auto, orange, tot: tot2, filtre: apres, depuis: hhmmSec(L.depuis) });
     }
   });
   const premiere = it => ((sorties[cleNom(it.c.client)] || [])[0]) || '99:99';
@@ -305,7 +308,7 @@ function afficherClients() {
     if (cible) {
       const badge = document.createElement('span');
       badge.className = 'badge-report';
-      badge.textContent = 'Saisie sur ' + libelleJour(cible);
+      badge.textContent = (it.auto ? 'Saisi sur ' : 'Saisie sur ') + libelleJour(cible);
       b.appendChild(badge);
     }
     const veille = it.lot === 0 ? laveLe(c.client) : null;
@@ -315,7 +318,7 @@ function afficherClients() {
       lv.textContent = 'Lavé ' + libelleJour(veille);
       b.insertBefore(lv, b.querySelector('.deja-tuile').nextSibling);
     }
-    if (cible || (it.orange && !veille)) {
+    if ((cible && !it.auto) || (it.orange && !veille)) {
       const bas = document.createElement('span');
       bas.className = 'bascule';
       const mot = motLivraison(jourCourant());
