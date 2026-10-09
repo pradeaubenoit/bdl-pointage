@@ -101,6 +101,7 @@
   .tuile.reporte .bascule { border-color: #6B4FA8; background: #6B4FA8; color: #fff; }
   .tuile .badge-report { display: inline-block; margin-top: 8px; font-size: 17px; font-weight: 700; color: #6B4FA8; }
   .avis-lecture { margin: 0 0 16px; padding: 14px 18px; border-radius: 12px; background: #FBEFDF; color: #8A4A0C; font-size: 19px; font-weight: 700; }
+  #recherche { grid-column: 1 / -1; width: 100%; padding: 16px 18px; font-size: 22px; border: 2px solid #C5D0D6; border-radius: 12px; background: #fff; color: var(--encre); -webkit-user-select: text; user-select: text; }
   .vide-jour { grid-column: 1 / -1; font-size: 22px; color: var(--doux); margin: 4px 0 8px; }
   .tuile.ajout {
     background: transparent; border: 3px dashed #9DB3BC; border-left: 3px dashed #9DB3BC;
@@ -226,6 +227,12 @@ function afficherClients() {
   document.getElementById('barre').style.display = 'none';
   const zone = document.getElementById('zone');
   zone.className = 'grille'; zone.innerHTML = '';
+  // Recherche : filtre les tuiles par nom (sans tenir compte des accents ni des majuscules).
+  const champR = document.createElement('input');
+  champR.type = 'search'; champR.id = 'recherche'; champR.placeholder = '🔍 Rechercher un client…';
+  champR.value = recherche;
+  champR.oninput = () => { recherche = champR.value; filtrerTuiles(); };
+  zone.appendChild(champR);
   const duJour = clientsDuJour();
   const liste = duJour || catalogue;
   if (duJour && !duJour.length) {
@@ -329,6 +336,7 @@ function afficherClients() {
     if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).depuis, lecture: true });
     else if (cible) b.onclick = () => ouvrirReporte(c, cible);
     else b.onclick = () => afficherArticles(c, false, it.filtre);
+    b.dataset.nom = sansAccent(c.client);
     zone.appendChild(b);
   });
   if (duJour && duJour.length < catalogue.length) {
@@ -343,6 +351,16 @@ function afficherClients() {
   nouveau.textContent = '+ Nouveau client';
   nouveau.onclick = nouveauClient;
   zone.appendChild(nouveau);
+  filtrerTuiles();
+}
+
+let recherche = '';
+function sansAccent(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+function filtrerTuiles() {
+  const q = sansAccent(recherche);
+  document.querySelectorAll('#zone .tuile[data-nom]').forEach(t => {
+    t.style.display = !q || t.dataset.nom.includes(q) ? '' : 'none';
+  });
 }
 
 function afficherArticles(c, garder, filtre) {
