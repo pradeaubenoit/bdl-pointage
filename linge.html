@@ -261,7 +261,7 @@ function afficherClients() {
       const orange = !journeeFinie && laveVide(c) && !cible;
       items.push({ c, lot: 0, cible, auto, orange, tot: totalJourClient(c.client, null) });
     } else {
-      const avant = { mode: 'avant', cut: L.depuis }, apres = { mode: 'apres', cut: L.depuis };
+      const avant = { mode: 'avant', cut: L.limite || L.depuis }, apres = { mode: 'apres', cut: L.limite || L.depuis };
       items.push({ c, lot: 1, cible: null, orange: false, tot: totalJourClient(c.client, avant) });
       const tot2 = totalJourClient(c.client, apres);
       const dejaDemain = (suites[cleNom(c.client)] || '') > jourCourant() + ' ' + hhmmSec(L.depuis);
@@ -333,7 +333,7 @@ function afficherClients() {
       bas.onclick = ev => { ev.stopPropagation(); basculerReport(c.client); };
       b.appendChild(bas);
     }
-    if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).depuis, lecture: true });
+    if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).limite || lot2De(c.client).depuis, lecture: true });
     else if (cible) b.onclick = () => ouvrirReporte(c, cible);
     else b.onclick = () => afficherArticles(c, false, it.filtre);
     b.dataset.nom = sansAccent(c.client);
@@ -688,7 +688,7 @@ async function chargerListeJour() {
       if (c.suite) suites[cleNom(c.client)] = c.suite;
       if (c.sorties && c.sorties.length) sorties[cleNom(c.client)] = c.sorties;
       if (c.reporte) reports[cleNom(c.client)] = c.reporte;
-      if (c.lot2) { lots2[cleNom(c.client)] = { depuis: c.lot2.depuis }; if (c.lot2.reporte) reports[cleNom(c.client)] = c.lot2.reporte; }
+      if (c.lot2) { lots2[cleNom(c.client)] = { depuis: c.lot2.depuis, limite: c.lot2.limite || c.lot2.depuis }; if (c.lot2.reporte) reports[cleNom(c.client)] = c.lot2.reporte; }
       if (c.reporteDe) reportesDe[cleNom(c.client)] = c.reporteDe;
     });
     listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client),
