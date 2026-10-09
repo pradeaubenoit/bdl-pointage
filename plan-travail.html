@@ -1249,8 +1249,8 @@ function add(){
    deplacerLigne(from,to) : `to` = index DEVANT lequel on pose (rows.length = à la fin). */
 var pickedId=null, pickedSel=null, dragFrom=-1, planQuery='', showProd=false, prIdx=0;
   function prMatches(){ var q=(planQuery||'').trim().toLowerCase(); var out=[]; if(!q)return out;
-  document.querySelectorAll('#results .bline').forEach(function(el){if(el.classList.contains('fait'))return;var nm=el.querySelector('.b-name');var v=nm?(nm.textContent||'').toLowerCase():'';if(v.indexOf(q)>=0)out.push(el);}); return out; }
-function prHighlight(reset){
+  document.querySelectorAll('#results .bline').forEach(function(el){var nm=el.querySelector('.b-name');var v=nm?(nm.textContent||'').toLowerCase():'';if(v.indexOf(q)>=0)out.push(el);}); return out; }
+                       function prHighlight(reset){
   var q=(planQuery||'').trim().toLowerCase(); var m=prMatches();
   if(reset||prIdx>=m.length||prIdx<0)prIdx=0;
   document.querySelectorAll('#results .bline').forEach(function(el){el.classList.remove('hit','hit-cur');});
@@ -1855,7 +1855,7 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
     var line=e.target.closest&&e.target.closest('.bline'); if(!line)return;
     var id=line.getAttribute('data-id'); if(!id)return;
     if(prSel[id]){ delete prSel[id]; line.classList.remove('sel'); }              // décocher : toujours possible
-    else { if(!line.classList.contains('hit'))return; prSel[id]=true; line.classList.add('sel'); } // cocher : seulement les lignes encadrées
+    else { if(!line.classList.contains('hit')||line.classList.contains('fait')||line.classList.contains('ign'))return; prSel[id]=true; line.classList.add('sel'); } // cocher : seulement les lignes encadrées
     updateAlltopLabel();
   });
   res.addEventListener('dragstart',function(e){
