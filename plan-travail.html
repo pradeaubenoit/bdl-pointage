@@ -1518,7 +1518,7 @@ function ajusterQuantite(key,newTotal,inp){
 function reOptimiserDepuis(i){
   var nFige=rows.filter(function(r){return estFait(r)||estLav(r);}).length;
   if(i<=0){ if(!confirm('Ré-optimiser la journée ?\nTout ce qui est déjà « fait » ou « laveuse » ('+nFige+' ligne'+(nFige>1?'s':'')+') reste FIGÉ — on ne réorganise que le reste à faire.'))return; }
-  else if(!confirm('Ré-optimiser à partir de la ligne '+(i+1)+' ?\nLes lignes du dessus, ET tout ce qui est déjà « fait » ou « laveuse », restent figés.'))return;
+  else if(!confirm('Ré-optimiser à partir de la ligne '+(rows.filter(estFait).length+rows.filter(function(x){return !estFait(x)&&!estIgn(x);}).indexOf(rows[i])+1)+' ?\nLes lignes du dessus, ET tout ce qui est déjà « fait » ou « laveuse », restent figés.'))return;
   var figes=[], pool=[];
   rows.forEach(function(r,idx){
     if(idx<i || estFait(r) || estLav(r) || estIgn(r) || r.machine!=='tunnel') figes.push(r);
