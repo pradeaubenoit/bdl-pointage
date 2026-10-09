@@ -261,7 +261,7 @@ function afficherClients() {
       const orange = !journeeFinie && laveVide(c) && !cible;
       items.push({ c, lot: 0, cible, auto, orange, tot: totalJourClient(c.client, null) });
     } else {
-      const avant = { mode: 'avant', cut: L.limite || L.depuis }, apres = { mode: 'apres', cut: L.limite || L.depuis };
+      const avant = { mode: 'avant', cut: L.limite || L.depuis }, apres = { mode: 'apres', cut: L.limite || L.depuis, fin: L.l3 ? L.l3.limite : null };
       items.push({ c, lot: 1, cible: null, orange: false, tot: totalJourClient(c.client, avant) });
       const tot2 = totalJourClient(c.client, apres);
       const dejaDemain = (suites[cleNom(c.client)] || '') > jourCourant() + ' ' + hhmmSec(L.depuis);
@@ -269,6 +269,12 @@ function afficherClients() {
       const cible = reportDe(c.client) || (auto ? lendemain(jourCourant()) : null);
       const orange = !journeeFinie && tot2 === 0 && !cible;
       items.push({ c, lot: 2, cible, auto, orange, tot: tot2, filtre: apres, depuis: hhmmSec(L.depuis) });
+      if (L.l3) {
+        const apres3 = { mode: 'apres', cut: L.l3.limite };
+        const tot3 = totalJourClient(c.client, apres3);
+        const cible3 = L.l3.reporte || null;
+        items.push({ c, lot: 3, cible: cible3, auto: false, orange: !journeeFinie && tot3 === 0 && !cible3, tot: tot3, filtre: apres3, depuis: hhmmSec(L.l3.depuis) });
+      }
     }
   });
   const premiere = it => ((sorties[cleNom(it.c.client)] || [])[0]) || '99:99';
@@ -284,7 +290,7 @@ function afficherClients() {
     const etat = it.orange || cible ? '' : (tot > 0 ? ' saisi' : ' attente');
     b.className = 'tuile' + (it.orange ? ' alave' : '') + (cible ? ' reporte' : '') + etat;
     b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile"></span>';
-    b.querySelector('.nom-tuile').textContent = c.client + (it.lot === 2 ? ' — 2ᵉ livraison' : '');
+    b.querySelector('.nom-tuile').textContent = c.client + (it.lot === 2 ? ' — 2ᵉ livraison' : it.lot === 3 ? ' — 3ᵉ livraison' : '');
     b.querySelector('.deja-tuile').textContent = tot ? etiquette + ' : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
     if (it.lot === 0 && estAjoutManuel(c.client) && tot === 0) {
       const x = document.createElement('span');
@@ -297,7 +303,7 @@ function afficherClients() {
     if (hs && hs.length && it.lot !== 1) {
       const so = document.createElement('span');
       so.className = 'sortie';
-      so.textContent = 'Sortie séchoir ~' + (it.lot === 2 ? hs.filter(h => h >= it.depuis) : hs).join(' · ');
+      so.textContent = 'Sortie séchoir ~' + (it.lot >= 2 ? hs.filter(h => h >= it.depuis) : hs).join(' · ');
       b.appendChild(so);
     }
     if (it.lot === 1) {
@@ -309,7 +315,7 @@ function afficherClients() {
     if (it.orange) {
       const badge = document.createElement('span');
       badge.className = 'badge-lave';
-      badge.textContent = it.lot === 2 ? 'Relavé à ' + it.depuis + ', à saisir' : 'Lavé, à saisir';
+      badge.textContent = it.lot >= 2 ? 'Relavé à ' + it.depuis + ', à saisir' : 'Lavé, à saisir';
       b.appendChild(badge);
     }
     if (cible) {
@@ -329,8 +335,8 @@ function afficherClients() {
       const bas = document.createElement('span');
       bas.className = 'bascule';
       const mot = motLivraison(jourCourant());
-      bas.textContent = cible ? '✓ Livré ' + mot + ' — annuler' : 'Livré ' + mot + ' ?';
-      bas.onclick = ev => { ev.stopPropagation(); basculerReport(c.client); };
+      bas.textContent = it.lot === 3 ? (cible ? '✓ Livré ' + libelleJour(cible) + ' — annuler' : 'Livré le… ?') : (cible ? '✓ Livré ' + mot + ' — annuler' : 'Livré ' + mot + ' ?');
+      bas.onclick = ev => { ev.stopPropagation(); if (it.lot === 3) { if (cible) reporterLot3(c.client, null); else choisirDateLot3(c.client); } else basculerReport(c.client); };
       b.appendChild(bas);
     }
     if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).limite || lot2De(c.client).depuis, lecture: true });
@@ -646,6 +652,45 @@ async function basculerReport(nom) {
   chargerListeJour();
 }
 
+// 3ᵉ livraison : on demande le jour de livraison (demain, lundi, ou un autre jour).
+function choisirDateLot3(nom) {
+  const liste = document.getElementById('listeJours');
+  liste.innerHTML = '';
+  const base = dateDe(jourCourant());
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i, 12);
+    if (d.getDay() === 0) continue;
+    const iso = isoLocal(d);
+    const b = document.createElement('button');
+    b.className = 'choixJour';
+    let lib = libelleJour(iso);
+    lib = 'Livré ' + lib + (i === 1 ? ' (demain)' : '');
+    b.textContent = lib;
+    b.onclick = () => { fermerJours(); reporterLot3(nom, iso); };
+    liste.appendChild(b);
+  }
+  document.getElementById('fondJour').style.display = 'flex';
+}
+async function reporterLot3(nom, cible) {
+  const date = jourCourant();
+  try {
+    const rep = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'reporter', date: date, client: nom, cible: cible, lot: 3 })
+    });
+    const data = await rep.json();
+    if (!data.ok) throw new Error(data.error || 'Refus du serveur');
+  } catch (e) {
+    toast('Impossible sans réseau. Réessaie quand le voyant est vert.', true);
+    return;
+  }
+  const listes = lire(CLE_LISTES, {});
+  const L = listes[date] && listes[date].lots2 && listes[date].lots2[cleNom(nom)];
+  if (L && L.l3) { L.l3.reporte = cible; ecrire(CLE_LISTES, listes); }
+  afficherClients();
+  chargerListeJour();
+}
+
 // Ouvre la saisie du client directement sur le jour de livraison.
 function ouvrirReporte(c, cible) {
   jourAvantReport = jourChoisi;
@@ -688,7 +733,7 @@ async function chargerListeJour() {
       if (c.suite) suites[cleNom(c.client)] = c.suite;
       if (c.sorties && c.sorties.length) sorties[cleNom(c.client)] = c.sorties;
       if (c.reporte) reports[cleNom(c.client)] = c.reporte;
-      if (c.lot2) { lots2[cleNom(c.client)] = { depuis: c.lot2.depuis, limite: c.lot2.limite || c.lot2.depuis }; if (c.lot2.reporte) reports[cleNom(c.client)] = c.lot2.reporte; }
+      if (c.lot2) { lots2[cleNom(c.client)] = { depuis: c.lot2.depuis, limite: c.lot2.limite || c.lot2.depuis, l3: c.lot3 ? { depuis: c.lot3.depuis, limite: c.lot3.limite, reporte: c.lot3.reporte || null } : null }; if (c.lot2.reporte) reports[cleNom(c.client)] = c.lot2.reporte; }
       if (c.reporteDe) reportesDe[cleNom(c.client)] = c.reporteDe;
     });
     listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client),
@@ -812,8 +857,8 @@ function entreesJour(client, article, filtre = lotFiltre) {
   });
   const res = filtre ? liste.filter(e => {
     const [a, b] = e.h.split(':').map(Number);
-    const dansLot2 = e.le === date && (a * 3600 + b * 60) >= filtre.cut;
-    return filtre.mode === 'apres' ? dansLot2 : !dansLot2;
+    const apresCut = e.le === date && (a * 3600 + b * 60) >= filtre.cut;
+    return filtre.mode === 'apres' ? apresCut && !(filtre.fin != null && e.le === date && (a * 3600 + b * 60) >= filtre.fin) : !apresCut;
   }) : liste;
   return res.sort((a, b) => a.h.localeCompare(b.h));
 }
