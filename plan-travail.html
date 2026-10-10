@@ -1565,7 +1565,7 @@ var _finB=_anc+_delta;
 /* Reprendre la JOURNÉE EN COURS (celle du Plan de travail, avec l'ordre que tu viens de réorganiser)
    directement dans le Brouillon, prête à optimiser puis diffuser. Plus besoin de retaper la date. */
 function bLoadCurrent(){
-bRows=rows.filter(estFait).concat(rows.filter(function(x){return !estFait(x);})).map(function(r){return Object.assign({},r);});
+bRows=triFaits(rows.filter(estFait)).concat(rows.filter(function(x){return !estFait(x)&&!estIgn(x);})).map(function(r){return Object.assign({},r);});
   bBase=bRows.slice(); bBaseDate=curDate; bLoaded=true; bProposFin=null; bOptimized=false;
   var bb=document.getElementById('b-base'); if(bb)bb.value=curDate;
   var bt=document.getElementById('b-target'); if(bt)bt.value=isoPlus(curDate,7);
