@@ -441,6 +441,7 @@ function estLav(r){ return !!(r&&(r._lav||r.machine==='laveuse')); }
 /* ABSENT / IGNORÉ : client prévu mais pas de linge ce jour. Reste sur le plan (barré), n'est pas compté
    dans le travail, et n'est PAS envoyé comme « lavé » à l'atelier. Persisté par ligne : CFG.ignById[date][id]. */
 function estIgn(r){ return !!(r&&r._ign); }
+function triFaits(l){ return l.map(function(r,i){return {r:r,i:i};}).sort(function(a,b){var ta=a.r._faitAt!=null?a.r._faitAt:1e9, tb=b.r._faitAt!=null?b.r._faitAt:1e9; return (ta-tb)||(a.i-b.i);}).map(function(x){return x.r;}); }
 function toggleIgn(r){ if(!r)return; r._ign=!r._ign; if(r._ign){ r._fait=false; r._faitAt=null; r._lav=false; }
   persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); scheduleSavePlan(); }
 function persistFaits(){
@@ -1379,7 +1380,7 @@ function renderResults(){
 if(pickedId!=null||(pickedSel&&pickedSel.length)){ var _pn=''; if(pickedId!=null){for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}} else {_pn='s\u00e9lection ('+pickedSel.length+' lignes)';}
   h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
   var _pend=[], _done=[];
-    var _ordreJour = rows.filter(estFait).concat(rows.filter(function(x){ return !estFait(x) && !estIgn(x); })).concat(rows.filter(estIgn));
+    var _ordreJour = triFaits(rows.filter(estFait)).concat(rows.filter(function(x){ return !estFait(x) && !estIgn(x); })).concat(rows.filter(estIgn));
   /* HEURES. Lignes FAITES : heure réelle d'engagement gelée (r._faitAt) — copier-coller, jamais recalculée.
      Lignes RESTANTES : on recalcule leur enchaînement à partir de MAINTENANT (la prochaine à charger = now,
      les suivantes chaînées à la cadence), comme le moteur le fait pour le plan global. */
@@ -1431,11 +1432,11 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
       else if(!_fait){ _opBtn='<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>'; }
     }
     var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+(_ign?' ign':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(_ordreJour.indexOf(r)+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+'</div></div>';
-    ((_fait||_ign)?_done:_pend).push(rowHtml);
+    if(_fait||_ign) _done.push({h:rowHtml, t:(_ign?2e9:(r._faitAt!=null?r._faitAt:1e9)), n:_done.length}); else _pend.push(rowHtml);
   });
   h+=_pend.join('');
   if(_done.length) h+='<div class="done-sep no-print">\u2713 Fait ('+_done.length+') \u2014 pour référence, l\'ordre réel ne change pas</div>';
-  h+=_done.join('');
+  h+=_done.sort(function(a,b){return (a.t-b.t)||(a.n-b.n);}).map(function(x){return x.h;}).join('');
   if(pickedId!=null) h+='<div class="pose-fin no-print"><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2935 poser à la fin de la journée</button></div>';
   h+='<div class="sech no-print" style="display:flex;align-items:center;gap:10px">Production par client<button class="btn-ghost no-print" id="prod-toggle" style="font-size:12px;padding:2px 10px">'+(showProd?'\u25be masquer':'\u25b8 afficher ('+clients.length+')')+'</button></div>';
   if(showProd){
