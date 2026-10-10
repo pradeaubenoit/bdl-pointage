@@ -257,7 +257,7 @@ function afficherClients() {
     if (!L) {
       // Saisi sur le jour suivant après son lavage (bouton oublié, ou correction dans le tableur) : violet automatique.
       const auto = !reportDe(c.client) && laveVide(c) && dejaSaisiLendemain(c.client);
-      const cible = reportDe(c.client) || (auto ? lendemain(jourCourant()) : null);
+      const cible = reportDe(c.client) || (auto ? (((listeCache().suitesDate || {})[cleNom(c.client)]) || lendemain(jourCourant())) : null);
       const orange = !journeeFinie && laveVide(c) && !cible;
       items.push({ c, lot: 0, cible, auto, orange, tot: totalJourClient(c.client, null) });
     } else {
@@ -266,7 +266,7 @@ function afficherClients() {
       const tot2 = totalJourClient(c.client, apres);
       const dejaDemain = (suites[cleNom(c.client)] || '') > jourCourant() + ' ' + hhmmSec(L.depuis);
       const auto = !reportDe(c.client) && tot2 === 0 && dejaDemain;
-      const cible = reportDe(c.client) || (auto ? lendemain(jourCourant()) : null);
+      const cible = reportDe(c.client) || (auto ? (((listeCache().suitesDate || {})[cleNom(c.client)]) || lendemain(jourCourant())) : null);
       const orange = !journeeFinie && tot2 === 0 && !cible;
       items.push({ c, lot: 2, cible, auto, orange, tot: tot2, filtre: apres, depuis: hhmmSec(L.depuis) });
       if (L.l3) {
@@ -727,17 +727,18 @@ async function chargerListeJour() {
     if (!data.ok || date !== jourCourant()) return;
     const listes = lire(CLE_LISTES, {});
     const sorties = {};
-    const reports = {}, reportesDe = {}, dernierFait = {}, suites = {}, lots2 = {};
+    const reports = {}, reportesDe = {}, dernierFait = {}, suites = {}, suitesDate = {}, lots2 = {};
     data.clients.forEach(c => {
       if (c.dernierFait != null) dernierFait[cleNom(c.client)] = c.dernierFait;
       if (c.suite) suites[cleNom(c.client)] = c.suite;
+      if (c.suiteDate) suitesDate[cleNom(c.client)] = c.suiteDate;
       if (c.sorties && c.sorties.length) sorties[cleNom(c.client)] = c.sorties;
       if (c.reporte) reports[cleNom(c.client)] = c.reporte;
       if (c.lot2) { lots2[cleNom(c.client)] = { depuis: c.lot2.depuis, limite: c.lot2.limite || c.lot2.depuis, l3: c.lot3 ? { depuis: c.lot3.depuis, limite: c.lot3.limite, reporte: c.lot3.reporte || null } : null }; if (c.lot2.reporte) reports[cleNom(c.client)] = c.lot2.reporte; }
       if (c.reporteDe) reportesDe[cleNom(c.client)] = c.reporteDe;
     });
     listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client),
-      sorties: sorties, reports: reports, reportesDe: reportesDe, dernierFait: dernierFait, suites: suites, lots2: lots2, bascule: data.bascule || 14 };
+      sorties: sorties, reports: reports, reportesDe: reportesDe, dernierFait: dernierFait, suites: suites, suitesDate: suitesDate, lots2: lots2, bascule: data.bascule || 14 };
     Object.keys(listes).forEach(d => { if (d < isoLocal(new Date(Date.now() - 7 * 864e5))) delete listes[d]; });
     ecrire(CLE_LISTES, listes);
     if (!clientCourant) afficherClients();
