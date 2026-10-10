@@ -335,8 +335,8 @@ function afficherClients() {
       const bas = document.createElement('span');
       bas.className = 'bascule';
       const mot = motLivraison(jourCourant());
-      bas.textContent = it.lot === 3 ? (cible ? '✓ Livré ' + libelleJour(cible) + ' — annuler' : 'Livré le… ?') : (cible ? '✓ Livré ' + mot + ' — annuler' : 'Livré ' + mot + ' ?');
-      bas.onclick = ev => { ev.stopPropagation(); if (it.lot === 3) { if (cible) reporterLot3(c.client, null); else choisirDateLot3(c.client); } else basculerReport(c.client); };
+      bas.textContent = cible ? '✓ Livré ' + libelleJour(cible) + ' — annuler' : 'Livré le… ?';
+      bas.onclick = ev => { ev.stopPropagation(); if (cible) { if (it.lot === 3) reporterLot3(c.client, null); else basculerReport(c.client); } else choisirDateLivraison(c.client, it.lot); };
       b.appendChild(bas);
     }
     if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).limite || lot2De(c.client).depuis, lecture: true });
@@ -628,9 +628,9 @@ function relave(nom) {
   return h;
 }
 
-async function basculerReport(nom) {
+async function basculerReport(nom, choix) {
   const date = jourCourant();
-  const cible = reportDe(nom) ? null : lendemain(date);
+  const cible = reportDe(nom) ? null : (choix || lendemain(date));
   try {
     const rep = await fetch(API_URL, {
       method: 'POST',
@@ -652,8 +652,8 @@ async function basculerReport(nom) {
   chargerListeJour();
 }
 
-// 3ᵉ livraison : on demande le jour de livraison (demain, lundi, ou un autre jour).
-function choisirDateLot3(nom) {
+// « Livré le… ? » : on demande le jour de livraison (demain, lundi, ou un autre jour).
+function choisirDateLivraison(nom, lot) {
   const liste = document.getElementById('listeJours');
   liste.innerHTML = '';
   const base = dateDe(jourCourant());
@@ -666,7 +666,7 @@ function choisirDateLot3(nom) {
     let lib = libelleJour(iso);
     lib = 'Livré ' + lib + (i === 1 ? ' (demain)' : '');
     b.textContent = lib;
-    b.onclick = () => { fermerJours(); reporterLot3(nom, iso); };
+    b.onclick = () => { fermerJours(); if (lot === 3) reporterLot3(nom, iso); else basculerReport(nom, iso); };
     liste.appendChild(b);
   }
   document.getElementById('fondJour').style.display = 'flex';
