@@ -513,12 +513,12 @@ function listeAffichee() {
   const saisiApres = (c, t) => mode === 'jour' && t != null && c.suite && c.suite > tableau.periode + ' ' + hh(t);
   const gardes = [];
   tableau.clients.forEach(c => {
-    if (!c.lot2 && !c.reporte && c.lave && !c.recu && saisiApres(c, c.dernierFait)) c.reporte = suivant();
+    if (!c.lot2 && !c.reporte && c.lave && !c.recu && saisiApres(c, c.dernierFait)) c.reporte = c.suiteDate || suivant();
     gardes.push(c);
     if (c.lot2) gardes.push(Object.assign({}, c.lot2, {
       client: c.client + ' — 2ᵉ livraison', parent: c, attendu: true, lave: true,
       recu: c.lot2.total > 0, pointe: !!c.lot2.pointe, sorties: [],
-      reporte: c.lot2.reporte || (c.lot2.total === 0 && saisiApres(c, c.lot2.depuis) ? suivant() : null)
+      reporte: c.lot2.reporte || (c.lot2.total === 0 && saisiApres(c, c.lot2.depuis) ? (c.suiteDate || suivant()) : null)
     }));
   });
   return gardes.concat(extra).sort((a, b) => a.client.localeCompare(b.client, 'fr'));
