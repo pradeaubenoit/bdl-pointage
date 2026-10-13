@@ -98,6 +98,11 @@
   .tuile.reporte .badge { background: #fff; color: #6B4FA8; }
   .tuile.ajoute .badge { background: #FFF6D6; color: #6B5300; }
   #compteur:empty { display: none; }
+  .tuile .evoliz { display: block; width: fit-content; margin-top: 6px; font-size: 13px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .tuile .evoliz.fait { background: #fff; color: #2F6FB3; border: 1px solid #BFD3EA; }
+  .tuile .evoliz.afaire { background: #FFF3E3; color: #A35A00; }
+  .tuile.envoye { background: #FFF7CC; border-color: #F0D96B; border-left-color: #D9B300; }
+  .tuile.envoye .evoliz.fait { color: #7A6200; border-color: #F0D96B; }
   #fondAjout {
     display: none; position: fixed; inset: 0; background: rgba(29,43,52,.45);
     align-items: center; justify-content: center; padding: 20px; z-index: 20;
@@ -355,6 +360,10 @@ function afficher() {
   cpt.textContent = aCompter.length
     ? (reste ? 'Reste à pointer : ' + reste + ' / ' + aCompter.length : 'Tout est pointé ✓ (' + aCompter.length + ')')
     : '';
+  if (mode === 'jour' && aCompter.length) {
+    const aEnvoyer = clients.filter(c => c.pointe && c.articles && c.articles.length && !(transfertsEv[cleTransfert(c)] || []).length).length;
+    if (aEnvoyer) cpt.textContent += ' · À envoyer à Evoliz : ' + aEnvoyer;
+  }
   cpt.className = reste ? '' : 'fini';
 
   majAttente();
@@ -391,6 +400,16 @@ function afficher() {
     else if (mode === 'jour' && !c.attendu) html += '<span class="badge">Nouveau ce jour</span>';
     t.innerHTML = html;
     t.querySelector('.nom').textContent = c.client;
+    // Evoliz : BL déjà créé, ou client pointé mais pas encore envoyé.
+    if (mode === 'jour' && c.articles && c.articles.length) {
+      const bl = transfertsEv[cleTransfert(c)];
+      if (bl && bl.length) {
+        t.classList.add('envoye');
+        const e = document.createElement('span'); e.className = 'evoliz fait'; e.textContent = '📤 Evoliz : ' + bl.join(', '); t.appendChild(e);
+      } else if (c.pointe) {
+        const e = document.createElement('span'); e.className = 'evoliz afaire'; e.textContent = 'À envoyer à Evoliz'; t.appendChild(e);
+      }
+    }
 
     // Vue mois : jours saisis mais pas encore pointés, cliquables pour aller sur la journée.
     const aPointer = mode === 'mois' ? (c.jours || []).filter(j => !j.pointe) : [];
@@ -499,7 +518,7 @@ async function chargerTransfertsEv(periode) {
   try {
     const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'evolizEtat', periode: periode }) });
     const data = await rep.json();
-    if (data.ok && tableau && tableau.periode === periode) transfertsEv = data.transferts || {};
+    if (data.ok && tableau && tableau.periode === periode) { transfertsEv = data.transferts || {}; afficher(); }
   } catch (e) {}
 }
 
@@ -537,6 +556,7 @@ async function transfererEvoliz(c, bouton, forcer) {
     const k = cleTransfert(c);
     transfertsEv[k] = (transfertsEv[k] || []).concat(numeros);
     bouton.textContent = '✓ Evoliz : ' + transfertsEv[k].join(', ');
+    afficher();
     let msg = 'Bon de livraison créé dans Evoliz : ' + data.bls.map(b => b.numero + ' (' + b.pieces + ' pièces)').join(', ') + '.';
     if (data.ignores && data.ignores.length) msg += '\n\nNon transférés (pas de référence Evoliz) : ' + data.ignores.join(', ');
     alert(msg);
