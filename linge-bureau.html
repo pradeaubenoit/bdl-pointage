@@ -289,7 +289,9 @@ async function charger() {
     const data = await rep.json();
     if (!data.ok) throw new Error(data.error || 'Réponse invalide');
     tableau = data;
+    transfertsEv = {};
     afficher();
+    if (mode === 'jour') chargerTransfertsEv(v);
     etat.textContent = 'mis à jour à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   } catch (err) {
     tableau = null;
@@ -468,18 +470,85 @@ function ouvrir(c) {
   b.textContent = c.pointe ? 'Annuler le pointage' : 'Marquer comme saisi ✓';
   b.className = c.pointe ? 'btn' : 'btn ok';
   b.onclick = () => pointer(c);
-  // Transfert vers Evoliz (bon de livraison) : bouton visible, branchement à venir.
+  // Transfert vers Evoliz (bon de livraison).
   const ev = document.getElementById('pEvoliz');
   ev.style.display = (mode === 'jour' && c.articles.length) ? '' : 'none';
   ev.textContent = '📤 Transférer vers Evoliz';
   ev.disabled = !c.pointe;
   ev.style.opacity = c.pointe ? '1' : '.45';
   ev.title = c.pointe ? 'Créer le bon de livraison dans Evoliz' : 'Marque d\'abord le client comme saisi ✓';
-  ev.onclick = () => alert('Bientôt : ce bouton créera automatiquement dans Evoliz le bon de livraison de « ' + c.client + ' » du ' + tableau.periode.split('-').reverse().join('/') + ', avec ses ' + c.total + ' pièces.\n\nPour l\'instant, rien n\'est envoyé.');
+  const faits = transfertsEv[cleTransfert(c)];
+  if (faits && faits.length) {
+    ev.textContent = '✓ Evoliz : ' + faits.join(', ');
+    ev.title = 'Bon de livraison déjà créé dans Evoliz';
+  }
+  ev.onclick = () => transfererEvoliz(c, ev);
   document.getElementById('fond').style.display = 'flex';
 }
 
 function fermer() { document.getElementById('fond').style.display = 'none'; }
+
+/* ---------- Transfert vers Evoliz (bon de livraison) ---------- */
+let transfertsEv = {};   // « client normalisé|lot » -> [n° de BL]
+function cleEv(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function clientReel(c) { return c.parent ? c.parent.client : c.client; }
+function lotDe(c) { return c.parent ? 2 : 1; }
+function cleTransfert(c) { return cleEv(clientReel(c)) + '|' + lotDe(c); }
+
+async function chargerTransfertsEv(periode) {
+  try {
+    const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'evolizEtat', periode: periode }) });
+    const data = await rep.json();
+    if (data.ok && tableau && tableau.periode === periode) transfertsEv = data.transferts || {};
+  } catch (e) {}
+}
+
+// Jour de livraison : « Livré le… » s'il a été choisi, sinon le lendemain (le lundi pour un samedi).
+function dateLivraison(c) {
+  if (c.reporte) return c.reporte;
+  const [a, m, j] = tableau.periode.split('-').map(Number);
+  const d = new Date(a, m - 1, j + 1);
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+  return isoJour(d);
+}
+
+async function transfererEvoliz(c, bouton, forcer) {
+  let nom = lireNom();
+  if (!nom) nom = changerNom();
+  if (!nom) return;
+  const proposee = dateLivraison(c).split('-').reverse().join('/');
+  let saisie = forcer ? proposee : prompt('Bon de livraison Evoliz pour « ' + clientReel(c) + ' » (' + c.total + ' pièces).\n\nDate de livraison (jj/mm/aaaa) :', proposee);
+  if (saisie === null) return;
+  const m = String(saisie).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) { alert('Date non comprise. Écris-la sous la forme 13/10/2026.'); return; }
+  const date = m[3] + '-' + p2(Number(m[2])) + '-' + p2(Number(m[1]));
+  const texte = bouton.textContent;
+  bouton.disabled = true; bouton.textContent = 'Envoi à Evoliz…';
+  try {
+    const rep = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'evoliz', periode: tableau.periode, client: clientReel(c), lot: lotDe(c), date: date,
+        articles: c.articles.map(a => ({ article: a.article, quantite: a.quantite })), par: nom, forcer: !!forcer })
+    });
+    const data = await rep.json();
+    bouton.disabled = false; bouton.textContent = texte;
+    if (data.deja) {
+      if (confirm('Un bon de livraison existe déjà pour ce client et cette journée : ' + data.deja + '.\n\nEn créer quand même un autre ?')) transfererEvoliz(c, bouton, true);
+      return;
+    }
+    if (!data.ok) throw new Error(data.error || 'Refus du serveur');
+    const numeros = data.bls.map(b => b.numero);
+    const k = cleTransfert(c);
+    transfertsEv[k] = (transfertsEv[k] || []).concat(numeros);
+    bouton.textContent = '✓ Evoliz : ' + transfertsEv[k].join(', ');
+    let msg = 'Bon de livraison créé dans Evoliz : ' + data.bls.map(b => b.numero + ' (' + b.pieces + ' pièces)').join(', ') + '.';
+    if (data.ignores && data.ignores.length) msg += '\n\nNon transférés (pas de référence Evoliz) : ' + data.ignores.join(', ');
+    alert(msg);
+  } catch (err) {
+    bouton.disabled = false; bouton.textContent = texte;
+    alert('Le transfert vers Evoliz a échoué :\n' + err.message);
+  }
+}
 
 async function pointer(c) {
   let nom = lireNom();
