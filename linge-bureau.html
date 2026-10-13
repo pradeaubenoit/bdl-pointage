@@ -503,13 +503,9 @@ async function chargerTransfertsEv(periode) {
   } catch (e) {}
 }
 
-// Jour de livraison : « Livré le… » s'il a été choisi, sinon le lendemain (le lundi pour un samedi).
+// Jour de livraison : « Livré le… » s'il a été choisi, sinon la journée affichée elle-même.
 function dateLivraison(c) {
-  if (c.reporte) return c.reporte;
-  const [a, m, j] = tableau.periode.split('-').map(Number);
-  const d = new Date(a, m - 1, j + 1);
-  if (d.getDay() === 0) d.setDate(d.getDate() + 1);
-  return isoJour(d);
+  return c.reporte || tableau.periode;
 }
 
 async function transfererEvoliz(c, bouton, forcer) {
@@ -555,10 +551,10 @@ async function pointer(c) {
   if (!nom) nom = changerNom();
   if (!nom) return;
   const fait = !c.pointe;
-  fermer();
   c.pointe = fait;
   if (c.parent) c.parent.lot2.pointe = fait;
   afficher();
+  ouvrir(c);   // la fiche reste ouverte : on peut enchaîner avec « Transférer vers Evoliz »
   try {
     const rep = await fetch(API_URL, {
       method: 'POST',
@@ -570,6 +566,7 @@ async function pointer(c) {
     c.pointe = !fait;
     if (c.parent) c.parent.lot2.pointe = !fait;
     afficher();
+    if (document.getElementById('fond').style.display === 'flex') ouvrir(c);
     alert('Le pointage n\'a pas pu être enregistré (' + err.message + '). Vérifie la connexion et réessaie.');
   }
 }
