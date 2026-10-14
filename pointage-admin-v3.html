@@ -632,7 +632,7 @@ function apiCallBrut(params) {
     var _cacheable = /^(getAllSoldesSup|getOperationsSup|getCalendrierHeuresMois|monthlyReport|getSoldeSup)$/.test(String(params.action || ''));
     window._apiCache = window._apiCache || {};
     var _hit = window._apiCache[_key];
-    var _ttl = /^(getCalendrierHeuresMois|monthlyReport)$/.test(String(params.action || '')) ? 600000 : 90000;
+    var _ttl = /^(getCalendrierHeuresMois)$/.test(String(params.action || '')) ? 600000 : 90000;
     if (_cacheable && _hit && (Date.now() - _hit.t) < _ttl) return resolve(_hit.d);
     const cbName = '_bdlcb' + Date.now() + Math.random().toString(36).slice(2, 7);
     const url = new URL(apiUrl);
@@ -1277,7 +1277,7 @@ window.envoyerBilanMail = async function(empId, empName) {
     toast('Erreur : ' + e.message, 'error');
   }
 };
-$('rpt-refresh').addEventListener('click', renderReport);
+$('rpt-refresh').addEventListener('click', function () { window._apiCache = {}; renderReport(); });
 $('rpt-month').addEventListener('change', renderReport);
 $('rpt-print').addEventListener('click', () => window.print());
 $('rpt-csv').addEventListener('click', () => {
