@@ -296,7 +296,7 @@ async function charger() {
     tableau = data;
     transfertsEv = {};
     afficher();
-    if (mode === 'jour') chargerTransfertsEv(v);
+    if (mode === 'jour') { chargerTransfertsEv(v); chargerLavesVeille(v); }
     etat.textContent = 'mis à jour à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   } catch (err) {
     tableau = null;
@@ -396,8 +396,11 @@ function afficher() {
     else if (et === 'oubli' && c.reporteDe) html += '<span class="badge">Lavé le ' + c.reporteDe.slice(8, 10) + '/' + c.reporteDe.slice(5, 7) + ', rien saisi</span>';
     else if (et === 'oubli') html += '<span class="badge">' + (avecPlan() ? 'Lavé, rien saisi' : 'Rien reçu de l\'atelier') + '</span>';
     else if (et === 'absent') html += '<span class="badge">' + (c.lave ? 'Lavé, rien saisi' : 'Pas lavé aujourd\'hui') + '</span>';
-    else if (c.reporteDe && c.recu && !c.pointe) html += '<span class="badge">Lavé le ' + c.reporteDe.slice(8, 10) + '/' + c.reporteDe.slice(5, 7) + '</span>';
-    else if (avecPlan() && c.recu && !c.lave && !c.reporteDe && !c.pointe) html += '<span class="badge">Non vu au lavage</span>';
+    else if (avecPlan() && c.recu && !c.lave && !c.pointe && (c.reporteDe || laveLaVeille(c))) {
+      const lv = c.reporteDe || laveLaVeille(c);
+      html += '<span class="badge">Lavé le ' + lv.slice(8, 10) + '/' + lv.slice(5, 7) + '</span>';
+    }
+    else if (avecPlan() && c.recu && !c.lave && !c.pointe) html += '<span class="badge">Non vu au lavage</span>';
     else if (mode === 'jour' && !c.attendu) html += '<span class="badge">Nouveau ce jour</span>';
     t.innerHTML = html;
     t.querySelector('.nom').textContent = c.client;
@@ -507,6 +510,28 @@ function ouvrir(c) {
 }
 
 function fermer() { document.getElementById('fond').style.display = 'none'; }
+
+/* ---------- Lavé la veille : le linge lavé hier est livré (et saisi) aujourd'hui ---------- */
+let lavesVeille = { date: '', noms: new Set() };
+function veilleDe(iso) {
+  const [a, m, j] = iso.split('-').map(Number);
+  const d = new Date(a, m - 1, j - 1);
+  if (d.getDay() === 0) d.setDate(d.getDate() - 1);
+  return isoJour(d);
+}
+async function chargerLavesVeille(periode) {
+  const veille = veilleDe(periode);
+  try {
+    const rep = await fetch(API_URL + '?action=tableau&mode=jour&periode=' + veille);
+    const data = await rep.json();
+    if (!data.ok || !tableau || tableau.periode !== periode) return;
+    lavesVeille = { date: veille, noms: new Set(data.clients.filter(c => c.lave || c.lot2).map(c => cle(c.client))) };
+    afficher();
+  } catch (e) {}
+}
+function laveLaVeille(c) {
+  return tableau && lavesVeille.date === veilleDe(tableau.periode) && lavesVeille.noms.has(cle(c.client)) ? lavesVeille.date : null;
+}
 
 /* ---------- Transfert vers Evoliz (bon de livraison) ---------- */
 let transfertsEv = {};   // « client normalisé|lot » -> [n° de BL]
