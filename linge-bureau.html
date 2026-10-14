@@ -201,6 +201,7 @@
       <button class="btn" id="pEvoliz" style="display:none"></button>
       <button class="btn ok" id="pBouton"></button>
     </div>
+    <a href="#" id="pManuel" style="display:none; padding:0 20px 16px; font-size:14px; color:#6B7A86; text-align:right">BL déjà fait à la main dans Evoliz</a>
   </div>
 </div>
 
@@ -506,6 +507,9 @@ function ouvrir(c) {
     ev.title = 'Bon de livraison déjà créé dans Evoliz';
   }
   ev.onclick = () => transfererEvoliz(c, ev);
+  const man = document.getElementById('pManuel');
+  man.style.display = (mode === 'jour' && c.articles.length && !(faits && faits.length)) ? 'block' : 'none';
+  man.onclick = ev2 => { ev2.preventDefault(); marquerManuel(c); };
   document.getElementById('fond').style.display = 'flex';
 }
 
@@ -551,6 +555,30 @@ async function chargerTransfertsEv(periode) {
 // Jour de livraison : « Livré le… » s'il a été choisi, sinon la journée affichée elle-même.
 function dateLivraison(c) {
   return c.reporte || tableau.periode;
+}
+
+// BL fait à la main dans Evoliz : on le note seulement (rien n'est créé dans Evoliz).
+async function marquerManuel(c) {
+  let nom = lireNom();
+  if (!nom) nom = changerNom();
+  if (!nom) return;
+  const num = prompt('« ' + clientReel(c) + ' » : BL déjà fait à la main dans Evoliz.\n\nNuméro du BL (facultatif, ex. BL-005480) :', '');
+  if (num === null) return;
+  try {
+    const rep = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'evolizManuel', periode: tableau.periode, client: clientReel(c), lot: lotDe(c),
+        numero: String(num).trim(), pieces: c.total, par: nom })
+    });
+    const data = await rep.json();
+    if (!data.ok) throw new Error(data.error || 'Refus du serveur');
+    const k = cleTransfert(c);
+    transfertsEv[k] = (transfertsEv[k] || []).concat([data.numero]);
+    afficher();
+    ouvrir(c);
+  } catch (err) {
+    alert('Impossible d\'enregistrer (' + err.message + ').');
+  }
 }
 
 async function transfererEvoliz(c, bouton, forcer) {
