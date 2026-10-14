@@ -612,7 +612,18 @@ function todayIso() {
 // ============================================================
 // API (via JSONP pour contourner les restrictions CORS d'Apps Script)
 // ============================================================
+// Même lecture déjà en cours (préchargement) : on attend sa réponse au lieu d'en relancer une.
 function apiCall(params) {
+  var k = JSON.stringify(params);
+  window._apiEnCours = window._apiEnCours || {};
+  if (window._apiEnCours[k]) return window._apiEnCours[k];
+  var pr = apiCallBrut(params);
+  window._apiEnCours[k] = pr;
+  var fin = function () { delete window._apiEnCours[k]; };
+  pr.then(fin, fin);
+  return pr;
+}
+function apiCallBrut(params) {
   return new Promise((resolve, reject) => {
     if (!apiUrl) return reject(new Error('API URL non configurée'));
         // Cache memoire : les lectures lourdes ne sont payees qu'une fois par 90 s.
@@ -621,7 +632,8 @@ function apiCall(params) {
     var _cacheable = /^(getAllSoldesSup|getOperationsSup|getCalendrierHeuresMois|monthlyReport|getSoldeSup)$/.test(String(params.action || ''));
     window._apiCache = window._apiCache || {};
     var _hit = window._apiCache[_key];
-    if (_cacheable && _hit && (Date.now() - _hit.t) < 90000) return resolve(_hit.d);
+    var _ttl = /^(getCalendrierHeuresMois|monthlyReport)$/.test(String(params.action || '')) ? 600000 : 90000;
+    if (_cacheable && _hit && (Date.now() - _hit.t) < _ttl) return resolve(_hit.d);
     const cbName = '_bdlcb' + Date.now() + Math.random().toString(36).slice(2, 7);
     const url = new URL(apiUrl);
     Object.entries(params).forEach(([k, v]) => {
@@ -866,6 +878,8 @@ async function renderReport() {
   try {
     const d = await apiGet('monthlyReport', { month });
     currentReport = d;
+    // Préchargement du détail jour par jour en arrière-plan : il s'ouvrira tout de suite.
+    setTimeout(function () { apiGet('getCalendrierHeuresMois', { month: month }).catch(function () {}); }, 300);
     const retraitsTotMois = (d.totaux.retraitsMois) || 0;
     totauxWrap.innerHTML = `<div class="rpt-totaux">
       <div class="rpt-tot-cell"><div class="lbl">${d.monthLabel} — Heures totales</div><div class="v">${fmtHours(d.totaux.heuresTotal)}</div></div>
