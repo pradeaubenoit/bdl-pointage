@@ -283,23 +283,41 @@ function libelle() {
 }
 
 /* ---------- Chargement ---------- */
+// Journées déjà chargées : affichées tout de suite quand on y revient, puis actualisées.
+const cacheJours = {};
+let numChargement = 0;
 async function charger() {
   const v = document.getElementById('periode').value;
   if (!v) return;
-  retires = new Set();
-  ajoutes = [];
+  const num = ++numChargement;
+  const memeJour = tableau && tableau.periode === v;
+  if (!memeJour) { retires = new Set(); ajoutes = []; }
   const etat = document.getElementById('etat');
-  etat.className = ''; etat.textContent = 'Chargement…';
+  const cleCache = mode + '|' + v;
+  // Les demandes annexes partent en même temps que la journée, pas après.
+  if (mode === 'jour') { chargerTransfertsEv(v); chargerLavesVeille(v); }
+  if (!memeJour && cacheJours[cleCache]) {
+    tableau = cacheJours[cleCache];
+    transfertsEv = transfertsParJour[v] || {};
+    afficher();
+    etat.className = ''; etat.textContent = 'Actualisation…';
+  } else if (!memeJour) {
+    etat.className = ''; etat.textContent = 'Chargement…';
+  }
   try {
     const rep = await fetch(API_URL + '?action=tableau&mode=' + mode + '&periode=' + v);
     const data = await rep.json();
     if (!data.ok) throw new Error(data.error || 'Réponse invalide');
+    cacheJours[cleCache] = data;
+    if (num !== numChargement) return;   // on a changé de jour entre-temps
     tableau = data;
-    transfertsEv = {};
+    transfertsEv = transfertsParJour[v] || {};
     afficher();
-    if (mode === 'jour') { chargerTransfertsEv(v); chargerLavesVeille(v); }
+    etat.className = '';
     etat.textContent = 'mis à jour à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   } catch (err) {
+    if (num !== numChargement) return;
+    if (cacheJours[cleCache]) { etat.className = 'erreur'; etat.textContent = 'Actualisation impossible (' + err.message + ') — affichage précédent.'; return; }
     tableau = null;
     document.getElementById('zone').innerHTML = '';
     document.getElementById('compteur').textContent = '';
@@ -523,14 +541,18 @@ function veilleDe(iso) {
   if (d.getDay() === 0) d.setDate(d.getDate() - 1);
   return isoJour(d);
 }
+const lavesParJour = {};   // veille -> { noms, t } (relu au plus toutes les 10 min)
 async function chargerLavesVeille(periode) {
   const veille = veilleDe(periode);
+  const deja = lavesParJour[veille];
+  if (deja && Date.now() - deja.t < 10 * 60000) { lavesVeille = { date: veille, noms: deja.noms }; return; }
   try {
     const rep = await fetch(API_URL + '?action=tableau&mode=jour&periode=' + veille);
     const data = await rep.json();
-    if (!data.ok || !tableau || tableau.periode !== periode) return;
-    lavesVeille = { date: veille, noms: new Set(data.clients.filter(c => c.lave || c.lot2).map(c => cle(c.client))) };
-    afficher();
+    if (!data.ok) return;
+    cacheJours['jour|' + veille] = data;
+    lavesParJour[veille] = { noms: new Set(data.clients.filter(c => c.lave || c.lot2).map(c => cle(c.client))), t: Date.now() };
+    if (tableau && tableau.periode === periode) { lavesVeille = { date: veille, noms: lavesParJour[veille].noms }; afficher(); }
   } catch (e) {}
 }
 function laveLaVeille(c) {
@@ -539,6 +561,7 @@ function laveLaVeille(c) {
 
 /* ---------- Transfert vers Evoliz (bon de livraison) ---------- */
 let transfertsEv = {};   // « client normalisé|lot » -> [n° de BL]
+const transfertsParJour = {};   // journée -> transferts (gardés en mémoire)
 function cleEv(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 function clientReel(c) { return c.parent ? c.parent.client : c.client; }
 function lotDe(c) { return c.parent ? 2 : 1; }
@@ -548,7 +571,9 @@ async function chargerTransfertsEv(periode) {
   try {
     const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'evolizEtat', periode: periode }) });
     const data = await rep.json();
-    if (data.ok && tableau && tableau.periode === periode) { transfertsEv = data.transferts || {}; afficher(); }
+    if (!data.ok) return;
+    transfertsParJour[periode] = data.transferts || {};
+    if (tableau && tableau.periode === periode) { transfertsEv = transfertsParJour[periode]; afficher(); }
   } catch (e) {}
 }
 
