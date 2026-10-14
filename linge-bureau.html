@@ -396,7 +396,8 @@ function afficher() {
     else if (et === 'oubli' && c.reporteDe) html += '<span class="badge">Lavé le ' + c.reporteDe.slice(8, 10) + '/' + c.reporteDe.slice(5, 7) + ', rien saisi</span>';
     else if (et === 'oubli') html += '<span class="badge">' + (avecPlan() ? 'Lavé, rien saisi' : 'Rien reçu de l\'atelier') + '</span>';
     else if (et === 'absent') html += '<span class="badge">' + (c.lave ? 'Lavé, rien saisi' : 'Pas lavé aujourd\'hui') + '</span>';
-    else if (avecPlan() && c.recu && !c.lave && !c.pointe) html += '<span class="badge">Non vu au lavage</span>';
+    else if (c.reporteDe && c.recu && !c.pointe) html += '<span class="badge">Lavé le ' + c.reporteDe.slice(8, 10) + '/' + c.reporteDe.slice(5, 7) + '</span>';
+    else if (avecPlan() && c.recu && !c.lave && !c.reporteDe && !c.pointe) html += '<span class="badge">Non vu au lavage</span>';
     else if (mode === 'jour' && !c.attendu) html += '<span class="badge">Nouveau ce jour</span>';
     t.innerHTML = html;
     t.querySelector('.nom').textContent = c.client;
