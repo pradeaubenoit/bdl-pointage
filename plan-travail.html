@@ -1508,7 +1508,7 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
         _opBtn=_sl+'<button class="btn-ghost bl-unprio no-print" data-unprio="'+esc(prioKey(r))+'" title="Annuler ma demande" style="color:var(--danger)">\u2715 annuler</button>'; }
       else if(!_fait){ _opBtn='<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>'; }
     }
-    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+(_ign?' ign':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(_ordreJour.indexOf(r)+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+'</div></div>';
+    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+(_ign?' ign':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(_ordreJour.indexOf(r)+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+codesTunnelHtml(r,i)+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+'</div></div>';
     if(_fait||_ign) _done.push({h:rowHtml, t:(_ign?2e9:(r._faitAt!=null?r._faitAt:1e9)), n:_done.length}); else _pend.push(rowHtml);
   });
   h+=_pend.join('');
@@ -1917,6 +1917,31 @@ document.getElementById('date').addEventListener('change',async function(e){curD
 document.getElementById('sr-find').addEventListener('input',srHighlight);
 document.getElementById('sr-do').addEventListener('click',srReplace);
 document.getElementById('results').addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('.reopt-here');if(!b)return;var i=parseInt(b.getAttribute('data-i'));if(!isNaN(i))reOptimiserDepuis(i);});
+/* ----- Codes pour l'ordinateur du tunnel : n° client (mémorisé par client) + programme de lavage ----- */
+var MOTS_CAT_JS=/^(sac|sacs|gaz|a|eponge|eponges|drap|draps|serviette|serviettes|peignoir|peignoirs|linge|blouse|blouses|couleur|couleurs|bavoir|bavoirs|couverture|couvertures|plastique|resident|residents|sante|et|de|du|des|la|le|les|spa|spas|table|couette|couettes|cuisine|cuisines|alese|aleses|tenue|tenues)$/;
+function noyauCli(nom){
+  var s=String(nom||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+  s=s.replace(/^hotels? /,''); var w=s.split(' ');
+  while(w.length>1&&(MOTS_CAT_JS.test(w[w.length-1])||/^\d+$/.test(w[w.length-1])))w.pop();
+  return w.join(' ');
+}
+function codesTunnelHtml(r,i){
+  var k=noyauCli(r.client), n=(CFG.codesClients||{})[k];
+  var h='<span class="pill no-print" data-ccli="'+i+'" title="N° client sur l\'ordinateur du tunnel — cliquer pour le saisir ou le corriger" style="margin-left:6px;cursor:pointer;background:#EEF2FF;color:#3730A3;font-weight:700">'+(n?('n° '+esc(n)):'n° ?')+'</span>';
+  if(r.code!==''&&r.code!=null) h+='<span class="pill" title="Programme de lavage" style="margin-left:4px;background:#FFF7E6;color:#8a5a07;font-weight:700">prog. '+esc(r.code)+'</span>';
+  return h;
+}
+document.addEventListener('click',function(e){
+  var p=e.target.closest&&e.target.closest('[data-ccli]'); if(!p)return;
+  var r=rows[parseInt(p.getAttribute('data-ccli'))]; if(!r)return;
+  var k=noyauCli(r.client); if(!k)return;
+  CFG.codesClients=CFG.codesClients||{};
+  var v=prompt('N° client de « '+k+' » sur l\'ordinateur du tunnel :\n(il sera affiché sur toutes les lignes de ce client)', CFG.codesClients[k]||'');
+  if(v==null)return; v=String(v).trim();
+  if(v) CFG.codesClients[k]=v; else delete CFG.codesClients[k];
+  scheduleSaveConfig(); renderResults();
+});
+
 /* ----- Correction de l'heure de chargement d'une ligne « fait » (cochée en retard) ----- */
 document.addEventListener('click',function(e){
   var p=e.target.closest&&e.target.closest('[data-hfait]'); if(!p)return;
@@ -1966,7 +1991,7 @@ document.addEventListener('click',function(e){
     var i=parseInt(t.getAttribute('data-tete')); if(!isNaN(i)) deplacerLigne(i,0);   // envoyer en position 1
   });
   res.addEventListener('click',function(e){
-    if(e.target.closest('button')||e.target.closest('.drag-h')||e.target.closest('input'))return; // pas sur un bouton
+    if(e.target.closest('button')||e.target.closest('.drag-h')||e.target.closest('input')||e.target.closest('[data-ccli],[data-hfait]'))return; // pas sur un bouton
     var line=e.target.closest&&e.target.closest('.bline'); if(!line)return;
     var id=line.getAttribute('data-id'); if(!id)return;
     if(prSel[id]){ delete prSel[id]; line.classList.remove('sel'); }              // décocher : toujours possible
