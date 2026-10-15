@@ -363,6 +363,12 @@ function afficherClients() {
     if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).limite || lot2De(c.client).depuis, lecture: true });
     else if (cible) b.onclick = () => ouvrirReporte(c, cible);
     else b.onclick = () => afficherArticles(c, false, it.filtre);
+    if (!c.articles.length) {
+      const att = document.createElement('span');
+      att.className = 'sortie';
+      att.textContent = '⏳ En attente du bureau';
+      b.appendChild(att);
+    }
     b.dataset.nom = sansAccent(c.client);
     zone.appendChild(b);
   });
@@ -399,6 +405,15 @@ function afficherArticles(c, garder, filtre) {
   document.getElementById('barre').style.display = lecture ? 'none' : 'block';
   const zone = document.getElementById('zone');
   zone.className = ''; zone.innerHTML = '';
+  // Nouveau client créé depuis le plan, pas encore configuré par le bureau : pas de saisie possible.
+  if (!c.articles.length) {
+    const avis = document.createElement('p');
+    avis.className = 'avis-lecture';
+    avis.textContent = '⏳ Nouveau client en attente de validation par le bureau. La saisie sera possible dès que le bureau aura renseigné ses articles.';
+    zone.appendChild(avis);
+    document.getElementById('barre').style.display = 'none';
+    return;
+  }
   if (lecture) {
     const avis = document.createElement('p');
     avis.className = 'avis-lecture';
