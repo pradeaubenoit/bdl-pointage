@@ -1863,6 +1863,15 @@ document.getElementById('results').addEventListener('click',function(e){var b=e.
     var from=-1; for(var k=0;k<rows.length;k++) if(rows[k].id===pickedId) from=k;
     if(from===i){ pickedId=null; renderResults(); return; }             // reclic sur la même = annuler
     pickedId=null;
+    // Ligne déjà « fait » posée parmi les faits : la liste des faits est triée par heure de chargement,
+    // on lui donne donc l'heure de la ligne devant laquelle on la pose (sinon elle ne bougerait pas).
+    var _src=rows[from], _dst=rows[i];
+    if(_src&&_dst&&estFait(_src)&&estFait(_dst)&&_dst._faitAt!=null){
+      snapshotOrder();
+      _src._faitAt=_dst._faitAt;
+      rows.splice(from,1); var _j=rows.indexOf(_dst); rows.splice(_j<0?rows.length:_j,0,_src);
+      renderRows(); sync(); return;
+    }
     if(from>=0) deplacerLigne(from,i); else renderResults();
   });
   res.addEventListener('click',function(e){
