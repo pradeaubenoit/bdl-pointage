@@ -508,7 +508,57 @@ function heureFinReste(){
 if(CFG.optFin&&CFG.optFin[curDate]!=null&&galettesFaites()===0) return CFG.optFin[curDate];
 return start + galettesRestantes()*tempsGalette();
 }
-async function loadPlan(date){try{var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');var seen={},clean=[];(r.data||[]).forEach(function(x){var k=String(x.ordre);if(seen[k])return;seen[k]=1;clean.push(x);});rows=clean.map(mapRow);applyFaits();netOk();}catch(e){rows=[];netErr();}}
+/* ---------- Protection contre l'effacement d'une journée ----------
+   1) Lecture : en cas d'erreur réseau, on GARDE le plan affiché (avant : il devenait vide, et le
+      premier geste suivant enregistrait ce plan vide par-dessus la vraie journée).
+   2) Enregistrement : la nouvelle version est écrite AVANT d'effacer l'ancienne (avant : effacer puis
+      écrire — un autre écran qui relisait pile entre les deux voyait une journée vide).
+   3) Un enregistrement qui ferait perdre plus de la moitié des lignes demande confirmation.
+   4) Copie de secours locale de la dernière version complète, avec bouton « Restaurer ». */
+var nbServeur={};   // date -> nombre de lignes lues sur le serveur
+function cleSecours(d){ return 'pdt_secours:'+d; }
+function lireSecours(d){ try{ return JSON.parse(localStorage.getItem(cleSecours(d))||'null'); }catch(e){ return null; } }
+function ecrireSecours(d, liste){
+  try{
+    if(!liste||!liste.length) return;
+    var old=lireSecours(d);
+    if(old&&old.rows&&liste.length<old.rows.length/2&&old.rows.length>=4) return;   // ne pas écraser une version complète par une version suspecte
+    localStorage.setItem(cleSecours(d), JSON.stringify({t:Date.now(), rows:liste.map(function(r){return {id:r.id,client:r.client,postes:r.postes,machine:r.machine,code:r.code,nbTransferts:r.nbTransferts};})}));
+  }catch(e){}
+}
+function dedoublonner(data){
+  // Pendant un enregistrement, l'ancienne et la nouvelle version cohabitent un instant : on garde la plus récente de chaque ligne.
+  var parLid={};
+  (data||[]).forEach(function(x){ var k=x.lid||('o'+x.ordre); var o=parLid[k]; if(!o||String(x.created_at||'')>=String(o.created_at||''))parLid[k]=x; });
+  return Object.keys(parLid).map(function(k){return parLid[k];}).sort(function(a,b){return (a.ordre-b.ordre)||(String(b.created_at||'').localeCompare(String(a.created_at||'')));});
+}
+async function loadPlan(date){
+  try{
+    var r=await sb.from('plan_charges').select('*').eq('user_id',USER.id).eq('date_jour',date).order('ordre');
+    if(r.error||!r.data) throw new Error((r.error&&r.error.message)||'lecture impossible');
+    var clean=dedoublonner(r.data);
+    rows=clean.map(mapRow); applyFaits(); netOk();
+    nbServeur[date]=rows.length;
+    ecrireSecours(date, rows);
+  }catch(e){ netErr(); /* on garde le plan déjà affiché */ }
+  majBandeauSecours();
+}
+function majBandeauSecours(){
+  var cont=document.getElementById('rows'); if(!cont) return;
+  var b=document.getElementById('bandeau-secours');
+  var sec=lireSecours(curDate);
+  var suspect=sec&&sec.rows&&sec.rows.length>=4&&rows.length<sec.rows.length/2;
+  if(!suspect){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('div'); b.id='bandeau-secours'; b.className='card no-print'; b.style.cssText='border:2px solid var(--danger,#c62828);background:#fdecec;margin-bottom:10px'; cont.parentNode.insertBefore(b, cont); }
+  var h=new Date(sec.t); var hh=String(h.getHours()).padStart(2,'0')+':'+String(h.getMinutes()).padStart(2,'0');
+  b.innerHTML='<b>⚠ Le plan du jour ne contient plus que '+rows.length+' ligne(s)</b>, alors qu\'il en avait '+sec.rows.length+' à '+hh+' sur cet appareil.<br><button id="btn-restaurer" style="margin-top:8px">↶ Restaurer la version de '+hh+' ('+sec.rows.length+' lignes)</button> <button id="btn-ignorer-secours" class="btn-ghost" style="margin-top:8px">C\'est voulu, ignorer</button>';
+  document.getElementById('btn-restaurer').onclick=function(){
+    if(!confirm('Remettre le plan du '+curDate+' tel qu\'il était à '+hh+' ('+sec.rows.length+' lignes) ?'))return;
+    rows=sec.rows.map(function(x){return {id:x.id,client:x.client,postes:x.postes,machine:x.machine,code:x.code,nbTransferts:x.nbTransferts};});
+    applyFaits(); nbServeur[curDate]=rows.length; renderRows(); sync(); majBandeauSecours();
+  };
+  document.getElementById('btn-ignorer-secours').onclick=function(){ try{localStorage.removeItem(cleSecours(curDate));}catch(e){} ecrireSecours(curDate, rows); majBandeauSecours(); };
+}
 var clientNames=[];
 function fillClientDatalist(){var dl=document.getElementById('client-list');if(!dl)return;dl.innerHTML=clientNames.map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');}
 async function loadClientNames(){try{var r=await sb.from('plan_charges').select('client').eq('user_id',USER.id);var seen={},list=[];(r.data||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;list.push(c);}});(rows||[]).forEach(function(x){var c=(x.client||'').trim();var k=c.toLowerCase();if(c&&!seen[k]){seen[k]=1;list.push(c);}});list.sort(function(a,b){return a.localeCompare(b,'fr');});clientNames=list;fillClientDatalist();}catch(e){}}
@@ -530,10 +580,37 @@ async function loadDay(date){try{var r=await sb.from('plan_charges').select('*')
 var saveRunning=false, saveQueued=false;
 async function savePlan(){
   if(saveRunning){saveQueued=true;return;}
+  var avant=nbServeur[curDate]||0;
+  if(avant>=4&&rows.length<avant/2){
+    if(!confirm('⚠ Attention : le plan du '+curDate+' va passer de '+avant+' à '+rows.length+' ligne(s).\n\nC\'est bien voulu ?\n\n(Annuler = recharger le plan depuis le serveur, rien n\'est effacé.)')){
+      pendingSave=false; await loadPlan(curDate); renderRows(); renderResults(); updateSummary(); return;
+    }
+  }
   saveRunning=true;pendingSave=true;
-  try{await sb.from('plan_charges').delete().eq('user_id',USER.id).eq('date_jour',curDate);if(rows.length){var payload=rows.map(function(r,i){return rowToDb(r,curDate,i);});await sb.from('plan_charges').insert(payload);}netOk();}catch(e){netErr();}
+  var date=curDate;
+  try{
+    // 1) Repérer l'ancienne version
+    var anc=await sb.from('plan_charges').select('id').eq('user_id',USER.id).eq('date_jour',date);
+    if(anc.error) throw anc.error;
+    var anciens=(anc.data||[]).map(function(x){return x.id;});
+    // 2) Écrire la nouvelle version (l'ancienne reste en place tant que ce n'est pas réussi)
+    if(rows.length){
+      var payload=rows.map(function(r,i){return rowToDb(r,date,i);});
+      var ins=await sb.from('plan_charges').insert(payload);
+      if(ins.error) throw ins.error;
+    }
+    // 3) Effacer l'ancienne version, par paquets
+    for(var k=0;k<anciens.length;k+=100){
+      var del=await sb.from('plan_charges').delete().eq('user_id',USER.id).in('id',anciens.slice(k,k+100));
+      if(del.error) throw del.error;
+    }
+    nbServeur[date]=rows.length;
+    ecrireSecours(date, rows);
+    netOk();
+  }catch(e){netErr();}
   mergeClientNames();
   saveRunning=false;pendingSave=false;
+  majBandeauSecours();
   if(saveQueued){saveQueued=false;savePlan();}
 }
 async function loadPrevTotals(date){try{var r=await sb.from('plan_charges').select('client,galettes').eq('user_id',USER.id).eq('date_jour',dateMinus7(date));var t={};(r.data||[]).forEach(function(x){var nm=(x.client||'').trim()||'(sans nom)';t[nm]=(t[nm]||0)+(x.galettes||0);});return t;}catch(e){return {};}}
