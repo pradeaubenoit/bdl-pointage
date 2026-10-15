@@ -103,6 +103,19 @@
   .tuile .evoliz.afaire { background: #FFF3E3; color: #A35A00; }
   .tuile.envoye { background: #FFF7CC; border-color: #F0D96B; border-left-color: #D9B300; }
   .tuile.envoye .evoliz.fait { color: #7A6200; border-color: #F0D96B; }
+  .tuile.aconfig { background: #FDECEC; border-color: #F2B8B5; border-left-color: #C62828; }
+  .tuile.aconfig .badge { background: #C62828; color: #fff; }
+  #fondConfig { display: none; position: fixed; inset: 0; background: rgba(29,43,52,.45); align-items: center; justify-content: center; padding: 20px; z-index: 30; }
+  #panneauConfig { background: var(--carte); border-radius: 14px; width: 100%; max-width: 620px; max-height: 92vh; display: flex; flex-direction: column; }
+  #panneauConfig h2 { margin: 0; padding: 16px 20px; font-size: 19px; border-bottom: 3px solid #C62828; }
+  #corpsConfig { overflow: auto; padding: 12px 20px; }
+  #corpsConfig h3 { font-size: 15px; margin: 14px 0 6px; }
+  #corpsConfig select, #corpsConfig input[type=text] { font-size: 16px; padding: 6px 8px; border: 1px solid var(--trait); border-radius: 6px; }
+  #corpsConfig select { width: 100%; }
+  .ligneArt { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--trait); }
+  .ligneArt input[type=checkbox] { width: 22px; height: 22px; flex: none; }
+  .ligneArt input[type=text] { flex: 1; min-width: 0; }
+  .ligneArt .ref { font-size: 12px; color: var(--doux); width: 130px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #fondAjout {
     display: none; position: fixed; inset: 0; background: rgba(29,43,52,.45);
     align-items: center; justify-content: center; padding: 20px; z-index: 20;
@@ -188,6 +201,17 @@
       <button class="btn" onclick="toutCocher()">Tout cocher</button>
       <button class="btn" onclick="fermerAjout()">Annuler</button>
       <button class="btn ok" onclick="validerAjout()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<div id="fondConfig">
+  <div id="panneauConfig">
+    <h2 id="titreConfig">Renseigner le nouveau client</h2>
+    <div id="corpsConfig"></div>
+    <div class="actions">
+      <button class="btn" onclick="fermerConfig()">Annuler</button>
+      <button class="btn ok" id="btnConfig" onclick="validerConfig()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -406,11 +430,13 @@ function afficher() {
     else t.classList.add('absent');
     if (mode === 'jour' && !c.attendu && !c.ajoute) t.classList.add('nouveau');
     if (c.ajoute) t.classList.add('ajoute');
+    if (c.aConfigurer && !c.parent) t.classList.add('aconfig');
     if (retires.has(k)) t.classList.add('retire');
 
     let html = '<div class="nom"></div><div class="info">' +
       (c.recu ? c.total + ' pièce' + (c.total > 1 ? 's' : '') : 'Aucune pièce') + '</div>';
-    if (et === 'reporte') html += '<span class="badge">Livré le ' + c.reporte.slice(8, 10) + '/' + c.reporte.slice(5, 7) + ' — à pointer ce jour-là</span>';
+    if (c.aConfigurer && !c.parent) html += '<span class="badge">⚠ Nouveau client à renseigner</span>';
+    else if (et === 'reporte') html += '<span class="badge">Livré le ' + c.reporte.slice(8, 10) + '/' + c.reporte.slice(5, 7) + ' — à pointer ce jour-là</span>';
     else if (c.ajoute) html += '<span class="badge">À diffuser</span>';
     else if (et === 'oubli' && c.reporteDe) html += '<span class="badge">Lavé le ' + c.reporteDe.slice(8, 10) + '/' + c.reporteDe.slice(5, 7) + ', rien saisi</span>';
     else if (et === 'oubli') html += '<span class="badge">' + (avecPlan() ? 'Lavé, rien saisi' : 'Rien reçu de l\'atelier') + '</span>';
@@ -508,6 +534,18 @@ function ouvrir(c) {
     tr.insertCell().textContent = 'Total pièces';
     const q = tr.insertCell(); q.className = 'q'; q.textContent = c.total;
   }
+  if (c.aConfigurer && !c.parent) {
+    const t2 = document.getElementById('pTable'); t2.innerHTML = '';
+    const tr = t2.insertRow(); const td = tr.insertCell(); td.colSpan = 2; td.className = 'vide-liste';
+    td.textContent = 'Nouveau client créé depuis le plan de travail. Renseigne sa fiche Evoliz et ses articles : l\'atelier pourra ensuite saisir.';
+    const b0 = document.getElementById('pBouton');
+    b0.textContent = '⚙ Renseigner ce client'; b0.className = 'btn ok';
+    b0.onclick = () => { fermer(); ouvrirConfig(c.client); };
+    document.getElementById('pEvoliz').style.display = 'none';
+    const m0 = document.getElementById('pManuel'); if (m0) m0.style.display = 'none';
+    document.getElementById('fond').style.display = 'flex';
+    return;
+  }
   const b = document.getElementById('pBouton');
   b.textContent = c.pointe ? 'Annuler le pointage' : 'Marquer comme saisi ✓';
   b.className = c.pointe ? 'btn' : 'btn ok';
@@ -557,6 +595,73 @@ async function chargerLavesVeille(periode) {
 }
 function laveLaVeille(c) {
   return tableau && lavesVeille.date === veilleDe(tableau.periode) && lavesVeille.noms.has(cle(c.client)) ? lavesVeille.date : null;
+}
+
+/* ---------- Nouveau client : fiche et articles Evoliz ---------- */
+let configEnCours = null;
+function echapHtml(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
+async function ouvrirConfig(client, recherche) {
+  configEnCours = { client: client };
+  document.getElementById('titreConfig').textContent = 'Renseigner « ' + client + ' »';
+  const corps = document.getElementById('corpsConfig');
+  corps.innerHTML = '<p class="vide-liste">Recherche dans Evoliz…</p>';
+  document.getElementById('fondConfig').style.display = 'flex';
+  try {
+    const rep = await fetch(API_URL + '?action=evolizSuggestion&client=' + encodeURIComponent(client) + (recherche ? '&recherche=' + encodeURIComponent(recherche) : ''));
+    const d = await rep.json();
+    if (!d.ok) throw new Error(d.error || 'Réponse invalide');
+    configEnCours.data = d;
+    let h = '<h3>1. Fiche client Evoliz</h3><select id="cfgFiche"><option value="">— choisir —</option>';
+    if (d.fiches.length) {
+      h += '<optgroup label="Proposées">' + d.fiches.map((f, i) => '<option value="' + f.id + '"' + (i === 0 ? ' selected' : '') + '>' + echapHtml(f.nom) + '</option>').join('') + '</optgroup>';
+    }
+    h += '<optgroup label="Tous les clients Evoliz">' + d.tous.map(f => '<option value="' + f.id + '">' + echapHtml(f.nom) + '</option>').join('') + '</optgroup></select>';
+    h += '<h3>2. Articles (référence Evoliz contenant « ' + echapHtml(d.terme) + ' »)</h3>';
+    h += '<div style="display:flex;gap:8px;margin-bottom:6px"><input type="text" id="cfgTerme" value="' + echapHtml(d.terme) + '" style="flex:1"><button class="btn" onclick="ouvrirConfig(configEnCours.client, document.getElementById(\'cfgTerme\').value)">Chercher</button></div>';
+    if (!d.articles.length) {
+      h += '<p class="vide-liste">Aucun article Evoliz trouvé. Essaie un autre mot ci-dessus, ou demande à Alexandra de créer les articles dans Evoliz.</p>';
+    } else {
+      h += '<p class="vide-liste" style="margin:0 0 4px">Coche les articles lavés pour ce client. Le nom à gauche est celui que verra l\'atelier : tu peux le raccourcir.</p>';
+      h += d.articles.map((a, i) => '<label class="ligneArt"><input type="checkbox" data-i="' + i + '" checked><input type="text" data-nom="' + i + '" value="' + echapHtml(a.nom) + '"><span class="ref" title="' + echapHtml(a.ref) + '">' + echapHtml(a.ref) + '</span></label>').join('');
+    }
+    corps.innerHTML = h;
+  } catch (err) {
+    corps.innerHTML = '<p class="vide-liste">Impossible d\'interroger Evoliz (' + echapHtml(err.message) + ').</p>';
+  }
+}
+function fermerConfig() { document.getElementById('fondConfig').style.display = 'none'; configEnCours = null; }
+async function validerConfig() {
+  if (!configEnCours || !configEnCours.data) return;
+  const sel = document.getElementById('cfgFiche');
+  if (!sel || !sel.value) { alert('Choisis la fiche client Evoliz.'); return; }
+  const arts = [];
+  document.querySelectorAll('#corpsConfig .ligneArt').forEach(l => {
+    const cb = l.querySelector('input[type=checkbox]');
+    if (!cb.checked) return;
+    const a = configEnCours.data.articles[Number(cb.dataset.i)];
+    arts.push({ nom: l.querySelector('input[type=text]').value.trim(), ref: a.ref });
+  });
+  if (!arts.length) { alert('Coche au moins un article.'); return; }
+  if (!codeResponsable) {
+    const c = prompt('Code responsable :');
+    if (!c || !c.trim()) return;
+    codeResponsable = c.trim();
+  }
+  const btn = document.getElementById('btnConfig');
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+  try {
+    const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'evolizConfigurer', code: codeResponsable,
+      client: configEnCours.client, clientid: sel.value, nomEvoliz: sel.options[sel.selectedIndex].text, articles: arts }) });
+    const d = await rep.json();
+    if (!d.ok) { if (d.error === 'Code incorrect') codeResponsable = ''; throw new Error(d.error || 'Refus du serveur'); }
+    fermerConfig();
+    alert('« ' + d.client + ' » est prêt : ' + d.ajoutes + ' article(s) ajouté(s). L\'atelier peut saisir (tablette : glisser l\'écran vers le bas).');
+    charger();
+  } catch (err) {
+    alert('Enregistrement impossible : ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
 }
 
 /* ---------- Transfert vers Evoliz (bon de livraison) ---------- */
