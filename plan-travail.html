@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v146</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v148</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -972,9 +972,13 @@ function noyauClient(nom){
   var s=(nom||'').toLowerCase();
   s=s.normalize?s.normalize('NFD').replace(/[\u0300-\u036f]/g,''):s;
   s=s.replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
-  var w=s.split(' ');
-  while(w.length>1 && (MOTS_CAT.test(w[w.length-1]) || /^\d+$/.test(w[w.length-1]))) w.pop();
-  return w.join(' ');
+  // « therme neris » = « therme de néris » : on ignore les petits mots (de, la, du…) où qu'ils soient.
+  var w0=s.split(' ').filter(function(x){return !/^(de|du|des|la|le|les|l|d)$/.test(x);});
+  if(w0.length) s=w0.join(' ');
+  var w=s.split(' '), num=[];
+  // Un NUMÉRO distingue deux clients : « néris » et « néris 2 » ne se mélangent jamais.
+  while(w.length>1 && (MOTS_CAT.test(w[w.length-1]) || /^\d+$/.test(w[w.length-1]))){ var x=w.pop(); if(/^\d+$/.test(x)) num.unshift(x); }
+  return w.concat(num).join(' ');
 }
 function construireTourniquet(rows, W, ctx){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
@@ -1105,7 +1109,13 @@ function construireTourniquet(rows, W, ctx){
   // peignoirs / sacs, quel que soit le poste) avant d'attaquer l'éponge d'un autre client. Seuls les draps
   // (tampons de la règle des 8) peuvent s'intercaler.
   var rangCli={}; chunks.forEach(function(c){ var n=noyauClient(c.client); if(rangCli[n]==null||c._arr<rangCli[n]) rangCli[n]=c._arr; });
+  // « néris 2 » passe TOUJOURS après « néris » (2ᵉ lot du même client), quel que soit l'ordre de départ.
+  Object.keys(rangCli).forEach(function(n){ var m=n.match(/^(.*) (\d+)$/); if(!m) return;
+    var base=m[1]; if(rangCli[base]!=null && rangCli[n]<=rangCli[base]) rangCli[n]=rangCli[base]+0.5+parseInt(m[2])/1000; });
   function rangDe(c){ var n=noyauClient(c.client); return rangCli[n]==null?c._arr:rangCli[n]; }
+  // Chaque file de poste suit l'ordre des CLIENTS (puis l'ordre des lignes), et on démarre sur le 1er client.
+  cycle.forEach(function(pp){ queues[pp].sort(function(x,y){ return (rangDe(x)-rangDe(y))||(x._arr-y._arr); }); });
+  forceFirst=null;
   var enCours=null;
   function suiteEnCours(){                                // poste qui a encore un morceau servable du client commencé
     if(enCours==null) return null;
