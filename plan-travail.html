@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v149</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v150</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -984,7 +984,10 @@ function construireTourniquet(rows, W, ctx){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent);
   if(W==null)W=1e9;
   rows.forEach(function(r,i){ r._arr=i; });
-  var drapsRaw=rows.filter(isDrapRow);
+  // CLIENTS PRIORITAIRES 🙋 : ils passent en tête, et leurs draps restent AVEC eux (pas prêtés en tampon ailleurs).
+  var PRIO={}; (((CFG.priorites||{})[typeof curDate!=='undefined'?curDate:''])||[]).forEach(function(x){ if(x&&x.k) PRIO[noyauClient(x.k)]=1; });
+  var drapsPrio={};
+  var drapsRaw=rows.filter(function(r){ if(!isDrapRow(r)) return false; var n=noyauClient(r.client); if(PRIO[n]){ (drapsPrio[n]=drapsPrio[n]||[]).push(r); return false; } return true; });
   var slow=rows.filter(function(r){return !isDrapRow(r);});
   var chunks=splitSlow(slow,serieMax);
   var totalDrapGal=drapsRaw.reduce(function(s,d){return s+(parseInt(d.nbTransferts)||0);},0);
@@ -1114,6 +1117,10 @@ function construireTourniquet(rows, W, ctx){
   // « néris 2 » passe TOUJOURS après « néris » (2ᵉ lot du même client), quel que soit l'ordre de départ.
   Object.keys(rangCli).forEach(function(n){ var m=n.match(/^(.*) (\d+)$/); if(!m) return;
     var base=m[1]; if(rangCli[base]!=null && rangCli[n]<=rangCli[base]) rangCli[n]=rangCli[base]+0.5+parseInt(m[2])/1000; });
+  Object.keys(rangCli).forEach(function(n){ if(PRIO[n]) rangCli[n]-=1e6; });
+  var resteNoy={}; chunks.forEach(function(c){ var n=noyauClient(c.client); resteNoy[n]=(resteNoy[n]||0)+1; });
+  var apres={};                                           // index seq -> draps du client prioritaire qui vient de finir
+  var prioSeuls=Object.keys(drapsPrio).filter(function(n){ return !resteNoy[n]; });   // prioritaire sans éponge : draps en tête
   function rangDe(c){ var n=noyauClient(c.client); return rangCli[n]==null?c._arr:rangCli[n]; }
   // Chaque file de poste suit l'ordre des CLIENTS (puis l'ordre des lignes), et on démarre sur le 1er client.
   cycle.forEach(function(pp){ queues[pp].sort(function(x,y){ return (rangDe(x)-rangDe(y))||(x._arr-y._arr); }); });
@@ -1173,6 +1180,8 @@ function construireTourniquet(rows, W, ctx){
     if(isNew){ cliBloc++; lastCli=cl; }
     enCours=noyauClient(c.client);
     cnt[cl]--;
+    var nP=noyauClient(c.client); resteNoy[nP]--;
+    if(resteNoy[nP]===0 && drapsPrio[nP]){ apres[seq.length-1]=drapsPrio[nP]; acc=0; cliBloc=0; lastCli=null; }
     if(cnt[cl]===0){
       var nx=atteleDe(cl); if(nx && cnt[nx]>0) promote(nx); else forced=null;
       // un peignoir de Therme vient de finir -> sa serviette prend rang (FIFO des Thermes engagés)
@@ -1232,10 +1241,12 @@ function construireTourniquet(rows, W, ctx){
     return m;
   }
   var out=[];
+  prioSeuls.forEach(function(n){ drapsPrio[n].forEach(function(d){ out.push(d); }); });
   var bset={}; bnd.forEach(function(b,ix){ bset[b.i]=ix; });
   for(var i=0;i<seq.length;i++){
     if(bset[i]!=null){ var av=(i>0?grpCli((seq[i-1].client||'').trim()):null), ap=grpCli((seq[i].client||'').trim()); pullTampon(sizes[bset[i]], av, ap, i).forEach(function(x){out.push(x);}); }
     out.push(seq[i]);
+    if(apres[i]) apres[i].forEach(function(d){ out.push(d); });
   }
   var reste2=[]; for(var q=0;q<pool.length;q++){ if(!pris[q]) reste2.push(q); }
   if(reste2.length){ pullTampon(reste2.length).forEach(function(x){out.push(x);}); } // reliquat -> fin de journée
@@ -1259,6 +1270,7 @@ function construireTourniquet(rows, W, ctx){
       for(var j=0;j<out.length;j++){
         if(!estDrap(out[j])) continue;
         if((parseInt(out[j].nbTransferts)||0)<2) continue;   // ne pas vider un tampon d'une seule galette
+        if(drapsPrio[noyauClient(out[j].client)]) continue;   // les draps d'un client prioritaire restent avec lui
         var d=Math.abs(j-faute); if(d<best){best=d;don=j;}
       }
       if(don<0) return;                                      // vraiment pas assez de draps ce jour-là
