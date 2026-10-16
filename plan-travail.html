@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v145</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v146</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1196,7 +1196,10 @@ function construireTourniquet(rows, W, ctx){
   var pi=0, tk=0;
   var pris={};                                            // galettes déjà tirées du pool
   function grpCli(k){ return noyauClient(k); }
-  function pullTampon(sz, pref){                          // tire sz galettes, en servant d'abord les draps du client `pref`
+  // Premier passage (dans seq) de l'éponge de chaque client : ses draps lui sont RÉSERVÉS pour le tampon
+  // juste avant lui (le linge d'un hôtel arrive mélangé : on sort ses draps, puis ses éponges).
+  var premEpo={}; seq.forEach(function(c,ix){ var n=grpCli((c.client||'').trim()); if(premEpo[n]==null) premEpo[n]=ix; });
+  function pullTampon(sz, prev, next, pos){               // tire sz galettes de draps pour le tampon placé avant seq[pos]
     var res=[], need=sz;
     function prendre(idx){
       var d=pool[idx]; pris[idx]=1;
@@ -1205,19 +1208,21 @@ function construireTourniquet(rows, W, ctx){
       else { res.push(Object.assign({},d,{id:d.id+'#T'+(tk++),src:d.id,nbTransferts:'1'})); }
       need--;
     }
-    if(pref){                                             // 1) les draps du même client : on le finit sur place
-      for(var i=0;i<pool.length && need>0;i++){
-        if(pris[i]) continue;
-        if(grpCli((pool[i].client||'').trim())===pref) prendre(i);
-      }
-    }
-    for(var j=0;j<pool.length && need>0;j++){ if(!pris[j]) prendre(j); }   // 2) puis le reste, dans l'ordre
-    return res;
+    function passe(test){ for(var i=0;i<pool.length && need>0;i++){ if(!pris[i] && test(grpCli((pool[i].client||'').trim()))) prendre(i); } }
+    if(next) passe(function(n){return n===next;});        // 1) les draps du client qui ARRIVE juste après
+    if(prev) passe(function(n){return n===prev;});        // 2) ceux du client qu'on vient de finir
+    passe(function(n){ return !(premEpo[n]>pos); });       // 3) draps sans éponge à venir (pas réservés)
+    passe(function(){ return true; });                     // 4) s'il le faut, le reste dans l'ordre
+    // dans le tampon : le client précédent d'abord, celui qui arrive en DERNIER (collé à ses éponges)
+    function rg(x){ var n=grpCli((x.client||'').trim()); return n===prev?0:(n===next?2:1); }
+    res=res.map(function(x,k){return {x:x,k:k};}).sort(function(a,b){return (rg(a.x)-rg(b.x))||(a.k-b.k);}).map(function(o){return o.x;});
+    var m=[]; res.forEach(function(x){ var l=m[m.length-1]; if(l && l.src===x.src){ l.nbTransferts=String((parseInt(l.nbTransferts)||0)+(parseInt(x.nbTransferts)||0)); } else m.push(x); });
+    return m;
   }
   var out=[];
   var bset={}; bnd.forEach(function(b,ix){ bset[b.i]=ix; });
   for(var i=0;i<seq.length;i++){
-    if(bset[i]!=null){ var av=(i>0?grpCli((seq[i-1].client||'').trim()):null); pullTampon(sizes[bset[i]], av).forEach(function(x){out.push(x);}); }
+    if(bset[i]!=null){ var av=(i>0?grpCli((seq[i-1].client||'').trim()):null), ap=grpCli((seq[i].client||'').trim()); pullTampon(sizes[bset[i]], av, ap, i).forEach(function(x){out.push(x);}); }
     out.push(seq[i]);
   }
   var reste2=[]; for(var q=0;q<pool.length;q++){ if(!pris[q]) reste2.push(q); }
