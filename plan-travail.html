@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v150</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v151</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1297,9 +1297,9 @@ function contexteDepuis(figes){
   });
   // série lente en cours juste avant la coupure (depuis le dernier drap) : la règle des 8 la prolonge
   var run=0, cl={}, nb=0;
-  for(var i=(figes||[]).length-1;i>=0;i--){ var r=figes[i]; if(r.machine==='laveuse' || (typeof estIgn==='function' && estIgn(r))) continue; if(isDrapRow(r)) break;
+  for(var i=(figes||[]).length-1;i>=0;i--){ var r=figes[i]; if(r.machine==='laveuse' || (typeof estLav==='function' && estLav(r)) || (typeof estIgn==='function' && estIgn(r))) continue; if(isDrapRow(r)) break;
     run+=parseInt(r.nbTransferts)||0; var k=(r.client||'').trim().toLowerCase(); if(!cl[k]){cl[k]=1;nb++;} }
-  var der=null; for(var j=(figes||[]).length-1;j>=0;j--){ if(figes[j].machine!=='laveuse'){ der=figes[j]; break; } }
+  var der=null; for(var j=(figes||[]).length-1;j>=0;j--){ var fj=figes[j]; if(fj.machine!=='laveuse' && !(typeof estLav==='function' && estLav(fj)) && !(typeof estIgn==='function' && estIgn(fj))){ der=fj; break; } }
   return {charge:ch, faits:faits, run:run, nbCli:nb, dernier:(der&&!isDrapRow(der))?(der.client||'').trim().toLowerCase():null};
 }
 function optimiserOrdre(list,speed,start,ctx){
@@ -1663,7 +1663,7 @@ function reOptimiserDepuis(i){
   var start=parseHeure(CFG.heureDemarrage);
   var ctxF=contexteDepuis(figes);
   // la série lente en cours se lit dans l'ordre RÉEL de lavage (faits par heure, puis le dessus non fait)
-  var reel=triFaits(rows.filter(estFait)).concat(rows.filter(function(r,idx){return idx<i && !estFait(r) && !estIgn(r) && !estLav(r);}));
+  var reel=triFaits(rows.filter(function(r){return estFait(r) && !estLav(r) && r.machine==='tunnel';})).concat(rows.filter(function(r,idx){return idx<i && !estFait(r) && !estIgn(r) && !estLav(r);}));
   var ctxR=contexteDepuis(reel); ctxF.run=ctxR.run; ctxF.nbCli=ctxR.nbCli; ctxF.dernier=ctxR.dernier;
   var opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF);
   snapshotOrder(); rows=figes.concat(opt.order);
