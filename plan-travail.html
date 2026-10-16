@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v144</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v145</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1100,9 +1100,30 @@ function construireTourniquet(rows, W, ctx){
   }
   // On démarre malgré tout sur le poste du 1er client de Benoît.
   var forceFirst=(chunks.length?posteOf(chunks[0]):null);
+  // ORDRE DES CLIENTS : un client (son « noyau » : therme de royat peignoir + serviette = therme de royat)
+  // prend le rang de sa PREMIÈRE ligne dans ta liste. Une fois commencé, on le FINIT (toutes ses éponges /
+  // peignoirs / sacs, quel que soit le poste) avant d'attaquer l'éponge d'un autre client. Seuls les draps
+  // (tampons de la règle des 8) peuvent s'intercaler.
+  var rangCli={}; chunks.forEach(function(c){ var n=noyauClient(c.client); if(rangCli[n]==null||c._arr<rangCli[n]) rangCli[n]=c._arr; });
+  function rangDe(c){ var n=noyauClient(c.client); return rangCli[n]==null?c._arr:rangCli[n]; }
+  var enCours=null;
+  function suiteEnCours(){                                // poste qui a encore un morceau servable du client commencé
+    if(enCours==null) return null;
+    for(var qi=0;qi<cycle.length;qi++){
+      var pp=cycle[qi], q=queues[pp];
+      for(var i=ptr[pp];i<q.length;i++){
+        if(noyauClient(q[i].client)===enCours && !bloque(q[i])){
+          if(i>ptr[pp]){ var it=q.splice(i,1)[0]; q.splice(ptr[pp],0,it); }
+          return pp;
+        }
+      }
+    }
+    return null;
+  }
   while(remaining()>0 && guard++<200000){
-    var p=null;
-    if(forced && tete(forced)>=0 && ATT[ckey(queues[forced][tete(forced)])]!=null){ p=forced; }
+    var p=suiteEnCours();
+    if(p!=null){ forceFirst=null; }
+    else if(forced && tete(forced)>=0 && ATT[ckey(queues[forced][tete(forced)])]!=null){ p=forced; }
     else if(forceFirst && tete(forceFirst)>=0){ p=forceFirst; forceFirst=null; }
     else{
       forced=null;
@@ -1112,8 +1133,9 @@ function construireTourniquet(rows, W, ctx){
         var q2=cycle[t];
         var ti2=tete(q2); if(ti2<0) continue;             // rien de servable ici (fini ou bloqué)
         if(p===null){ p=q2; continue; }
-        var rNew=queues[q2][ti2]._arr, rCur=queues[p][tete(p)]._arr;
-        if(rNew<rCur || (rNew===rCur && charge[q2]<charge[p])) p=q2;
+        var cN=queues[q2][ti2], cC=queues[p][tete(p)];
+        var kN=rangDe(cN), kC=rangDe(cC), rNew=cN._arr, rCur=cC._arr;
+        if(kN<kC || (kN===kC && (rNew<rCur || (rNew===rCur && charge[q2]<charge[p])))) p=q2;
       }
     }
     if(p===null){
@@ -1137,6 +1159,7 @@ function construireTourniquet(rows, W, ctx){
     if(acc>0 && (acc+g>serieMax || (isNew && cliBloc>=maxCli))){ bnd.push({i:seq.length, dure:(acc+g>serieMax)}); acc=0; cliBloc=0; lastCli=null; isNew=true; }
     seq.push(c); ptr[p]++; acc+=g; charge[p]+=g;
     if(isNew){ cliBloc++; lastCli=cl; }
+    enCours=noyauClient(c.client);
     cnt[cl]--;
     if(cnt[cl]===0){
       var nx=atteleDe(cl); if(nx && cnt[nx]>0) promote(nx); else forced=null;
