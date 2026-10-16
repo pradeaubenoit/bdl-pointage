@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v148</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v149</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1022,6 +1022,7 @@ function construireTourniquet(rows, W, ctx){
   // (les draps ne sont pas que des tampons : la repasseuse doit les traiter). Conséquence voulue :
   // le Repassage étant noyé de draps, ses serviettes reculent derrière les peignoirs (FAXM, peu chargé).
   var seq=[], bnd=[], acc=0, cliBloc=0, lastCli=null, guard=0;
+  if(ctx && ctx.run){ acc=ctx.run; cliBloc=ctx.nbCli||0; lastCli=ctx.dernier||null; }   // on prolonge la série en cours
   var maxCli=(CFG.maxClientsBloc==null?3:CFG.maxClientsBloc); // max clients éponge distincts par bloc
   function ckey(c){return (c.client||'').trim().toLowerCase();}
   function remaining(){var n=0;cycle.forEach(function(p){n+=(queues[p].length-ptr[p]);});return n;}
@@ -1058,7 +1059,8 @@ function construireTourniquet(rows, W, ctx){
     });
     // Un peignoir déjà lavé avant la ligne figée ne doit plus bloquer sa serviette.
     var dejaFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(/therm/.test(n)&&/peignoir/.test(n)) dejaFait[grp(k)]=1;});
-    for(var g in serv){ if(dejaFait[g]) continue; if(peig[g]) lier(serv[g],peig[g]); }
+    // peig[g] n'existe que s'il RESTE des peignoirs à laver : la serviette les attend, même si d'autres sont déjà faits.
+    for(var g in serv){ if(peig[g]) lier(serv[g],peig[g]); }
     // RÈGLE DES HÔTELS (implicite) : le linge arrive mélangé. On sort d'abord les draps, on rassemble les
     // éponges au fil du tri, et les SACS passent en dernier (il faut les vider). Les draps étant des tampons
     // répartis par le moteur, on ne peut garantir ici que : éponge du même hôtel AVANT son sac.
@@ -1071,7 +1073,7 @@ function construireTourniquet(rows, W, ctx){
       else if(t==='eponge') epo[grpH(k)]=k;
     });
     var epoFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(!/therm/.test(n)) epoFait[grpH(k)]=1;});
-    for(var g2 in sac){ if(epoFait[g2]) continue; if(epo[g2]) lier(sac[g2],epo[g2]); }
+    for(var g2 in sac){ if(epo[g2]) lier(sac[g2],epo[g2]); }
   })();
   var cnt={};  chunks.forEach(function(c){var k=ckey(c); cnt[k]=(cnt[k]||0)+1;});
   var forced=null;
@@ -1245,7 +1247,7 @@ function construireTourniquet(rows, W, ctx){
     var ML=serieMax, tours=0;
     function estDrap(r){ return rowType(r)==='drap'; }
     while(tours++<500){
-      var run=0, faute=-1;
+      var run=(ctx&&ctx.run)||0, faute=-1;
       for(var i=0;i<out.length;i++){
         if(estDrap(out[i])){ run=0; continue; }
         run+=parseInt(out[i].nbTransferts)||0;
@@ -1281,7 +1283,12 @@ function contexteDepuis(figes){
     if(ch[p]!=null) ch[p]+=g;
     var k=(r.client||'').trim().toLowerCase(); if(k) faits.push(k);
   });
-  return {charge:ch, faits:faits};
+  // série lente en cours juste avant la coupure (depuis le dernier drap) : la règle des 8 la prolonge
+  var run=0, cl={}, nb=0;
+  for(var i=(figes||[]).length-1;i>=0;i--){ var r=figes[i]; if(r.machine==='laveuse' || (typeof estIgn==='function' && estIgn(r))) continue; if(isDrapRow(r)) break;
+    run+=parseInt(r.nbTransferts)||0; var k=(r.client||'').trim().toLowerCase(); if(!cl[k]){cl[k]=1;nb++;} }
+  var der=null; for(var j=(figes||[]).length-1;j>=0;j--){ if(figes[j].machine!=='laveuse'){ der=figes[j]; break; } }
+  return {charge:ch, faits:faits, run:run, nbCli:nb, dernier:(der&&!isDrapRow(der))?(der.client||'').trim().toLowerCase():null};
 }
 function optimiserOrdre(list,speed,start,ctx){
   var W=(CFG.camionCli==null?15:CFG.camionCli), bMin=(CFG.bouchonMin==null?10:CFG.bouchonMin);
@@ -1642,7 +1649,11 @@ function reOptimiserDepuis(i){
   });
   if(pool.length===0){alert('Rien à ré-optimiser : tout est déjà fait, en laveuse, ou figé.');return;}
   var start=parseHeure(CFG.heureDemarrage);
-  var opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,contexteDepuis(figes));
+  var ctxF=contexteDepuis(figes);
+  // la série lente en cours se lit dans l'ordre RÉEL de lavage (faits par heure, puis le dessus non fait)
+  var reel=triFaits(rows.filter(estFait)).concat(rows.filter(function(r,idx){return idx<i && !estFait(r) && !estIgn(r) && !estLav(r);}));
+  var ctxR=contexteDepuis(reel); ctxF.run=ctxR.run; ctxF.nbCli=ctxR.nbCli; ctxF.dernier=ctxR.dernier;
+  var opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF);
   snapshotOrder(); rows=figes.concat(opt.order);
   renderRows();sync();
 }
