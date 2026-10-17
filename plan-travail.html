@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v153</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v156</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1045,6 +1045,9 @@ function construireTourniquet(rows, W, ctx){
     while(cur){ if(cur===k) return true; if(vu[cur]) return false; vu[cur]=1; cur=ATT[cur]; }
     return false;
   }
+  // AUTO = liens implicites (serviette après peignoir, sac après éponge) : ils BLOQUENT seulement
+  // (pas avant), sans faire sauter la ligne devant les autres clients. Un ⛓ manuel, lui, colle juste après.
+  var AUTO={};
   function lier(k,anc){ if(k===anc||ATT[k]||creeBoucle(k,anc)) return false; ATT[k]=anc; return true; }
   Object.keys(ATT).forEach(function(k){ var a=ATT[k]; delete ATT[k]; if(!lier(k,a)) construireTourniquet.boucles=(construireTourniquet.boucles||[]).concat(k+' \u2192 '+a); });
   // RÈGLE DES THERMES (implicite) : chez un même Therme, les peignoirs (FAXM) passent avant les serviettes
@@ -1063,7 +1066,7 @@ function construireTourniquet(rows, W, ctx){
     // Un peignoir déjà lavé avant la ligne figée ne doit plus bloquer sa serviette.
     var dejaFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(/therm/.test(n)&&/peignoir/.test(n)) dejaFait[grp(k)]=1;});
     // peig[g] n'existe que s'il RESTE des peignoirs à laver : la serviette les attend, même si d'autres sont déjà faits.
-    for(var g in serv){ if(peig[g]) lier(serv[g],peig[g]); }
+    for(var g in serv){ if(peig[g] && lier(serv[g],peig[g])) AUTO[serv[g]]=1; }
     // RÈGLE DES HÔTELS (implicite) : le linge arrive mélangé. On sort d'abord les draps, on rassemble les
     // éponges au fil du tri, et les SACS passent en dernier (il faut les vider). Les draps étant des tampons
     // répartis par le moteur, on ne peut garantir ici que : éponge du même hôtel AVANT son sac.
@@ -1076,13 +1079,13 @@ function construireTourniquet(rows, W, ctx){
       else if(t==='eponge') epo[grpH(k)]=k;
     });
     var epoFait={}; ((ctx&&ctx.faits)||[]).forEach(function(k){var n=sansAccent(k); if(!/therm/.test(n)) epoFait[grpH(k)]=1;});
-    for(var g2 in sac){ if(epo[g2]) lier(sac[g2],epo[g2]); }
+    for(var g2 in sac){ if(epo[g2] && lier(sac[g2],epo[g2])) AUTO[sac[g2]]=1; }
   })();
   var cnt={};  chunks.forEach(function(c){var k=ckey(c); cnt[k]=(cnt[k]||0)+1;});
   var forced=null;
   construireTourniquet.orphelins=[]; construireTourniquet.bloques=0;
   for(var _ak in ATT){ if(cnt[_ak]!=null && cnt[ATT[_ak]]==null) construireTourniquet.orphelins.push(_ak+' \u2192 '+ATT[_ak]); }
-  function atteleDe(ancreKey){ for(var k in ATT){ if(ATT[k]===ancreKey) return k; } return null; }
+  function atteleDe(ancreKey){ for(var k in ATT){ if(ATT[k]===ancreKey && !AUTO[k]) return k; } return null; }
   function promote(k){                                   // remonte les morceaux de k en tête de sa file
     for(var qi=0;qi<cycle.length;qi++){
       var p=cycle[qi], q=queues[p], ins=ptr[p], moved=false;
@@ -1113,7 +1116,11 @@ function construireTourniquet(rows, W, ctx){
   // prend le rang de sa PREMIÈRE ligne dans ta liste. Une fois commencé, on le FINIT (toutes ses éponges /
   // peignoirs / sacs, quel que soit le poste) avant d'attaquer l'éponge d'un autre client. Seuls les draps
   // (tampons de la règle des 8) peuvent s'intercaler.
-  var rangCli={}; chunks.forEach(function(c){ var n=noyauClient(c.client); if(rangCli[n]==null||c._arr<rangCli[n]) rangCli[n]=c._arr; });
+  // ORDRE DES CLIENTS = l'ordre dans lequel ils apparaissent dans ta liste (1re ligne du client).
+  // Chaque poste est servi par le client le mieux classé qui a encore du linge pour lui ; un client commencé
+  // est fini (peignoirs, blouses, serviettes…) avant l'éponge du client suivant. Les draps ne changent pas cet ordre.
+  var rangCli={};
+  chunks.forEach(function(c){ var n=noyauClient(c.client); if(rangCli[n]==null||c._arr<rangCli[n]) rangCli[n]=c._arr; });
   // « néris 2 » passe TOUJOURS après « néris » (2ᵉ lot du même client), quel que soit l'ordre de départ.
   Object.keys(rangCli).forEach(function(n){ var m=n.match(/^(.*) (\d+)$/); if(!m) return;
     var base=m[1]; if(rangCli[base]!=null && rangCli[n]<=rangCli[base]) rangCli[n]=rangCli[base]+0.5+parseInt(m[2])/1000; });
@@ -1185,7 +1192,7 @@ function construireTourniquet(rows, W, ctx){
     if(cnt[cl]===0){
       var nx=atteleDe(cl); if(nx && cnt[nx]>0) promote(nx); else forced=null;
       // un peignoir de Therme vient de finir -> sa serviette prend rang (FIFO des Thermes engagés)
-      for(var _s in ATT){ if(ATT[_s]===cl && cnt[_s]>0 && _s!==nx) prendRang(_s); }
+      for(var _s in ATT){ if(ATT[_s]===cl && cnt[_s]>0 && _s!==nx && !AUTO[_s]) prendRang(_s); }
     }
   }
   // PASSE 2 : répartir TOUS les draps sur les tampons = chaque frontière des 8 (PAS de tampon d'ouverture
@@ -1220,7 +1227,7 @@ function construireTourniquet(rows, W, ctx){
   // Premier passage (dans seq) de l'éponge de chaque client : ses draps lui sont RÉSERVÉS pour le tampon
   // juste avant lui (le linge d'un hôtel arrive mélangé : on sort ses draps, puis ses éponges).
   var premEpo={}; seq.forEach(function(c,ix){ var n=grpCli((c.client||'').trim()); if(premEpo[n]==null) premEpo[n]=ix; });
-  function pullTampon(sz, prev, next, pos){               // tire sz galettes de draps pour le tampon placé avant seq[pos]
+  function pullTampon(sz, prev, next, pos, dure){               // tire sz galettes de draps pour le tampon placé avant seq[pos]
     var res=[], need=sz;
     function prendre(idx){
       var d=pool[idx]; pris[idx]=1;
@@ -1230,26 +1237,45 @@ function construireTourniquet(rows, W, ctx){
       need--;
     }
     function passe(test){ for(var i=0;i<pool.length && need>0;i++){ if(!pris[i] && test(grpCli((pool[i].client||'').trim()))) prendre(i); } }
-    if(next) passe(function(n){return n===next;});        // 1) les draps du client qui ARRIVE juste après
-    if(prev) passe(function(n){return n===prev;});        // 2) ceux du client qu'on vient de finir
-    passe(function(n){ return !(premEpo[n]>pos); });       // 3) draps sans éponge à venir (pas réservés)
-    passe(function(){ return true; });                     // 4) s'il le faut, le reste dans l'ordre
+    // ORDRE DES CLIENTS : un drap ne passe jamais avant sa place dans ta liste (départ des tournées).
+    // « dû » = sa ligne est avant (ou au niveau de) la ligne qu'on est en train de laver.
+    var lim=(pos!=null && avance[pos]!=null)?avance[pos]:1e9;
+    function du(i){ return rgC(pool[i])<=lim; }
+    function passe2(test){ for(var i=0;i<pool.length && need>0;i++){ if(!pris[i] && du(i) && test(grpCli((pool[i].client||'').trim()))) prendre(i); } }
+    if(next) passe2(function(n){return n===next;});       // 1) les draps du client qui ARRIVE juste après
+    if(prev) passe2(function(n){return n===prev;});       // 2) ceux du client qu'on vient de finir
+    passe2(function(n){ return !(premEpo[n]>pos); });      // 3) draps dus, sans éponge à venir
+    passe2(function(){ return true; });                    // 4) draps dus, même réservés
+    if(pos==null) passe(function(){ return true; });       // reliquat de fin de journée
+    else if(!res.length && dure){ need=1; passe(function(){ return true; }); }   // règle des 8 vitale : 1 drap, le plus proche dans l'ordre
     // dans le tampon : le client précédent d'abord, celui qui arrive en DERNIER (collé à ses éponges)
     function rg(x){ var n=grpCli((x.client||'').trim()); return n===prev?0:(n===next?2:1); }
     res=res.map(function(x,k){return {x:x,k:k};}).sort(function(a,b){return (rg(a.x)-rg(b.x))||(a.k-b.k);}).map(function(o){return o.x;});
     var m=[]; res.forEach(function(x){ var l=m[m.length-1]; if(l && l.src===x.src){ l.nbTransferts=String((parseInt(l.nbTransferts)||0)+(parseInt(x.nbTransferts)||0)); } else m.push(x); });
     return m;
   }
+  // rang CLIENT de chaque ligne (draps compris) = 1re apparition du client dans ta liste
+  var rangTous={}; rows.forEach(function(r){ var n=noyauClient(r.client); if(r._arr!=null && (rangTous[n]==null||r._arr<rangTous[n])) rangTous[n]=r._arr; });
+  function rgC(r){ var n=noyauClient(r.client); return rangTous[n]!=null?rangTous[n]:(r._arr==null?0:r._arr); }
+  var avance=[], _mx=-1; seq.forEach(function(c,ix){ var v=rgC(c); if(v>_mx) _mx=v; avance[ix]=_mx; });
   var out=[];
   prioSeuls.forEach(function(n){ drapsPrio[n].forEach(function(d){ out.push(d); }); });
   var bset={}; bnd.forEach(function(b,ix){ bset[b.i]=ix; });
   for(var i=0;i<seq.length;i++){
-    if(bset[i]!=null){ var av=(i>0?grpCli((seq[i-1].client||'').trim()):null), ap=grpCli((seq[i].client||'').trim()); pullTampon(sizes[bset[i]], av, ap, i).forEach(function(x){out.push(x);}); }
+    if(bset[i]!=null){ var av=(i>0?grpCli((seq[i-1].client||'').trim()):null), ap=grpCli((seq[i].client||'').trim()); pullTampon(sizes[bset[i]], av, ap, i, bnd[bset[i]].dure).forEach(function(x){out.push(x);}); }
     out.push(seq[i]);
     if(apres[i]) apres[i].forEach(function(d){ out.push(d); });
   }
   var reste2=[]; for(var q=0;q<pool.length;q++){ if(!pris[q]) reste2.push(q); }
-  if(reste2.length){ pullTampon(reste2.length).forEach(function(x){out.push(x);}); } // reliquat -> fin de journée
+  // Draps pas encore placés : chacun à SA place dans l'ordre (après la dernière ligne qui le précède dans ta liste).
+  if(reste2.length){
+    var parSrc={}, ordreSrc=[];
+    reste2.forEach(function(q){ var d=pool[q]; pris[q]=1; if(!parSrc[d.id]){ parSrc[d.id]=Object.assign({},d,{id:d.id+'#P'+(tk++),src:d.id,nbTransferts:'0'}); ordreSrc.push(d.id); } parSrc[d.id].nbTransferts=String((parseInt(parSrc[d.id].nbTransferts)||0)+1); });
+    ordreSrc.forEach(function(k){ var d=parSrc[k], a=rgC(d), at=0;
+      for(var z=0;z<out.length;z++){ if(!isDrapRow(out[z]) && rgC(out[z])<=a) at=z+1; }
+      while(at<out.length && isDrapRow(out[at])) at++;   // derrière le tampon déjà là, s'il y en a un
+      out.splice(at,0,d); });
+  }
 
   /* RÉPARATION : le moteur relit son propre plan. Tant qu'une série lente dépasse la règle des 8, il prend
      UNE galette à un tampon de draps trop gras (ailleurs dans la journée) et la pose là où elle manque.
