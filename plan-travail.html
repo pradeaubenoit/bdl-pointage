@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v156</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v157</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1116,19 +1116,19 @@ function construireTourniquet(rows, W, ctx){
   // prend le rang de sa PREMIÈRE ligne dans ta liste. Une fois commencé, on le FINIT (toutes ses éponges /
   // peignoirs / sacs, quel que soit le poste) avant d'attaquer l'éponge d'un autre client. Seuls les draps
   // (tampons de la règle des 8) peuvent s'intercaler.
-  // ORDRE DES CLIENTS = l'ordre dans lequel ils apparaissent dans ta liste (1re ligne du client).
-  // Chaque poste est servi par le client le mieux classé qui a encore du linge pour lui ; un client commencé
-  // est fini (peignoirs, blouses, serviettes…) avant l'éponge du client suivant. Les draps ne changent pas cet ordre.
-  var rangCli={};
-  chunks.forEach(function(c){ var n=noyauClient(c.client); if(rangCli[n]==null||c._arr<rangCli[n]) rangCli[n]=c._arr; });
-  // « néris 2 » passe TOUJOURS après « néris » (2ᵉ lot du même client), quel que soit l'ordre de départ.
-  Object.keys(rangCli).forEach(function(n){ var m=n.match(/^(.*) (\d+)$/); if(!m) return;
-    var base=m[1]; if(rangCli[base]!=null && rangCli[n]<=rangCli[base]) rangCli[n]=rangCli[base]+0.5+parseInt(m[2])/1000; });
-  Object.keys(rangCli).forEach(function(n){ if(PRIO[n]) rangCli[n]-=1e6; });
+  // ORDRE DE LAVAGE = l'ordre des LIGNES tel que tu les as passées dans le tunnel (royat peignoir, spas Chatel,
+  // royat serviette… chacune garde sa place). Une ligne commencée est finie avant la suivante ; les draps
+  // empruntés pour un tampon ne font jamais avancer les éponges de leur client.
+  var rangCli={}, noyMax={};
+  chunks.forEach(function(c){ var k=ckey(c), n=noyauClient(c.client); if(rangCli[k]==null||c._arr<rangCli[k]) rangCli[k]=c._arr; if(noyMax[n]==null||c._arr>noyMax[n]) noyMax[n]=c._arr; });
+  // « néris 2 » passe TOUJOURS après TOUT « néris » (2ᵉ lot du même client), quel que soit l'ordre de départ.
+  chunks.forEach(function(c){ var k=ckey(c), m=noyauClient(c.client).match(/^(.*) (\d+)$/); if(!m) return;
+    var base=m[1]; if(noyMax[base]!=null && rangCli[k]<=noyMax[base]) rangCli[k]=noyMax[base]+0.5+parseInt(m[2])/1000+rangCli[k]/1e6; });
+  chunks.forEach(function(c){ var k=ckey(c); if(PRIO[noyauClient(c.client)] && rangCli[k]>-1e5) rangCli[k]-=1e6; });
   var resteNoy={}; chunks.forEach(function(c){ var n=noyauClient(c.client); resteNoy[n]=(resteNoy[n]||0)+1; });
   var apres={};                                           // index seq -> draps du client prioritaire qui vient de finir
   var prioSeuls=Object.keys(drapsPrio).filter(function(n){ return !resteNoy[n]; });   // prioritaire sans éponge : draps en tête
-  function rangDe(c){ var n=noyauClient(c.client); return rangCli[n]==null?c._arr:rangCli[n]; }
+  function rangDe(c){ var k=ckey(c); return rangCli[k]==null?c._arr:rangCli[k]; }
   // Chaque file de poste suit l'ordre des CLIENTS (puis l'ordre des lignes), et on démarre sur le 1er client.
   cycle.forEach(function(pp){ queues[pp].sort(function(x,y){ return (rangDe(x)-rangDe(y))||(x._arr-y._arr); }); });
   forceFirst=null;
@@ -1138,7 +1138,7 @@ function construireTourniquet(rows, W, ctx){
     for(var qi=0;qi<cycle.length;qi++){
       var pp=cycle[qi], q=queues[pp];
       for(var i=ptr[pp];i<q.length;i++){
-        if(noyauClient(q[i].client)===enCours && !bloque(q[i])){
+        if(ckey(q[i])===enCours && !bloque(q[i])){
           if(i>ptr[pp]){ var it=q.splice(i,1)[0]; q.splice(ptr[pp],0,it); }
           return pp;
         }
@@ -1185,7 +1185,7 @@ function construireTourniquet(rows, W, ctx){
     if(acc>0 && (acc+g>serieMax || (isNew && cliBloc>=maxCli))){ bnd.push({i:seq.length, dure:(acc+g>serieMax)}); acc=0; cliBloc=0; lastCli=null; isNew=true; }
     seq.push(c); ptr[p]++; acc+=g; charge[p]+=g;
     if(isNew){ cliBloc++; lastCli=cl; }
-    enCours=noyauClient(c.client);
+    enCours=ckey(c);
     cnt[cl]--;
     var nP=noyauClient(c.client); resteNoy[nP]--;
     if(resteNoy[nP]===0 && drapsPrio[nP]){ apres[seq.length-1]=drapsPrio[nP]; acc=0; cliBloc=0; lastCli=null; }
@@ -1256,7 +1256,7 @@ function construireTourniquet(rows, W, ctx){
   }
   // rang CLIENT de chaque ligne (draps compris) = 1re apparition du client dans ta liste
   var rangTous={}; rows.forEach(function(r){ var n=noyauClient(r.client); if(r._arr!=null && (rangTous[n]==null||r._arr<rangTous[n])) rangTous[n]=r._arr; });
-  function rgC(r){ var n=noyauClient(r.client); return rangTous[n]!=null?rangTous[n]:(r._arr==null?0:r._arr); }
+  function rgC(r){ return r._arr==null?0:r._arr; }   // place de la ligne dans ton ordre
   var avance=[], _mx=-1; seq.forEach(function(c,ix){ var v=rgC(c); if(v>_mx) _mx=v; avance[ix]=_mx; });
   var out=[];
   prioSeuls.forEach(function(n){ drapsPrio[n].forEach(function(d){ out.push(d); }); });
