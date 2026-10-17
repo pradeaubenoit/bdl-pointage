@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v151</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v152</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1400,7 +1400,7 @@ function snapshotOrder(){ undoSnap=rows.slice(); undoDate=curDate; }   // mémor
 function undoMove(){ if(!undoSnap)return; if(undoDate!==curDate){ alert('Annulation impossible : elle concerne la journée du '+undoDate+'.'); undoSnap=null; renderRows(); return; } rows=undoSnap.slice(); undoSnap=null; renderRows(); sync(); }
   var prSel={}, prLast='';
 function prSelCount(){ return Object.keys(prSel).length; }
-function updateAlltopLabel(){ var n=prSelCount(); var pa=document.getElementById('pr-alltop'); if(pa){ pa.textContent=n?('\u2b06 remonter la sélection ('+n+')'):'\u2b06 toutes en tête'; } var pt=document.getElementById('pr-take'); if(pt){ pt.textContent='\u270B prendre la sélection'+(n?' ('+n+')':''); } }
+function updateAlltopLabel(){ var n=prSelCount(); var pa=document.getElementById('pr-alltop'); if(pa){ pa.textContent=n?('\u2b06 remonter la sélection ('+n+')'):'\u2b06 toutes en tête'; } var pt=document.getElementById('pr-take'); if(pt){ pt.textContent='\u270B prendre la sélection'+(n?' ('+n+')':''); } var prr=document.getElementById('pr-report'); if(prr){ prr.textContent='\u{1F4C5} reporter la sélection'+(n?' ('+n+')':''); } }
   function remonterToutesEnTete(){
   var match=[],rest=[], n=prSelCount();
   if(n){ rows.forEach(function(r){ (prSel[r.id]?match:rest).push(r); }); }
@@ -1452,6 +1452,50 @@ async function insererClient(){
       msg.innerHTML='<span style="color:#2e7d32">\u2713 Client inséré dans le plan du '+date+' (position '+(pos2+1)+', vers '+hor+'). Ouvrez cette date pour le voir.</span>';
     }catch(e){netErr();msg.innerHTML='<span style="color:var(--danger)">Échec de l\'enregistrement — réessayez.</span>';}
   }}
+
+/* ---------- Reporter la sélection sur un autre jour ----------
+   Les lignes sélectionnées (pas encore faites) quittent la journée affichée et sont posées EN TÊTE
+   du jour choisi (le linge est déjà à l'atelier). Par défaut : le jour ouvré suivant (dimanche sauté). */
+function jourOuvreSuivant(iso){ var d=isoPlus(iso,1); var p=d.split('-').map(Number); if(new Date(p[0],p[1]-1,p[2]).getDay()===0) d=isoPlus(d,1); return d; }
+function isoVersFr(iso){ var p=iso.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function frVersIso(t,ref){
+  t=String(t||'').trim(); var m;
+  if((m=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  if((m=t.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/))){ var y=m[3]?(m[3].length===2?'20'+m[3]:m[3]):ref.slice(0,4); return y+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'); }
+  return null;
+}
+var JOURS_FR=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+function nomJour(iso){ var p=iso.split('-').map(Number); return JOURS_FR[new Date(p[0],p[1]-1,p[2]).getDay()]; }
+async function reporterSelection(){
+  var sel=rows.filter(function(r){ return prSel[r.id]; });
+  if(!sel.length){ alert('Sélectionne d\u2019abord les lignes à reporter (recherche, puis clic sur les lignes).'); return; }
+  var faites=sel.filter(estFait); sel=sel.filter(function(r){ return !estFait(r); });
+  if(!sel.length){ alert('Ces lignes sont déjà « fait » : rien à reporter.'); return; }
+  var def=jourOuvreSuivant(curDate);
+  var rep=prompt('Reporter '+sel.length+' ligne'+(sel.length>1?'s':'')+(faites.length?' (les '+faites.length+' déjà faites restent ici)':'')+' au :\n(jour/mois — par défaut '+nomJour(def)+')', isoVersFr(def));
+  if(rep==null) return;
+  var cible=frVersIso(rep,def);
+  if(!cible||isNaN(new Date(cible).getTime())){ alert('Date non comprise : « '+rep+' ». Exemple : 19/10/2026'); return; }
+  if(cible===curDate){ alert('C\u2019est déjà la journée affichée.'); return; }
+  if(nomJour(cible)==='dimanche' && !confirm('Le '+isoVersFr(cible)+' est un dimanche. Reporter quand même ?')) return;
+  if(!confirm('Reporter au '+nomJour(cible)+' '+isoVersFr(cible)+' :\n\n'+sel.map(function(r){return '\u2022 '+(r.client||'')+' \u2014 '+(r.nbTransferts||0)+' gal';}).join('\n')+'\n\nElles seront retirées du '+isoVersFr(curDate)+' et posées en tête du '+isoVersFr(cible)+'.')) return;
+  try{
+    var anc=await sb.from('plan_charges').select('id').eq('user_id',USER.id).eq('date_jour',cible);
+    if(anc.error) throw anc.error;
+    var anciens=(anc.data||[]).map(function(x){return x.id;});
+    var target=await loadDay(cible);
+    var nouv=sel.map(function(r){ return {id:uid(),client:r.client,machine:r.machine,code:r.code,nbTransferts:r.nbTransferts,postes:(r.postes||[]).slice()}; });
+    var liste=nouv.concat(target);
+    var ins=await sb.from('plan_charges').insert(liste.map(function(r,i){return rowToDb(r,cible,i);}));
+    if(ins.error) throw ins.error;                                   // rien n'est retiré tant que l'écriture n'a pas réussi
+    if(anciens.length){ var del=await sb.from('plan_charges').delete().eq('user_id',USER.id).in('id',anciens); if(del.error) throw del.error; }
+    netOk();
+  }catch(e){ netErr(); alert('Échec du report (réseau ?). Rien n\u2019a été retiré de la journée — réessaie.'); return; }
+  var ids={}; sel.forEach(function(r){ ids[r.id]=1; });
+  undoSnap=null; rows=rows.filter(function(r){ return !ids[r.id]; }); prSel={};
+  renderRows(); sync();
+  alert('\u2713 '+sel.length+' ligne'+(sel.length>1?'s':'')+' reportée'+(sel.length>1?'s':'')+' au '+nomJour(cible)+' '+isoVersFr(cible)+' (en tête de liste).');
+}
 
 /* ---------- Réglages ---------- */
 function makeCode(c){var el=document.createElement('div');el.className='reg-row';var topts=TYPES.map(function(p){return '<option value="'+p[0]+'"'+(typeOfCode(c)===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');var copts=COULEURS.map(function(p){return '<option value="'+p[0]+'"'+(colOfCode(c)===p[0]?' selected':'')+'>'+p[1]+'</option>';}).join('');el.innerHTML='<input type="number" inputmode="numeric" min="0" max="30" step="1" class="c-num mono" value="'+c.num+'"><input type="text" class="c-lib" value="'+esc(c.lib||'')+'" placeholder="ex. éponge"><input type="number" inputmode="numeric" min="1" step="1" class="c-taux mono" value="'+(c.taux||'')+'"><input type="number" inputmode="decimal" min="0" step="0.5" class="c-sech mono" value="'+(c.sechageMin==null?'':c.sechageMin)+'"><select class="c-type">'+topts+'</select><select class="c-couleur">'+copts+'</select><span class="c-cad cad-out">'+(c.taux>0?galParH(c)+' /h':'—')+'</span><button class="btn-ghost c-del" aria-label="Supprimer">\u2715</button>';
@@ -1509,7 +1553,7 @@ function renderResults(){
   }
   // Filtre par poste (opérateur)
   if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' on':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
-  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-next" class="btn-ghost" title="Occurrence suivante" style="padding:4px 10px;color:#1d4ed8">\u2193 suivant</button><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button>'+((adminUnlocked||!isOperateur)?'<button type="button" id="pr-alltop" class="btn-ghost" title="Remonter tous les morceaux de ce client tout en haut" style="color:var(--teal)">\u2b06 toutes en tête</button><button type="button" id="pr-take" class="btn-ghost" style="color:var(--teal)" title="Prendre les lignes sélectionnées pour les poser où tu veux">\u270B prendre la sélection</button>':'')+'<span id="pr-count" class="sub"></span></div>';
+  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-next" class="btn-ghost" title="Occurrence suivante" style="padding:4px 10px;color:#1d4ed8">\u2193 suivant</button><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button>'+((adminUnlocked||!isOperateur)?'<button type="button" id="pr-alltop" class="btn-ghost" title="Remonter tous les morceaux de ce client tout en haut" style="color:var(--teal)">\u2b06 toutes en tête</button><button type="button" id="pr-take" class="btn-ghost" style="color:var(--teal)" title="Prendre les lignes sélectionnées pour les poser où tu veux">\u270B prendre la sélection</button><button type="button" id="pr-report" class="btn-ghost" style="color:#6B4FA8" title="Reporter les lignes sélectionnées sur un autre jour">\u{1F4C5} reporter la sélection</button>':'')+'<span id="pr-count" class="sub"></span></div>';
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span>'+(((adminUnlocked||!isOperateur)&&undoSnap)?'<button class="btn-ghost no-print" id="undo-move" title="Annuler le dernier déplacement" style="margin-left:10px;color:#8a1a12;font-size:12px;padding:2px 10px">\u21b6 annuler le déplacement</button>':'')+'</div>';
 if(pickedId!=null||(pickedSel&&pickedSel.length)){ var _pn=''; if(pickedId!=null){for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}} else {_pn='s\u00e9lection ('+pickedSel.length+' lignes)';}
   h+='<div class="pickbar no-print"><span class="pb-name">\u270B '+esc(_pn||'ligne')+' prise</span><button class="btn-ghost pick-btn poser" data-pick="0">\u2b06 poser tout en haut</button><button class="btn-ghost pick-btn poser" data-pick="'+rows.length+'">\u2b07 poser tout en bas</button><button class="btn-ghost pick-btn" data-pick="-1">\u2715 annuler</button><span class="sub" style="flex-basis:100%">\u2026 ou fais défiler et clique « \u2935 poser ici » sur une ligne.</span></div>'; }
@@ -1598,13 +1642,14 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
   var pcl=document.getElementById('prio-clear'); if(pcl)pcl.addEventListener('click',function(){if(confirm('Effacer toutes les demandes de priorité ?')){CFG.priorites[curDate]=[];scheduleSaveConfig();renderResults();}});
   var umv=document.getElementById('undo-move'); if(umv)umv.addEventListener('click',undoMove);
   if(pf){
-    function prSearchOrNext(){ var v=(pf.value||'').trim().toLowerCase(); if(v!==prLast){ prLast=v; planQuery=pf.value; prSel={}; prHighlight(true); updateAlltopLabel(); } else { prNext(); } }
+    function prSearchOrNext(){ var v=(pf.value||'').trim().toLowerCase(); if(v!==prLast){ prLast=v; planQuery=pf.value; prHighlight(true); updateAlltopLabel(); } else { prNext(); } }
     pf.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); prSearchOrNext(); } });
-    pf.addEventListener('blur',function(){ var v=(pf.value||'').trim().toLowerCase(); if(v!==prLast){ prLast=v; planQuery=pf.value; prSel={}; prHighlight(true); updateAlltopLabel(); } });
+    pf.addEventListener('blur',function(){ var v=(pf.value||'').trim().toLowerCase(); if(v!==prLast){ prLast=v; planQuery=pf.value; prHighlight(true); updateAlltopLabel(); } });
     var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prLast='';prIdx=0;prSel={};prHighlight(true);updateAlltopLabel();pf.focus();});
-    var pnx=document.getElementById('pr-next'); if(pnx)pnx.addEventListener('click',function(){ var v=(pf.value||'').trim().toLowerCase(); if(v!==prLast){ prLast=v; planQuery=pf.value; prSel={}; prHighlight(true); updateAlltopLabel(); } else { prNext(); } });
+    var pnx=document.getElementById('pr-next'); if(pnx)pnx.addEventListener('click',function(){ var v=(pf.value||'').trim().toLowerCase(); if(v!==prLast){ prLast=v; planQuery=pf.value; prHighlight(true); updateAlltopLabel(); } else { prNext(); } });
     var pa=document.getElementById('pr-alltop'); if(pa)pa.addEventListener('click',function(){planQuery=pf.value;remonterToutesEnTete();});
        var pt=document.getElementById('pr-take'); if(pt)pt.addEventListener('click',function(){ var ids=rows.filter(function(r){return prSel[r.id];}).map(function(r){return r.id;}); if(!ids.length){alert('S\u00e9lectionne d\u2019abord des lignes (recherche, puis clic sur les lignes encadr\u00e9es).');return;} pickedSel=ids; prSel={}; pickedId=null; renderResults(); });
+    var prr=document.getElementById('pr-report'); if(prr)prr.addEventListener('click',function(){ reporterSelection(); });
     updateAlltopLabel();
     prLast=(planQuery||'').trim().toLowerCase();
     if(planQuery){prHighlight(false);}
