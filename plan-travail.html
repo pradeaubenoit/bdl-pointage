@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v157</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v158</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1741,6 +1741,10 @@ function reOptimiserDepuis(i){
   var reel=triFaits(rows.filter(function(r){return estFait(r) && !estLav(r) && r.machine==='tunnel';})).concat(rows.filter(function(r,idx){return idx<i && !estFait(r) && !estIgn(r) && !estLav(r);}));
   var ctxR=contexteDepuis(reel); ctxF.run=ctxR.run; ctxF.nbCli=ctxR.nbCli; ctxF.dernier=ctxR.dernier;
   var opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF);
+  // Pas de gain de temps -> on ne touche à rien.
+  var _tun=function(l){ return l.filter(function(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }); };
+  var _cout=function(o){ return simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
+  if(!(_cout(_tun(figes.concat(opt.order))) < _cout(_tun(figes.concat(pool))))){ alert('Ton ordre est déjà le plus rapide : la ré-optimisation ne ferait pas gagner de temps. Rien n\u2019a été changé.'); return; }
   snapshotOrder(); rows=figes.concat(opt.order);
   renderRows();sync();
 }
@@ -1819,14 +1823,21 @@ function bOptimize(){
   var others=bBase.filter(function(r){return r.machine!=='tunnel';});
   var ML=(CFG.maxLent==null?8:CFG.maxLent);
   var runBefore=maxLentRun(tunnelRows);
-  var opt=optimiserParLot(tunnelRows,speed,start);
+  // On n'optimise que pour GAGNER du temps : on essaie plusieurs variantes et on garde la plus rapide.
+  // Si aucune ne bat ton ordre, ton ordre est conservé tel quel.
+  var _cout=function(o){ return simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
+  function _variante(over){ var sv={}; for(var k in over){ sv[k]=CFG[k]; CFG[k]=over[k]; } try{ return optimiserParLot(tunnelRows,speed,start); } finally{ for(var k2 in sv) CFG[k2]=sv[k2]; } }
+  var opt=null, best=Infinity;
+  [{}, {maxClientsBloc:99}].forEach(function(v){ var o=_variante(v); if(o.galIn!==o.galOut){ if(!opt) opt=o; return; } var c=_cout(o.order); if(c<best){ best=c; opt=o; } });
+  var _garde=false;
+  if(!(best < _cout(tunnelRows))){ _garde=true; opt={order:tunnelRows.slice(), run:maxLentRun(tunnelRows), galIn:opt.galIn, galOut:opt.galIn, orphelins:[], bouchons:attenteRegle(tunnelRows)}; }
   bRows=opt.order.concat(others);
   bOptimized=true;
   if(opt.galIn!==opt.galOut){ alert('\u26a0 Contrôle : '+opt.galIn+' galettes en entrée, '+opt.galOut+' en sortie. '+Math.abs(opt.galIn-opt.galOut)+' galette(s) '+(opt.galOut<opt.galIn?'perdues':'en trop')+' — signalez-le, c\'est un bug.'); }
   if(opt.orphelins&&opt.orphelins.length){ alert('\u26a0 Attelage ignoré : l\'ancre n\'est pas un client lavé au tunnel (souvent un drap, qui sert de tampon et ne peut pas servir d\'ancre).\n\n'+opt.orphelins.join('\n')+'\n\nAttelez plutôt à un client éponge/vêtement.'); }
   // Contrôle règle des 8 : le moteur se dénonce s'il produit une série lente trop longue.
   (function(){var s=0,worst=0;opt.order.forEach(function(r){if(isDrapRow(r))s=0;else{s+=parseInt(r.nbTransferts)||0;if(s>worst)worst=s;}});
-    if(worst>ML) alert('\u26a0 Règle des '+ML+' non respectée : '+worst+' galettes lentes d\'affilée sans tampon de draps. Trop peu de draps disponibles, ou un attelage force la main.');})();
+    if(worst>ML && !_garde) alert('\u26a0 Règle des '+ML+' non respectée : '+worst+' galettes lentes d\'affilée sans tampon de draps. Trop peu de draps disponibles, ou un attelage force la main.');})();
   var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
   var sBase=simSechoirs(tunnelRows,CFG.tempsGalette,start);   // plan actuel (temps plan de travail)
   var sOpt=simSechoirs(opt.order,CFG.tempsGaletteOpt,start);  // optimisé (temps optimisé)
@@ -1844,6 +1855,7 @@ var finAvant=(CFG.optFin&&CFG.optFin[bBaseDate]!=null)?CFG.optFin[bBaseDate]:(st
   var resEl=document.getElementById('b-results');
   var L=(CFG.camionCli==null?2:CFG.camionCli);
   var finTxt = gainNet>0 ? ' <span style="color:var(--down)"><b>\u2014 tu gagnes '+gainNet+' min</b></span>' : (gainNet<0 ? ' <span style="color:var(--muted)">(+'+(-gainNet)+' min)</span>' : ' (identique)');
+  if(_garde){ resEl.insertAdjacentHTML('beforeend','<div class="note ok"><b>Ton ordre est déjà le plus rapide.</b> Aucune réorganisation ne fait gagner de temps ce jour-là (pas assez de draps pour tamponner sans multiplier les changements de programme) : il est conservé tel quel. Tu peux le diffuser.</div>'); return; }
   var msg='<div class="note ok"><b>Proposition trouvée</b> \u2014 tourniquet des postes (on sert chaque poste à tour de rôle, on reprend là où on s\'était arrêté ; tampon draps pour les séchoirs). Chaque poste tourne jusqu\'à ce qu\'il n\'ait plus de linge \u2014 puis son équipe part.<br>'
       +'• <b>Heure de fin : plan actuel '+fmtHHMM(finAvant)+' \u2192 optimisé '+fmtHHMM(finReelOpt)+finTxt+'</b><br>'
       +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocAvant-blocApres>0?' (\u2212'+(blocAvant-blocApres)+' min d\'arrêts en moins)':'')+'<br>'
