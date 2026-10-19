@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v158</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v159</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -877,6 +877,10 @@ function fusionnerMemeClient(rows){
 }
 /* ATTENTE SÉCHOIR selon la règle de Benoît : on accumule les galettes lentes ; au-delà de
    serieMax sans bloc de draps suffisant pour tamponner, on compte un bouchon. Renvoie le nb de bouchons. */
+/* Galettes lentes AU-DELÀ de la règle des 8 (une série repart à zéro après n'importe quel drap). */
+function excesRegle8(order){ var ML=(CFG.maxLent==null?8:CFG.maxLent), run=0, ex=0;
+  (order||[]).forEach(function(r){ if(isDrapRow(r)){ run=0; return; } var g=parseInt(r.nbTransferts)||0; for(var k=0;k<g;k++){ run++; if(run>ML) ex++; } });
+  return ex; }
 function attenteRegle(order){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent), bloc=(CFG.blocDraps==null?4:CFG.blocDraps);
   var s=0,d=0,b=0;
@@ -1743,8 +1747,8 @@ function reOptimiserDepuis(i){
   var opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF);
   // Pas de gain de temps -> on ne touche à rien.
   var _tun=function(l){ return l.filter(function(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }); };
-  var _cout=function(o){ return simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
-  if(!(_cout(_tun(figes.concat(opt.order))) < _cout(_tun(figes.concat(pool))))){ alert('Ton ordre est déjà le plus rapide : la ré-optimisation ne ferait pas gagner de temps. Rien n\u2019a été changé.'); return; }
+  var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
+  if(!(_cout(_tun(figes.concat(opt.order))) < _cout(_tun(figes.concat(pool))))){ alert('Ton ordre est déjà le meilleur : la ré-optimisation ne respecterait pas mieux la règle des 8 et ne ferait pas gagner de temps. Rien n\u2019a été changé.'); return; }
   snapshotOrder(); rows=figes.concat(opt.order);
   renderRows();sync();
 }
@@ -1825,7 +1829,8 @@ function bOptimize(){
   var runBefore=maxLentRun(tunnelRows);
   // On n'optimise que pour GAGNER du temps : on essaie plusieurs variantes et on garde la plus rapide.
   // Si aucune ne bat ton ordre, ton ordre est conservé tel quel.
-  var _cout=function(o){ return simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
+  // Coût = d'abord la RÈGLE DES 8 (séries lentes trop longues), ensuite seulement l'heure de fin.
+  var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
   function _variante(over){ var sv={}; for(var k in over){ sv[k]=CFG[k]; CFG[k]=over[k]; } try{ return optimiserParLot(tunnelRows,speed,start); } finally{ for(var k2 in sv) CFG[k2]=sv[k2]; } }
   var opt=null, best=Infinity;
   [{}, {maxClientsBloc:99}].forEach(function(v){ var o=_variante(v); if(o.galIn!==o.galOut){ if(!opt) opt=o; return; } var c=_cout(o.order); if(c<best){ best=c; opt=o; } });
@@ -1855,7 +1860,7 @@ var finAvant=(CFG.optFin&&CFG.optFin[bBaseDate]!=null)?CFG.optFin[bBaseDate]:(st
   var resEl=document.getElementById('b-results');
   var L=(CFG.camionCli==null?2:CFG.camionCli);
   var finTxt = gainNet>0 ? ' <span style="color:var(--down)"><b>\u2014 tu gagnes '+gainNet+' min</b></span>' : (gainNet<0 ? ' <span style="color:var(--muted)">(+'+(-gainNet)+' min)</span>' : ' (identique)');
-  if(_garde){ resEl.insertAdjacentHTML('beforeend','<div class="note ok"><b>Ton ordre est déjà le plus rapide.</b> Aucune réorganisation ne fait gagner de temps ce jour-là (pas assez de draps pour tamponner sans multiplier les changements de programme) : il est conservé tel quel. Tu peux le diffuser.</div>'); return; }
+  if(_garde){ resEl.insertAdjacentHTML('beforeend','<div class="note ok"><b>Ton ordre est déjà le plus rapide.</b> Aucune réorganisation ne respecte mieux la règle des 8 ni ne fait gagner de temps ce jour-là : il est conservé tel quel. Tu peux le diffuser.</div>'); return; }
   var msg='<div class="note ok"><b>Proposition trouvée</b> \u2014 tourniquet des postes (on sert chaque poste à tour de rôle, on reprend là où on s\'était arrêté ; tampon draps pour les séchoirs). Chaque poste tourne jusqu\'à ce qu\'il n\'ait plus de linge \u2014 puis son équipe part.<br>'
       +'• <b>Heure de fin : plan actuel '+fmtHHMM(finAvant)+' \u2192 optimisé '+fmtHHMM(finReelOpt)+finTxt+'</b><br>'
       +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocAvant-blocApres>0?' (\u2212'+(blocAvant-blocApres)+' min d\'arrêts en moins)':'')+'<br>'
