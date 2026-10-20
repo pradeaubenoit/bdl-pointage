@@ -105,6 +105,16 @@
   .tuile.envoye .evoliz.fait { color: #7A6200; border-color: #F0D96B; }
   .tuile.aconfig { background: #FDECEC; border-color: #F2B8B5; border-left-color: #C62828; }
   .tuile.aconfig .badge { background: #C62828; color: #fff; }
+  #fondMsgB { display: none; position: fixed; inset: 0; background: rgba(29,43,52,.45); align-items: center; justify-content: center; padding: 20px; z-index: 40; }
+  #panneauMsgB { background: var(--carte); border-radius: 14px; width: 100%; max-width: 620px; max-height: 90vh; overflow: auto; }
+  #panneauMsgB h2 { margin: 0; padding: 16px 20px; font-size: 20px; border-bottom: 3px solid #8a1a12; }
+  #panneauMsgB .form { padding: 14px 20px; display: grid; gap: 8px; }
+  #panneauMsgB textarea { width: 100%; min-height: 80px; font: inherit; padding: 8px; box-sizing: border-box; }
+  #panneauMsgB input { font: inherit; padding: 6px 8px; }
+  .mb { margin: 8px 20px; padding: 10px 12px; border: 1px solid var(--trait); border-radius: 10px; font-size: 14px; }
+  .mb .e { font-weight: 700; } .mb .e.nouveau { color: #8a1a12; } .mb .e.corrigé, .mb .e.répondu { color: #2e7d32; }
+  .mb .rep { margin-top: 6px; padding: 6px 8px; background: #F2F7F2; border-radius: 6px; }
+  #btnMsg .pastille { background: #c62828; color: #fff; border-radius: 10px; padding: 0 7px; margin-left: 4px; font-size: 13px; }
   #fondConfig { display: none; position: fixed; inset: 0; background: rgba(29,43,52,.45); align-items: center; justify-content: center; padding: 20px; z-index: 30; }
   #panneauConfig { background: var(--carte); border-radius: 14px; width: 100%; max-width: 620px; max-height: 92vh; display: flex; flex-direction: column; }
   #panneauConfig h2 { margin: 0; padding: 16px 20px; font-size: 19px; border-bottom: 3px solid #C62828; }
@@ -165,6 +175,7 @@
     <button id="ongletJour" class="actif" onclick="choisirMode('jour')">Jour</button>
     <button id="ongletMois" onclick="choisirMode('mois')">Mois</button>
   </div>
+  <button id="btnMsg" onclick="ouvrirMessages()">✉ Atelier</button>
   <button id="nom" onclick="changerNom()">Qui pointe ?</button>
 </header>
 
@@ -216,6 +227,24 @@
   </div>
 </div>
 
+<div id="fondMsgB" onclick="if (event.target === this) fermerMessages()">
+  <div id="panneauMsgB">
+    <h2>✉ Message à l'atelier</h2>
+    <div class="form">
+      <label>Client (facultatif) <input id="mbClient" list="mbClients" style="width:100%"></label>
+      <datalist id="mbClients"></datalist>
+      <label>Journée <input id="mbJour" type="date"></label>
+      <textarea id="mbTexte" placeholder="Ex. : il manque les serviettes, peux-tu vérifier et corriger ?"></textarea>
+      <div class="actions" style="padding:0">
+        <button class="btn" onclick="fermerMessages()">Fermer</button>
+        <button class="btn ok" onclick="envoyerMessage()">Envoyer à l'atelier</button>
+      </div>
+      <div style="color:#6B7A86;font-size:13px">L'atelier verra le message en plein écran sur la tablette et devra le traiter avant de continuer.</div>
+    </div>
+    <div id="mbListe"></div>
+  </div>
+</div>
+
 <div id="fond" onclick="if (event.target === this) fermer()">
   <div id="panneau">
     <h2 id="pNom"></h2>
@@ -226,6 +255,7 @@
       <button class="btn ok" id="pBouton"></button>
     </div>
     <a href="#" id="pManuel" style="display:none; padding:0 20px 16px; font-size:14px; color:#6B7A86; text-align:right">BL déjà fait à la main dans Evoliz</a>
+    <a href="#" id="pSignaler" style="display:block; padding:0 20px 16px; font-size:14px; color:#8a1a12; text-align:right" onclick="event.preventDefault(); signalerClient();">✉ Signaler un oubli / une question à l'atelier</a>
   </div>
 </div>
 
@@ -517,6 +547,7 @@ function basculerRetrait(k) {
 
 /* ---------- Détail et pointage ---------- */
 function ouvrir(c) {
+  clientOuvert = c;
   document.getElementById('pNom').textContent = c.client;
   const t = document.getElementById('pTable');
   t.innerHTML = '';
@@ -570,6 +601,62 @@ function ouvrir(c) {
 }
 
 function fermer() { document.getElementById('fond').style.display = 'none'; }
+
+/* ---------- Messagerie bureau -> atelier ---------- */
+let clientOuvert = null, messagesB = [];
+function ouvrirMessages(client) {
+  document.getElementById('mbClient').value = client || '';
+  document.getElementById('mbJour').value = (tableau && mode === 'jour') ? tableau.periode : isoJour(new Date());
+  document.getElementById('mbTexte').value = '';
+  const dl = document.getElementById('mbClients'); dl.innerHTML = '';
+  (tableau ? listeAffichee() : []).forEach(c => { const o = document.createElement('option'); o.value = c.parent ? c.parent.client : c.client; dl.appendChild(o); });
+  document.getElementById('fondMsgB').style.display = 'flex';
+  chargerMessagesB();
+  setTimeout(() => document.getElementById('mbTexte').focus(), 50);
+}
+function fermerMessages() { document.getElementById('fondMsgB').style.display = 'none'; }
+function signalerClient() { const c = clientOuvert; fermer(); ouvrirMessages(c ? (c.parent ? c.parent.client : c.client) : ''); }
+async function envoyerMessage() {
+  const texte = document.getElementById('mbTexte').value.trim();
+  if (!texte) { alert('Écris le message.'); return; }
+  try {
+    const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'messageEnvoyer', de: lireNom() || 'Bureau',
+      client: document.getElementById('mbClient').value.trim(), journee: document.getElementById('mbJour').value, texte: texte }) });
+    const d = await rep.json(); if (!d.ok) throw new Error(d.error || 'Refus du serveur');
+  } catch (e) { alert('Envoi impossible (' + e.message + '). Réessaie.'); return; }
+  document.getElementById('mbTexte').value = '';
+  chargerMessagesB();
+}
+async function chargerMessagesB() {
+  try {
+    const rep = await fetch(API_URL + '?action=messages&tous=1');
+    const d = await rep.json(); if (!d.ok) return;
+    messagesB = d.messages || [];
+  } catch (e) { return; }
+  const aLire = messagesB.filter(m => m.etat === 'corrigé' || m.etat === 'répondu').length;
+  document.getElementById('btnMsg').innerHTML = '✉ Atelier' + (aLire ? '<span class="pastille">' + aLire + '</span>' : '');
+  const z = document.getElementById('mbListe'); if (!z) return;
+  z.innerHTML = messagesB.length ? '<div style="padding:4px 20px;color:#6B7A86;font-size:13px">Messages envoyés</div>' : '';
+  messagesB.forEach(m => {
+    const d = document.createElement('div'); d.className = 'mb';
+    const lib = { nouveau: '⏳ pas encore traité', 'corrigé': '✓ corrigé', 'répondu': '💬 réponse' }[m.etat] || m.etat;
+    d.innerHTML = '<div><span class="e"></span> · <span class="s"></span></div><div class="t"></div>';
+    d.querySelector('.e').textContent = lib; d.querySelector('.e').classList.add(m.etat);
+    d.querySelector('.s').textContent = (m.client || 'Général') + (m.journee ? ' · ' + m.journee.slice(8, 10) + '/' + m.journee.slice(5, 7) : '') + ' · envoyé ' + m.le;
+    d.querySelector('.t').textContent = m.texte;
+    if (m.etat !== 'nouveau') {
+      const r = document.createElement('div'); r.className = 'rep';
+      r.textContent = (m.par || 'Atelier') + ' (' + m.repLe + ') : ' + (m.reponse || 'corrigé ✓');
+      d.appendChild(r);
+      const a = document.createElement('button'); a.className = 'btn'; a.style.marginTop = '6px'; a.textContent = 'Archiver';
+      a.onclick = async () => { try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'messageClore', id: m.id }) }); } catch (e) {} chargerMessagesB(); };
+      d.appendChild(a);
+    }
+    z.appendChild(d);
+  });
+}
+setInterval(chargerMessagesB, 2 * 60 * 1000);
+setTimeout(chargerMessagesB, 1500);
 
 /* ---------- Lavé la veille : le linge lavé hier est livré (et saisi) aujourd'hui ---------- */
 let lavesVeille = { date: '', noms: new Set() };
