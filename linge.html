@@ -147,6 +147,21 @@
     font-size: 22px; font-weight: 600; display: none; z-index: 10; max-width: 90%;
   }
   #toast.erreur { background: var(--alerte); }
+  /* Messages du bureau : écran bloquant tant que ce n'est pas traité */
+  #fondMsg { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(120,20,20,.92);
+    align-items: center; justify-content: center; padding: 24px; }
+  #panneauMsg { background: #fff; border-radius: 18px; width: 100%; max-width: 760px; max-height: 92vh; overflow: auto; padding: 22px 26px; }
+  #panneauMsg h2 { margin: 0 0 6px; font-size: 30px; color: #8a1a12; }
+  #panneauMsg .sous { color: #555; font-size: 18px; margin-bottom: 14px; }
+  .msg { border: 2px solid #e5c7c4; border-radius: 14px; padding: 16px 18px; margin: 12px 0; }
+  .msg .tete { font-size: 17px; color: #8a1a12; font-weight: 700; margin-bottom: 6px; }
+  .msg .txt { font-size: 24px; margin-bottom: 14px; white-space: pre-wrap; }
+  .msg .bts { display: flex; gap: 10px; flex-wrap: wrap; }
+  .msg button { font-size: 20px; padding: 14px 18px; border-radius: 12px; border: 2px solid #8a1a12; background: #fff; color: #8a1a12; font-weight: 700; }
+  .msg button.plein { background: #2e7d32; border-color: #2e7d32; color: #fff; }
+  #bandeauCorr { display: none; background: #8a1a12; color: #fff;
+    padding: 14px 18px; font-size: 20px; font-weight: 700; align-items: center; gap: 14px; justify-content: space-between; }
+  #bandeauCorr button { font-size: 20px; padding: 12px 18px; border: 0; border-radius: 12px; background: #2e7d32; color: #fff; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -158,6 +173,7 @@
   <button id="operateur" onclick="changerOperateur()">Opérateur ?</button>
 </header>
 <div id="bandeauJour" onclick="choisirJour(null)"></div>
+<div id="bandeauCorr"><span id="txtCorr"></span><button onclick="corrigeFini()">✓ C'est corrigé</button></div>
 <div id="fondClient" onclick="if (event.target === this) fermerChoixClient()">
   <div class="panneauClient">
     <h2>Ajouter un client à cette journée</h2>
@@ -176,6 +192,11 @@
 </main>
 <div id="barre"><button id="valider" onclick="valider()">Valider</button></div>
 <div id="toast"></div>
+<div id="fondMsg"><div id="panneauMsg">
+  <h2>⚠ Message du bureau</h2>
+  <div class="sous">À traiter avant de continuer la saisie.</div>
+  <div id="listeMsg"></div>
+</div></div>
 
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
@@ -1051,6 +1072,74 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { ma
 setInterval(envoyer, 30000);
 window.addEventListener('online', envoyer);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) envoyer(); });
+
+/* ---------- Messages du bureau (bloquants) ---------- */
+let messagesBureau = [], msgEnCorrection = null;
+async function chargerMessages() {
+  try {
+    const rep = await fetch(API_URL + '?action=messages');
+    const d = await rep.json();
+    if (!d.ok) return;
+    messagesBureau = d.messages || [];
+    afficherMessages();
+  } catch (e) {}
+}
+function afficherMessages() {
+  const fond = document.getElementById('fondMsg');
+  const aTraiter = messagesBureau.filter(m => !msgEnCorrection || m.id !== msgEnCorrection.id);
+  if (msgEnCorrection || !aTraiter.length) { fond.style.display = 'none'; return; }
+  const l = document.getElementById('listeMsg');
+  l.innerHTML = '';
+  aTraiter.forEach(m => {
+    const d = document.createElement('div'); d.className = 'msg';
+    const sujet = (m.client ? m.client : 'Général') + (m.journee ? ' — ' + libelleJour(m.journee) : '');
+    d.innerHTML = '<div class="tete"></div><div class="txt"></div><div class="bts"></div>';
+    d.querySelector('.tete').textContent = sujet + ' · ' + (m.de || 'Bureau') + ' · ' + m.le;
+    d.querySelector('.txt').textContent = m.texte;
+    const bts = d.querySelector('.bts');
+    if (m.client) {
+      const b1 = document.createElement('button'); b1.className = 'plein'; b1.textContent = '✎ Aller corriger';
+      b1.onclick = () => allerCorriger(m); bts.appendChild(b1);
+    } else {
+      const b0 = document.createElement('button'); b0.className = 'plein'; b0.textContent = '✓ C\'est fait';
+      b0.onclick = () => repondreMsg(m, 'corrigé', ''); bts.appendChild(b0);
+    }
+    const b2 = document.createElement('button'); b2.textContent = '💬 Répondre';
+    b2.onclick = () => { const t = prompt('Réponse au bureau :'); if (t && t.trim()) repondreMsg(m, 'répondu', t.trim()); };
+    bts.appendChild(b2);
+    l.appendChild(d);
+  });
+  fond.style.display = 'flex';
+}
+function allerCorriger(m) {
+  msgEnCorrection = m;
+  document.getElementById('fondMsg').style.display = 'none';
+  const auj = isoLocal(new Date());
+  if (m.journee && m.journee !== jourCourant()) choisirJour(m.journee === auj ? null : m.journee);
+  const c = catalogue.find(x => cleNom(x.client) === cleNom(m.client));
+  if (c) afficherArticles(c, false, null);
+  document.getElementById('txtCorr').textContent = 'Correction demandée : ' + m.client + (m.journee ? ' (' + libelleJour(m.journee) + ')' : '') + ' — « ' + m.texte + ' »';
+  document.getElementById('bandeauCorr').style.display = 'flex';
+}
+function corrigeFini() {
+  const m = msgEnCorrection; if (!m) return;
+  repondreMsg(m, 'corrigé', '');
+}
+async function repondreMsg(m, etat, reponse) {
+  const par = lire(CLE_OP, '') || 'Atelier';
+  try {
+    const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'messageRepondre', id: m.id, etat: etat, reponse: reponse, par: par }) });
+    const d = await rep.json();
+    if (!d.ok) throw new Error(d.error || 'Refus du serveur');
+  } catch (e) { toast('Impossible d\'envoyer la réponse (réseau ?). Réessaie.', true); return; }
+  messagesBureau = messagesBureau.filter(x => x.id !== m.id);
+  if (msgEnCorrection && msgEnCorrection.id === m.id) { msgEnCorrection = null; document.getElementById('bandeauCorr').style.display = 'none'; }
+  toast('Merci, le bureau est prévenu.');
+  afficherMessages();
+}
+setInterval(chargerMessages, 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) chargerMessages(); });
+chargerMessages();
 
 afficherOperateur();
 majJourAffiche();
