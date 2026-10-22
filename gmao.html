@@ -113,7 +113,9 @@ table.imp tr.ex{opacity:.45}
       <a href="#parc" data-v="parc">Parc</a>
       <a href="#articles" data-v="articles">Pièces</a>
       <a href="#preventif" data-v="preventif">Préventif</a>
+      <a href="#compteurs" data-v="compteurs">Compteurs</a>
       <a href="#modeles" data-v="modeles">Modèles</a>
+      <a href="#partenaires" data-v="partenaires">Partenaires</a>
       <a href="#import" data-v="import">Import</a>
     </nav>
     <span id="qui"></span>
@@ -129,12 +131,12 @@ table.imp tr.ex{opacity:.45}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v2';
+var VERSION='v3';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
 var USER=null, NOM='';
-var EQ=[], EQID={}, MOD=[], MODID={}, ART=[], ARTID={}, LIENS=[], PREV=[];
+var EQ=[], EQID={}, MOD=[], MODID={}, ART=[], ARTID={}, LIENS=[], PREV=[], PART=[], MES=[], MESID={}, DERN={}, V2=true;
 
 /* ---------- outils ---------- */
 function $(id){return document.getElementById(id);}
@@ -179,6 +181,11 @@ async function chargerTout(){
     q(sb.from('gmao_preventifs').select('*'))
   ]);
   EQ=r[0];MOD=r[1];ART=r[2];LIENS=r[3];PREV=r[4];
+  try{
+    var r2=await Promise.all([q(sb.from('gmao_partenaires').select('*').order('nom')),q(sb.from('gmao_mesures').select('*').order('nom')),q(sb.from('gmao_releves').select('mesure_id,valeur,le').order('le',{ascending:false}).limit(5000))]);
+    PART=r2[0];MES=r2[1];DERN={};r2[2].forEach(function(x){if(!DERN[x.mesure_id])DERN[x.mesure_id]=x;});V2=true;
+  }catch(e){V2=false;PART=[];MES=[];DERN={};}
+  MESID={};MES.forEach(function(m){MESID[m.id]=m;});
   EQID={};EQ.forEach(function(e){EQID[e.id]=e;});
   MODID={};MOD.forEach(function(m){MODID[m.id]=m;});
   ARTID={};ART.forEach(function(a){ARTID[a.id]=a;});
@@ -262,13 +269,25 @@ function badgeStatut(s){var c={'Demandé':'b-bleu','En cours':'b-orange','Attent
 function badgePrio(p,arr){if(arr)return '<span class="badge b-rouge">⛔ arrêt</span>';if(p==='Urgente')return '<span class="badge b-rouge">Urgent</span>';return '';}
 function badgeEtat(e){if(!e)return'';var c={'En service':'b-vert','Dégradé':'b-orange','En réparation':'b-orange','Hors service':'b-rouge'}[e]||'';return '<span class="badge '+c+'">'+esc(e)+'</span>';}
 function echeance(p){if(!p.dernier)return null;return ajoutJours(p.dernier,p.periodicite_jours||30);}
-function badgeEcheance(p){
-  var e=echeance(p);if(!e)return '<span class="badge b-orange">jamais fait</span>';
-  var j=joursEntre(auj(),e);
-  if(j<0)return '<span class="badge b-rouge">en retard de '+(-j)+' j</span>';
-  if(j<=7)return '<span class="badge b-orange">dans '+j+' j</span>';
-  return '<span class="badge b-vert">'+fmtD(e)+'</span>';
+function fmtN(x){var r=Math.round(x*10)/10;return (r===0?0:r).toLocaleString('fr-FR');}
+/* état d'un plan préventif : à la date ou au compteur */
+function infoPrev(p){
+  if(p.mesure_id){
+    var m=MESID[p.mesure_id],d=DERN[p.mesure_id],u=m?(m.unite||''):'',per=+p.periodicite_valeur||0;
+    if(!d)return {cls:'b-orange',txt:'aucun relevé',ordre:-1,aFaire:true};
+    if(p.dernier_valeur==null)return {cls:'b-orange',txt:'jamais fait',ordre:-1,aFaire:true};
+    var reste=(+p.dernier_valeur)+per-(+d.valeur);
+    if(reste<=0)return {cls:'b-rouge',txt:(reste<0?'dépassé de '+fmtN(-reste):'atteint')+''+' '+u,ordre:reste/(per||1),aFaire:true};
+    if(reste<=per*0.1)return {cls:'b-orange',txt:'encore '+fmtN(reste)+' '+u,ordre:reste/(per||1),aFaire:true};
+    return {cls:'b-vert',txt:'encore '+fmtN(reste)+' '+u,ordre:reste/(per||1),aFaire:false};
+  }
+  var e=echeance(p);if(!e)return {cls:'b-orange',txt:'jamais fait',ordre:-1,aFaire:true};
+  var j=joursEntre(auj(),e),per2=p.periodicite_jours||30;
+  if(j<0)return {cls:'b-rouge',txt:'en retard de '+(-j)+' j',ordre:j/per2,aFaire:true};
+  if(j<=7)return {cls:'b-orange',txt:'dans '+j+' j',ordre:j/per2,aFaire:true};
+  return {cls:'b-vert',txt:fmtD(e),ordre:j/per2,aFaire:false};
 }
+function badgeEcheance(p){var i=infoPrev(p);return '<span class="badge '+i.cls+'">'+esc(i.txt)+'</span>';}
 
 /* ---------- routeur ---------- */
 var VUES={};
@@ -276,7 +295,7 @@ function aller(h){location.hash=h;}
 async function route(){
   var h=location.hash.replace(/^#/,'')||'accueil', p=h.split('/'), v=p[0];
   document.querySelectorAll('#nav a').forEach(function(a){
-    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&v==='bon')||(d==='parc'&&v==='eq')||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod'));
+    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&v==='bon')||(d==='parc'&&v==='eq')||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
   });
   var f=VUES[v]||VUES.accueil;
   $('main').innerHTML='<div class="vide">Chargement…</div>';
@@ -290,7 +309,7 @@ window.addEventListener('hashchange',route);
    ===================================================================== */
 VUES.accueil=async function(){
   var bons=await q(sb.from('gmao_interventions').select('*').neq('statut','Terminé').order('cree_le',{ascending:false}));
-  var retard=PREV.filter(function(p){if(!p.actif)return false;var e=echeance(p);return !e||e<=ajoutJours(auj(),7);});
+  var retard=PREV.filter(function(p){return p.actif&&infoPrev(p).aFaire;});
   var sousMini=ART.filter(function(a){return (+a.stock||0)<=(+a.stock_mini||0)&&(+a.stock_mini||0)>0;});
   var degr=EQ.filter(function(e){return e.en_service&&e.etat&&e.etat!=='En service';});
   var urg=bons.filter(function(b){return b.priorite==='Urgente'||b.machine_arretee;});
@@ -313,9 +332,13 @@ function ligneBon(b){
   return '<a class="ligne" href="#bon/'+b.id+'"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+
     esc(e?chemin(e):'— sans machine —')+' · '+esc(b.type)+' · '+fmtDH(b.cree_le)+(b.intervenant?' · '+esc(b.intervenant):'')+'</div></div>'+badgePrio(b.priorite,b.machine_arretee&&b.statut!=='Terminé')+badgeStatut(b.statut)+'</a>';
 }
+function periodeTxt(p){
+  if(p.mesure_id){var m=MESID[p.mesure_id];return 'toutes les '+fmtN(+p.periodicite_valeur||0)+' '+esc(m?(m.unite||''):'')+' ('+esc(m?m.nom:'compteur ?')+') · fait à '+(p.dernier_valeur==null?'—':fmtN(+p.dernier_valeur));}
+  return 'tous les '+p.periodicite_jours+' j · fait le '+(p.dernier?fmtD(p.dernier):'—');
+}
 function lignePrev(p){
   var e=EQID[p.equipement_id];
-  return '<div class="ligne"><div class="g"><div class="t">'+esc(p.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · tous les '+p.periodicite_jours+' j · fait le '+(p.dernier?fmtD(p.dernier):'—')+'</div></div>'+
+  return '<div class="ligne"><div class="g"><div class="t">'+esc(p.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · '+periodeTxt(p)+'</div></div>'+
     badgeEcheance(p)+'<button class="btn sm" onclick="lancerPrev(\''+p.id+'\')">Créer le bon</button><button class="btn sm l" onclick="editerPrev(\''+p.id+'\')">✎</button></div>';
 }
 
@@ -445,7 +468,7 @@ function terminerBon(b){
   $('tbO').onclick=async function(){
     try{
       await q(sb.from('gmao_interventions').update({statut:'Terminé',fin:new Date().toISOString(),rapport:val('tbR'),duree_min:nb(val('tbD')),arret_min:nb(val('tbA')),intervenant:val('tbI'),machine_arretee:false}).eq('id',b.id));
-      if(b.preventif_id){await q(sb.from('gmao_preventifs').update({dernier:auj()}).eq('id',b.preventif_id));var p=PREV.find(function(x){return x.id===b.preventif_id;});if(p)p.dernier=auj();}
+      if(b.preventif_id){var p=PREV.find(function(x){return x.id===b.preventif_id;}),majp={dernier:auj()};if(p&&p.mesure_id&&DERN[p.mesure_id])majp.dernier_valeur=+DERN[p.mesure_id].valeur;await q(sb.from('gmao_preventifs').update(majp).eq('id',b.preventif_id));if(p)Object.assign(p,majp);}
       await logSys(b.id,val('tbI')+' : bon terminé');
       fermer();route();
     }catch(x){erreur(x);}
@@ -525,6 +548,8 @@ VUES.eq=async function(id){
       '<span class="etiq">'+(x.via==='modele'?'via modèle':'cette machine')+(x.l.repere?' · '+esc(x.l.repere):'')+(x.l.quantite&&x.l.quantite!=1?' · ×'+x.l.quantite:'')+'</span><button class="btn l sm" data-dl="'+x.l.id+'" title="Retirer le lien">✕</button></div>';}).join(''):'<div class="vide">Aucune pièce liée.'+(m?'':' Astuce : donne-lui un modèle, ses pièces serviront aussi aux machines identiques.')+'</div>')+'</div>';
   if(m)html+='<div class="carte"><h2>🔁 Même modèle : <a href="#mod/'+m.id+'">'+esc(m.nom)+'</a></h2>'+(freres.length?freres.map(function(x){return '<a class="ligne" href="#eq/'+x.id+'">'+renduEq(x)+'</a>';}).join(''):'<div class="vide">Aucune autre machine de ce modèle.</div>')+'</div>';
   html+='<div class="carte"><h2>🧩 Sous-ensembles <button class="btn sm d" onclick="nouvelEq(\''+id+'\')">+ Ajouter</button></h2>'+(enf.length?enf.map(function(x){return '<a class="ligne" href="#eq/'+x.id+'">'+renduEq(x)+badgeEtat(x.etat!=='En service'?x.etat:'')+'</a>';}).join(''):'<div class="vide">Aucun.</div>')+'</div>';
+  var mes=MES.filter(function(m){return m.equipement_id===id;});
+  if(V2)html+='<div class="carte"><h2>📟 Compteurs <button class="btn sm d" onclick="nouvelleMesure(\''+id+'\')">+ Compteur</button></h2>'+(mes.length?mes.map(ligneMes).join(''):'<div class="vide">Aucun compteur (heures de marche, cycles…).</div>')+'</div>';
   html+='<div class="carte"><h2>🗓 Préventif <button class="btn sm d" onclick="editerPrev(null,\''+id+'\')">+ Plan préventif</button></h2>'+(prevs.length?prevs.map(lignePrev).join(''):'<div class="vide">Aucun plan préventif.</div>')+'</div>';
   html+='<div class="carte"><h2>📋 Historique ('+bons.length+')</h2>'+(bons.length?bons.map(ligneBon).join(''):'<div class="vide">Aucune intervention.</div>')+'</div>';
   $('main').innerHTML=html;
@@ -653,7 +678,7 @@ VUES.art=async function(id){
       '<div><label>Stock mini (alerte)</label><input id="aMi" inputmode="decimal" value="'+(a.stock_mini||0)+'"></div><div><label>Unité</label><input id="aU" value="'+esc(a.unite||'pce')+'"></div></div>'+
       '<label>Mots-clés (autres noms qu\'on lui donne)</label><input id="aK" value="'+esc(a.motscles||'')+'" placeholder="ex. galet, roulement de rouleau, 6205">'+
       '<label>Notes</label><textarea id="aNo">'+esc(a.notes||'')+'</textarea>'+
-      '<datalist id="dlEA">'+uniques(ART.map(function(x){return x.emplacement;})).map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist><datalist id="dlFo">'+uniques(ART.map(function(x){return x.fournisseur;})).map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist>'+
+      '<datalist id="dlEA">'+uniques(ART.map(function(x){return x.emplacement;})).map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist><datalist id="dlFo">'+uniques(ART.map(function(x){return x.fournisseur;}).concat(PART.filter(function(x){return x.fournisseur;}).map(function(x){return x.nom;}))).map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist>'+
       '<div class="actions"><button class="btn r sm" id="aX" style="margin-right:auto">Supprimer</button><button class="btn p" id="aOk">Enregistrer</button></div></div>';
   html+='<div class="carte"><h2>🏭 Utilisée sur <button class="btn sm d" id="aL">+ Lier à une machine</button></h2>'+
     (liens.length?liens.map(function(l){
@@ -683,34 +708,51 @@ VUES.art=async function(id){
    PRÉVENTIF
    ===================================================================== */
 VUES.preventif=async function(){
-  var l=PREV.slice().sort(function(a,b){var ea=echeance(a)||'0000',eb=echeance(b)||'0000';return ea<eb?-1:ea>eb?1:0;});
+  var l=PREV.slice().sort(function(a,b){return infoPrev(a).ordre-infoPrev(b).ordre;});
   $('main').innerHTML='<h1 class="titre">Maintenance préventive <button class="btn p sm" style="float:right" onclick="editerPrev()">+ Plan préventif</button></h1>'+
     '<div class="carte">'+(l.length?l.map(function(p){return p.actif?lignePrev(p):lignePrev(p).replace('class="ligne"','class="ligne" style="opacity:.45"');}).join(''):'<div class="vide">Aucun plan. Exemple : « Graissage paliers sécheuse — tous les 30 jours ».</div>')+'</div>';
 };
-async function editerPrev(pid,eqId){
+async function editerPrev(pid,eqId,mesId){
   var p=pid?PREV.find(function(x){return x.id===pid;}):{equipement_id:eqId||null,titre:'',periodicite_jours:30,checklist:'',dernier:null,actif:true};
-  var eqSel=EQID[p.equipement_id]||null;
+  var eqSel=EQID[p.equipement_id]||null, mesSel=MESID[p.mesure_id]||MESID[mesId]||null;
+  if(!pid&&mesSel){p.mesure_id=mesSel.id;if(DERN[mesSel.id])p.dernier_valeur=+DERN[mesSel.id].valeur;}
+  var pj=p.periodicite_jours||30;
   ouvrir('<h3>'+(pid?'Modifier le plan':'Nouveau plan préventif')+'</h3><label>Machine</label><div class="ligne" id="pvE" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
-    '<label>Opération</label><input id="pvT" value="'+esc(p.titre)+'" placeholder="ex. Graissage paliers, nettoyage filtres…">'+
-    '<div class="grille"><div><label>Tous les…</label><div style="display:flex;gap:6px"><input id="pvN" inputmode="numeric" value="'+(p.periodicite_jours%30===0?p.periodicite_jours/30:p.periodicite_jours%7===0?p.periodicite_jours/7:p.periodicite_jours)+'"><select id="pvU"><option value="1">jours</option><option value="7"'+(p.periodicite_jours%30!==0&&p.periodicite_jours%7===0?' selected':'')+'>semaines</option><option value="30"'+(p.periodicite_jours%30===0?' selected':'')+'>mois</option></select></div></div>'+
+    '<label>Opération</label><input id="pvT" value="'+esc(p.titre)+'" placeholder="ex. Graissage paliers, vidange compresseur…">'+
+    '<label>Se déclenche</label><select id="pvK"><option value="date">à la date (tous les X jours / semaines / mois)</option><option value="cpt"'+(p.mesure_id?' selected':'')+'>au compteur (heures, cycles, m³…)</option></select>'+
+    '<div id="pvZD" class="grille"><div><label>Tous les…</label><div style="display:flex;gap:6px"><input id="pvN" inputmode="numeric" value="'+(pj%30===0?pj/30:pj%7===0?pj/7:pj)+'"><select id="pvU"><option value="1">jours</option><option value="7"'+(pj%30!==0&&pj%7===0?' selected':'')+'>semaines</option><option value="30"'+(pj%30===0?' selected':'')+'>mois</option></select></div></div>'+
     '<div><label>Dernière fois faite</label><input id="pvD" type="date" value="'+(p.dernier||'')+'"></div></div>'+
+    '<div id="pvZC"><label>Compteur</label><div class="ligne" id="pvM" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
+    '<div class="grille"><div><label>Toutes les… (unités du compteur)</label><input id="pvPV" inputmode="decimal" value="'+(p.periodicite_valeur==null?'':p.periodicite_valeur)+'" placeholder="ex. 500"></div>'+
+    '<div><label>Valeur du compteur la dernière fois</label><input id="pvDV" inputmode="decimal" value="'+(p.dernier_valeur==null?'':p.dernier_valeur)+'"></div></div></div>'+
     '<label>Points à vérifier (un par ligne)</label><textarea id="pvC" placeholder="Graisser palier gauche&#10;Graisser palier droit&#10;Contrôler tension courroie">'+esc(p.checklist||'')+'</textarea>'+
     '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px"><input type="checkbox" id="pvA" style="width:auto"'+(p.actif!==false?' checked':'')+'> Plan actif</label>'+
     '<div class="actions">'+(pid?'<button class="btn r sm" id="pvX" style="margin-right:auto">Supprimer</button>':'')+'<button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="pvO">Enregistrer</button></div>');
-  var boite=$('boite').innerHTML;
-  function majE(){$('pvE').innerHTML=eqSel?renduEq(eqSel):'<div class="g vide">Toucher pour choisir…</div>';}
-  async function clicE(){
-    var sauve={t:val('pvT'),n:val('pvN'),u:$('pvU').value,d:val('pvD'),c:$('pvC').value,a:$('pvA').checked};
-    var x=await choisirEq();if(x)eqSel=x;
-    ouvrir(boite);$('pvT').value=sauve.t;$('pvN').value=sauve.n;$('pvU').value=sauve.u;$('pvD').value=sauve.d;$('pvC').value=sauve.c;$('pvA').checked=sauve.a;
-    lier();
-  }
+  var boite=$('boite').innerHTML, CH=['pvT','pvK','pvN','pvU','pvD','pvPV','pvDV','pvC'];
+  function sauver(){var o={a:$('pvA').checked};CH.forEach(function(k){o[k]=$(k).value;});return o;}
+  function remettre(o){ouvrir(boite);CH.forEach(function(k){$(k).value=o[k];});$('pvA').checked=o.a;lier();}
+  async function clicE(){var o=sauver();var x=await choisirEq();if(x)eqSel=x;remettre(o);}
+  async function clicM(){var o=sauver();
+    if(!MES.length){toast('Crée d\'abord un compteur (menu Compteurs)');remettre(o);return;}
+    var x=await choisir({titre:'Quel compteur ?',items:MES,hay:function(m){var e=EQID[m.equipement_id];return m.nom+' '+(m.unite||'')+' '+(e?hayEq(e):'');},rendu:renduMes});
+    if(x){mesSel=x;if(!o.pvDV&&DERN[x.id])o.pvDV=DERN[x.id].valeur;if(!eqSel&&EQID[x.equipement_id])eqSel=EQID[x.equipement_id];}
+    remettre(o);}
   function lier(){
-    majE();$('pvE').onclick=clicE;
+    $('pvE').innerHTML=eqSel?renduEq(eqSel):'<div class="g vide">Toucher pour choisir…</div>';$('pvE').onclick=clicE;
+    $('pvM').innerHTML=mesSel?renduMes(mesSel):'<div class="g vide">Toucher pour choisir le compteur…</div>';$('pvM').onclick=clicM;
+    function zones(){var c=$('pvK').value==='cpt';$('pvZD').style.display=c?'none':'';$('pvZC').style.display=c?'':'none';}
+    $('pvK').onchange=zones;zones();
+    if(!V2){$('pvK').value='date';$('pvK').disabled=true;zones();}
     $('pvO').onclick=async function(){
       var t=val('pvT');if(!t||!eqSel){toast('Machine et opération obligatoires');return;}
-      var j=Math.max(1,Math.round((nb(val('pvN'))||1)*(+$('pvU').value)));
-      var d={equipement_id:eqSel.id,titre:t,periodicite_jours:j,dernier:val('pvD')||null,checklist:$('pvC').value,actif:$('pvA').checked};
+      var d={equipement_id:eqSel.id,titre:t,checklist:$('pvC').value,actif:$('pvA').checked};
+      if($('pvK').value==='cpt'){
+        if(!mesSel||!nb(val('pvPV'))){toast('Choisis le compteur et la périodicité');return;}
+        Object.assign(d,{mesure_id:mesSel.id,periodicite_valeur:nb(val('pvPV')),dernier_valeur:nb(val('pvDV'))});
+      }else{
+        d.periodicite_jours=Math.max(1,Math.round((nb(val('pvN'))||1)*(+$('pvU').value)));d.dernier=val('pvD')||null;
+        if(V2){d.mesure_id=null;}
+      }
       try{if(pid)await q(sb.from('gmao_preventifs').update(d).eq('id',pid));else await q(sb.from('gmao_preventifs').insert(d));
         PREV=await q(sb.from('gmao_preventifs').select('*'));fermer();route();}catch(x){erreur(x);}
     };
@@ -757,10 +799,12 @@ function lireCSV(txt){
 }
 var IMP=null;
 VUES.import=async function(){
-  $('main').innerHTML='<h1 class="titre">Import depuis DIMO</h1><div class="carte"><b>1.</b> Choisis un fichier exporté de DIMO (.csv) : <b>Equipements</b> ou <b>Pièces stockées par magasin</b>.<br><br><input type="file" id="iF" accept=".csv,text/csv"></div><div id="iZ"></div>';
+  $('main').innerHTML='<h1 class="titre">Import depuis DIMO</h1><div class="carte"><b>1.</b> Choisis un fichier exporté de DIMO (.csv) : <b>Equipements</b>, <b>Pièces stockées par magasin</b>, <b>Partenaires</b> ou <b>Mesures</b>.<br><br><input type="file" id="iF" accept=".csv,text/csv"></div><div id="iZ"></div>';
   $('iF').onchange=async function(){
     var f=this.files[0];if(!f)return;var txt=await f.text();var L=lireCSV(txt);
     if(L.length&&('Code pièce' in L[0])){preparerPieces(L);return;}
+    if(L.length&&('Sous-traitant' in L[0])){preparerPartenaires(L);return;}
+    if(L.length&&('Unité' in L[0])&&('Equipement' in L[0]||'Équipement' in L[0])){preparerMesures(L);return;}
     if(!L.length||!('Equipement père' in L[0])){$('iZ').innerHTML='<div class="carte">Ce fichier ne ressemble ni à l\'export Équipements ni à l\'export Pièces de DIMO.</div>';return;}
     var rows=L.map(function(o){return {code:o['Code'].trim(),nom:propre(o['Désignation']),pereNom:o['Equipement père'],marque:propre(o['Marque']),modeleTxt:o["Modèle d'équipement"],num_serie:o['Numéro de série'].trim(),etat:etatPropre(o["Etat d'équipement"]),emplacement:propre(o['Emplacement']),famille:propre(o['Désignation famille d\'équipements']),criticite:propre(o["Criticité d'équipement"])||null,en_service:o['En service']==='true'};});
     var parNom={};rows.forEach(function(r){var k=norm(r.nom);(parNom[k]=parNom[k]||[]).push(r);});
@@ -874,6 +918,142 @@ async function importerPieces(){
     if(li.length)await q(sb.from('gmao_liens').insert(li));
     await chargerTout();toast('✓ '+pl.length+' pièces importées');aller('articles');
   }catch(x){$('iGo').disabled=false;$('iGo').textContent='Réessayer';erreur(x);}
+}
+
+
+/* =====================================================================
+   COMPTEURS (mesures)
+   ===================================================================== */
+function renduMes(m){var e=EQID[m.equipement_id],d=DERN[m.id];return '<div class="g"><div class="t">'+esc(m.nom)+'</div><div class="s">'+esc(e?chemin(e):'— sans machine —')+'</div></div><span class="badge b-bleu">'+(d?fmtN(+d.valeur)+' '+esc(m.unite||'')+' · '+fmtD(d.le):'aucun relevé')+'</span>';}
+function ligneMes(m){return '<div class="ligne"><a href="#mes/'+m.id+'" style="display:contents;color:var(--txt)">'+renduMes(m)+'</a><button class="btn sm v" onclick="saisirReleve(\''+m.id+'\')">+ Relevé</button></div>';}
+function pasV2(){$('main').innerHTML='<div class="carte"><b>Il faut d\'abord installer la mise à jour de la base.</b><br>Lance le fichier <code>gmao-installation-2.sql</code> dans Supabase (SQL Editor → New query → Run).</div>';}
+VUES.compteurs=async function(){
+  if(!V2)return pasV2();
+  $('main').innerHTML='<h1 class="titre">Compteurs & relevés <button class="btn p sm" style="float:right" onclick="nouvelleMesure()">+ Compteur</button></h1>'+
+    '<div class="carte" style="background:var(--bleu2)">Heures de marche, cycles, m³ d\'eau… Saisis un relevé de temps en temps : les préventifs « au compteur » se déclenchent tout seuls.</div>'+
+    '<div class="rech"><input id="rm" placeholder="Chercher un compteur ou une machine…"></div><div class="carte" id="lm"></div>';
+  function rendre(){var t=val('rm');var r=MES.filter(function(m){var e=EQID[m.equipement_id];return correspond(t,m.nom+' '+(m.unite||'')+' '+(e?hayEq(e):''));});
+    $('lm').innerHTML=r.length?r.map(ligneMes).join(''):'<div class="vide">Aucun compteur.</div>';}
+  $('rm').oninput=rendre;rendre();
+};
+async function nouvelleMesure(eqId){
+  if(!V2)return pasV2();
+  var n=await demander('Nom du compteur','','ex. Heures de marche compresseur, Cycles cercleuse, Compteur d\'eau');if(!n)return;
+  var u=await demander('Unité','h','ex. h, cycles, m³, kWh');if(u===null)return;
+  var e=eqId?EQID[eqId]:await choisirEq('Sur quelle machine ? (Annuler = aucune)');
+  try{var r=await q(sb.from('gmao_mesures').insert({nom:n.trim(),unite:(u||'').trim(),equipement_id:e?e.id:null}).select());MES.push(r[0]);MESID[r[0].id]=r[0];aller('mes/'+r[0].id);}catch(x){erreur(x);}
+}
+async function saisirReleve(mid){
+  var m=MESID[mid];if(!m)return;var d=DERN[mid];
+  var v=nb(await demander('Relevé : '+m.nom+' ('+(m.unite||'')+')',d?d.valeur:'',d?'Dernier relevé : '+fmtN(+d.valeur)+' le '+fmtD(d.le):'Premier relevé'));
+  if(v===null)return;
+  if(d&&v<+d.valeur&&!confirm('La valeur est plus petite que le dernier relevé ('+fmtN(+d.valeur)+'). Compteur remis à zéro ou changé ? Enregistrer quand même ?'))return;
+  try{var r=await q(sb.from('gmao_releves').insert({mesure_id:mid,valeur:v,auteur:NOM}).select());DERN[mid]=r[0];
+    var alerte=PREV.filter(function(p){return p.actif&&p.mesure_id===mid&&infoPrev(p).aFaire;});
+    toast(alerte.length?'⚠ Préventif à faire : '+alerte.map(function(p){return p.titre;}).join(', '):'✓ Relevé enregistré');route();}catch(x){erreur(x);}
+}
+VUES.mes=async function(id){
+  if(!V2)return pasV2();
+  var m=MESID[id];if(!m){$('main').innerHTML='<div class="carte">Compteur introuvable.</div>';return;}
+  var rel=await q(sb.from('gmao_releves').select('*').eq('mesure_id',id).order('le',{ascending:false}).limit(200));
+  var e=EQID[m.equipement_id], prevs=PREV.filter(function(p){return p.mesure_id===id;});
+  var moy='';if(rel.length>1){var a=rel[rel.length-1],b=rel[0],j=(new Date(b.le)-new Date(a.le))/864e5;if(j>=1)moy=fmtN((b.valeur-a.valeur)/j)+' '+esc(m.unite||'')+' / jour en moyenne';}
+  $('main').innerHTML='<div class="chemin"><a href="#compteurs">← Compteurs</a></div><h1 class="titre">📟 '+esc(m.nom)+'</h1>'+
+    '<div class="carte"><div class="stats"><div><span class="etiq">Dernier relevé</span><b>'+(rel[0]?fmtN(+rel[0].valeur)+' '+esc(m.unite||''):'—')+'</b><span class="etiq">'+(rel[0]?fmtDH(rel[0].le):'')+'</span></div>'+(moy?'<div><span class="etiq">Rythme</span><b style="font-size:16px">'+moy+'</b></div>':'')+'</div>'+
+    '<div class="actions" style="justify-content:flex-start"><button class="btn v" onclick="saisirReleve(\''+id+'\')">+ Saisir un relevé</button></div></div>'+
+    '<div class="carte"><div class="grille"><div><label>Nom</label><input id="msN" value="'+esc(m.nom)+'"></div><div><label>Unité</label><input id="msU" value="'+esc(m.unite||'')+'"></div></div>'+
+    '<label>Machine</label><div class="ligne" id="msE" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px">'+(e?renduEq(e):'<div class="g vide">— aucune — toucher pour choisir</div>')+'</div>'+
+    '<label>Notes</label><textarea id="msNo">'+esc(m.notes||'')+'</textarea><div class="actions"><button class="btn r sm" id="msX" style="margin-right:auto">Supprimer</button><button class="btn p" id="msO">Enregistrer</button></div></div>'+
+    '<div class="carte"><h2>🗓 Préventifs liés <button class="btn sm d" id="msP">+ Plan au compteur</button></h2>'+(prevs.length?prevs.map(lignePrev).join(''):'<div class="vide">Aucun.</div>')+'</div>'+
+    '<div class="carte"><h2>Relevés</h2>'+(rel.length?rel.map(function(r){return '<div class="ligne"><div class="g"><div class="t">'+fmtN(+r.valeur)+' '+esc(m.unite||'')+'</div><div class="s">'+fmtDH(r.le)+' · '+esc(r.auteur||'')+(r.note?' · '+esc(r.note):'')+'</div></div><button class="btn l sm" data-rx="'+r.id+'">✕</button></div>';}).join(''):'<div class="vide">Aucun relevé.</div>')+'</div>';
+  var eqSel=e;
+  $('msE').onclick=async function(){var x=await choisirEq();if(x){eqSel=x;$('msE').innerHTML=renduEq(x);}};
+  $('msO').onclick=async function(){var maj={nom:val('msN'),unite:val('msU'),equipement_id:eqSel?eqSel.id:null,notes:val('msNo')};try{await q(sb.from('gmao_mesures').update(maj).eq('id',id));Object.assign(m,maj);toast('✓ Enregistré');route();}catch(x){erreur(x);}};
+  $('msX').onclick=async function(){if(!confirm('Supprimer ce compteur et tous ses relevés ?'))return;try{await q(sb.from('gmao_mesures').delete().eq('id',id));await chargerTout();aller('compteurs');}catch(x){erreur(x);}};
+  $('msP').onclick=function(){editerPrev(null,m.equipement_id,id);};
+  document.querySelectorAll('[data-rx]').forEach(function(b){b.onclick=async function(){if(!confirm('Supprimer ce relevé ?'))return;try{await q(sb.from('gmao_releves').delete().eq('id',b.dataset.rx));await chargerTout();route();}catch(x){erreur(x);}};});
+};
+
+/* =====================================================================
+   PARTENAIRES (fournisseurs, constructeurs, sous-traitants)
+   ===================================================================== */
+function rolesPart(x){return [x.fournisseur?'Fournisseur':'',x.constructeur?'Constructeur':'',x.sous_traitant?'Sous-traitant':''].filter(Boolean);}
+VUES.partenaires=async function(){
+  if(!V2)return pasV2();
+  $('main').innerHTML='<h1 class="titre">Partenaires <button class="btn p sm" style="float:right" id="ptN">+ Partenaire</button></h1>'+
+    '<div class="rech"><input id="rpt" placeholder="Nom, contact, téléphone…"></div><div class="carte" id="lpt"></div>';
+  function rendre(){var t=val('rpt');var r=PART.filter(function(x){return correspond(t,[x.nom,x.code,x.contact,x.telephone,x.email,x.notes].join(' '));});
+    $('lpt').innerHTML=r.length?r.map(function(x){var na=ART.filter(function(a){return norm(a.fournisseur)===norm(x.nom);}).length;
+      return '<a class="ligne" href="#par/'+x.id+'"><div class="g"><div class="t">'+esc(x.nom)+'</div><div class="s">'+esc([x.contact,x.telephone,x.email].filter(Boolean).join(' · ')||rolesPart(x).join(', '))+'</div></div>'+(na?'<span class="badge">'+na+' pièce'+(na>1?'s':'')+'</span>':'')+'</a>';}).join(''):'<div class="vide">Aucun partenaire.</div>';}
+  $('rpt').oninput=rendre;rendre();
+  $('ptN').onclick=async function(){var n=await demander('Nom du partenaire','');if(!n)return;try{var r=await q(sb.from('gmao_partenaires').insert({nom:n.trim(),fournisseur:true}).select());PART.push(r[0]);aller('par/'+r[0].id);}catch(x){erreur(x);}};
+};
+VUES.par=async function(id){
+  if(!V2)return pasV2();
+  var x=PART.find(function(p){return p.id===id;});if(!x){$('main').innerHTML='<div class="carte">Introuvable.</div>';return;}
+  var arts=ART.filter(function(a){return norm(a.fournisseur)===norm(x.nom);}), eqs=EQ.filter(function(e){return norm(e.marque)===norm(x.nom);});
+  var bons=await q(sb.from('gmao_interventions').select('*').eq('intervenant',x.nom).order('cree_le',{ascending:false}).limit(50));
+  function ck(k,l){return '<label style="display:flex;gap:6px;align-items:center;color:var(--txt);font-size:14px;margin:4px 12px 4px 0"><input type="checkbox" id="pt'+k+'" style="width:auto"'+(x[k]?' checked':'')+'> '+l+'</label>';}
+  $('main').innerHTML='<div class="chemin"><a href="#partenaires">← Partenaires</a></div><h1 class="titre">'+esc(x.nom)+'</h1>'+
+    '<div class="carte"><div class="grille"><div><label>Nom</label><input id="ptNom" value="'+esc(x.nom)+'"></div><div><label>Contact</label><input id="ptC" value="'+esc(x.contact||'')+'" placeholder="Nom du commercial / technicien"></div>'+
+    '<div><label>Téléphone</label><input id="ptT" type="tel" value="'+esc(x.telephone||'')+'"></div><div><label>E-mail</label><input id="ptM" type="email" value="'+esc(x.email||'')+'"></div>'+
+    '<div><label>Site web / espace client</label><input id="ptS" value="'+esc(x.site||'')+'"></div><div><label>Code</label><input id="ptCo" value="'+esc(x.code||'')+'"></div></div>'+
+    '<div style="display:flex;flex-wrap:wrap;margin-top:8px">'+ck('fournisseur','Fournisseur')+ck('constructeur','Constructeur')+ck('sous_traitant','Sous-traitant (intervient chez nous)')+'</div>'+
+    '<label>Notes (n° client, conditions, délais…)</label><textarea id="ptNo">'+esc(x.notes||'')+'</textarea>'+
+    '<div class="actions">'+(x.telephone?'<a class="btn" href="tel:'+esc(x.telephone)+'">📞 Appeler</a>':'')+(x.email?'<a class="btn" href="mailto:'+esc(x.email)+'">✉ Écrire</a>':'')+'<button class="btn r sm" id="ptX" style="margin-right:auto">Supprimer</button><button class="btn p" id="ptO">Enregistrer</button></div></div>'+
+    '<div class="carte"><h2>🔩 Pièces fournies ('+arts.length+')</h2>'+(arts.length?arts.map(function(a){return '<a class="ligne" href="#art/'+a.id+'">'+renduArt(a)+'</a>';}).join(''):'<div class="vide">Aucune pièce avec ce fournisseur.</div>')+'</div>'+
+    (eqs.length?'<div class="carte"><h2>🏭 Machines de cette marque ('+eqs.length+')</h2>'+eqs.map(function(e){return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+'</a>';}).join('')+'</div>':'')+
+    (bons.length?'<div class="carte"><h2>📋 Interventions</h2>'+bons.map(ligneBon).join('')+'</div>':'');
+  $('ptO').onclick=async function(){var maj={nom:val('ptNom'),contact:val('ptC'),telephone:val('ptT'),email:val('ptM'),site:val('ptS'),code:val('ptCo'),notes:val('ptNo'),fournisseur:$('ptfournisseur').checked,constructeur:$('ptconstructeur').checked,sous_traitant:$('ptsous_traitant').checked};
+    try{await q(sb.from('gmao_partenaires').update(maj).eq('id',id));Object.assign(x,maj);toast('✓ Enregistré');route();}catch(e){erreur(e);}};
+  $('ptX').onclick=async function(){if(!confirm('Supprimer ce partenaire ?'))return;try{await q(sb.from('gmao_partenaires').delete().eq('id',id));PART=PART.filter(function(p){return p.id!==id;});aller('partenaires');}catch(e){erreur(e);}};
+};
+
+/* ---------- Import partenaires / mesures DIMO ---------- */
+function vrai(v){return /^(true|oui|1|x)$/i.test(String(v||'').trim());}
+function preparerPartenaires(L){
+  if(!V2)return pasV2();
+  var vus={},liste=[];
+  L.forEach(function(o){var n=propre(o['Nom']);if(!n)return;var k=norm(n),x=vus[k];
+    if(!x){x=vus[k]={code:String(o['Code']||'').trim(),nom:n,fournisseur:false,constructeur:false,sous_traitant:false,inclus:true,warn:[]};liste.push(x);}
+    else x.warn.push('doublon DIMO fusionné');
+    x.fournisseur=x.fournisseur||vrai(o['Fournisseur']);x.constructeur=x.constructeur||vrai(o['Constructeur']);x.sous_traitant=x.sous_traitant||vrai(o['Sous-traitant']);
+    if(PART.some(function(p){return norm(p.nom)===k;})){x.inclus=false;x.warn.push('déjà dans la GMAO');}
+  });
+  IMP={part:liste};
+  function aff(){var n=liste.filter(function(r){return r.inclus;}).length;
+    $('iZ').innerHTML='<div class="carte"><b>2.</b> '+liste.length+' partenaires (doublons fusionnés : radiospare, wiltec…). Tu ajouteras les téléphones et e-mails dans chaque fiche.<div class="actions"><button class="btn p" id="iGo">Importer '+n+' partenaires</button></div></div>'+
+      '<div class="carte" style="overflow-x:auto"><table class="imp"><tr><th></th><th>Nom</th><th>Rôles</th><th>Remarques</th></tr>'+liste.map(function(r,i){return '<tr class="'+(r.inclus?'':'ex')+'"><td><input type="checkbox" data-i="'+i+'" style="width:auto"'+(r.inclus?' checked':'')+'></td><td>'+esc(r.nom)+'</td><td>'+esc(rolesPart(r).join(', '))+'</td><td>'+r.warn.map(function(w){return '<div class="warn">'+esc(w)+'</div>';}).join('')+'</td></tr>';}).join('')+'</table></div>';
+    document.querySelectorAll('#iZ [data-i]').forEach(function(c){c.onchange=function(){liste[+c.dataset.i].inclus=c.checked;aff();};});
+    $('iGo').onclick=async function(){this.disabled=true;try{var pl=liste.filter(function(r){return r.inclus;}).map(function(r){return {code:r.code,nom:r.nom,fournisseur:r.fournisseur,constructeur:r.constructeur,sous_traitant:r.sous_traitant};});
+      if(pl.length)await q(sb.from('gmao_partenaires').insert(pl));await chargerTout();toast('✓ '+pl.length+' partenaires importés');aller('partenaires');}catch(x){this.disabled=false;erreur(x);}};
+  }
+  aff();
+}
+function preparerMesures(L){
+  if(!V2)return pasV2();
+  var cles=Object.keys(L[0]);
+  var kNom=cles.find(function(k){return /^(nom|d[ée]signation|libell[ée]|mesure)/i.test(k);})||cles.find(function(k){return /code/i.test(k);})||cles[0];
+  var kEq=cles.find(function(k){return /quipement/i.test(k);}), kVal=cles.find(function(k){return /valeur|relev/i.test(k);});
+  var liste=L.map(function(o){
+    var eqTxt=String(o[kEq]||'').trim(),code=eqTxt.split(' - ')[0].trim(),e=code?EQ.find(function(x){return norm(x.code)===norm(code);}):null;
+    var r={nom:propre(o[kNom]),unite:unitePropre(o['Unité']||''),type:propre(o['Type']),eqTxt:eqTxt,e:e,valeur:kVal?nbFr(o[kVal]):null,inclus:true,warn:[]};
+    if(r.unite==='pce')r.unite='unités';
+    if(eqTxt&&!e)r.warn.push('machine « '+eqTxt+' » absente du parc');
+    if(MES.some(function(m){return norm(m.nom)===norm(r.nom)&&m.equipement_id===(e?e.id:null);})){r.inclus=false;r.warn.push('déjà dans la GMAO');}
+    return r;}).filter(function(r){return r.nom;});
+  function aff(){var n=liste.filter(function(r){return r.inclus;}).length;
+    $('iZ').innerHTML='<div class="carte"><b>2.</b> '+liste.length+' compteurs trouvés. Ceux rattachés à une personne ou une machine non importée resteront sans machine (tu pourras les rattacher ou les décocher).<div class="actions"><button class="btn p" id="iGo">Importer '+n+' compteurs</button></div></div>'+
+      '<div class="carte" style="overflow-x:auto"><table class="imp"><tr><th></th><th>Compteur</th><th>Unité</th><th>Machine</th><th>Remarques</th></tr>'+liste.map(function(r,i){return '<tr class="'+(r.inclus?'':'ex')+'"><td><input type="checkbox" data-i="'+i+'" style="width:auto"'+(r.inclus?' checked':'')+'></td><td>'+esc(r.nom)+'</td><td>'+esc(r.unite)+'</td><td>'+(r.e?esc(chemin(r.e)):'')+'</td><td>'+r.warn.map(function(w){return '<div class="warn">'+esc(w)+'</div>';}).join('')+'</td></tr>';}).join('')+'</table></div>';
+    document.querySelectorAll('#iZ [data-i]').forEach(function(c){c.onchange=function(){liste[+c.dataset.i].inclus=c.checked;aff();};});
+    $('iGo').onclick=async function(){this.disabled=true;try{
+      var R=liste.filter(function(r){return r.inclus;});R.forEach(function(r){r.id=crypto.randomUUID();});
+      if(R.length)await q(sb.from('gmao_mesures').insert(R.map(function(r){return {id:r.id,nom:r.nom,unite:r.unite,type:r.type||'Compteur',equipement_id:r.e?r.e.id:null,notes:r.e||!r.eqTxt?null:'DIMO : '+r.eqTxt};})));
+      var rv=R.filter(function(r){return r.valeur;}).map(function(r){return {mesure_id:r.id,valeur:r.valeur,auteur:'Import DIMO'};});
+      if(rv.length)await q(sb.from('gmao_releves').insert(rv));
+      await chargerTout();toast('✓ '+R.length+' compteurs importés');aller('compteurs');}catch(x){this.disabled=false;erreur(x);}};
+  }
+  aff();
 }
 
 /* =====================================================================
