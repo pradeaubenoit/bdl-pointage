@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GMAO BdL</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#f4f5f7;--carte:#fff;--txt:#1d2430;--doux:#6b7280;--ligne:#e3e6ea;
+  --bleu:#1f5fa8;--bleu2:#e8f0fa;--vert:#2e7d32;--vert2:#e6f4e7;--rouge:#c62828;--rouge2:#fdecec;
+  --orange:#e67e00;--orange2:#fff3e0;--gris2:#eef0f2;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+a{color:var(--bleu);text-decoration:none}
+button{font:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit;border:1px solid var(--ligne);border-radius:8px;padding:9px 10px;background:#fff;width:100%}
+textarea{min-height:80px;resize:vertical}
+label{display:block;font-size:12px;color:var(--doux);margin:10px 0 3px}
+header{position:sticky;top:0;z-index:20;background:#16324f;color:#fff;display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap}
+header h1{font-size:17px;margin:0 10px 0 0;white-space:nowrap}
+nav{display:flex;gap:4px;overflow-x:auto;flex:1}
+nav a{color:#cfe0f3;padding:7px 11px;border-radius:8px;white-space:nowrap;font-size:14px}
+nav a.on{background:#fff;color:#16324f;font-weight:600}
+#qui{font-size:12px;color:#cfe0f3;white-space:nowrap}
+main{max-width:1100px;margin:0 auto;padding:14px 16px 90px}
+.carte{background:var(--carte);border:1px solid var(--ligne);border-radius:12px;padding:14px;margin-bottom:12px}
+.carte h2{font-size:16px;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.carte h2 .d{margin-left:auto}
+h1.titre{font-size:20px;margin:4px 0 12px}
+.btn{border:1px solid var(--ligne);background:#fff;border-radius:8px;padding:8px 12px;font-weight:500}
+.btn.p{background:var(--bleu);border-color:var(--bleu);color:#fff}
+.btn.r{background:var(--rouge);border-color:var(--rouge);color:#fff}
+.btn.v{background:var(--vert);border-color:var(--vert);color:#fff}
+.btn.l{border:none;background:none;color:var(--bleu);padding:4px 6px}
+.btn.sm{padding:5px 9px;font-size:13px}
+.btn:disabled{opacity:.5}
+.gros{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.gros .btn{flex:1;min-width:200px;padding:16px;font-size:17px;border-radius:12px}
+.tuiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+.tuile{background:#fff;border:1px solid var(--ligne);border-radius:12px;padding:12px;display:block;color:var(--txt)}
+.tuile b{display:block;font-size:26px}
+.tuile span{font-size:13px;color:var(--doux)}
+.tuile.alerte b{color:var(--rouge)}
+.ligne{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--ligne);color:var(--txt)}
+.ligne:last-child{border-bottom:none}
+.ligne:hover{background:#fafbfc}
+.ligne .g{flex:1;min-width:0}
+.ligne .t{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.ligne .s{font-size:12.5px;color:var(--doux);overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--gris2);color:#444;white-space:nowrap}
+.b-rouge{background:var(--rouge2);color:var(--rouge)}.b-vert{background:var(--vert2);color:var(--vert)}
+.b-orange{background:var(--orange2);color:var(--orange)}.b-bleu{background:var(--bleu2);color:var(--bleu)}
+.pt{display:inline-block;width:9px;height:9px;border-radius:50%;background:#bbb;flex:none}
+.pt.Critique{background:var(--rouge)}.pt.Haute{background:var(--orange)}.pt.Normale{background:#4a90d9}.pt.Basse{background:#9bb}
+.grille{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+@media(max-width:640px){.grille{grid-template-columns:1fr}.gros .btn{min-width:100%}}
+.rech{position:relative;margin-bottom:10px}
+.rech input{padding-left:34px;font-size:16px}
+.rech:before{content:"🔎";position:absolute;left:10px;top:9px;font-size:15px}
+.puces{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.puce{border:1px solid var(--ligne);background:#fff;border-radius:20px;padding:5px 12px;font-size:13px}
+.puce.on{background:var(--bleu);color:#fff;border-color:var(--bleu)}
+.arbre .n{display:flex;align-items:center;gap:7px;padding:6px 4px;border-bottom:1px solid #f0f1f3}
+.arbre .n .fl{width:22px;text-align:center;color:var(--doux);cursor:pointer;flex:none}
+.arbre .n .code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--doux);min-width:70px}
+.arbre .n.off{opacity:.45}
+.chemin{font-size:13px;color:var(--doux);margin-bottom:6px}
+.chemin a{color:var(--doux);text-decoration:underline dotted}
+.photo{width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#f0f1f3}
+.mini{width:44px;height:44px;border-radius:8px;object-fit:cover;background:#eef0f2;flex:none}
+.fil .msg{padding:9px 11px;border-radius:10px;background:#f6f7f9;margin-bottom:8px}
+.fil .msg.sys{background:none;font-size:12.5px;color:var(--doux);padding:2px 4px}
+.fil .msg .q{font-size:12px;color:var(--doux);margin-bottom:3px}
+.fil .msg img{max-width:240px;max-height:240px;border-radius:8px;display:block;margin-top:6px;cursor:zoom-in}
+.compo{display:flex;gap:6px;align-items:flex-end}
+.compo textarea{min-height:44px}
+.stats{display:flex;gap:16px;flex-wrap:wrap}
+.stats div{min-width:90px}.stats b{display:block;font-size:22px}
+.vide{color:var(--doux);font-style:italic;padding:8px 4px}
+.etiq{font-size:12px;color:var(--doux)}
+#fond{position:fixed;inset:0;background:rgba(10,20,30,.45);z-index:50;display:none;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto}
+#fond.on{display:flex}
+#boite{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+#boite h3{margin:0 0 10px}
+.liste-choix{max-height:55vh;overflow:auto;margin-top:8px}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#16324f;color:#fff;padding:10px 16px;border-radius:10px;z-index:60;display:none}
+table.imp{width:100%;border-collapse:collapse;font-size:13px}
+table.imp td,table.imp th{border-bottom:1px solid var(--ligne);padding:5px;text-align:left;vertical-align:top}
+table.imp tr.ex{opacity:.45}
+.warn{color:var(--orange);font-size:12px}
+#login{max-width:360px;margin:70px auto}
+</style>
+</head>
+<body>
+
+<div id="login" class="carte" style="display:none">
+  <h2>GMAO — Blanchisserie du Limousin</h2>
+  <label>E-mail</label><input id="li-email" type="email" autocomplete="username">
+  <label>Mot de passe</label><input id="li-pw" type="password" autocomplete="current-password">
+  <div id="li-err" style="color:var(--rouge);margin-top:8px;display:none"></div>
+  <div class="actions"><button class="btn p" id="li-btn">Se connecter</button></div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <h1>🔧 GMAO BdL</h1>
+    <nav id="nav">
+      <a href="#accueil" data-v="accueil">Accueil</a>
+      <a href="#bons" data-v="bons">Bons de travail</a>
+      <a href="#parc" data-v="parc">Parc</a>
+      <a href="#articles" data-v="articles">Pièces</a>
+      <a href="#preventif" data-v="preventif">Préventif</a>
+      <a href="#modeles" data-v="modeles">Modèles</a>
+      <a href="#import" data-v="import">Import</a>
+    </nav>
+    <span id="qui"></span>
+  </header>
+  <main id="main"></main>
+</div>
+
+<div id="fond"><div id="boite"></div></div>
+<div id="toast"></div>
+<input type="file" id="filePhoto" accept="image/*" style="display:none">
+
+<script>
+/* =====================================================================
+   GMAO BdL — v1
+   ===================================================================== */
+var VERSION='v1';
+var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
+var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
+var sb=supabase.createClient(SB_URL,SB_KEY);
+var USER=null, NOM='';
+var EQ=[], EQID={}, MOD=[], MODID={}, ART=[], ARTID={}, LIENS=[], PREV=[];
+
+/* ---------- outils ---------- */
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();}
+function compact(s){return norm(s).replace(/[^a-z0-9]/g,'');}
+function correspond(q,hay){
+  var w=norm(q).split(' ').filter(Boolean); if(!w.length)return true;
+  var h=norm(hay), hc=compact(hay);
+  return w.every(function(x){
+    if(h.indexOf(x)>=0)return true;
+    var xc=compact(x); if(xc&&hc.indexOf(xc)>=0)return true;
+    if(x.length>3){var r=x.replace(/(s|x|es)$/,''); if(h.indexOf(r)>=0)return true;}
+    return false;
+  });
+}
+/* les meilleurs résultats d'abord : nom qui contient la recherche entière, puis tous les mots dans le nom */
+function trier(t,l,prim){
+  if(!t||!prim)return l;var qn=norm(t),qc=compact(t);
+  function sc(x){var n=norm(prim(x)),c=compact(prim(x));if(c===qc)return 0;if(n.indexOf(qn)>=0||c.indexOf(qc)>=0)return 1;if(correspond(t,prim(x)))return 2;return 3;}
+  return l.map(function(x,i){return [sc(x),i,x];}).sort(function(a,b){return a[0]-b[0]||a[1]-b[1];}).map(function(a){return a[2];});
+}
+function toast(t){var e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(function(){e.style.display='none';},2600);}
+function erreur(e){console.error(e);toast('⚠ '+((e&&e.message)||e||'Erreur'));}
+function fmtD(d){if(!d)return'';var x=new Date(d);return x.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit'});}
+function fmtDH(d){if(!d)return'';var x=new Date(d);return x.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+x.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
+function auj(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function ajoutJours(iso,n){var d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+function joursEntre(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/864e5);}
+function numBT(n){return 'BT-'+String(n||0).padStart(4,'0');}
+function nb(v){var x=parseFloat(String(v).replace(',','.'));return isNaN(x)?null:x;}
+function val(id){var e=$(id);return e?e.value.trim():'';}
+
+/* ---------- données ---------- */
+async function q(p){var r=await p;if(r.error)throw r.error;return r.data;}
+async function chargerTout(){
+  var r=await Promise.all([
+    q(sb.from('gmao_equipements').select('*').order('code')),
+    q(sb.from('gmao_modeles').select('*').order('nom')),
+    q(sb.from('gmao_articles').select('*').order('designation')),
+    q(sb.from('gmao_liens').select('*')),
+    q(sb.from('gmao_preventifs').select('*'))
+  ]);
+  EQ=r[0];MOD=r[1];ART=r[2];LIENS=r[3];PREV=r[4];
+  EQID={};EQ.forEach(function(e){EQID[e.id]=e;});
+  MODID={};MOD.forEach(function(m){MODID[m.id]=m;});
+  ARTID={};ART.forEach(function(a){ARTID[a.id]=a;});
+}
+function chemin(e,sep){var p=[],x=e,g=0;while(x&&g++<20){p.unshift(x.nom);x=EQID[x.parent_id];}return p.join(sep||' › ');}
+function cheminLiens(e){var p=[],x=EQID[e.parent_id],g=0;while(x&&g++<20){p.unshift('<a href="#eq/'+x.id+'">'+esc(x.nom)+'</a>');x=EQID[x.parent_id];}return p.join(' › ');}
+function enfants(id){return EQ.filter(function(e){return e.parent_id===id;});}
+function descendants(id){var out=[],pile=[id];while(pile.length){var c=pile.pop();enfants(c).forEach(function(e){out.push(e.id);pile.push(e.id);});}return out;}
+function hayEq(e){var m=MODID[e.modele_id];return [e.code,e.nom,chemin(e),e.marque,e.num_serie,e.emplacement,e.famille,m?m.nom:''].join(' ');}
+function primEq(e){return e.nom+' '+e.code;}
+function primArt(a){return [a.designation,a.ref,a.ref_fabricant,a.ref_fournisseur].join(' ');}
+function hayArt(a){return [a.ref,a.designation,a.ref_fabricant,a.ref_fournisseur,a.fournisseur,a.emplacement,a.motscles,a.notes].join(' ');}
+/* pièces d'un équipement : liées au modèle + liées directement */
+function piecesDe(e){
+  var out=[];LIENS.forEach(function(l){
+    if(l.equipement_id===e.id)out.push({l:l,via:'directe'});
+    else if(e.modele_id&&l.modele_id===e.modele_id)out.push({l:l,via:'modele'});
+  });return out.filter(function(x){return ARTID[x.l.article_id];});
+}
+/* où est utilisée une pièce : liste d'équipements */
+function ouUtilise(artId){
+  var res=[];LIENS.filter(function(l){return l.article_id===artId;}).forEach(function(l){
+    if(l.equipement_id&&EQID[l.equipement_id])res.push({e:EQID[l.equipement_id],l:l});
+    if(l.modele_id)EQ.filter(function(e){return e.modele_id===l.modele_id;}).forEach(function(e){res.push({e:e,l:l,m:MODID[l.modele_id]});});
+  });return res;
+}
+
+/* ---------- photos ---------- */
+function choisirPhoto(){return new Promise(function(res){var f=$('filePhoto');f.value='';f.onchange=function(){res(f.files[0]||null);};f.click();});}
+async function envoyerPhoto(file){
+  var img=await new Promise(function(ok,ko){var i=new Image();i.onload=function(){ok(i);};i.onerror=ko;i.src=URL.createObjectURL(file);});
+  var max=1600,w=img.width,h=img.height,k=Math.min(1,max/Math.max(w,h));
+  var c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  var blob=await new Promise(function(ok){c.toBlob(ok,'image/jpeg',0.82);});
+  var nom=Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.jpg';
+  var r=await sb.storage.from('gmao').upload(nom,blob,{contentType:'image/jpeg'});
+  if(r.error)throw r.error;
+  return sb.storage.from('gmao').getPublicUrl(nom).data.publicUrl;
+}
+function zoom(url){ouvrir('<img src="'+esc(url)+'" style="width:100%;border-radius:10px"><div class="actions"><button class="btn" onclick="fermer()">Fermer</button></div>');}
+
+/* ---------- fenêtres ---------- */
+function ouvrir(html){$('boite').innerHTML=html;$('fond').classList.add('on');}
+function fermer(){$('fond').classList.remove('on');$('boite').innerHTML='';}
+$('fond').addEventListener('click',function(e){if(e.target.id==='fond')fermer();});
+function demander(titre,defaut,aide){
+  return new Promise(function(res){
+    ouvrir('<h3>'+esc(titre)+'</h3>'+(aide?'<div class="etiq">'+esc(aide)+'</div>':'')+
+      '<input id="dm-v" value="'+esc(defaut==null?'':defaut)+'"><div class="actions"><button class="btn" id="dm-a">Annuler</button><button class="btn p" id="dm-o">OK</button></div>');
+    var i=$('dm-v');setTimeout(function(){i.focus();i.select();},50);
+    $('dm-a').onclick=function(){fermer();res(null);};
+    $('dm-o').onclick=function(){var v=i.value;fermer();res(v);};
+    i.onkeydown=function(e){if(e.key==='Enter')$('dm-o').click();};
+  });
+}
+/* Sélecteur avec recherche tolérante */
+function choisir(o){
+  return new Promise(function(res){
+    ouvrir('<h3>'+esc(o.titre)+'</h3><div class="rech"><input id="ch-q" placeholder="Tape quelques lettres, un code, une référence…"></div>'+
+      (o.entete||'')+'<div class="liste-choix" id="ch-l"></div><div class="actions">'+(o.creer?'<button class="btn" id="ch-c">+ '+esc(o.creer)+'</button>':'')+'<button class="btn" id="ch-a">Annuler</button></div>');
+    var inp=$('ch-q');
+    function rendre(){
+      var t=inp.value,l=trier(t,o.items.filter(function(x){return correspond(t,o.hay(x));}),o.prim).slice(0,150);
+      $('ch-l').innerHTML=l.length?l.map(function(x,i){return '<div class="ligne" data-i="'+o.items.indexOf(x)+'" style="cursor:pointer">'+o.rendu(x)+'</div>';}).join(''):'<div class="vide">Rien trouvé.</div>';
+    }
+    $('ch-l').onclick=function(e){var d=e.target.closest('[data-i]');if(!d)return;var x=o.items[+d.dataset.i];fermer();res(x);};
+    $('ch-a').onclick=function(){fermer();res(null);};
+    if(o.creer)$('ch-c').onclick=function(){fermer();res('__creer__');};
+    inp.oninput=rendre;rendre();setTimeout(function(){inp.focus();},50);
+  });
+}
+function renduEq(e){return '<span class="pt '+esc(e.criticite||'')+'"></span><div class="g"><div class="t">'+esc(e.nom)+' <span class="etiq">'+esc(e.code)+'</span></div><div class="s">'+esc(chemin(e))+'</div></div>';}
+function renduArt(a){return (a.photo?'<img class="mini" src="'+esc(a.photo)+'">':'<div class="mini"></div>')+'<div class="g"><div class="t">'+esc(a.designation)+'</div><div class="s">'+esc([a.ref,a.ref_fabricant,a.emplacement].filter(Boolean).join(' · '))+'</div></div>'+badgeStock(a);}
+function choisirEq(titre){return choisir({titre:titre||'Choisir une machine',items:EQ,hay:hayEq,rendu:renduEq,prim:primEq});}
+function badgeStock(a){var s=+a.stock||0,m=+a.stock_mini||0;return '<span class="badge '+(s<=0?'b-rouge':(s<=m?'b-orange':'b-vert'))+'">'+s+' '+esc(a.unite||'')+'</span>';}
+
+/* ---------- badges ---------- */
+var STATUTS=['Demandé','En cours','Attente pièce','Terminé'];
+function badgeStatut(s){var c={'Demandé':'b-bleu','En cours':'b-orange','Attente pièce':'b-rouge','Terminé':'b-vert'}[s]||'';return '<span class="badge '+c+'">'+esc(s)+'</span>';}
+function badgePrio(p,arr){if(arr)return '<span class="badge b-rouge">⛔ arrêt</span>';if(p==='Urgente')return '<span class="badge b-rouge">Urgent</span>';return '';}
+function badgeEtat(e){if(!e)return'';var c={'En service':'b-vert','Dégradé':'b-orange','En réparation':'b-orange','Hors service':'b-rouge'}[e]||'';return '<span class="badge '+c+'">'+esc(e)+'</span>';}
+function echeance(p){if(!p.dernier)return null;return ajoutJours(p.dernier,p.periodicite_jours||30);}
+function badgeEcheance(p){
+  var e=echeance(p);if(!e)return '<span class="badge b-orange">jamais fait</span>';
+  var j=joursEntre(auj(),e);
+  if(j<0)return '<span class="badge b-rouge">en retard de '+(-j)+' j</span>';
+  if(j<=7)return '<span class="badge b-orange">dans '+j+' j</span>';
+  return '<span class="badge b-vert">'+fmtD(e)+'</span>';
+}
+
+/* ---------- routeur ---------- */
+var VUES={};
+function aller(h){location.hash=h;}
+async function route(){
+  var h=location.hash.replace(/^#/,'')||'accueil', p=h.split('/'), v=p[0];
+  document.querySelectorAll('#nav a').forEach(function(a){
+    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&v==='bon')||(d==='parc'&&v==='eq')||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod'));
+  });
+  var f=VUES[v]||VUES.accueil;
+  $('main').innerHTML='<div class="vide">Chargement…</div>';
+  try{await f(p[1],p[2]);}catch(e){erreur(e);$('main').innerHTML='<div class="carte">Erreur : '+esc(e.message||e)+'</div>';}
+  window.scrollTo(0,0);
+}
+window.addEventListener('hashchange',route);
+
+/* =====================================================================
+   ACCUEIL
+   ===================================================================== */
+VUES.accueil=async function(){
+  var bons=await q(sb.from('gmao_interventions').select('*').neq('statut','Terminé').order('cree_le',{ascending:false}));
+  var retard=PREV.filter(function(p){if(!p.actif)return false;var e=echeance(p);return !e||e<=ajoutJours(auj(),7);});
+  var sousMini=ART.filter(function(a){return (+a.stock||0)<=(+a.stock_mini||0)&&(+a.stock_mini||0)>0;});
+  var degr=EQ.filter(function(e){return e.en_service&&e.etat&&e.etat!=='En service';});
+  var urg=bons.filter(function(b){return b.priorite==='Urgente'||b.machine_arretee;});
+  var html='<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau\')">⚠ Signaler une panne</button>'+
+    '<button class="btn p" onclick="aller(\'articles\')">🔎 Chercher une pièce</button></div>'+
+    '<div class="tuiles">'+
+    '<a class="tuile'+(urg.length?' alerte':'')+'" href="#bons"><b>'+urg.length+'</b><span>urgent / machine arrêtée</span></a>'+
+    '<a class="tuile" href="#bons"><b>'+bons.length+'</b><span>bons ouverts</span></a>'+
+    '<a class="tuile'+(retard.length?' alerte':'')+'" href="#preventif"><b>'+retard.length+'</b><span>préventifs à faire (7 j)</span></a>'+
+    '<a class="tuile'+(sousMini.length?' alerte':'')+'" href="#articles/mini"><b>'+sousMini.length+'</b><span>pièces sous le mini</span></a>'+
+    '<a class="tuile" href="#parc"><b>'+degr.length+'</b><span>machines dégradées</span></a></div>';
+  html+='<div class="carte"><h2>Bons ouverts</h2>'+(bons.length?bons.slice(0,12).map(ligneBon).join(''):'<div class="vide">Aucun bon ouvert. 👍</div>')+'</div>';
+  html+='<div class="carte"><h2>Préventif à venir</h2>'+(retard.length?retard.map(lignePrev).join(''):'<div class="vide">Rien d\'ici 7 jours.</div>')+'</div>';
+  if(degr.length)html+='<div class="carte"><h2>Machines dégradées</h2>'+degr.map(function(e){return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+badgeEtat(e.etat)+'</a>';}).join('')+'</div>';
+  if(!EQ.length)html='<div class="carte" style="background:var(--bleu2)"><b>Bienvenue !</b> Ta GMAO est vide. Commence par <a href="#import">importer ton fichier d\'équipements DIMO</a>.</div>'+html;
+  $('main').innerHTML=html;
+};
+function ligneBon(b){
+  var e=EQID[b.equipement_id];
+  return '<a class="ligne" href="#bon/'+b.id+'"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+
+    esc(e?chemin(e):'— sans machine —')+' · '+esc(b.type)+' · '+fmtDH(b.cree_le)+(b.intervenant?' · '+esc(b.intervenant):'')+'</div></div>'+badgePrio(b.priorite,b.machine_arretee&&b.statut!=='Terminé')+badgeStatut(b.statut)+'</a>';
+}
+function lignePrev(p){
+  var e=EQID[p.equipement_id];
+  return '<div class="ligne"><div class="g"><div class="t">'+esc(p.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · tous les '+p.periodicite_jours+' j · fait le '+(p.dernier?fmtD(p.dernier):'—')+'</div></div>'+
+    badgeEcheance(p)+'<button class="btn sm" onclick="lancerPrev(\''+p.id+'\')">Créer le bon</button><button class="btn sm l" onclick="editerPrev(\''+p.id+'\')">✎</button></div>';
+}
+
+/* =====================================================================
+   BONS DE TRAVAIL
+   ===================================================================== */
+var filtreBons='ouverts';
+VUES.bons=async function(){
+  var l=await q(sb.from('gmao_interventions').select('*').order('cree_le',{ascending:false}).limit(1000));
+  var F={ouverts:function(b){return b.statut!=='Terminé';},attente:function(b){return b.statut==='Attente pièce';},termines:function(b){return b.statut==='Terminé';},tous:function(){return true;}};
+  var lib={ouverts:'Ouverts',attente:'Attente pièce',termines:'Terminés',tous:'Tous'};
+  $('main').innerHTML='<h1 class="titre">Bons de travail <button class="btn p sm" style="float:right" onclick="aller(\'bon/nouveau\')">+ Nouveau bon</button></h1>'+
+    '<div class="rech"><input id="rb" placeholder="Chercher : machine, mot, n° de bon…"></div><div class="puces" id="pb">'+
+    Object.keys(lib).map(function(k){return '<button class="puce'+(k===filtreBons?' on':'')+'" data-k="'+k+'">'+lib[k]+'</button>';}).join('')+'</div><div class="carte" id="lb"></div>';
+  function rendre(){
+    var t=val('rb');
+    var r=l.filter(F[filtreBons]).filter(function(b){var e=EQID[b.equipement_id];return correspond(t,[numBT(b.numero),b.numero,b.titre,b.description,b.type,b.intervenant,b.demandeur,e?hayEq(e):''].join(' '));});
+    $('lb').innerHTML=r.length?r.map(ligneBon).join(''):'<div class="vide">Aucun bon.</div>';
+  }
+  $('rb').oninput=rendre;
+  $('pb').onclick=function(e){var b=e.target.closest('[data-k]');if(!b)return;filtreBons=b.dataset.k;document.querySelectorAll('#pb .puce').forEach(function(x){x.classList.toggle('on',x===b);});rendre();};
+  rendre();
+};
+
+VUES.bon=async function(id,extra){
+  if(id==='nouveau')return nouveauBon(extra);
+  var b=(await q(sb.from('gmao_interventions').select('*').eq('id',id)))[0];
+  if(!b){$('main').innerHTML='<div class="carte">Bon introuvable.</div>';return;}
+  var msgs=await q(sb.from('gmao_messages').select('*').eq('intervention_id',id).order('cree_le'));
+  var mvts=await q(sb.from('gmao_mouvements').select('*').eq('intervention_id',id).order('cree_le'));
+  var e=EQID[b.equipement_id];
+  var html='<div class="chemin"><a href="#bons">← Bons de travail</a></div>'+
+    '<h1 class="titre">'+numBT(b.numero)+' · '+esc(b.titre)+'</h1>'+
+    '<div class="carte"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+badgeStatut(b.statut)+badgePrio(b.priorite,b.machine_arretee&&b.statut!=='Terminé')+'<span class="badge">'+esc(b.type)+'</span><span class="etiq">demandé par '+esc(b.demandeur||'?')+' le '+fmtDH(b.cree_le)+'</span></div>'+
+    (e?'<div><b>Machine :</b> <a href="#eq/'+e.id+'">'+esc(chemin(e))+'</a> <span class="etiq">'+esc(e.code)+'</span></div>':'<div><b>Machine :</b> — <button class="btn l sm" id="bChMach">choisir</button></div>')+
+    '<label>Description</label><div style="white-space:pre-wrap">'+esc(b.description||'—')+'</div>'+
+    '<div class="actions" style="justify-content:flex-start">'+
+      STATUTS.filter(function(s){return s!==b.statut&&s!=='Terminé';}).map(function(s){return '<button class="btn sm" data-st="'+s+'">→ '+s+'</button>';}).join('')+
+      (b.statut!=='Terminé'?'<button class="btn v sm" id="bFin">✓ Terminer</button>':'<button class="btn sm" data-st="En cours">↺ Rouvrir</button>')+
+      '<button class="btn sm l" id="bEdit">✎ Modifier</button></div></div>';
+  if(b.statut==='Terminé')html+='<div class="carte" style="background:var(--vert2)"><h2>✓ Terminé le '+fmtDH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</h2><div style="white-space:pre-wrap">'+esc(b.rapport||'')+'</div>'+
+    '<div class="stats" style="margin-top:8px"><div><span class="etiq">Temps passé</span><b>'+(b.duree_min||0)+' min</b></div><div><span class="etiq">Arrêt machine</span><b>'+(b.arret_min||0)+' min</b></div></div></div>';
+  html+='<div class="carte"><h2>💬 Échanges</h2><div class="fil">'+(msgs.length?msgs.map(function(m){
+      if(m.auteur==='•')return '<div class="msg sys">'+esc(m.texte)+' · '+fmtDH(m.cree_le)+'</div>';
+      return '<div class="msg"><div class="q"><b>'+esc(m.auteur||'?')+'</b> · '+fmtDH(m.cree_le)+'</div>'+(m.texte?'<div style="white-space:pre-wrap">'+esc(m.texte)+'</div>':'')+(m.photo?'<img src="'+esc(m.photo)+'" onclick="zoom(this.src)">':'')+'</div>';
+    }).join(''):'<div class="vide">Pas encore d\'échange. Note ici ce que tu constates, ce que tu as fait, ce qu\'il manque…</div>')+'</div>'+
+    '<div class="compo"><textarea id="mTxt" placeholder="Écrire un message…"></textarea><button class="btn" id="mPh" title="Photo">📷</button><button class="btn p" id="mEnv">Envoyer</button></div></div>';
+  var sugg=e?piecesDe(e):[];
+  html+='<div class="carte"><h2>🔩 Pièces utilisées <button class="btn sm d" id="bPiece">+ Sortir une pièce</button></h2>'+
+    (mvts.length?mvts.map(function(m){var a=ARTID[m.article_id];return '<div class="ligne">'+(a?renduArt(a):'<div class="g">(pièce supprimée)</div>')+'<b>'+(m.quantite<0?'':'+')+m.quantite+'</b></div>';}).join(''):'<div class="vide">Aucune pièce sortie.</div>')+
+    (sugg.length?'<div class="etiq" style="margin-top:8px">Pièces connues pour cette machine : '+sugg.map(function(x){return esc(ARTID[x.l.article_id].designation);}).join(', ')+'</div>':'')+'</div>';
+  $('main').innerHTML=html;
+
+  document.querySelectorAll('[data-st]').forEach(function(btn){btn.onclick=async function(){
+    var s=btn.dataset.st,maj={statut:s};if(s!=='Terminé')maj.fin=null;
+    if(s==='En cours'&&!b.intervenant)maj.intervenant=NOM;
+    try{await q(sb.from('gmao_interventions').update(maj).eq('id',id));await logSys(id,NOM+' : statut → '+s);route();}catch(x){erreur(x);}
+  };});
+  if($('bFin'))$('bFin').onclick=function(){terminerBon(b);};
+  $('bEdit').onclick=function(){editerBon(b);};
+  if($('bChMach'))$('bChMach').onclick=async function(){var x=await choisirEq();if(!x)return;await q(sb.from('gmao_interventions').update({equipement_id:x.id}).eq('id',id));route();};
+  var photoMsg=null;
+  $('mPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;$('mPh').textContent='⏳';try{photoMsg=await envoyerPhoto(f);$('mPh').textContent='✅';}catch(x){$('mPh').textContent='📷';erreur(x);}};
+  $('mEnv').onclick=async function(){
+    var t=val('mTxt');if(!t&&!photoMsg)return;
+    try{await q(sb.from('gmao_messages').insert({intervention_id:id,auteur:NOM,texte:t,photo:photoMsg}));route();}catch(x){erreur(x);}
+  };
+  $('bPiece').onclick=async function(){
+    var proches=sugg.map(function(x){return ARTID[x.l.article_id];});
+    var autres=ART.filter(function(a){return proches.indexOf(a)<0;});
+    var a=await choisir({titre:'Quelle pièce ?',items:proches.concat(autres),hay:hayArt,rendu:function(a){return (proches.indexOf(a)>=0?'⭐ ':'')+renduArt(a);},
+      entete:proches.length?'<div class="etiq">⭐ = pièce connue pour cette machine</div>':''});
+    if(!a)return;
+    var n=nb(await demander('Combien de « '+a.designation+' » ?','1','Stock actuel : '+(+a.stock||0)+' '+(a.unite||'')));
+    if(!n)return;
+    try{
+      var s=await q(sb.rpc('gmao_mouvement',{p_article:a.id,p_qte:-Math.abs(n),p_bon:id,p_motif:'Sortie '+numBT(b.numero),p_auteur:NOM}));
+      a.stock=s;await logSys(id,NOM+' : sortie de '+n+' × '+a.designation);
+      if((+s)<=(+a.stock_mini||0))toast('⚠ Stock bas : il reste '+s+' '+(a.unite||''));
+      route();
+    }catch(x){erreur(x);}
+  };
+};
+async function logSys(id,t){try{await q(sb.from('gmao_messages').insert({intervention_id:id,auteur:'•',texte:t}));}catch(e){}}
+
+async function nouveauBon(extra){
+  var pre={},prev=null;
+  (extra||'').split('&').forEach(function(kv){var p=kv.split('=');if(p[0])pre[p[0]]=decodeURIComponent(p[1]||'');});
+  var eqSel=pre.eq?EQID[pre.eq]:null;
+  $('main').innerHTML='<div class="chemin"><a href="#bons">← Bons de travail</a></div><h1 class="titre">⚠ Nouveau bon de travail</h1><div class="carte">'+
+    '<label>Machine concernée</label><div id="nbEq" class="ligne" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
+    '<label>Que se passe-t-il ? (titre court)</label><input id="nbT" placeholder="ex. Fuite d\'eau, bruit moteur, courroie cassée…">'+
+    '<label>Détails</label><textarea id="nbD" placeholder="Ce que tu as constaté, depuis quand, ce que tu as déjà essayé…"></textarea>'+
+    '<div class="grille"><div><label>Type</label><select id="nbTy"><option>Curatif</option><option>Préventif</option><option>Amélioration</option><option>Sécurité</option><option>Bâtiment</option></select></div>'+
+    '<div><label>Priorité</label><select id="nbP"><option>Normale</option><option>Urgente</option><option>Basse</option></select></div></div>'+
+    '<label style="display:flex;gap:8px;align-items:center;font-size:15px;color:var(--txt)"><input type="checkbox" id="nbA" style="width:auto"> ⛔ La machine est arrêtée</label>'+
+    '<label>Photo (facultatif)</label><button class="btn" id="nbPh">📷 Ajouter une photo</button>'+
+    '<div class="actions"><button class="btn" onclick="history.back()">Annuler</button><button class="btn r" id="nbOk">Créer le bon</button></div></div>';
+  function maj(){$('nbEq').innerHTML=eqSel?renduEq(eqSel)+'<span class="etiq">changer</span>':'<div class="g vide">Toucher pour choisir la machine…</div>';}
+  maj();$('nbEq').onclick=async function(){var x=await choisirEq();if(x){eqSel=x;maj();}};
+  var photo=null;
+  $('nbPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;$('nbPh').textContent='⏳ envoi…';try{photo=await envoyerPhoto(f);$('nbPh').textContent='✅ Photo ajoutée';}catch(x){$('nbPh').textContent='📷 Ajouter une photo';erreur(x);}};
+  $('nbOk').onclick=async function(){
+    var t=val('nbT');if(!t){toast('Donne un titre court');return;}
+    $('nbOk').disabled=true;
+    try{
+      var r=await q(sb.from('gmao_interventions').insert({titre:t,description:val('nbD'),type:$('nbTy').value,priorite:$('nbP').value,machine_arretee:$('nbA').checked,equipement_id:eqSel?eqSel.id:null,demandeur:NOM}).select());
+      if(photo)await q(sb.from('gmao_messages').insert({intervention_id:r[0].id,auteur:NOM,texte:'Photo à la création',photo:photo}));
+      aller('bon/'+r[0].id);
+    }catch(x){$('nbOk').disabled=false;erreur(x);}
+  };
+}
+function editerBon(b){
+  ouvrir('<h3>Modifier '+numBT(b.numero)+'</h3><label>Titre</label><input id="ebT" value="'+esc(b.titre)+'"><label>Description</label><textarea id="ebD">'+esc(b.description||'')+'</textarea>'+
+    '<div class="grille"><div><label>Type</label><select id="ebTy">'+['Curatif','Préventif','Amélioration','Sécurité','Bâtiment'].map(function(x){return '<option'+(x===b.type?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
+    '<div><label>Priorité</label><select id="ebP">'+['Normale','Urgente','Basse'].map(function(x){return '<option'+(x===b.priorite?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
+    '<div><label>Intervenant</label><input id="ebI" value="'+esc(b.intervenant||'')+'"></div><div><label>Machine arrêtée</label><select id="ebA"><option value="0">Non</option><option value="1"'+(b.machine_arretee?' selected':'')+'>Oui</option></select></div></div>'+
+    '<div class="actions"><button class="btn r sm" id="ebX" style="margin-right:auto">Supprimer</button><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="ebO">Enregistrer</button></div>');
+  $('ebO').onclick=async function(){try{await q(sb.from('gmao_interventions').update({titre:val('ebT'),description:val('ebD'),type:$('ebTy').value,priorite:$('ebP').value,intervenant:val('ebI'),machine_arretee:$('ebA').value==='1'}).eq('id',b.id));fermer();route();}catch(x){erreur(x);}};
+  $('ebX').onclick=async function(){if(!confirm('Supprimer définitivement ce bon ? (Les pièces sorties restent sorties du stock.)'))return;try{await q(sb.from('gmao_interventions').delete().eq('id',b.id));fermer();aller('bons');}catch(x){erreur(x);}};
+}
+function terminerBon(b){
+  ouvrir('<h3>✓ Terminer '+numBT(b.numero)+'</h3><label>Ce qui a été fait (compte rendu)</label><textarea id="tbR" placeholder="Cause trouvée, réparation faite, à surveiller…">'+esc(b.rapport||'')+'</textarea>'+
+    '<div class="grille"><div><label>Temps passé (minutes)</label><input id="tbD" inputmode="numeric" value="'+(b.duree_min||'')+'"></div><div><label>Durée d\'arrêt machine (minutes)</label><input id="tbA" inputmode="numeric" value="'+(b.arret_min||'')+'"></div></div>'+
+    '<label>Fait par</label><input id="tbI" value="'+esc(b.intervenant||NOM)+'">'+
+    '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn v" id="tbO">Terminer le bon</button></div>');
+  $('tbO').onclick=async function(){
+    try{
+      await q(sb.from('gmao_interventions').update({statut:'Terminé',fin:new Date().toISOString(),rapport:val('tbR'),duree_min:nb(val('tbD')),arret_min:nb(val('tbA')),intervenant:val('tbI'),machine_arretee:false}).eq('id',b.id));
+      if(b.preventif_id){await q(sb.from('gmao_preventifs').update({dernier:auj()}).eq('id',b.preventif_id));var p=PREV.find(function(x){return x.id===b.preventif_id;});if(p)p.dernier=auj();}
+      await logSys(b.id,val('tbI')+' : bon terminé');
+      fermer();route();
+    }catch(x){erreur(x);}
+  };
+}
+
+/* =====================================================================
+   PARC
+   ===================================================================== */
+var ouverts={}, voirHS=false;
+VUES.parc=async function(){
+  $('main').innerHTML='<h1 class="titre">Parc machines <button class="btn p sm" style="float:right" onclick="nouvelEq()">+ Équipement</button></h1>'+
+    '<div class="rech"><input id="rp" placeholder="Chercher : nom, code, marque, n° de série, emplacement…"></div>'+
+    '<div class="puces"><button class="puce" id="pTout">Tout déplier</button><button class="puce" id="pRien">Tout replier</button><button class="puce'+(voirHS?' on':'')+'" id="pHS">Afficher hors service</button></div>'+
+    '<div class="carte arbre" id="ap"></div>';
+  function noeud(e,niv,filtre){
+    var enf=enfants(e.id).filter(function(x){return voirHS||x.en_service!==false||enfants(x.id).length;}).sort(function(a,b){return a.nom.localeCompare(b.nom,'fr',{numeric:true});});
+    var ouvert=filtre||ouverts[e.id];
+    var h='<div class="n'+(e.en_service===false?' off':'')+'" style="padding-left:'+(niv*18+4)+'px"><span class="fl" data-t="'+e.id+'">'+(enf.length?(ouvert?'▾':'▸'):'')+'</span>'+
+      '<span class="pt '+esc(e.criticite||'')+'"></span><a href="#eq/'+e.id+'" style="flex:1;color:var(--txt)"><b>'+esc(e.nom)+'</b> '+(e.modele_id&&MODID[e.modele_id]?'<span class="etiq">· '+esc(MODID[e.modele_id].nom)+'</span>':'')+'</a>'+
+      '<span class="code">'+esc(e.code)+'</span>'+(e.etat&&e.etat!=='En service'?badgeEtat(e.etat):'')+'</div>';
+    if(enf.length&&ouvert)h+=enf.map(function(x){return noeud(x,niv+1,filtre);}).join('');
+    return h;
+  }
+  function rendre(){
+    var t=val('rp');
+    if(t){
+      var r=trier(t,EQ.filter(function(e){return (voirHS||e.en_service!==false)&&correspond(t,hayEq(e));}),primEq);
+      $('ap').innerHTML=r.length?r.map(function(e){return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+badgeEtat(e.etat&&e.etat!=='En service'?e.etat:'')+'</a>';}).join(''):'<div class="vide">Rien trouvé.</div>';
+      return;
+    }
+    var rac=EQ.filter(function(e){return !e.parent_id||!EQID[e.parent_id];}).filter(function(x){return voirHS||x.en_service!==false||enfants(x.id).length;}).sort(function(a,b){return a.nom.localeCompare(b.nom,'fr',{numeric:true});});
+    $('ap').innerHTML=rac.length?rac.map(function(e){return noeud(e,0,false);}).join(''):'<div class="vide">Aucun équipement. <a href="#import">Importer depuis DIMO</a></div>';
+  }
+  $('rp').oninput=rendre;
+  $('ap').onclick=function(e){var t=e.target.closest('[data-t]');if(!t)return;ouverts[t.dataset.t]=!ouverts[t.dataset.t];rendre();};
+  $('pTout').onclick=function(){EQ.forEach(function(e){ouverts[e.id]=true;});rendre();};
+  $('pRien').onclick=function(){ouverts={};rendre();};
+  $('pHS').onclick=function(){voirHS=!voirHS;this.classList.toggle('on',voirHS);rendre();};
+  rendre();
+};
+async function nouvelEq(parentId){
+  var code=await demander('Code du nouvel équipement','', 'Un code court et unique (ex. S5, TR1-AE3)');if(!code)return;
+  if(EQ.some(function(e){return norm(e.code)===norm(code);})){toast('Ce code existe déjà');return;}
+  var nom=await demander('Nom de l\'équipement','');if(!nom)return;
+  try{var r=await q(sb.from('gmao_equipements').insert({code:code.trim(),nom:nom.trim(),parent_id:parentId||null,etat:'En service',en_service:true}).select());
+    await chargerTout();aller('eq/'+r[0].id);}catch(x){erreur(x);}
+}
+
+VUES.eq=async function(id){
+  var e=EQID[id];if(!e){$('main').innerHTML='<div class="carte">Équipement introuvable.</div>';return;}
+  var m=MODID[e.modele_id];
+  var bons=await q(sb.from('gmao_interventions').select('*').in('equipement_id',[id].concat(descendants(id))).order('cree_le',{ascending:false}).limit(100));
+  var pcs=piecesDe(e), enf=enfants(id), freres=m?EQ.filter(function(x){return x.modele_id===m.id&&x.id!==id;}):[];
+  var prevs=PREV.filter(function(p){return p.equipement_id===id;});
+  var emplacements=uniques(EQ.map(function(x){return x.emplacement;})), familles=uniques(EQ.map(function(x){return x.famille;}));
+  var html='<div class="chemin"><a href="#parc">Parc</a>'+(e.parent_id?' › '+cheminLiens(e):'')+'</div>'+
+    '<h1 class="titre"><span class="pt '+esc(e.criticite||'')+'"></span> '+esc(e.nom)+' <span class="etiq">'+esc(e.code)+'</span> '+badgeEtat(e.etat)+'</h1>'+
+    '<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau/eq='+id+'\')">⚠ Signaler une panne sur cette machine</button></div>'+
+    '<div class="carte"><h2>Fiche</h2><div class="grille"><div>'+
+      (e.photo?'<img class="photo" src="'+esc(e.photo)+'" onclick="zoom(this.src)">':'<div class="photo" style="height:140px;display:flex;align-items:center;justify-content:center;color:var(--doux)">Pas de photo</div>')+
+      '<button class="btn sm" id="ePh" style="margin-top:6px">📷 '+(e.photo?'Changer':'Ajouter')+' la photo</button></div><div>'+
+      '<div class="grille"><div><label>Code</label><input id="fCode" value="'+esc(e.code)+'"></div><div><label>Nom</label><input id="fNom" value="'+esc(e.nom)+'"></div></div>'+
+      '<label>Rattaché à</label><div class="ligne" id="fPar" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px;padding:8px">'+(e.parent_id&&EQID[e.parent_id]?esc(chemin(EQID[e.parent_id])):'<span class="vide">— racine —</span>')+'</div>'+
+      '<label>Modèle (machines identiques)</label><div style="display:flex;gap:6px"><select id="fMod"><option value="">— aucun —</option>'+MOD.map(function(x){return '<option value="'+x.id+'"'+(x.id===e.modele_id?' selected':'')+'>'+esc(x.nom)+'</option>';}).join('')+'</select><button class="btn sm" id="fModN" title="Nouveau modèle">+</button></div>'+
+    '</div></div><div class="grille">'+
+      '<div><label>Marque</label><input id="fMar" value="'+esc(e.marque||'')+'"></div><div><label>N° de série</label><input id="fSer" value="'+esc(e.num_serie||'')+'"></div>'+
+      '<div><label>Emplacement</label><input id="fEmp" list="dlEmp" value="'+esc(e.emplacement||'')+'"></div><div><label>Famille</label><input id="fFam" list="dlFam" value="'+esc(e.famille||'')+'"></div>'+
+      '<div><label>Criticité</label><select id="fCri">'+['','Critique','Haute','Normale','Basse'].map(function(x){return '<option'+(x===(e.criticite||'')?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
+      '<div><label>État</label><select id="fEta">'+['En service','Dégradé','En réparation','Hors service'].map(function(x){return '<option'+(x===e.etat?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
+    '</div><label style="display:flex;gap:8px;align-items:center;font-size:14px;color:var(--txt)"><input type="checkbox" id="fSrv" style="width:auto"'+(e.en_service!==false?' checked':'')+'> Fait partie du parc actif</label>'+
+    '<label>Notes</label><textarea id="fNot">'+esc(e.notes||'')+'</textarea>'+
+    '<datalist id="dlEmp">'+emplacements.map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist><datalist id="dlFam">'+familles.map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist>'+
+    '<div class="actions"><button class="btn r sm" id="fDel" style="margin-right:auto">Supprimer</button><button class="btn p" id="fOk">Enregistrer</button></div></div>';
+  html+='<div class="carte"><h2>🔩 Pièces détachées <button class="btn sm d" id="ePc">+ Lier une pièce</button></h2>'+
+    (pcs.length?pcs.map(function(x){var a=ARTID[x.l.article_id];return '<div class="ligne"><a href="#art/'+a.id+'" style="display:contents;color:var(--txt)">'+renduArt(a)+'</a>'+
+      '<span class="etiq">'+(x.via==='modele'?'via modèle':'cette machine')+(x.l.repere?' · '+esc(x.l.repere):'')+(x.l.quantite&&x.l.quantite!=1?' · ×'+x.l.quantite:'')+'</span><button class="btn l sm" data-dl="'+x.l.id+'" title="Retirer le lien">✕</button></div>';}).join(''):'<div class="vide">Aucune pièce liée.'+(m?'':' Astuce : donne-lui un modèle, ses pièces serviront aussi aux machines identiques.')+'</div>')+'</div>';
+  if(m)html+='<div class="carte"><h2>🔁 Même modèle : <a href="#mod/'+m.id+'">'+esc(m.nom)+'</a></h2>'+(freres.length?freres.map(function(x){return '<a class="ligne" href="#eq/'+x.id+'">'+renduEq(x)+'</a>';}).join(''):'<div class="vide">Aucune autre machine de ce modèle.</div>')+'</div>';
+  html+='<div class="carte"><h2>🧩 Sous-ensembles <button class="btn sm d" onclick="nouvelEq(\''+id+'\')">+ Ajouter</button></h2>'+(enf.length?enf.map(function(x){return '<a class="ligne" href="#eq/'+x.id+'">'+renduEq(x)+badgeEtat(x.etat!=='En service'?x.etat:'')+'</a>';}).join(''):'<div class="vide">Aucun.</div>')+'</div>';
+  html+='<div class="carte"><h2>🗓 Préventif <button class="btn sm d" onclick="editerPrev(null,\''+id+'\')">+ Plan préventif</button></h2>'+(prevs.length?prevs.map(lignePrev).join(''):'<div class="vide">Aucun plan préventif.</div>')+'</div>';
+  html+='<div class="carte"><h2>📋 Historique ('+bons.length+')</h2>'+(bons.length?bons.map(ligneBon).join(''):'<div class="vide">Aucune intervention.</div>')+'</div>';
+  $('main').innerHTML=html;
+
+  var parentSel=e.parent_id;
+  $('fPar').onclick=async function(){
+    var exclus=[id].concat(descendants(id));
+    var x=await choisir({titre:'Rattacher à…',prim:primEq,items:[{id:null,nom:'— racine (aucun parent) —',code:''}].concat(EQ.filter(function(z){return exclus.indexOf(z.id)<0;})),hay:function(z){return z.id?hayEq(z):'racine';},rendu:function(z){return z.id?renduEq(z):'<div class="g"><b>'+z.nom+'</b></div>';}});
+    if(x===null)return;parentSel=x.id;$('fPar').innerHTML=x.id?esc(chemin(x)):'<span class="vide">— racine —</span>';
+  };
+  $('fModN').onclick=async function(){var n=await demander('Nom du nouveau modèle','',(e.marque||'')+' — ex. Kannegiesser D120');if(!n)return;
+    try{var r=await q(sb.from('gmao_modeles').insert({nom:n.trim(),marque:e.marque||null}).select());MOD.push(r[0]);MODID[r[0].id]=r[0];
+      var o=document.createElement('option');o.value=r[0].id;o.textContent=r[0].nom;o.selected=true;$('fMod').appendChild(o);}catch(x){erreur(x);}};
+  $('ePh').onclick=async function(){var f=await choisirPhoto();if(!f)return;this.textContent='⏳';try{var u=await envoyerPhoto(f);await q(sb.from('gmao_equipements').update({photo:u}).eq('id',id));e.photo=u;route();}catch(x){erreur(x);}};
+  $('fOk').onclick=async function(){
+    var code=val('fCode');if(!code){toast('Le code est obligatoire');return;}
+    if(EQ.some(function(z){return z.id!==id&&norm(z.code)===norm(code);})){toast('Ce code est déjà pris');return;}
+    var maj={code:code,nom:val('fNom'),parent_id:parentSel||null,modele_id:$('fMod').value||null,marque:val('fMar'),num_serie:val('fSer'),emplacement:val('fEmp'),famille:val('fFam'),criticite:$('fCri').value||null,etat:$('fEta').value,en_service:$('fSrv').checked,notes:val('fNot')};
+    try{await q(sb.from('gmao_equipements').update(maj).eq('id',id));Object.assign(e,maj);toast('✓ Enregistré');route();}catch(x){erreur(x);}
+  };
+  $('fDel').onclick=async function(){
+    if(enf.length){toast('Déplace ou supprime d\'abord ses sous-ensembles');return;}
+    if(!confirm('Supprimer « '+e.nom+' » ? Son historique restera, sans machine.'))return;
+    try{await q(sb.from('gmao_equipements').delete().eq('id',id));await chargerTout();aller('parc');}catch(x){erreur(x);}
+  };
+  $('ePc').onclick=function(){lierPiece({equipement:e});};
+  document.querySelectorAll('[data-dl]').forEach(function(b){b.onclick=async function(){if(!confirm('Retirer ce lien pièce ↔ machine ?'))return;try{await q(sb.from('gmao_liens').delete().eq('id',b.dataset.dl));LIENS=LIENS.filter(function(l){return l.id!==b.dataset.dl;});route();}catch(x){erreur(x);}};});
+};
+function uniques(l){var s={},o=[];l.forEach(function(x){x=(x||'').trim();var k=norm(x);if(x&&!s[k]){s[k]=1;o.push(x);}});return o.sort(function(a,b){return a.localeCompare(b,'fr');});}
+
+/* Lier une pièce à une machine ou un modèle (depuis l'un ou l'autre côté) */
+async function lierPiece(ctx){
+  var art=ctx.article, cibleEq=ctx.equipement, cibleMod=ctx.modele;
+  if(!art){
+    art=await choisir({titre:'Quelle pièce ?',items:ART,hay:hayArt,prim:primArt,rendu:renduArt,creer:'Nouvelle pièce'});
+    if(!art)return;
+    if(art==='__creer__'){art=await creerArticleRapide();if(!art)return;}
+  }
+  if(!cibleEq&&!cibleMod){cibleEq=await choisirEq('Sur quelle machine ?');if(!cibleEq)return;}
+  var surModele=!!cibleMod;
+  if(cibleEq&&cibleEq.modele_id&&MODID[cibleEq.modele_id]){
+    var m=MODID[cibleEq.modele_id], nbm=EQ.filter(function(x){return x.modele_id===m.id;}).length;
+    surModele=await new Promise(function(res){
+      ouvrir('<h3>Lier « '+esc(art.designation)+' »</h3><p>'+esc(cibleEq.nom)+' est du modèle <b>'+esc(m.nom)+'</b> ('+nbm+' machine'+(nbm>1?'s':'')+').</p>'+
+        '<div class="actions" style="flex-direction:column;align-items:stretch"><button class="btn p" id="lpM">À toutes les machines '+esc(m.nom)+' (conseillé)</button><button class="btn" id="lpE">Seulement à '+esc(cibleEq.nom)+'</button><button class="btn l" id="lpA">Annuler</button></div>');
+      $('lpM').onclick=function(){fermer();res(true);};$('lpE').onclick=function(){fermer();res(false);};$('lpA').onclick=function(){fermer();res(null);};
+    });
+    if(surModele===null)return;
+    if(surModele)cibleMod=m;
+  }
+  var rep=await demander('Repère / usage (facultatif)','','ex. courroie ventilateur, côté gauche, quantité montée…');
+  if(rep===null)return;
+  var lien={article_id:art.id,repere:rep||null,quantite:1};
+  if(surModele)lien.modele_id=cibleMod.id;else lien.equipement_id=cibleEq.id;
+  try{var r=await q(sb.from('gmao_liens').insert(lien).select());LIENS.push(r[0]);toast('✓ Pièce liée');route();}catch(x){erreur(x);}
+}
+
+/* =====================================================================
+   MODÈLES
+   ===================================================================== */
+VUES.modeles=async function(){
+  $('main').innerHTML='<h1 class="titre">Modèles <button class="btn p sm" style="float:right" id="mN">+ Modèle</button></h1>'+
+    '<div class="carte" style="background:var(--bleu2)">Un <b>modèle</b> regroupe les machines identiques (ex. Séchoir 2 et Séchoir 3 = D120). Les pièces liées au modèle servent automatiquement à toutes ses machines.</div>'+
+    '<div class="carte">'+(MOD.length?MOD.map(function(m){var n=EQ.filter(function(e){return e.modele_id===m.id;}).length,p=LIENS.filter(function(l){return l.modele_id===m.id;}).length;
+      return '<a class="ligne" href="#mod/'+m.id+'"><div class="g"><div class="t">'+esc(m.nom)+'</div><div class="s">'+esc(m.marque||'')+'</div></div><span class="badge">'+n+' machine'+(n>1?'s':'')+'</span><span class="badge">'+p+' pièce'+(p>1?'s':'')+'</span></a>';}).join(''):'<div class="vide">Aucun modèle.</div>')+'</div>';
+  $('mN').onclick=async function(){var n=await demander('Nom du modèle','','ex. Kannegiesser D120');if(!n)return;try{var r=await q(sb.from('gmao_modeles').insert({nom:n.trim()}).select());await chargerTout();aller('mod/'+r[0].id);}catch(x){erreur(x);}};
+};
+VUES.mod=async function(id){
+  var m=MODID[id];if(!m){$('main').innerHTML='<div class="carte">Modèle introuvable.</div>';return;}
+  var eqs=EQ.filter(function(e){return e.modele_id===id;}), pcs=LIENS.filter(function(l){return l.modele_id===id&&ARTID[l.article_id];});
+  $('main').innerHTML='<div class="chemin"><a href="#modeles">← Modèles</a></div><h1 class="titre">'+esc(m.nom)+'</h1>'+
+    '<div class="carte"><div class="grille"><div><label>Nom</label><input id="mNom" value="'+esc(m.nom)+'"></div><div><label>Marque</label><input id="mMar" value="'+esc(m.marque||'')+'"></div></div>'+
+    '<label>Notes (documentation, contact SAV…)</label><textarea id="mNot">'+esc(m.notes||'')+'</textarea>'+
+    '<div class="actions"><button class="btn r sm" id="mDel" style="margin-right:auto">Supprimer</button><button class="btn p" id="mOk">Enregistrer</button></div></div>'+
+    '<div class="carte"><h2>Machines de ce modèle <button class="btn sm d" id="mAdd">+ Ajouter une machine</button></h2>'+(eqs.length?eqs.map(function(e){return '<div class="ligne"><a href="#eq/'+e.id+'" style="display:contents;color:var(--txt)">'+renduEq(e)+'</a><button class="btn l sm" data-rm="'+e.id+'">✕</button></div>';}).join(''):'<div class="vide">Aucune.</div>')+'</div>'+
+    '<div class="carte"><h2>Pièces du modèle <button class="btn sm d" id="mPc">+ Lier une pièce</button></h2>'+(pcs.length?pcs.map(function(l){var a=ARTID[l.article_id];return '<div class="ligne"><a href="#art/'+a.id+'" style="display:contents;color:var(--txt)">'+renduArt(a)+'</a><span class="etiq">'+esc(l.repere||'')+'</span><button class="btn l sm" data-dl="'+l.id+'">✕</button></div>';}).join(''):'<div class="vide">Aucune pièce.</div>')+'</div>';
+  $('mOk').onclick=async function(){try{await q(sb.from('gmao_modeles').update({nom:val('mNom'),marque:val('mMar'),notes:val('mNot')}).eq('id',id));await chargerTout();toast('✓ Enregistré');route();}catch(x){erreur(x);}};
+  $('mDel').onclick=async function(){if(!confirm('Supprimer ce modèle ? Les machines restent, les pièces du modèle seront déliées.'))return;try{await q(sb.from('gmao_modeles').delete().eq('id',id));await chargerTout();aller('modeles');}catch(x){erreur(x);}};
+  $('mAdd').onclick=async function(){var e=await choisirEq('Quelle machine est de ce modèle ?');if(!e)return;try{await q(sb.from('gmao_equipements').update({modele_id:id}).eq('id',e.id));e.modele_id=id;route();}catch(x){erreur(x);}};
+  $('mPc').onclick=function(){lierPiece({modele:m});};
+  document.querySelectorAll('[data-rm]').forEach(function(b){b.onclick=async function(){try{await q(sb.from('gmao_equipements').update({modele_id:null}).eq('id',b.dataset.rm));EQID[b.dataset.rm].modele_id=null;route();}catch(x){erreur(x);}};});
+  document.querySelectorAll('[data-dl]').forEach(function(b){b.onclick=async function(){if(!confirm('Retirer cette pièce du modèle ?'))return;try{await q(sb.from('gmao_liens').delete().eq('id',b.dataset.dl));LIENS=LIENS.filter(function(l){return l.id!==b.dataset.dl;});route();}catch(x){erreur(x);}};});
+};
+
+/* =====================================================================
+   PIÈCES / ARTICLES
+   ===================================================================== */
+VUES.articles=async function(filtre){
+  var mini=filtre==='mini';
+  $('main').innerHTML='<h1 class="titre">Pièces détachées <button class="btn p sm" style="float:right" id="aN">+ Nouvelle pièce</button></h1>'+
+    '<div class="rech"><input id="ra" placeholder="Nom, référence (avec ou sans tirets), fournisseur, machine…"></div>'+
+    '<div class="puces"><button class="puce'+(mini?'':' on')+'" id="aT">Toutes ('+ART.length+')</button><button class="puce'+(mini?' on':'')+'" id="aM">Sous le stock mini</button></div><div class="carte" id="la"></div>';
+  function rendre(){
+    var t=val('ra');
+    var r=ART.filter(function(a){
+      if(mini&&!((+a.stock||0)<=(+a.stock_mini||0)&&(+a.stock_mini||0)>0))return false;
+      var machines=ouUtilise(a.id).map(function(x){return x.e.nom+' '+x.e.code+(x.m?' '+x.m.nom:'');}).join(' ');
+      return correspond(t,hayArt(a)+' '+machines);
+    });r=trier(t,r,primArt).slice(0,300);
+    $('la').innerHTML=r.length?r.map(function(a){var u=ouUtilise(a.id);return '<a class="ligne" href="#art/'+a.id+'">'+renduArt(a).replace('</div></div>',(u.length?' · sur '+esc(uniques(u.map(function(x){return x.e.nom;})).slice(0,3).join(', '))+(u.length>3?'…':''):'')+'</div></div>')+'</a>';}).join(''):'<div class="vide">'+(ART.length?'Rien trouvé.':'Aucune pièce pour l\'instant.')+'</div>';
+  }
+  $('ra').oninput=rendre;
+  $('aT').onclick=function(){aller('articles');};$('aM').onclick=function(){aller('articles/mini');};
+  $('aN').onclick=async function(){var a=await creerArticleRapide();if(a)aller('art/'+a.id);};
+  rendre();setTimeout(function(){$('ra')&&$('ra').focus();},50);
+};
+async function creerArticleRapide(){
+  var d=await demander('Désignation de la pièce','','ex. Courroie SPA 1250');if(!d)return null;
+  try{var r=await q(sb.from('gmao_articles').insert({designation:d.trim(),stock:0,stock_mini:0}).select());ART.push(r[0]);ARTID[r[0].id]=r[0];return r[0];}catch(x){erreur(x);return null;}
+}
+VUES.art=async function(id){
+  var a=ARTID[id];if(!a){$('main').innerHTML='<div class="carte">Pièce introuvable.</div>';return;}
+  var mv=await q(sb.from('gmao_mouvements').select('*').eq('article_id',id).order('cree_le',{ascending:false}).limit(60));
+  var liens=LIENS.filter(function(l){return l.article_id===id;});
+  var u=ouUtilise(id);
+  var html='<div class="chemin"><a href="#articles">← Pièces</a></div><h1 class="titre">'+esc(a.designation)+'</h1>'+
+    '<div class="carte"><div class="stats"><div><span class="etiq">En stock</span><b style="color:'+((+a.stock||0)<=(+a.stock_mini||0)?'var(--rouge)':'var(--vert)')+'">'+(+a.stock||0)+' '+esc(a.unite||'')+'</b></div><div><span class="etiq">Mini</span><b>'+(+a.stock_mini||0)+'</b></div><div><span class="etiq">Emplacement</span><b style="font-size:17px">'+esc(a.emplacement||'—')+'</b></div></div>'+
+    '<div class="actions" style="justify-content:flex-start"><button class="btn v" id="sE">+ Entrée</button><button class="btn" id="sS">− Sortie</button><button class="btn" id="sI">Inventaire</button></div></div>'+
+    '<div class="carte"><h2>Fiche</h2><div class="grille"><div>'+
+      (a.photo?'<img class="photo" src="'+esc(a.photo)+'" onclick="zoom(this.src)">':'<div class="photo" style="height:120px;display:flex;align-items:center;justify-content:center;color:var(--doux)">Pas de photo</div>')+
+      '<button class="btn sm" id="aPh" style="margin-top:6px">📷 '+(a.photo?'Changer':'Ajouter')+' la photo</button></div><div>'+
+      '<label>Désignation</label><input id="aD" value="'+esc(a.designation)+'"><label>Réf. interne</label><input id="aR" value="'+esc(a.ref||'')+'">'+
+      '<label>Emplacement magasin</label><input id="aE" list="dlEA" value="'+esc(a.emplacement||'')+'"></div></div><div class="grille">'+
+      '<div><label>Réf. fabricant</label><input id="aRF" value="'+esc(a.ref_fabricant||'')+'"></div><div><label>Réf. fournisseur</label><input id="aRFo" value="'+esc(a.ref_fournisseur||'')+'"></div>'+
+      '<div><label>Fournisseur</label><input id="aF" list="dlFo" value="'+esc(a.fournisseur||'')+'"></div><div><label>Prix unitaire (€)</label><input id="aP" inputmode="decimal" value="'+(a.prix==null?'':a.prix)+'"></div>'+
+      '<div><label>Stock mini (alerte)</label><input id="aMi" inputmode="decimal" value="'+(a.stock_mini||0)+'"></div><div><label>Unité</label><input id="aU" value="'+esc(a.unite||'pce')+'"></div></div>'+
+      '<label>Mots-clés (autres noms qu\'on lui donne)</label><input id="aK" value="'+esc(a.motscles||'')+'" placeholder="ex. galet, roulement de rouleau, 6205">'+
+      '<label>Notes</label><textarea id="aNo">'+esc(a.notes||'')+'</textarea>'+
+      '<datalist id="dlEA">'+uniques(ART.map(function(x){return x.emplacement;})).map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist><datalist id="dlFo">'+uniques(ART.map(function(x){return x.fournisseur;})).map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist>'+
+      '<div class="actions"><button class="btn r sm" id="aX" style="margin-right:auto">Supprimer</button><button class="btn p" id="aOk">Enregistrer</button></div></div>';
+  html+='<div class="carte"><h2>🏭 Utilisée sur <button class="btn sm d" id="aL">+ Lier à une machine</button></h2>'+
+    (liens.length?liens.map(function(l){
+      if(l.modele_id&&MODID[l.modele_id]){var mm=MODID[l.modele_id],ee=EQ.filter(function(e){return e.modele_id===mm.id;});
+        return '<div class="ligne"><div class="g"><div class="t">Modèle <a href="#mod/'+mm.id+'">'+esc(mm.nom)+'</a>'+(l.repere?' <span class="etiq">· '+esc(l.repere)+'</span>':'')+'</div><div class="s">→ '+(ee.length?ee.map(function(e){return '<a href="#eq/'+e.id+'">'+esc(chemin(e))+'</a>';}).join(' · '):'aucune machine')+'</div></div><button class="btn l sm" data-dl="'+l.id+'">✕</button></div>';}
+      var e=EQID[l.equipement_id];if(!e)return '';
+      return '<div class="ligne"><a href="#eq/'+e.id+'" style="display:contents;color:var(--txt)">'+renduEq(e)+'</a><span class="etiq">'+esc(l.repere||'')+'</span><button class="btn l sm" data-dl="'+l.id+'">✕</button></div>';
+    }).join(''):'<div class="vide">Pas encore liée à une machine.</div>')+'</div>';
+  html+='<div class="carte"><h2>Mouvements</h2>'+(mv.length?mv.map(function(m){return '<div class="ligne"><div class="g"><div class="t">'+(m.quantite>0?'+':'')+m.quantite+' · '+esc(m.motif||'')+'</div><div class="s">'+fmtDH(m.cree_le)+' · '+esc(m.auteur||'')+'</div></div>'+(m.intervention_id?'<a class="btn sm" href="#bon/'+m.intervention_id+'">voir le bon</a>':'')+'</div>';}).join(''):'<div class="vide">Aucun mouvement.</div>')+'</div>';
+  $('main').innerHTML=html;
+  async function mouv(qte,motif){try{var s=await q(sb.rpc('gmao_mouvement',{p_article:id,p_qte:qte,p_bon:null,p_motif:motif,p_auteur:NOM}));a.stock=s;route();}catch(x){erreur(x);}}
+  $('sE').onclick=async function(){var n=nb(await demander('Quantité reçue','1'));if(!n)return;var m=await demander('Motif','Réception','ex. Réception commande, retour…');mouv(Math.abs(n),m||'Entrée');};
+  $('sS').onclick=async function(){var n=nb(await demander('Quantité sortie','1','Pour une réparation, sors plutôt la pièce depuis le bon de travail.'));if(!n)return;var m=await demander('Motif','Sortie');mouv(-Math.abs(n),m||'Sortie');};
+  $('sI').onclick=async function(){var n=nb(await demander('Quantité comptée en rayon',a.stock||0));if(n===null)return;var d=n-(+a.stock||0);if(!d){toast('Stock déjà juste');return;}mouv(d,'Inventaire ('+(+a.stock||0)+' → '+n+')');};
+  $('aPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;this.textContent='⏳';try{var u=await envoyerPhoto(f);await q(sb.from('gmao_articles').update({photo:u}).eq('id',id));a.photo=u;route();}catch(x){erreur(x);}};
+  $('aOk').onclick=async function(){
+    var maj={designation:val('aD'),ref:val('aR'),emplacement:val('aE'),ref_fabricant:val('aRF'),ref_fournisseur:val('aRFo'),fournisseur:val('aF'),prix:nb(val('aP')),stock_mini:nb(val('aMi'))||0,unite:val('aU')||'pce',motscles:val('aK'),notes:val('aNo')};
+    if(!maj.designation){toast('Désignation obligatoire');return;}
+    try{await q(sb.from('gmao_articles').update(maj).eq('id',id));Object.assign(a,maj);toast('✓ Enregistré');route();}catch(x){erreur(x);}
+  };
+  $('aX').onclick=async function(){if(!confirm('Supprimer cette pièce, ses liens et ses mouvements ?'))return;try{await q(sb.from('gmao_articles').delete().eq('id',id));await chargerTout();aller('articles');}catch(x){erreur(x);}};
+  $('aL').onclick=function(){lierPiece({article:a});};
+  document.querySelectorAll('[data-dl]').forEach(function(b){b.onclick=async function(){if(!confirm('Retirer ce lien ?'))return;try{await q(sb.from('gmao_liens').delete().eq('id',b.dataset.dl));LIENS=LIENS.filter(function(l){return l.id!==b.dataset.dl;});route();}catch(x){erreur(x);}};});
+};
+
+/* =====================================================================
+   PRÉVENTIF
+   ===================================================================== */
+VUES.preventif=async function(){
+  var l=PREV.slice().sort(function(a,b){var ea=echeance(a)||'0000',eb=echeance(b)||'0000';return ea<eb?-1:ea>eb?1:0;});
+  $('main').innerHTML='<h1 class="titre">Maintenance préventive <button class="btn p sm" style="float:right" onclick="editerPrev()">+ Plan préventif</button></h1>'+
+    '<div class="carte">'+(l.length?l.map(function(p){return p.actif?lignePrev(p):lignePrev(p).replace('class="ligne"','class="ligne" style="opacity:.45"');}).join(''):'<div class="vide">Aucun plan. Exemple : « Graissage paliers sécheuse — tous les 30 jours ».</div>')+'</div>';
+};
+async function editerPrev(pid,eqId){
+  var p=pid?PREV.find(function(x){return x.id===pid;}):{equipement_id:eqId||null,titre:'',periodicite_jours:30,checklist:'',dernier:null,actif:true};
+  var eqSel=EQID[p.equipement_id]||null;
+  ouvrir('<h3>'+(pid?'Modifier le plan':'Nouveau plan préventif')+'</h3><label>Machine</label><div class="ligne" id="pvE" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
+    '<label>Opération</label><input id="pvT" value="'+esc(p.titre)+'" placeholder="ex. Graissage paliers, nettoyage filtres…">'+
+    '<div class="grille"><div><label>Tous les…</label><div style="display:flex;gap:6px"><input id="pvN" inputmode="numeric" value="'+(p.periodicite_jours%30===0?p.periodicite_jours/30:p.periodicite_jours%7===0?p.periodicite_jours/7:p.periodicite_jours)+'"><select id="pvU"><option value="1">jours</option><option value="7"'+(p.periodicite_jours%30!==0&&p.periodicite_jours%7===0?' selected':'')+'>semaines</option><option value="30"'+(p.periodicite_jours%30===0?' selected':'')+'>mois</option></select></div></div>'+
+    '<div><label>Dernière fois faite</label><input id="pvD" type="date" value="'+(p.dernier||'')+'"></div></div>'+
+    '<label>Points à vérifier (un par ligne)</label><textarea id="pvC" placeholder="Graisser palier gauche&#10;Graisser palier droit&#10;Contrôler tension courroie">'+esc(p.checklist||'')+'</textarea>'+
+    '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px"><input type="checkbox" id="pvA" style="width:auto"'+(p.actif!==false?' checked':'')+'> Plan actif</label>'+
+    '<div class="actions">'+(pid?'<button class="btn r sm" id="pvX" style="margin-right:auto">Supprimer</button>':'')+'<button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="pvO">Enregistrer</button></div>');
+  var boite=$('boite').innerHTML;
+  function majE(){$('pvE').innerHTML=eqSel?renduEq(eqSel):'<div class="g vide">Toucher pour choisir…</div>';}
+  async function clicE(){
+    var sauve={t:val('pvT'),n:val('pvN'),u:$('pvU').value,d:val('pvD'),c:$('pvC').value,a:$('pvA').checked};
+    var x=await choisirEq();if(x)eqSel=x;
+    ouvrir(boite);$('pvT').value=sauve.t;$('pvN').value=sauve.n;$('pvU').value=sauve.u;$('pvD').value=sauve.d;$('pvC').value=sauve.c;$('pvA').checked=sauve.a;
+    lier();
+  }
+  function lier(){
+    majE();$('pvE').onclick=clicE;
+    $('pvO').onclick=async function(){
+      var t=val('pvT');if(!t||!eqSel){toast('Machine et opération obligatoires');return;}
+      var j=Math.max(1,Math.round((nb(val('pvN'))||1)*(+$('pvU').value)));
+      var d={equipement_id:eqSel.id,titre:t,periodicite_jours:j,dernier:val('pvD')||null,checklist:$('pvC').value,actif:$('pvA').checked};
+      try{if(pid)await q(sb.from('gmao_preventifs').update(d).eq('id',pid));else await q(sb.from('gmao_preventifs').insert(d));
+        PREV=await q(sb.from('gmao_preventifs').select('*'));fermer();route();}catch(x){erreur(x);}
+    };
+    if($('pvX'))$('pvX').onclick=async function(){if(!confirm('Supprimer ce plan ?'))return;try{await q(sb.from('gmao_preventifs').delete().eq('id',pid));PREV=PREV.filter(function(x){return x.id!==pid;});fermer();route();}catch(x){erreur(x);}};
+  }
+  lier();
+}
+async function lancerPrev(pid){
+  var p=PREV.find(function(x){return x.id===pid;});if(!p)return;
+  var deja=await q(sb.from('gmao_interventions').select('id').eq('preventif_id',pid).neq('statut','Terminé'));
+  if(deja.length){aller('bon/'+deja[0].id);return;}
+  var desc=(p.checklist||'').split('\n').filter(function(x){return x.trim();}).map(function(x){return '☐ '+x.trim();}).join('\n');
+  try{var r=await q(sb.from('gmao_interventions').insert({titre:p.titre,description:desc,type:'Préventif',priorite:'Normale',equipement_id:p.equipement_id,preventif_id:pid,demandeur:NOM}).select());aller('bon/'+r[0].id);}catch(x){erreur(x);}
+}
+
+/* =====================================================================
+   IMPORT DIMO
+   ===================================================================== */
+/* Éléments qui ne sont pas des machines : décochés par défaut */
+function exclureParDefaut(r){
+  var c=norm(r.code),n=norm(r.nom),f=norm(r.famille);
+  if(/^(la courtine)$/.test(c))return 'site';
+  if(/tachygraphe|^carte |^cf$|^vds$/.test(c)||/vdo dlk/.test(n)||/^carte /.test(n))return 'chronotachygraphe';
+  if(/matin|am$/.test(c)&&/manutention|sechage repassage/.test(f))return 'personne / équipe';
+  if(/^(production|ma|mg)$/.test(c))return 'pseudo-équipement';
+  if(/poubelle/.test(n))return 'poubelle';
+  if(/^allee /.test(n))return 'allée';
+  return '';
+}
+/* Parents ambigus dans DIMO (même nom pour plusieurs équipements) */
+var PARENT_FORCE={'VA12':'EMTAE1','VA13':'EMTAE1','VA16':'EMTAE1','A25':'EMTAE2','VA20':'EMTAE2','VA26':'EMTAE2','ebmpapst 4314':'AEEMX'};
+var MODELE_PROPOSE={'1.S1':'Kannegiesser D60','4.S4':'Kannegiesser D60','2.S2':'Kannegiesser D120','3.S3':'Kannegiesser D120','B30':'Sfere BM cercleuse semi-auto','CSA2':'Sfere BM cercleuse semi-auto','40022-T10':'Fradin tapis de convoyage','T12':'Fradin tapis de convoyage'};
+function propre(s){s=String(s||'').replace(/\s+/g,' ').trim();s=s.replace(/transportt/gi,'transport').replace(/\bpalie\b/gi,'partie');return s?s.charAt(0).toUpperCase()+s.slice(1):'';}
+function etatPropre(s){var n=norm(s);return {'en service':'En service','degrade':'Dégradé','en reparation':'En réparation','hors service':'Hors service'}[n]||'En service';}
+function lireCSV(txt){
+  var sep=(txt.split('\n')[0].match(/;/g)||[]).length>=(txt.split('\n')[0].match(/,/g)||[]).length?';':',';
+  var rows=[],row=[],cur='',inq=false;
+  for(var i=0;i<txt.length;i++){var ch=txt[i];
+    if(inq){if(ch==='"'){if(txt[i+1]==='"'){cur+='"';i++;}else inq=false;}else cur+=ch;}
+    else if(ch==='"')inq=true;else if(ch===sep){row.push(cur);cur='';}else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur='';}else if(ch!=='\r')cur+=ch;}
+  if(cur||row.length){row.push(cur);rows.push(row);}
+  var h=rows.shift().map(function(x){return x.replace(/^﻿/,'').trim();});
+  return rows.filter(function(r){return r.some(function(x){return x.trim();});}).map(function(r){var o={};h.forEach(function(k,i){o[k]=r[i]||'';});return o;});
+}
+var IMP=null;
+VUES.import=async function(){
+  $('main').innerHTML='<h1 class="titre">Import depuis DIMO</h1><div class="carte"><b>1.</b> Choisis le fichier <b>Equipements</b> exporté de DIMO (.csv).<br><br><input type="file" id="iF" accept=".csv,text/csv"></div><div id="iZ"></div>';
+  $('iF').onchange=async function(){
+    var f=this.files[0];if(!f)return;var txt=await f.text();var L=lireCSV(txt);
+    if(!L.length||!('Equipement père' in L[0])){$('iZ').innerHTML='<div class="carte">Ce fichier ne ressemble pas à l\'export Équipements de DIMO.</div>';return;}
+    var rows=L.map(function(o){return {code:o['Code'].trim(),nom:propre(o['Désignation']),pereNom:o['Equipement père'],marque:propre(o['Marque']),modeleTxt:o["Modèle d'équipement"],num_serie:o['Numéro de série'].trim(),etat:etatPropre(o["Etat d'équipement"]),emplacement:propre(o['Emplacement']),famille:propre(o['Désignation famille d\'équipements']),criticite:propre(o["Criticité d'équipement"])||null,en_service:o['En service']==='true'};});
+    var parNom={};rows.forEach(function(r){var k=norm(r.nom);(parNom[k]=parNom[k]||[]).push(r);});
+    var parCode={};rows.forEach(function(r){parCode[r.code]=r;});
+    var series={};rows.forEach(function(r){if(r.num_serie)(series[r.num_serie]=series[r.num_serie]||[]).push(r.code);});
+    rows.forEach(function(r){
+      r.exclu=exclureParDefaut(r);r.inclus=!r.exclu;r.warn=[];
+      var pk=norm(r.pereNom);
+      if(PARENT_FORCE[r.code])r.pere=PARENT_FORCE[r.code];
+      else if(pk&&parNom[pk]){var c=parNom[pk].filter(function(x){return x.code!==r.code;});if(c.length===1)r.pere=c[0].code;else if(c.length>1){r.pere=c[0].code;r.warn.push('parent ambigu ('+c.map(function(x){return x.code;}).join(', ')+')');}}
+      else if(pk)r.warn.push('parent « '+r.pereNom+' » introuvable');
+      if(r.pere==='La courtine')r.pere=null;
+      if(r.num_serie&&series[r.num_serie].length>1)r.warn.push('n° série '+r.num_serie+' en double');
+      if(EQ.some(function(e){return norm(e.code)===norm(r.code);})){r.inclus=false;r.exclu='déjà dans la GMAO';}
+      r.modele=MODELE_PROPOSE[r.code]||'';
+    });
+    rows.forEach(function(r){if(!r.en_service&&rows.some(function(x){return x.pere===r.code&&x.inclus;})){r.en_service=true;r.warn.push('marqué actif (contient des machines)');}});
+    IMP={rows:rows,parCode:parCode};afficherImport();
+  };
+};
+function afficherImport(){
+  var R=IMP.rows,n=R.filter(function(r){return r.inclus;}).length;
+  $('iZ').innerHTML='<div class="carte"><b>2.</b> Vérifie la liste. Les lignes grisées (personnes, tachygraphes, poubelles, allées…) ne seront pas importées — coche-les si tu veux les garder.<br>Les noms, emplacements et familles ont été nettoyés. Les modèles proposés regroupent les machines identiques.'+
+    '<div class="actions"><button class="btn p" id="iGo">Importer '+n+' équipements</button></div></div>'+
+    '<div class="carte" style="overflow-x:auto"><table class="imp"><tr><th></th><th>Code</th><th>Nom</th><th>Rattaché à</th><th>Modèle</th><th>État</th><th>Remarques</th></tr>'+
+    R.map(function(r,i){var p=r.pere&&IMP.parCode[r.pere];return '<tr class="'+(r.inclus?'':'ex')+'"><td><input type="checkbox" data-i="'+i+'" style="width:auto"'+(r.inclus?' checked':'')+'></td><td>'+esc(r.code)+'</td><td>'+esc(r.nom)+'</td><td>'+(p?esc(p.nom)+' <span class="etiq">'+esc(p.code)+'</span>':'<span class="etiq">racine</span>')+'</td><td>'+esc(r.modele)+'</td><td>'+esc(r.etat)+'</td><td>'+(r.exclu?'<span class="etiq">'+esc(r.exclu)+'</span> ':'')+r.warn.map(function(w){return '<div class="warn">⚠ '+esc(w)+'</div>';}).join('')+'</td></tr>';}).join('')+'</table></div>';
+  document.querySelectorAll('#iZ [data-i]').forEach(function(c){c.onchange=function(){R[+c.dataset.i].inclus=c.checked;afficherImport();};});
+  $('iGo').onclick=importer;
+}
+async function importer(){
+  var R=IMP.rows.filter(function(r){return r.inclus;});if(!R.length)return;
+  $('iGo').disabled=true;$('iGo').textContent='Import en cours…';
+  try{
+    var modIds={};
+    for(var nomM of uniques(R.map(function(r){return r.modele;}))){
+      var ex=MOD.find(function(m){return norm(m.nom)===norm(nomM);});
+      if(ex){modIds[nomM]=ex.id;continue;}
+      var marque=R.find(function(r){return r.modele===nomM;}).marque||null;
+      var mr=await q(sb.from('gmao_modeles').insert({nom:nomM,marque:marque}).select());modIds[nomM]=mr[0].id;
+    }
+    var ids={};R.forEach(function(r){ids[r.code]=crypto.randomUUID();});
+    EQ.forEach(function(e){ids[e.code]=ids[e.code]||e.id;});
+    /* parents d'abord */
+    var faits={},ordre=[],garde=0;
+    while(ordre.length<R.length&&garde++<50){R.forEach(function(r){if(faits[r.code])return;var p=r.pere;if(!p||!R.some(function(x){return x.code===p;})||faits[p]){faits[r.code]=1;ordre.push(r);}});}
+    R.forEach(function(r){if(!faits[r.code])ordre.push(r);});
+    var payload=ordre.map(function(r){return {id:ids[r.code],code:r.code,nom:r.nom||r.code,parent_id:(r.pere&&ids[r.pere])||null,modele_id:r.modele?modIds[r.modele]:null,marque:r.marque||null,num_serie:r.num_serie||null,etat:r.etat,en_service:r.en_service,emplacement:r.emplacement||null,famille:r.famille||null,criticite:r.criticite||null};});
+    for(var i=0;i<payload.length;i+=50)await q(sb.from('gmao_equipements').insert(payload.slice(i,i+50)));
+    await chargerTout();toast('✓ '+payload.length+' équipements importés');aller('parc');
+  }catch(x){$('iGo').disabled=false;$('iGo').textContent='Réessayer';erreur(x);}
+}
+
+/* =====================================================================
+   DÉMARRAGE
+   ===================================================================== */
+async function demarrer(){
+  $('login').style.display='none';$('app').style.display='block';
+  NOM=(USER.user_metadata&&USER.user_metadata.nom)||'';
+  if(!NOM){
+    var n=await demander('Ton prénom','','Il s\'affichera sur les bons et les messages.');
+    NOM=(n||USER.email.split('@')[0]).trim();
+    try{await sb.auth.updateUser({data:{nom:NOM}});}catch(e){}
+  }
+  $('qui').innerHTML=esc(NOM)+' · '+VERSION+' · <a href="#" id="dec" style="color:#cfe0f3">quitter</a>';
+  $('dec').onclick=async function(e){e.preventDefault();await sb.auth.signOut();location.reload();};
+  try{await chargerTout();}catch(e){
+    $('main').innerHTML='<div class="carte"><b>La base GMAO n\'est pas encore installée.</b><br>Il faut d\'abord lancer le fichier <code>gmao-installation.sql</code> dans Supabase (SQL Editor).<br><br><span class="etiq">'+esc(e.message||e)+'</span></div>';return;
+  }
+  route();
+}
+async function connexion(){
+  $('li-err').style.display='none';
+  var r=await sb.auth.signInWithPassword({email:val('li-email'),password:$('li-pw').value});
+  if(r.error){$('li-err').textContent='Connexion impossible : '+r.error.message;$('li-err').style.display='block';return;}
+  USER=r.data.user;demarrer();
+}
+$('li-btn').onclick=connexion;
+$('li-pw').onkeydown=function(e){if(e.key==='Enter')connexion();};
+(async function(){var s=await sb.auth.getSession();if(s.data&&s.data.session){USER=s.data.session.user;demarrer();}else $('login').style.display='block';})();
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&USER&&/^#bon\//.test(location.hash)&&!$('fond').classList.contains('on'))route();});
+</script>
+</body>
+</html>
