@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>GMAO BdL</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GMAO">
+<meta name="theme-color" content="#16324f">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -92,6 +95,10 @@ table.imp td,table.imp th{border-bottom:1px solid var(--ligne);padding:5px;text-
 table.imp tr.ex{opacity:.45}
 .warn{color:var(--orange);font-size:12px}
 #login{max-width:360px;margin:70px auto}
+.grosbt{display:flex;gap:10px;margin-top:14px}
+.grosbt .btn{flex:1;padding:18px 10px;font-size:19px;border-radius:12px;font-weight:700}
+.chrono{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--orange2);color:#7a4300;font-size:15px}
+@media(max-width:640px){header h1{font-size:15px}#qui{display:none}main{padding:10px 10px 80px}h1.titre{font-size:18px}}
 </style>
 </head>
 <body>
@@ -130,7 +137,7 @@ table.imp tr.ex{opacity:.45}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v4';
+var VERSION='v5';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -165,6 +172,13 @@ function fmtDH(d){if(!d)return'';var x=new Date(d);return x.toLocaleDateString('
 function auj(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function ajoutJours(iso,n){var d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
 function joursEntre(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/864e5);}
+function minutesDepuis(d){return Math.max(0,Math.round((Date.now()-new Date(d))/60000));}
+function qrTel(){
+  var url=location.href;
+  ouvrir('<h3>📱 Ouvrir sur le téléphone</h3><div class="etiq">Vise ce code avec l\'appareil photo du téléphone. Première fois : connecte-toi avec le même e-mail et mot de passe, puis dans Safari « Partager → Sur l\'écran d\'accueil » pour avoir l\'icône GMAO.</div><div id="qr" style="display:flex;justify-content:center;margin:14px 0"></div><div class="etiq" style="word-break:break-all">'+esc(url)+'</div><div class="actions"><button class="btn" onclick="fermer()">Fermer</button></div>');
+  function dessiner(){new QRCode($('qr'),{text:url,width:220,height:220});}
+  if(window.QRCode)dessiner();else{var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';sc.onload=dessiner;sc.onerror=function(){$('qr').textContent='(QR indisponible — ouvre le lien ci-dessous sur le téléphone)';};document.head.appendChild(sc);}
+}
 function numBT(n){return 'BT-'+String(n||0).padStart(4,'0');}
 function nb(v){var x=parseFloat(String(v).replace(',','.'));return isNaN(x)?null:x;}
 function val(id){var e=$(id);return e?e.value.trim():'';}
@@ -371,15 +385,20 @@ VUES.bon=async function(id,extra){
   var msgs=await q(sb.from('gmao_messages').select('*').eq('intervention_id',id).order('cree_le'));
   var mvts=await q(sb.from('gmao_mouvements').select('*').eq('intervention_id',id).order('cree_le'));
   var e=EQID[b.equipement_id];
+  var debut=null;msgs.forEach(function(m){if(m.auteur==='•'&&/statut → En cours/.test(m.texte||''))debut=m.cree_le;});
+  clearInterval(window._chr);if(debut&&b.statut==='En cours')window._chr=setInterval(function(){var c=$('chr');if(c)c.textContent=minutesDepuis(debut)+' min';else clearInterval(window._chr);},30000);
   var html='<div class="chemin"><a href="#bons">← Bons de travail</a></div>'+
     '<h1 class="titre">'+numBT(b.numero)+' · '+esc(b.titre)+'</h1>'+
     '<div class="carte"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+badgeStatut(b.statut)+badgePrio(b.priorite,b.machine_arretee&&b.statut!=='Terminé')+'<span class="badge">'+esc(b.type)+'</span><span class="etiq">demandé par '+esc(b.demandeur||'?')+' le '+fmtDH(b.cree_le)+'</span></div>'+
     (e?'<div><b>Machine :</b> <a href="#eq/'+e.id+'">'+esc(chemin(e))+'</a> <span class="etiq">'+esc(e.code)+'</span></div>':'<div><b>Machine :</b> — <button class="btn l sm" id="bChMach">choisir</button></div>')+
     '<label>Description</label><div style="white-space:pre-wrap">'+esc(b.description||'—')+'</div>'+
+    (debut&&b.statut==='En cours'?'<div class="chrono">⏱ Commencé à '+new Date(debut).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' par '+esc(b.intervenant||'?')+' · <b id="chr">'+minutesDepuis(debut)+' min</b></div>':'')+
+    (b.statut!=='Terminé'?'<div class="grosbt">'+
+      (b.statut!=='En cours'?'<button class="btn v" data-st="En cours">▶ Démarrer</button>':'<button class="btn" data-st="Attente pièce">⏸ Attente pièce</button>')+
+      '<button class="btn p" id="bFin">■ Terminer</button></div>':'')+
     '<div class="actions" style="justify-content:flex-start">'+
-      STATUTS.filter(function(s){return s!==b.statut&&s!=='Terminé';}).map(function(s){return '<button class="btn sm" data-st="'+s+'">→ '+s+'</button>';}).join('')+
-      (b.statut!=='Terminé'?'<button class="btn v sm" id="bFin">✓ Terminer</button>':'<button class="btn sm" data-st="En cours">↺ Rouvrir</button>')+
-      '<button class="btn sm l" id="bEdit">✎ Modifier</button></div></div>';
+      (b.statut==='Terminé'?'<button class="btn sm" data-st="En cours">↺ Rouvrir</button>':'')+
+      '<button class="btn sm l" id="bEdit">✎ Modifier</button><button class="btn sm l" onclick="qrTel()">📱 Ouvrir sur le téléphone</button></div></div>';
   if(b.statut==='Terminé')html+='<div class="carte" style="background:var(--vert2)"><h2>✓ Terminé le '+fmtDH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</h2><div style="white-space:pre-wrap">'+esc(b.rapport||'')+'</div>'+
     '<div class="stats" style="margin-top:8px"><div><span class="etiq">Temps passé</span><b>'+(b.duree_min||0)+' min</b></div><div><span class="etiq">Arrêt machine</span><b>'+(b.arret_min||0)+' min</b></div></div></div>';
   html+='<div class="carte"><h2>💬 Échanges</h2><div class="fil">'+(msgs.length?msgs.map(function(m){
@@ -398,7 +417,7 @@ VUES.bon=async function(id,extra){
     if(s==='En cours'&&!b.intervenant)maj.intervenant=NOM;
     try{await q(sb.from('gmao_interventions').update(maj).eq('id',id));await logSys(id,NOM+' : statut → '+s);route();}catch(x){erreur(x);}
   };});
-  if($('bFin'))$('bFin').onclick=function(){terminerBon(b);};
+  if($('bFin'))$('bFin').onclick=function(){terminerBon(b,debut);};
   $('bEdit').onclick=function(){editerBon(b);};
   if($('bChMach'))$('bChMach').onclick=async function(){var x=await choisirEq();if(!x)return;await q(sb.from('gmao_interventions').update({equipement_id:x.id}).eq('id',id));route();};
   var photoMsg=null;
@@ -462,9 +481,10 @@ function editerBon(b){
   $('ebO').onclick=async function(){try{await q(sb.from('gmao_interventions').update({titre:val('ebT'),description:val('ebD'),type:$('ebTy').value,priorite:$('ebP').value,intervenant:val('ebI'),machine_arretee:$('ebA').value==='1'}).eq('id',b.id));fermer();route();}catch(x){erreur(x);}};
   $('ebX').onclick=async function(){if(!confirm('Supprimer définitivement ce bon ? (Les pièces sorties restent sorties du stock.)'))return;try{await q(sb.from('gmao_interventions').delete().eq('id',b.id));fermer();aller('bons');}catch(x){erreur(x);}};
 }
-function terminerBon(b){
+function terminerBon(b,debut){
+  var dAuto=(!b.duree_min&&debut)?minutesDepuis(debut):b.duree_min, aAuto=(!b.arret_min&&b.machine_arretee)?minutesDepuis(b.cree_le):b.arret_min;
   ouvrir('<h3>✓ Terminer '+numBT(b.numero)+'</h3><label>Ce qui a été fait (compte rendu)</label><textarea id="tbR" placeholder="Cause trouvée, réparation faite, à surveiller…">'+esc(b.rapport||'')+'</textarea>'+
-    '<div class="grille"><div><label>Temps passé (minutes)</label><input id="tbD" inputmode="numeric" value="'+(b.duree_min||'')+'"></div><div><label>Durée d\'arrêt machine (minutes)</label><input id="tbA" inputmode="numeric" value="'+(b.arret_min||'')+'"></div></div>'+
+    '<div class="grille"><div><label>Temps passé (minutes)</label><input id="tbD" inputmode="numeric" value="'+(dAuto||'')+'">'+(debut&&!b.duree_min?'<div class="etiq">calculé depuis le démarrage</div>':'')+'</div><div><label>Durée d\'arrêt machine (minutes)</label><input id="tbA" inputmode="numeric" value="'+(aAuto||'')+'"></div></div>'+
     '<label>Fait par</label><input id="tbI" value="'+esc(b.intervenant||NOM)+'">'+
     '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn v" id="tbO">Terminer le bon</button></div>');
   $('tbO').onclick=async function(){
