@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v160</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v161</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -502,6 +502,28 @@ function galettesTunnelTotal(){return rows.reduce(function(s,r){return (r.machin
    Ex. : 16h, 194 galettes restantes, 150 s/galette -> 194×150 = 8h05 -> fin 00h05. Plus on lave vite, moins
    il reste de galettes à un instant donné, plus l'heure est tôt. Pour une autre date (prévisionnel, pas
    aujourd'hui), on part de l'heure de démarrage au lieu de l'heure actuelle. */
+/* ---------- Envoi de l'heure de fin au bureau (appli Relevés clients d'Alexandra) ---------- */
+var FIN_API='https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
+var _finEnvoi=null;
+function publierFin(){
+  try{
+    if(typeof USER==='undefined'||!USER||curDate!==todayISO()||!rows||!rows.length)return;
+    var total=galettesTunnelTotal();if(!total)return;
+    var reste=galettesRestantes(),termine=reste===0,fin;
+    if(termine){var mx=null;rows.forEach(function(r){if(r.machine==='tunnel'&&r._faitAt!=null&&(mx===null||r._faitAt>mx))mx=r._faitAt;});fin=mx!=null?mx:nowSec();}
+    else fin=heureFinReste();
+    var maint=Date.now(),l=_finEnvoi;
+    if(l&&l.date===curDate){
+      if(l.termine&&termine)return;
+      var change=Math.abs(fin-l.fin)>=120||reste!==l.reste||termine!==l.termine;
+      if(!change&&maint-l.t<15*60000)return;
+      if(maint-l.t<3*60000&&!termine)return;
+    }
+    _finEnvoi={date:curDate,fin:fin,reste:reste,termine:termine,t:maint};
+    fetch(FIN_API,{method:'POST',body:JSON.stringify({action:'finLavage',date:curDate,fin:fmtHHMM(fin),reste:reste,total:total,termine:termine})}).catch(function(){_finEnvoi=null;});
+  }catch(e){}
+}
+setInterval(publierFin,5*60000);
 function heureFinReste(){
   var dep=parseHeure(CFG.heureDemarrage);
   var start=(curDate===todayISO())?Math.max(nowSec(),dep):dep;
@@ -1562,6 +1584,7 @@ function renderResults(){
   var _gReste=galettesRestantes();
   var _gTunnel=galettesTunnelTotal();
   var _gLav=rows.reduce(function(s,r){return (r.machine!=='tunnel'||r._lav)?s+(parseInt(r.nbTransferts)||0):s;},0);
+  setTimeout(publierFin,0);
   h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReste()))+metric('Reste à laver',_gReste+' gal')+metric('Total tunnel',_gTunnel+' gal')+metric('Laveuse',_gLav+' gal')+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
