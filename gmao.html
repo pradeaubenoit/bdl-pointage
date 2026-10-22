@@ -129,7 +129,7 @@ table.imp tr.ex{opacity:.45}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v1';
+var VERSION='v2';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -757,10 +757,11 @@ function lireCSV(txt){
 }
 var IMP=null;
 VUES.import=async function(){
-  $('main').innerHTML='<h1 class="titre">Import depuis DIMO</h1><div class="carte"><b>1.</b> Choisis le fichier <b>Equipements</b> exporté de DIMO (.csv).<br><br><input type="file" id="iF" accept=".csv,text/csv"></div><div id="iZ"></div>';
+  $('main').innerHTML='<h1 class="titre">Import depuis DIMO</h1><div class="carte"><b>1.</b> Choisis un fichier exporté de DIMO (.csv) : <b>Equipements</b> ou <b>Pièces stockées par magasin</b>.<br><br><input type="file" id="iF" accept=".csv,text/csv"></div><div id="iZ"></div>';
   $('iF').onchange=async function(){
     var f=this.files[0];if(!f)return;var txt=await f.text();var L=lireCSV(txt);
-    if(!L.length||!('Equipement père' in L[0])){$('iZ').innerHTML='<div class="carte">Ce fichier ne ressemble pas à l\'export Équipements de DIMO.</div>';return;}
+    if(L.length&&('Code pièce' in L[0])){preparerPieces(L);return;}
+    if(!L.length||!('Equipement père' in L[0])){$('iZ').innerHTML='<div class="carte">Ce fichier ne ressemble ni à l\'export Équipements ni à l\'export Pièces de DIMO.</div>';return;}
     var rows=L.map(function(o){return {code:o['Code'].trim(),nom:propre(o['Désignation']),pereNom:o['Equipement père'],marque:propre(o['Marque']),modeleTxt:o["Modèle d'équipement"],num_serie:o['Numéro de série'].trim(),etat:etatPropre(o["Etat d'équipement"]),emplacement:propre(o['Emplacement']),famille:propre(o['Désignation famille d\'équipements']),criticite:propre(o["Criticité d'équipement"])||null,en_service:o['En service']==='true'};});
     var parNom={};rows.forEach(function(r){var k=norm(r.nom);(parNom[k]=parNom[k]||[]).push(r);});
     var parCode={};rows.forEach(function(r){parCode[r.code]=r;});
@@ -809,6 +810,69 @@ async function importer(){
     var payload=ordre.map(function(r){return {id:ids[r.code],code:r.code,nom:r.nom||r.code,parent_id:(r.pere&&ids[r.pere])||null,modele_id:r.modele?modIds[r.modele]:null,marque:r.marque||null,num_serie:r.num_serie||null,etat:r.etat,en_service:r.en_service,emplacement:r.emplacement||null,famille:r.famille||null,criticite:r.criticite||null};});
     for(var i=0;i<payload.length;i+=50)await q(sb.from('gmao_equipements').insert(payload.slice(i,i+50)));
     await chargerTout();toast('✓ '+payload.length+' équipements importés');aller('parc');
+  }catch(x){$('iGo').disabled=false;$('iGo').textContent='Réessayer';erreur(x);}
+}
+
+
+/* ---------- Import des pièces DIMO ---------- */
+/* Pièces reconnues pour une machine (code pièce DIMO → code équipement ; m:true = lier au modèle) */
+var PIECE_MACHINE={
+  '14401211':{e:'PGT'},'JPGT':{e:'PGT'},'12511':{e:'PGT'},
+  'ASA38.10':{e:'TL1'},'asa38.10 attache a goupille':{e:'TL1'},'ASA3810.10SLINK':{e:'TL1'},
+  'sanglecfm2':{e:'3.CFM2'},'BTCFM2':{e:'3.CFM2'},
+  'plaq':{e:'PTM'},'62204-2RS':{e:'PTM'},
+  '6205.HV.ZZ':{e:'NAV1'},'WM100349':{e:'NAV1'},
+  'TAP  4900X1080':{e:'P1'},'moteur2 sortie séchoir':{e:'moteur2'},'MRFAXMPB':{e:'MRFAXM'},
+  'pompe 2':{e:'pompe 2'},'4314':{e:'ebmpapst 4314'},'8881450':{e:'pompe 8881450'},
+  '055350/3':{e:'VFD120'},'VFL120':{e:'VFL120'},'69042850':{e:'ASPI'},'Aspi':{e:'ASPI'},'BES':{e:'OG716.971'},
+  'feuil':{e:'B30',m:true},'FIL':{e:'MSF1'}
+};
+function nbFr(v){v=String(v||'').replace(/["'\s]/g,'').replace(',','.');var x=parseFloat(v);return isNaN(x)?0:x;}
+function unitePropre(u){var n=norm(u);if(!n||n==='unite'||n==='degre celsius')return 'pce';if(n==='metre')return 'm';return u.trim();}
+function preparerPieces(L){
+  var parCle={},liste=[];
+  L.forEach(function(o){
+    var code=String(o['Code pièce']||'').trim(), u=unitePropre(o['Unité de stockage']), cle=norm(code)+'|'+norm(u);
+    var mag2=o['Code magasin']!=='MAIN', lieu=String(o['Lieu de stockage']||'').trim();
+    var empl=lieu?(mag2?'Magasin 2 – '+lieu:lieu):(mag2?'Magasin 2':'');
+    var x=parCle[cle];
+    if(!x){x=parCle[cle]={ref:code,designation:propre(o['Désignation pièce']),unite:u,stock:0,empl:[],fournisseur:propre(o['Fournisseur principal']),alerte:false,inclus:true,warn:[]};liste.push(x);}
+    x.stock+=nbFr(o['Réelle']);if(empl&&x.empl.indexOf(empl)<0)x.empl.push(empl);
+    if(o['Pièce/stock en alerte']==='Oui')x.alerte=true;
+  });
+  var vus={};liste.forEach(function(x){var k=norm(x.ref);if(vus[k]){x.designation+=' ('+x.unite+')';vus[k].designation.indexOf('(')<0&&(vus[k].designation+=' ('+vus[k].unite+')');}else vus[k]=x;});
+  liste.forEach(function(x){
+    x.emplacement=x.empl.join(' / ');
+    x.stock_mini=x.alerte?Math.max(1,x.stock):0;
+    var m=PIECE_MACHINE[x.ref]||PIECE_MACHINE[x.ref.trim()], e=null;
+    if(!m){e=EQ.find(function(q){return compact(q.code)===compact(x.ref)||(q.num_serie&&compact(q.num_serie)===compact(x.ref));});if(e)m={e:e.code};}
+    if(m){e=EQ.find(function(q){return q.code===m.e;});if(e){x.lien={equipement:e,modele:m.m&&e.modele_id?MODID[e.modele_id]:null};x.lier=true;}}
+    if(ART.some(function(a){return norm(a.ref)===norm(x.ref)&&norm(a.unite)===norm(x.unite);})){x.inclus=false;x.warn.push('déjà dans la GMAO');}
+  });
+  IMP={pieces:liste};afficherPieces();
+}
+function afficherPieces(){
+  var R=IMP.pieces,n=R.filter(function(r){return r.inclus;}).length,nl=R.filter(function(r){return r.inclus&&r.lien&&r.lier;}).length;
+  $('iZ').innerHTML='<div class="carte"><b>2.</b> '+R.length+' pièces trouvées. DIMO ne donne pas les machines de chaque pièce : j\'en ai reconnu <b>'+R.filter(function(r){return r.lien;}).length+'</b> (pompe à graisse tunnel, chaîne tunnel, CFM2, navette…). Les autres, tu les lieras au fil de l\'eau depuis la fiche machine.<br>'+
+    '<span class="etiq">Le stock mini n\'est pas dans l\'export : les pièces « en alerte » dans DIMO reçoivent un mini de 1 (à ajuster).</span>'+
+    '<div class="actions"><button class="btn p" id="iGo">Importer '+n+' pièces ('+nl+' liens machine)</button></div></div>'+
+    '<div class="carte" style="overflow-x:auto"><table class="imp"><tr><th></th><th>Réf.</th><th>Désignation</th><th>Stock</th><th>Emplacement</th><th>Fournisseur</th><th>Machine</th></tr>'+
+    R.map(function(r,i){return '<tr class="'+(r.inclus?'':'ex')+'"><td><input type="checkbox" data-i="'+i+'" style="width:auto"'+(r.inclus?' checked':'')+'></td><td>'+esc(r.ref)+'</td><td>'+esc(r.designation)+(r.alerte?' <span class="badge b-orange">alerte</span>':'')+r.warn.map(function(w){return '<div class="warn">'+esc(w)+'</div>';}).join('')+'</td><td>'+r.stock+' '+esc(r.unite)+'</td><td>'+esc(r.emplacement)+'</td><td>'+esc(r.fournisseur)+'</td><td>'+
+      (r.lien?'<label style="display:flex;gap:5px;margin:0;color:var(--txt);font-size:13px"><input type="checkbox" data-l="'+i+'" style="width:auto"'+(r.lier?' checked':'')+'>'+esc(r.lien.modele?'modèle '+r.lien.modele.nom:r.lien.equipement.nom)+'</label>':'')+'</td></tr>';}).join('')+'</table></div>';
+  document.querySelectorAll('#iZ [data-i]').forEach(function(c){c.onchange=function(){R[+c.dataset.i].inclus=c.checked;afficherPieces();};});
+  document.querySelectorAll('#iZ [data-l]').forEach(function(c){c.onchange=function(){R[+c.dataset.l].lier=c.checked;afficherPieces();};});
+  $('iGo').onclick=importerPieces;
+}
+async function importerPieces(){
+  var R=IMP.pieces.filter(function(r){return r.inclus;});if(!R.length)return;
+  $('iGo').disabled=true;$('iGo').textContent='Import en cours…';
+  try{
+    R.forEach(function(r){r.id=crypto.randomUUID();});
+    var pl=R.map(function(r){return {id:r.id,ref:r.ref,designation:r.designation||r.ref,unite:r.unite,stock:r.stock,stock_mini:r.stock_mini,emplacement:r.emplacement||null,fournisseur:r.fournisseur||null};});
+    for(var i=0;i<pl.length;i+=100)await q(sb.from('gmao_articles').insert(pl.slice(i,i+100)));
+    var li=R.filter(function(r){return r.lien&&r.lier;}).map(function(r){var o={article_id:r.id,quantite:1};if(r.lien.modele)o.modele_id=r.lien.modele.id;else o.equipement_id=r.lien.equipement.id;return o;});
+    if(li.length)await q(sb.from('gmao_liens').insert(li));
+    await chargerTout();toast('✓ '+pl.length+' pièces importées');aller('articles');
   }catch(x){$('iGo').disabled=false;$('iGo').textContent='Réessayer';erreur(x);}
 }
 
