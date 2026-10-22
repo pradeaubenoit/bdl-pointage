@@ -147,7 +147,7 @@ table.imp tr.ex{opacity:.45}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v6';
+var VERSION='v6.1';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -1250,7 +1250,7 @@ VUES.planning=async function(){
   var actifs=PERS.filter(function(p){return p.actif!==false;});
   if(!actifs.length)html+='<div class="carte" style="background:var(--bleu2)">Ajoute d\'abord les personnes de l\'équipe maintenance avec leur temps disponible par jour (en bas de la page).</div>';
   actifs.forEach(function(p){
-    var l=ouverts.filter(function(b){return norm(b.assigne_a)===norm(p.nom)&&b.prevu_le===j;});
+    var l=ouverts.filter(function(b){return norm(b.assigne_a)===norm(p.nom)&&(b.prevu_le===j||(j===auj()&&b.prevu_le&&b.prevu_le<j));});
     var charge=l.reduce(function(s,b){return s+restant(b);},0), cap=+p.capacite_min||420, sansT=l.filter(function(b){return !b.temps_prevu_min;}).length;
     var pc=Math.min(100,charge/cap*100), trop=charge>cap;
     html+='<div class="carte"><h2>👷 '+esc(p.nom)+'<span class="d etiq">'+fmtMin(charge)+' / '+fmtMin(cap)+'</span></h2>'+
@@ -1259,7 +1259,7 @@ VUES.planning=async function(){
       (sansT?'<div class="etiq" style="color:var(--orange)">'+sansT+' bon'+(sansT>1?'s':'')+' sans temps prévu (non compté'+(sansT>1?'s':'')+')</div>':'')+
       (l.length?l.map(ligneBonPlan).join(''):'<div class="vide">Rien de prévu.</div>')+'</div>';
   });
-  var retard=ouverts.filter(function(b){return b.prevu_le&&b.prevu_le<auj();});
+  var retard=ouverts.filter(function(b){return b.prevu_le&&b.prevu_le<auj()&&!b.assigne_a;});
   if(retard.length)html+='<div class="carte" style="border-color:var(--rouge)"><h2>⏰ Prévus un jour passé, pas terminés</h2>'+retard.map(ligneBonPlan).join('')+'</div>';
   var nonPl=ouverts.filter(function(b){return !b.prevu_le||!b.assigne_a;});
   html+='<div class="carte"><h2>📥 À planifier ('+nonPl.length+')</h2>'+(nonPl.length?nonPl.map(ligneBonPlan).join(''):'<div class="vide">Tout est planifié.</div>')+'</div>';
@@ -1278,7 +1278,7 @@ VUES.planning=async function(){
 function ligneBonPlan(b){
   var e=EQID[b.equipement_id],p=+b.temps_prevu_min||0,fait=+b.duree_min||0;
   return '<a class="ligne" href="#bon/'+b.id+'"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+
-    (b.assigne_a?' · 👷 '+esc(b.assigne_a):'')+(b.prevu_le?' · '+fmtD(b.prevu_le):'')+(p?' · prévu '+fmtMin(p)+(fait?' (déjà '+fmtMin(fait)+')':''):' · <span style="color:var(--orange)">temps ?</span>')+'</div></div>'+
+    (b.assigne_a?' · 👷 '+esc(b.assigne_a):'')+(b.prevu_le?(b.prevu_le<auj()?' · <b style="color:var(--orange)">reporté du '+fmtD(b.prevu_le)+'</b>':' · '+fmtD(b.prevu_le)):'')+(p?' · prévu '+fmtMin(p)+(fait?' (déjà '+fmtMin(fait)+')':''):' · <span style="color:var(--orange)">temps ?</span>')+'</div></div>'+
     badgeStatut(b.statut)+'<button class="btn sm" data-pl="'+b.id+'">Planifier</button></a>';
 }
 function planifier(b,jourDefaut){
