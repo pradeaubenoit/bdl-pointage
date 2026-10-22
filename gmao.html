@@ -96,6 +96,15 @@ table.imp tr.ex{opacity:.45}
 .warn{color:var(--orange);font-size:12px}
 #login{max-width:360px;margin:70px auto}
 .grosbt{display:flex;gap:10px;margin-top:14px}
+.btn.o{background:var(--orange);border-color:var(--orange);color:#fff}
+.chrono.rouge{background:var(--rouge2);color:var(--rouge)}
+.barre{height:8px;background:rgba(0,0,0,.08);border-radius:5px;margin-top:8px;overflow:hidden}.barre>div{height:100%;background:var(--vert);border-radius:5px}
+.chrono .barre>div{background:var(--orange)}.chrono.rouge .barre>div,.barre.rouge>div{background:var(--rouge)}.barre.gros{height:14px;margin:4px 0 8px}
+.alerte{background:var(--rouge2);color:var(--rouge);padding:8px 10px;border-radius:8px;margin-bottom:8px}
+.check{display:flex;flex-direction:column;gap:6px}
+.ck{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--ligne);border-radius:10px;cursor:pointer;font-size:16px;user-select:none}
+.ck .bx{width:28px;height:28px;border:2px solid #9aa3ad;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex:none}
+.ck.ok{background:var(--vert2);border-color:#b7dcb9}.ck.ok .bx{background:var(--vert);border-color:var(--vert)}.ck.ok .g{text-decoration:line-through;color:#4b6b4d}
 .grosbt .btn{flex:1;padding:18px 10px;font-size:19px;border-radius:12px;font-weight:700}
 .chrono{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--orange2);color:#7a4300;font-size:15px}
 @media(max-width:640px){header h1{font-size:15px}#qui{display:none}main{padding:10px 10px 80px}h1.titre{font-size:18px}}
@@ -117,6 +126,7 @@ table.imp tr.ex{opacity:.45}
     <nav id="nav">
       <a href="#accueil" data-v="accueil">Accueil</a>
       <a href="#bons" data-v="bons">Bons de travail</a>
+      <a href="#planning" data-v="planning">Planning</a>
       <a href="#parc" data-v="parc">Parc</a>
       <a href="#articles" data-v="articles">Pièces</a>
       <a href="#preventif" data-v="preventif">Préventif</a>
@@ -137,12 +147,12 @@ table.imp tr.ex{opacity:.45}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v5';
+var VERSION='v6';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
 var USER=null, NOM='';
-var EQ=[], EQID={}, MOD=[], MODID={}, ART=[], ARTID={}, LIENS=[], PREV=[], PART=[], MES=[], MESID={}, DERN={}, V2=true, SRC=[], SRCA={}, V4=true;
+var EQ=[], EQID={}, MOD=[], MODID={}, ART=[], ARTID={}, LIENS=[], PREV=[], PART=[], MES=[], MESID={}, DERN={}, V2=true, SRC=[], SRCA={}, V4=true, PERS=[], STATS={}, V6=true;
 
 /* ---------- outils ---------- */
 function $(id){return document.getElementById(id);}
@@ -200,6 +210,10 @@ async function chargerTout(){
   }catch(e){V2=false;PART=[];MES=[];DERN={};}
   MESID={};MES.forEach(function(m){MESID[m.id]=m;});
   try{SRC=await q(sb.from('gmao_sources').select('*'));V4=true;}catch(e){SRC=[];V4=false;}
+  try{PERS=await q(sb.from('gmao_personnes').select('*').order('nom'));V6=true;
+    STATS={};(await q(sb.from('gmao_interventions').select('preventif_id,duree_min,valide_le').eq('statut','Terminé'))).forEach(function(b){if(b.preventif_id&&b.valide_le&&b.duree_min){var x=STATS[b.preventif_id]=STATS[b.preventif_id]||{n:0,t:0};x.n++;x.t+=+b.duree_min;}});
+    Object.keys(STATS).forEach(function(k){STATS[k].moy=Math.round(STATS[k].t/STATS[k].n);});
+  }catch(e){PERS=[];STATS={};V6=false;}
   SRCA={};SRC.forEach(function(x){(SRCA[x.article_id]=SRCA[x.article_id]||[]).push(x);});
   EQID={};EQ.forEach(function(e){EQID[e.id]=e;});
   MODID={};MOD.forEach(function(m){MODID[m.id]=m;});
@@ -279,8 +293,8 @@ function choisirEq(titre){return choisir({titre:titre||'Choisir une machine',ite
 function badgeStock(a){var s=+a.stock||0,m=+a.stock_mini||0;return '<span class="badge '+(s<=0?'b-rouge':(s<=m?'b-orange':'b-vert'))+'">'+s+' '+esc(a.unite||'')+'</span>';}
 
 /* ---------- badges ---------- */
-var STATUTS=['Demandé','En cours','Attente pièce','Terminé'];
-function badgeStatut(s){var c={'Demandé':'b-bleu','En cours':'b-orange','Attente pièce':'b-rouge','Terminé':'b-vert'}[s]||'';return '<span class="badge '+c+'">'+esc(s)+'</span>';}
+var STATUTS=['Demandé','En cours','En pause','Attente pièce','Terminé'];
+function badgeStatut(s){var c={'Demandé':'b-bleu','En cours':'b-orange','En pause':'b-orange','Attente pièce':'b-rouge','Terminé':'b-vert'}[s]||'';return '<span class="badge '+c+'">'+esc(s)+'</span>';}
 function badgePrio(p,arr){if(arr)return '<span class="badge b-rouge">⛔ arrêt</span>';if(p==='Urgente')return '<span class="badge b-rouge">Urgent</span>';return '';}
 function badgeEtat(e){if(!e)return'';var c={'En service':'b-vert','Dégradé':'b-orange','En réparation':'b-orange','Hors service':'b-rouge'}[e]||'';return '<span class="badge '+c+'">'+esc(e)+'</span>';}
 function echeance(p){if(!p.dernier)return null;return ajoutJours(p.dernier,p.periodicite_jours||30);}
@@ -310,7 +324,7 @@ function aller(h){location.hash=h;}
 async function route(){
   var h=location.hash.replace(/^#/,'')||'accueil', p=h.split('/'), v=p[0];
   document.querySelectorAll('#nav a').forEach(function(a){
-    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&v==='bon')||(d==='parc'&&v==='eq')||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
+    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&v==='bon')||(d==='planning'&&v==='planning')||(d==='parc'&&v==='eq')||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
   });
   var f=VUES[v]||VUES.accueil;
   $('main').innerHTML='<div class="vide">Chargement…</div>';
@@ -328,6 +342,7 @@ VUES.accueil=async function(){
   var sousMini=ART.filter(function(a){return (+a.stock||0)<=(+a.stock_mini||0)&&(+a.stock_mini||0)>0;});
   var degr=EQ.filter(function(e){return e.en_service&&e.etat&&e.etat!=='En service';});
   var urg=bons.filter(function(b){return b.priorite==='Urgente'||b.machine_arretee;});
+  var aValider=V6?await q(sb.from('gmao_interventions').select('*').eq('statut','Terminé').is('valide_le',null).order('fin',{ascending:false}).limit(50)):[];
   var html='<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau\')">⚠ Signaler une panne</button>'+
     '<button class="btn p" onclick="aller(\'articles\')">🔎 Chercher une pièce</button></div>'+
     '<div class="tuiles">'+
@@ -335,8 +350,9 @@ VUES.accueil=async function(){
     '<a class="tuile" href="#bons"><b>'+bons.length+'</b><span>bons ouverts</span></a>'+
     '<a class="tuile'+(retard.length?' alerte':'')+'" href="#preventif"><b>'+retard.length+'</b><span>préventifs à faire (7 j)</span></a>'+
     '<a class="tuile'+(sousMini.length?' alerte':'')+'" href="#articles/mini"><b>'+sousMini.length+'</b><span>pièces sous le mini</span></a>'+
-    '<a class="tuile" href="#parc"><b>'+degr.length+'</b><span>machines dégradées</span></a></div>';
+    '<a class="tuile" href="#parc"><b>'+degr.length+'</b><span>machines dégradées</span></a>'+(V6?'<a class="tuile'+(aValider.length?' alerte':'')+'" href="#bons"><b>'+aValider.length+'</b><span>travaux à valider</span></a>':'')+'</div>';
   html+='<div class="carte"><h2>Bons ouverts</h2>'+(bons.length?bons.slice(0,12).map(ligneBon).join(''):'<div class="vide">Aucun bon ouvert. 👍</div>')+'</div>';
+  if(aValider.length)html+='<div class="carte"><h2>✔ À valider</h2>'+aValider.map(function(b){var dep=b.temps_prevu_min&&b.duree_min>b.temps_prevu_min;return ligneBon(b).replace('</div></div>',' · '+fmtMin(b.duree_min)+(b.temps_prevu_min?' / prévu '+fmtMin(b.temps_prevu_min):'')+(dep?' <b style="color:var(--rouge)">dépassé</b>':'')+'</div></div>');}).join('')+'</div>';
   html+='<div class="carte"><h2>Préventif à venir</h2>'+(retard.length?retard.map(lignePrev).join(''):'<div class="vide">Rien d\'ici 7 jours.</div>')+'</div>';
   if(degr.length)html+='<div class="carte"><h2>Machines dégradées</h2>'+degr.map(function(e){return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+badgeEtat(e.etat)+'</a>';}).join('')+'</div>';
   if(!EQ.length)html='<div class="carte" style="background:var(--bleu2)"><b>Bienvenue !</b> Ta GMAO est vide. Commence par <a href="#import">importer ton fichier d\'équipements DIMO</a>.</div>'+html;
@@ -353,7 +369,7 @@ function periodeTxt(p){
 }
 function lignePrev(p){
   var e=EQID[p.equipement_id];
-  return '<div class="ligne"><div class="g"><div class="t">'+esc(p.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · '+periodeTxt(p)+'</div></div>'+
+  return '<div class="ligne"><div class="g"><div class="t">'+esc(p.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · '+periodeTxt(p)+(p.temps_prevu_min?' · ⏱ prévu '+fmtMin(p.temps_prevu_min):'')+(STATS[p.id]?' · réel moyen '+fmtMin(STATS[p.id].moy)+' ('+STATS[p.id].n+' fois)':'')+'</div></div>'+
     badgeEcheance(p)+'<button class="btn sm" onclick="lancerPrev(\''+p.id+'\')">Créer le bon</button><button class="btn sm l" onclick="editerPrev(\''+p.id+'\')">✎</button></div>';
 }
 
@@ -378,29 +394,57 @@ VUES.bons=async function(){
   rendre();
 };
 
+/* ---------- chronomètre : somme des périodes « en cours » (reprend après une pause) ---------- */
+function tempsPasse(msgs){
+  var total=0,cur=null;
+  msgs.filter(function(m){return m.auteur==='•';}).sort(function(a,b){return a.cree_le<b.cree_le?-1:1;}).forEach(function(m){
+    var t=m.texte||'',d=new Date(m.cree_le).getTime();
+    var start=/▶/.test(t)||/statut → En cours/.test(t);
+    var stop=/[⏸■]/.test(t)||(/statut → /.test(t)&&!/statut → En cours/.test(t))||/bon terminé/.test(t);
+    if(start&&cur===null)cur=d;else if(stop&&cur!==null){total+=d-cur;cur=null;}
+  });
+  return {min:Math.round((total+(cur!==null?Date.now()-cur:0))/60000),cur:cur};
+}
+function fmtMin(m){m=Math.round(m||0);if(m<60)return m+' min';return Math.floor(m/60)+' h '+String(m%60).padStart(2,'0');}
+/* liste à cocher dans la description : lignes « ☐ … » / « ☑ … » */
+function lignesCheck(desc){return String(desc||'').split('\n').map(function(l,i){var m=l.match(/^\s*([☐☑])\s?(.*)$/);return m?{i:i,fait:m[1]==='☑',txt:m[2]}:{i:i,txt:l,libre:true};});}
+
 VUES.bon=async function(id,extra){
   if(id==='nouveau')return nouveauBon(extra);
   var b=(await q(sb.from('gmao_interventions').select('*').eq('id',id)))[0];
   if(!b){$('main').innerHTML='<div class="carte">Bon introuvable.</div>';return;}
   var msgs=await q(sb.from('gmao_messages').select('*').eq('intervention_id',id).order('cree_le'));
   var mvts=await q(sb.from('gmao_mouvements').select('*').eq('intervention_id',id).order('cree_le'));
-  var e=EQID[b.equipement_id];
-  var debut=null;msgs.forEach(function(m){if(m.auteur==='•'&&/statut → En cours/.test(m.texte||''))debut=m.cree_le;});
-  clearInterval(window._chr);if(debut&&b.statut==='En cours')window._chr=setInterval(function(){var c=$('chr');if(c)c.textContent=minutesDepuis(debut)+' min';else clearInterval(window._chr);},30000);
+  var e=EQID[b.equipement_id], tp=tempsPasse(msgs), prevu=+b.temps_prevu_min||0, fini=b.statut==='Terminé';
+  if(fini&&b.duree_min!=null)tp.min=+b.duree_min;
+  var L=lignesCheck(b.description), items=L.filter(function(x){return !x.libre;}), nbFait=items.filter(function(x){return x.fait;}).length;
+  function quiCoche(txt){var r=null;msgs.forEach(function(m){var t=m.texte||'';if(m.auteur==='•'&&t.indexOf('☑')===0&&t.indexOf('« '+txt+' »')>0)r=m;});return r;}
+  clearInterval(window._chr);
+  if(tp.cur!==null&&!fini)window._chr=setInterval(function(){var c=$('chr');if(!c){clearInterval(window._chr);return;}var t=tempsPasse(msgs);c.textContent=fmtMin(t.min);var bar=$('chrBar');if(bar&&prevu)bar.style.width=Math.min(100,t.min/prevu*100)+'%';},20000);
+  var depasse=prevu&&tp.min>prevu;
   var html='<div class="chemin"><a href="#bons">← Bons de travail</a></div>'+
     '<h1 class="titre">'+numBT(b.numero)+' · '+esc(b.titre)+'</h1>'+
-    '<div class="carte"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+badgeStatut(b.statut)+badgePrio(b.priorite,b.machine_arretee&&b.statut!=='Terminé')+'<span class="badge">'+esc(b.type)+'</span><span class="etiq">demandé par '+esc(b.demandeur||'?')+' le '+fmtDH(b.cree_le)+'</span></div>'+
+    '<div class="carte"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+badgeStatut(b.statut)+(b.valide_le?'<span class="badge b-vert">✔ validé</span>':'')+badgePrio(b.priorite,b.machine_arretee&&!fini)+'<span class="badge">'+esc(b.type)+'</span><span class="etiq">demandé par '+esc(b.demandeur||'?')+' le '+fmtDH(b.cree_le)+'</span></div>'+
     (e?'<div><b>Machine :</b> <a href="#eq/'+e.id+'">'+esc(chemin(e))+'</a> <span class="etiq">'+esc(e.code)+'</span></div>':'<div><b>Machine :</b> — <button class="btn l sm" id="bChMach">choisir</button></div>')+
-    '<label>Description</label><div style="white-space:pre-wrap">'+esc(b.description||'—')+'</div>'+
-    (debut&&b.statut==='En cours'?'<div class="chrono">⏱ Commencé à '+new Date(debut).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' par '+esc(b.intervenant||'?')+' · <b id="chr">'+minutesDepuis(debut)+' min</b></div>':'')+
-    (b.statut!=='Terminé'?'<div class="grosbt">'+
-      (b.statut!=='En cours'?'<button class="btn v" data-st="En cours">▶ Démarrer</button>':'<button class="btn" data-st="Attente pièce">⏸ Attente pièce</button>')+
+    (b.assigne_a||b.prevu_le?'<div style="margin-top:4px"><b>Confié à :</b> '+esc(b.assigne_a||'—')+(b.prevu_le?' · prévu le '+fmtD(b.prevu_le):'')+'</div>':'')+
+    (L.some(function(x){return x.libre&&x.txt.trim();})?'<label>Description</label><div style="white-space:pre-wrap">'+esc(L.filter(function(x){return x.libre;}).map(function(x){return x.txt;}).join('\n').trim())+'</div>':'')+
+    (items.length?'<label>À faire — '+nbFait+'/'+items.length+' fait'+(nbFait>1?'s':'')+'</label><div class="check">'+items.map(function(x){var m=x.fait?quiCoche(x.txt):null;
+      return '<div class="ck'+(x.fait?' ok':'')+'" data-ck="'+x.i+'"><span class="bx">'+(x.fait?'✓':'')+'</span><div class="g">'+esc(x.txt)+(m?'<div class="etiq">'+esc((m.texte.match(/^☑ ([^:]+) :/)||[,''])[1])+' · '+fmtDH(m.cree_le)+'</div>':'')+'</div></div>';}).join('')+'</div>':'')+
+    ((tp.min>0||prevu)?'<div class="chrono'+(depasse?' rouge':'')+'">⏱ '+(tp.cur!==null&&!fini?'En cours · ':'')+'temps passé <b id="chr">'+fmtMin(tp.min)+'</b>'+(prevu?' / prévu <b>'+fmtMin(prevu)+'</b>'+(depasse?' · dépassement <b>+'+fmtMin(tp.min-prevu)+'</b>':''):'')+
+      (prevu?'<div class="barre"><div id="chrBar" style="width:'+Math.min(100,tp.min/prevu*100)+'%"></div></div>':'')+'</div>':'')+
+    (!fini?'<div class="grosbt">'+
+      (b.statut!=='En cours'?'<button class="btn v" id="bGo">▶ '+(tp.min>0?'Reprendre':'Démarrer')+'</button>':'<button class="btn o" id="bPause">⏸ Pause</button>')+
       '<button class="btn p" id="bFin">■ Terminer</button></div>':'')+
     '<div class="actions" style="justify-content:flex-start">'+
-      (b.statut==='Terminé'?'<button class="btn sm" data-st="En cours">↺ Rouvrir</button>':'')+
-      '<button class="btn sm l" id="bEdit">✎ Modifier</button><button class="btn sm l" onclick="qrTel()">📱 Ouvrir sur le téléphone</button></div></div>';
-  if(b.statut==='Terminé')html+='<div class="carte" style="background:var(--vert2)"><h2>✓ Terminé le '+fmtDH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</h2><div style="white-space:pre-wrap">'+esc(b.rapport||'')+'</div>'+
-    '<div class="stats" style="margin-top:8px"><div><span class="etiq">Temps passé</span><b>'+(b.duree_min||0)+' min</b></div><div><span class="etiq">Arrêt machine</span><b>'+(b.arret_min||0)+' min</b></div></div></div>';
+      (!fini&&b.statut!=='Attente pièce'?'<button class="btn sm" id="bAtt">⏳ Attente pièce</button>':'')+
+      (fini?'<button class="btn sm" id="bRouv">↺ Rouvrir</button>':'')+
+      '<button class="btn sm l" id="bEdit">✎ Modifier / confier</button><button class="btn sm l" onclick="qrTel()">📱 Sur le téléphone</button></div></div>';
+  if(fini){
+    html+='<div class="carte" style="background:var(--vert2)"><h2>✓ Terminé le '+fmtDH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</h2><div style="white-space:pre-wrap">'+esc(b.rapport||'')+'</div>'+
+      '<div class="stats" style="margin-top:8px"><div><span class="etiq">Temps passé</span><b>'+fmtMin(b.duree_min)+'</b></div>'+(prevu?'<div><span class="etiq">Prévu</span><b>'+fmtMin(prevu)+'</b></div>':'')+'<div><span class="etiq">Arrêt machine</span><b>'+fmtMin(b.arret_min)+'</b></div></div>'+
+      (b.justification?'<div style="margin-top:10px;padding:8px 10px;background:#fff;border-radius:8px"><b>Justification du dépassement :</b> '+esc(b.justification)+'</div>':'')+
+      (V6?(b.valide_le?'<div class="etiq" style="margin-top:8px">✔ Validé par '+esc(b.valide_par||'?')+' le '+fmtDH(b.valide_le)+'</div>':'<div class="actions"><button class="btn v" id="bVal">✔ Valider ce travail</button></div>'):'')+'</div>';
+  }
   html+='<div class="carte"><h2>💬 Échanges</h2><div class="fil">'+(msgs.length?msgs.map(function(m){
       if(m.auteur==='•')return '<div class="msg sys">'+esc(m.texte)+' · '+fmtDH(m.cree_le)+'</div>';
       return '<div class="msg"><div class="q"><b>'+esc(m.auteur||'?')+'</b> · '+fmtDH(m.cree_le)+'</div>'+(m.texte?'<div style="white-space:pre-wrap">'+esc(m.texte)+'</div>':'')+(m.photo?'<img src="'+esc(m.photo)+'" onclick="zoom(this.src)">':'')+'</div>';
@@ -412,12 +456,21 @@ VUES.bon=async function(id,extra){
     (sugg.length?'<div class="etiq" style="margin-top:8px">Pièces connues pour cette machine : '+sugg.map(function(x){return esc(ARTID[x.l.article_id].designation);}).join(', ')+'</div>':'')+'</div>';
   $('main').innerHTML=html;
 
-  document.querySelectorAll('[data-st]').forEach(function(btn){btn.onclick=async function(){
-    var s=btn.dataset.st,maj={statut:s};if(s!=='Terminé')maj.fin=null;
-    if(s==='En cours'&&!b.intervenant)maj.intervenant=NOM;
-    try{await q(sb.from('gmao_interventions').update(maj).eq('id',id));await logSys(id,NOM+' : statut → '+s);route();}catch(x){erreur(x);}
+  async function changer(statut,texte,maj){
+    maj=Object.assign({statut:statut},maj||{});if(statut!=='Terminé')maj.fin=null;
+    try{await q(sb.from('gmao_interventions').update(maj).eq('id',id));await logSys(id,texte);route();}catch(x){erreur(x);}
+  }
+  if($('bGo'))$('bGo').onclick=function(){changer('En cours','▶ '+NOM+(tp.min>0?' reprend':' démarre'),b.intervenant?{}:{intervenant:NOM});};
+  if($('bPause'))$('bPause').onclick=function(){var t=tempsPasse(msgs).min;changer('En pause','⏸ '+NOM+' met en pause ('+fmtMin(t)+' au total)',{duree_min:t});};
+  if($('bAtt'))$('bAtt').onclick=function(){var t=tempsPasse(msgs).min;changer('Attente pièce','⏸ '+NOM+' : attente pièce ('+fmtMin(t)+' au total)',{duree_min:t});};
+  if($('bRouv'))$('bRouv').onclick=function(){changer('En pause','↺ '+NOM+' rouvre le bon',V6?{valide_le:null,valide_par:null}:{});};
+  if($('bFin'))$('bFin').onclick=function(){terminerBon(b,tempsPasse(msgs).min,items.length-nbFait);};
+  if($('bVal'))$('bVal').onclick=async function(){try{await q(sb.from('gmao_interventions').update({valide_par:NOM,valide_le:new Date().toISOString()}).eq('id',id));await logSys(id,'✔ '+NOM+' valide le travail');if(b.preventif_id)await chargerTout();route();}catch(x){erreur(x);}};
+  document.querySelectorAll('[data-ck]').forEach(function(d){d.onclick=async function(){
+    var i=+d.dataset.ck,lignes=String(b.description||'').split('\n'),it=L[i],nv=!it.fait;
+    lignes[i]=(nv?'☑ ':'☐ ')+it.txt;
+    try{await q(sb.from('gmao_interventions').update({description:lignes.join('\n')}).eq('id',id));await logSys(id,(nv?'☑ ':'☐ ')+NOM+' : '+(nv?'fait':'décoché')+' « '+it.txt+' »');route();}catch(x){erreur(x);}
   };});
-  if($('bFin'))$('bFin').onclick=function(){terminerBon(b,debut);};
   $('bEdit').onclick=function(){editerBon(b);};
   if($('bChMach'))$('bChMach').onclick=async function(){var x=await choisirEq();if(!x)return;await q(sb.from('gmao_interventions').update({equipement_id:x.id}).eq('id',id));route();};
   var photoMsg=null;
@@ -436,7 +489,7 @@ VUES.bon=async function(id,extra){
     if(!n)return;
     try{
       var s=await q(sb.rpc('gmao_mouvement',{p_article:a.id,p_qte:-Math.abs(n),p_bon:id,p_motif:'Sortie '+numBT(b.numero),p_auteur:NOM}));
-      a.stock=s;await logSys(id,NOM+' : sortie de '+n+' × '+a.designation);
+      a.stock=s;await q(sb.from('gmao_messages').insert({intervention_id:id,auteur:'•',texte:'🔩 '+NOM+' : sortie de '+n+' × '+a.designation}));
       if((+s)<=(+a.stock_mini||0))toast('⚠ Stock bas : il reste '+s+' '+(a.unite||''));
       if(e&&!piecesDe(e).some(function(x){return x.l.article_id===a.id;})&&confirm('« '+a.designation+' » n\'est pas encore dans la liste des pièces de '+e.nom+'.\n\nL\'ajouter, pour la retrouver directement la prochaine fois ?')){await lierPiece({article:a,equipement:e});return;}
       route();
@@ -473,25 +526,38 @@ async function nouveauBon(extra){
   };
 }
 function editerBon(b){
-  ouvrir('<h3>Modifier '+numBT(b.numero)+'</h3><label>Titre</label><input id="ebT" value="'+esc(b.titre)+'"><label>Description</label><textarea id="ebD">'+esc(b.description||'')+'</textarea>'+
+  ouvrir('<h3>Modifier '+numBT(b.numero)+'</h3><label>Titre</label><input id="ebT" value="'+esc(b.titre)+'"><label>Description (une ligne « ☐ … » = un point à cocher)</label><textarea id="ebD">'+esc(b.description||'')+'</textarea>'+
     '<div class="grille"><div><label>Type</label><select id="ebTy">'+['Curatif','Préventif','Amélioration','Sécurité','Bâtiment'].map(function(x){return '<option'+(x===b.type?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
     '<div><label>Priorité</label><select id="ebP">'+['Normale','Urgente','Basse'].map(function(x){return '<option'+(x===b.priorite?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
-    '<div><label>Intervenant</label><input id="ebI" value="'+esc(b.intervenant||'')+'"></div><div><label>Machine arrêtée</label><select id="ebA"><option value="0">Non</option><option value="1"'+(b.machine_arretee?' selected':'')+'>Oui</option></select></div></div>'+
-    '<div class="actions"><button class="btn r sm" id="ebX" style="margin-right:auto">Supprimer</button><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="ebO">Enregistrer</button></div>');
-  $('ebO').onclick=async function(){try{await q(sb.from('gmao_interventions').update({titre:val('ebT'),description:val('ebD'),type:$('ebTy').value,priorite:$('ebP').value,intervenant:val('ebI'),machine_arretee:$('ebA').value==='1'}).eq('id',b.id));fermer();route();}catch(x){erreur(x);}};
+    '<div><label>Intervenant</label><input id="ebI" value="'+esc(b.intervenant||'')+'"></div><div><label>Machine arrêtée</label><select id="ebA"><option value="0">Non</option><option value="1"'+(b.machine_arretee?' selected':'')+'>Oui</option></select></div>'+
+    (V6?'<div><label>Confié à</label><input id="ebAs" list="dlPers" value="'+esc(b.assigne_a||'')+'"><datalist id="dlPers">'+PERS.map(function(p){return '<option value="'+esc(p.nom)+'">';}).join('')+'</datalist></div>'+
+      '<div><label>Prévu le</label><input id="ebPl" type="date" value="'+(b.prevu_le||'')+'"></div><div><label>Temps prévu (minutes)</label><input id="ebTp" inputmode="numeric" value="'+(b.temps_prevu_min||'')+'"></div>':'')+
+    '</div><div class="actions"><button class="btn r sm" id="ebX" style="margin-right:auto">Supprimer</button><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="ebO">Enregistrer</button></div>');
+  $('ebO').onclick=async function(){
+    var maj={titre:val('ebT'),description:$('ebD').value,type:$('ebTy').value,priorite:$('ebP').value,intervenant:val('ebI'),machine_arretee:$('ebA').value==='1'};
+    if(V6)Object.assign(maj,{assigne_a:val('ebAs')||null,prevu_le:val('ebPl')||null,temps_prevu_min:nb(val('ebTp'))});
+    try{await q(sb.from('gmao_interventions').update(maj).eq('id',b.id));fermer();route();}catch(x){erreur(x);}};
   $('ebX').onclick=async function(){if(!confirm('Supprimer définitivement ce bon ? (Les pièces sorties restent sorties du stock.)'))return;try{await q(sb.from('gmao_interventions').delete().eq('id',b.id));fermer();aller('bons');}catch(x){erreur(x);}};
 }
-function terminerBon(b,debut){
-  var dAuto=(!b.duree_min&&debut)?minutesDepuis(debut):b.duree_min, aAuto=(!b.arret_min&&b.machine_arretee)?minutesDepuis(b.cree_le):b.arret_min;
-  ouvrir('<h3>✓ Terminer '+numBT(b.numero)+'</h3><label>Ce qui a été fait (compte rendu)</label><textarea id="tbR" placeholder="Cause trouvée, réparation faite, à surveiller…">'+esc(b.rapport||'')+'</textarea>'+
-    '<div class="grille"><div><label>Temps passé (minutes)</label><input id="tbD" inputmode="numeric" value="'+(dAuto||'')+'">'+(debut&&!b.duree_min?'<div class="etiq">calculé depuis le démarrage</div>':'')+'</div><div><label>Durée d\'arrêt machine (minutes)</label><input id="tbA" inputmode="numeric" value="'+(aAuto||'')+'"></div></div>'+
+function terminerBon(b,minutes,resteACocher){
+  if(resteACocher>0&&!confirm('Il reste '+resteACocher+' point'+(resteACocher>1?'s':'')+' non coché'+(resteACocher>1?'s':'')+'.\n\nTerminer quand même ? (Sinon : « Annuler » puis « ⏸ Pause » pour reprendre plus tard.)'))return;
+  var prevu=+b.temps_prevu_min||0, aAuto=(!b.arret_min&&b.machine_arretee)?minutesDepuis(b.cree_le):b.arret_min;
+  ouvrir('<h3>■ Terminer '+numBT(b.numero)+'</h3><label>Ce qui a été fait (compte rendu)</label><textarea id="tbR" placeholder="Cause trouvée, réparation faite, à surveiller…">'+esc(b.rapport||'')+'</textarea>'+
+    '<div class="grille"><div><label>Temps passé (minutes)</label><input id="tbD" inputmode="numeric" value="'+(minutes||b.duree_min||'')+'"><div class="etiq">chronomètre, pauses déduites'+(prevu?' · prévu '+fmtMin(prevu):'')+'</div></div><div><label>Durée d\'arrêt machine (minutes)</label><input id="tbA" inputmode="numeric" value="'+(aAuto||'')+'"></div></div>'+
+    '<div id="tbJz" style="display:none"><label style="color:var(--rouge)">Pourquoi plus long que prévu ? (obligatoire)</label><textarea id="tbJ" placeholder="ex. vis grippées, pièce manquante, machine plus encrassée que d\'habitude…">'+esc(b.justification||'')+'</textarea></div>'+
     '<label>Fait par</label><input id="tbI" value="'+esc(b.intervenant||NOM)+'">'+
     '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn v" id="tbO">Terminer le bon</button></div>');
+  function verif(){$('tbJz').style.display=(V6&&prevu&&(nb(val('tbD'))||0)>prevu)?'':'none';}
+  $('tbD').oninput=verif;verif();
   $('tbO').onclick=async function(){
+    var d=nb(val('tbD')),trop=V6&&prevu&&(d||0)>prevu;
+    if(trop&&!val('tbJ')){toast('Explique le dépassement de temps');$('tbJ').focus();return;}
+    var maj={statut:'Terminé',fin:new Date().toISOString(),rapport:val('tbR'),duree_min:d,arret_min:nb(val('tbA')),intervenant:val('tbI'),machine_arretee:false};
+    if(V6)maj.justification=trop?val('tbJ'):null;
     try{
-      await q(sb.from('gmao_interventions').update({statut:'Terminé',fin:new Date().toISOString(),rapport:val('tbR'),duree_min:nb(val('tbD')),arret_min:nb(val('tbA')),intervenant:val('tbI'),machine_arretee:false}).eq('id',b.id));
+      await q(sb.from('gmao_interventions').update(maj).eq('id',b.id));
       if(b.preventif_id){var p=PREV.find(function(x){return x.id===b.preventif_id;}),majp={dernier:auj()};if(p&&p.mesure_id&&DERN[p.mesure_id])majp.dernier_valeur=+DERN[p.mesure_id].valeur;await q(sb.from('gmao_preventifs').update(majp).eq('id',b.preventif_id));if(p)Object.assign(p,majp);}
-      await logSys(b.id,val('tbI')+' : bon terminé');
+      await logSys(b.id,'■ '+val('tbI')+' : bon terminé ('+fmtMin(d)+')');
       fermer();route();
     }catch(x){erreur(x);}
   };
@@ -776,10 +842,11 @@ async function editerPrev(pid,eqId,mesId){
     '<div id="pvZC"><label>Compteur</label><div class="ligne" id="pvM" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
     '<div class="grille"><div><label>Toutes les… (unités du compteur)</label><input id="pvPV" inputmode="decimal" value="'+(p.periodicite_valeur==null?'':p.periodicite_valeur)+'" placeholder="ex. 500"></div>'+
     '<div><label>Valeur du compteur la dernière fois</label><input id="pvDV" inputmode="decimal" value="'+(p.dernier_valeur==null?'':p.dernier_valeur)+'"></div></div></div>'+
+    (V6?'<label>Temps prévu (minutes)</label><div style="display:flex;gap:6px"><input id="pvTP" inputmode="numeric" value="'+(p.temps_prevu_min||'')+'" placeholder="ex. 90">'+(pid&&STATS[pid]?'<button class="btn sm" type="button" onclick="$(\'pvTP\').value='+STATS[pid].moy+'">Prendre le réel moyen ('+fmtMin(STATS[pid].moy)+')</button>':'')+'</div>':'')+
     '<label>Points à vérifier (un par ligne)</label><textarea id="pvC" placeholder="Graisser palier gauche&#10;Graisser palier droit&#10;Contrôler tension courroie">'+esc(p.checklist||'')+'</textarea>'+
     '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px"><input type="checkbox" id="pvA" style="width:auto"'+(p.actif!==false?' checked':'')+'> Plan actif</label>'+
     '<div class="actions">'+(pid?'<button class="btn r sm" id="pvX" style="margin-right:auto">Supprimer</button>':'')+'<button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="pvO">Enregistrer</button></div>');
-  var boite=$('boite').innerHTML, CH=['pvT','pvK','pvN','pvU','pvD','pvPV','pvDV','pvC'];
+  var boite=$('boite').innerHTML, CH=['pvT','pvK','pvN','pvU','pvD','pvPV','pvDV','pvC'].concat(V6?['pvTP']:[]);
   function sauver(){var o={a:$('pvA').checked};CH.forEach(function(k){o[k]=$(k).value;});return o;}
   function remettre(o){ouvrir(boite);CH.forEach(function(k){$(k).value=o[k];});$('pvA').checked=o.a;lier();}
   async function clicE(){var o=sauver();var x=await choisirEq();if(x)eqSel=x;remettre(o);}
@@ -796,7 +863,7 @@ async function editerPrev(pid,eqId,mesId){
     if(!V2){$('pvK').value='date';$('pvK').disabled=true;zones();}
     $('pvO').onclick=async function(){
       var t=val('pvT');if(!t||!eqSel){toast('Machine et opération obligatoires');return;}
-      var d={equipement_id:eqSel.id,titre:t,checklist:$('pvC').value,actif:$('pvA').checked};
+      var d={equipement_id:eqSel.id,titre:t,checklist:$('pvC').value,actif:$('pvA').checked};if(V6)d.temps_prevu_min=nb(val('pvTP'));
       if($('pvK').value==='cpt'){
         if(!mesSel||!nb(val('pvPV'))){toast('Choisis le compteur et la périodicité');return;}
         Object.assign(d,{mesure_id:mesSel.id,periodicite_valeur:nb(val('pvPV')),dernier_valeur:nb(val('pvDV'))});
@@ -816,7 +883,7 @@ async function lancerPrev(pid){
   var deja=await q(sb.from('gmao_interventions').select('id').eq('preventif_id',pid).neq('statut','Terminé'));
   if(deja.length){aller('bon/'+deja[0].id);return;}
   var desc=(p.checklist||'').split('\n').filter(function(x){return x.trim();}).map(function(x){return '☐ '+x.trim();}).join('\n');
-  try{var r=await q(sb.from('gmao_interventions').insert({titre:p.titre,description:desc,type:'Préventif',priorite:'Normale',equipement_id:p.equipement_id,preventif_id:pid,demandeur:NOM}).select());aller('bon/'+r[0].id);}catch(x){erreur(x);}
+  try{var r=await q(sb.from('gmao_interventions').insert(Object.assign({titre:p.titre,description:desc,type:'Préventif',priorite:'Normale',equipement_id:p.equipement_id,preventif_id:pid,demandeur:NOM},V6?{temps_prevu_min:p.temps_prevu_min||null}:{})).select());aller('bon/'+r[0].id);}catch(x){erreur(x);}
 }
 
 /* =====================================================================
@@ -1165,6 +1232,74 @@ function editerSource(sid,artId){
       if(V2&&!PART.some(function(p){return norm(p.nom)===norm(d.partenaire);})){try{await q(sb.from('gmao_partenaires').insert({nom:d.partenaire,fournisseur:true}));}catch(e){}}
       await chargerTout();fermer();route();}catch(e){erreur(e);}};
   if(sid)$('soX2').onclick=async function(){if(!confirm('Retirer ce fournisseur pour cette pièce ?'))return;try{await q(sb.from('gmao_sources').delete().eq('id',sid));await chargerTout();fermer();route();}catch(e){erreur(e);}};
+}
+
+
+/* =====================================================================
+   PLANNING : qui fait quoi, et est-ce que ça tient dans la journée ?
+   ===================================================================== */
+var jourPlan=null;
+function pasV6(){$('main').innerHTML='<div class="carte"><b>Il faut d\'abord installer la mise à jour de la base.</b><br>Lance le fichier <code>gmao-installation-4.sql</code> dans Supabase (SQL Editor → + → Run).</div>';}
+function restant(b){var p=+b.temps_prevu_min||0;return p?Math.max(0,p-(+b.duree_min||0)):0;}
+VUES.planning=async function(){
+  if(!V6)return pasV6();
+  var j=jourPlan||auj();
+  var ouverts=await q(sb.from('gmao_interventions').select('*').neq('statut','Terminé').order('cree_le'));
+  var jour=new Date(j+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  var html='<h1 class="titre">Planning</h1><div class="carte" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="pjM">◀</button><input type="date" id="pjD" value="'+j+'" style="width:auto"><button class="btn" id="pjP">▶</button><b style="text-transform:capitalize">'+jour+'</b>'+(j!==auj()?'<button class="btn l sm" id="pjA">aujourd\'hui</button>':'')+'</div>';
+  var actifs=PERS.filter(function(p){return p.actif!==false;});
+  if(!actifs.length)html+='<div class="carte" style="background:var(--bleu2)">Ajoute d\'abord les personnes de l\'équipe maintenance avec leur temps disponible par jour (en bas de la page).</div>';
+  actifs.forEach(function(p){
+    var l=ouverts.filter(function(b){return norm(b.assigne_a)===norm(p.nom)&&b.prevu_le===j;});
+    var charge=l.reduce(function(s,b){return s+restant(b);},0), cap=+p.capacite_min||420, sansT=l.filter(function(b){return !b.temps_prevu_min;}).length;
+    var pc=Math.min(100,charge/cap*100), trop=charge>cap;
+    html+='<div class="carte"><h2>👷 '+esc(p.nom)+'<span class="d etiq">'+fmtMin(charge)+' / '+fmtMin(cap)+'</span></h2>'+
+      '<div class="barre gros'+(trop?' rouge':'')+'"><div style="width:'+pc+'%"></div></div>'+
+      (trop?'<div class="alerte">⚠ Trop de tâches pour cette journée : <b>+'+fmtMin(charge-cap)+'</b>. Décale un bon à un autre jour ou confie-le à quelqu\'un d\'autre.</div>':(l.length?'<div class="etiq" style="margin:6px 0">Encore '+fmtMin(cap-charge)+' de disponible.</div>':''))+
+      (sansT?'<div class="etiq" style="color:var(--orange)">'+sansT+' bon'+(sansT>1?'s':'')+' sans temps prévu (non compté'+(sansT>1?'s':'')+')</div>':'')+
+      (l.length?l.map(ligneBonPlan).join(''):'<div class="vide">Rien de prévu.</div>')+'</div>';
+  });
+  var retard=ouverts.filter(function(b){return b.prevu_le&&b.prevu_le<auj();});
+  if(retard.length)html+='<div class="carte" style="border-color:var(--rouge)"><h2>⏰ Prévus un jour passé, pas terminés</h2>'+retard.map(ligneBonPlan).join('')+'</div>';
+  var nonPl=ouverts.filter(function(b){return !b.prevu_le||!b.assigne_a;});
+  html+='<div class="carte"><h2>📥 À planifier ('+nonPl.length+')</h2>'+(nonPl.length?nonPl.map(ligneBonPlan).join(''):'<div class="vide">Tout est planifié.</div>')+'</div>';
+  var prevSansBon=PREV.filter(function(p){return p.actif&&infoPrev(p).aFaire&&!ouverts.some(function(b){return b.preventif_id===p.id;});});
+  if(prevSansBon.length)html+='<div class="carte"><h2>🗓 Préventifs dus, pas encore lancés</h2>'+prevSansBon.map(lignePrev).join('')+'</div>';
+  html+='<div class="carte"><h2>Équipe maintenance <button class="btn sm d" id="peN">+ Personne</button></h2>'+(PERS.length?PERS.map(function(p){return '<div class="ligne" style="cursor:pointer" data-pe="'+p.id+'"><div class="g"><div class="t">'+esc(p.nom)+(p.actif===false?' <span class="etiq">(inactif)</span>':'')+'</div><div class="s">'+fmtMin(p.capacite_min||420)+' disponibles par jour</div></div><span class="etiq">✎</span></div>';}).join(''):'<div class="vide">Personne pour l\'instant.</div>')+'</div>';
+  $('main').innerHTML=html;
+  function changeJ(n){jourPlan=n;route();}
+  $('pjD').onchange=function(){changeJ(this.value||auj());};
+  $('pjM').onclick=function(){changeJ(ajoutJours(j,-1));};$('pjP').onclick=function(){changeJ(ajoutJours(j,1));};
+  if($('pjA'))$('pjA').onclick=function(){changeJ(auj());};
+  document.querySelectorAll('[data-pl]').forEach(function(x){x.onclick=function(ev){ev.preventDefault();ev.stopPropagation();planifier(ouverts.find(function(b){return b.id===x.dataset.pl;}),j);};});
+  $('peN').onclick=function(){editerPersonne(null);};
+  document.querySelectorAll('[data-pe]').forEach(function(x){x.onclick=function(){editerPersonne(x.dataset.pe);};});
+};
+function ligneBonPlan(b){
+  var e=EQID[b.equipement_id],p=+b.temps_prevu_min||0,fait=+b.duree_min||0;
+  return '<a class="ligne" href="#bon/'+b.id+'"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+
+    (b.assigne_a?' · 👷 '+esc(b.assigne_a):'')+(b.prevu_le?' · '+fmtD(b.prevu_le):'')+(p?' · prévu '+fmtMin(p)+(fait?' (déjà '+fmtMin(fait)+')':''):' · <span style="color:var(--orange)">temps ?</span>')+'</div></div>'+
+    badgeStatut(b.statut)+'<button class="btn sm" data-pl="'+b.id+'">Planifier</button></a>';
+}
+function planifier(b,jourDefaut){
+  if(!b)return;
+  ouvrir('<h3>Planifier '+numBT(b.numero)+'</h3><div class="etiq">'+esc(b.titre)+'</div>'+
+    '<label>Confié à</label><select id="plP"><option value="">— personne —</option>'+PERS.filter(function(p){return p.actif!==false;}).map(function(p){return '<option'+(norm(p.nom)===norm(b.assigne_a)?' selected':'')+'>'+esc(p.nom)+'</option>';}).join('')+'</select>'+
+    '<div class="grille"><div><label>Jour</label><input type="date" id="plD" value="'+(b.prevu_le||jourDefaut||auj())+'"></div><div><label>Temps prévu (minutes)</label><input id="plT" inputmode="numeric" value="'+(b.temps_prevu_min||'')+'"></div></div>'+
+    '<div class="actions"><button class="btn l sm" id="plX" style="margin-right:auto">Retirer du planning</button><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="plO">Enregistrer</button></div>');
+  $('plO').onclick=async function(){try{await q(sb.from('gmao_interventions').update({assigne_a:$('plP').value||null,prevu_le:val('plD')||null,temps_prevu_min:nb(val('plT'))}).eq('id',b.id));
+    if($('plP').value)await logSys(b.id,'📅 '+NOM+' confie le bon à '+$('plP').value+' pour le '+fmtD(val('plD')));fermer();route();}catch(x){erreur(x);}};
+  $('plX').onclick=async function(){try{await q(sb.from('gmao_interventions').update({assigne_a:null,prevu_le:null}).eq('id',b.id));fermer();route();}catch(x){erreur(x);}};
+}
+function editerPersonne(pid){
+  var p=pid?PERS.find(function(x){return x.id===pid;}):{nom:'',capacite_min:420,actif:true};
+  ouvrir('<h3>'+(pid?'Modifier':'Ajouter')+' une personne</h3><label>Prénom / nom</label><input id="psN" value="'+esc(p.nom)+'">'+
+    '<label>Temps disponible pour la maintenance, par jour (heures)</label><input id="psC" inputmode="decimal" value="'+((+p.capacite_min||420)/60)+'"><div class="etiq">ex. 7 pour une journée complète, 2 si la personne fait surtout de la production</div>'+
+    '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px"><input type="checkbox" id="psA" style="width:auto"'+(p.actif!==false?' checked':'')+'> Active</label>'+
+    '<div class="actions">'+(pid?'<button class="btn r sm" id="psX" style="margin-right:auto">Supprimer</button>':'')+'<button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="psO">Enregistrer</button></div>');
+  $('psO').onclick=async function(){var d={nom:val('psN'),capacite_min:Math.round((nb(val('psC'))||7)*60),actif:$('psA').checked};if(!d.nom)return;
+    try{if(pid)await q(sb.from('gmao_personnes').update(d).eq('id',pid));else await q(sb.from('gmao_personnes').insert(d));PERS=await q(sb.from('gmao_personnes').select('*').order('nom'));fermer();route();}catch(x){erreur(x);}};
+  if(pid)$('psX').onclick=async function(){if(!confirm('Supprimer '+p.nom+' ?'))return;try{await q(sb.from('gmao_personnes').delete().eq('id',pid));PERS=PERS.filter(function(x){return x.id!==pid;});fermer();route();}catch(x){erreur(x);}};
 }
 
 /* =====================================================================
