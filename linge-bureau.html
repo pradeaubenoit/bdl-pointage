@@ -166,6 +166,19 @@
     .impression h3 { margin: 0; padding: 6px 10px; font-size: 15px; text-transform: capitalize; border-bottom: 1px solid #999; }
     .impression td { padding: 4px 10px; border-bottom: 1px solid #ddd; }
   }
+  .fin-lavage { background: #fff; border: 2px solid #1f5fa8; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; }
+  .fin-lavage.fini { border-color: #2e7d32; background: #f1f8f1; }
+  .fl-titre { font-size: 13px; color: #555; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  .fl-ligne { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-top: 2px; }
+  .fl-heure { font-size: 34px; font-weight: 800; color: #1f5fa8; }
+  .fin-lavage.fini .fl-heure { color: #2e7d32; }
+  .fl-info { color: #555; font-size: 14px; }
+  .fl-evol { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .fl-evol span { background: #f2f4f7; border-radius: 8px; padding: 4px 8px; font-size: 13px; }
+  .fl-evol span b { margin-left: 4px; }
+  .fl-evol .plus { color: #c62828; } .fl-evol .moins { color: #2e7d32; }
+  .fl-vide { color: #777; font-style: italic; margin-top: 4px; }
+  @media print { .fin-lavage { display: none; } }
 </style>
 </head>
 <body>
@@ -192,6 +205,7 @@
 </div>
 
 <main>
+  <div id="finLavage" class="fin-lavage"><div class="fl-titre">🧺 Fin du lavage aujourd'hui</div><div class="fl-vide">Chargement…</div></div>
   <div class="bandeau">
     <span id="titre"></span>
     <span id="compteur"></span>
@@ -601,6 +615,37 @@ function ouvrir(c) {
 }
 
 function fermer() { document.getElementById('fond').style.display = 'none'; }
+
+
+/* ---------- Fin de production lavage (envoyée par le Plan de travail) ---------- */
+function minutesHHMM(t){const m=String(t||'').match(/(\d+):(\d+)/);return m?(+m[1])*60+(+m[2]):null;}
+async function chargerFinLavage(){
+  const box=document.getElementById('finLavage');if(!box)return;
+  try{
+    const rep=await fetch(API_URL+'?action=finLavage&date='+isoJour(new Date()));
+    const d=await rep.json();if(!d.ok)throw new Error(d.error||'');
+    const R=d.releves||[];
+    if(!R.length){box.className='fin-lavage';box.innerHTML='<div class="fl-titre">🧺 Fin du lavage aujourd\'hui</div><div class="fl-vide">Pas encore d\'estimation : elle arrive dès que le Plan de travail est ouvert à l\'atelier.</div>';return;}
+    const der=R[R.length-1];
+    // une valeur par heure (la dernière de chaque heure)
+    const parH={};R.forEach(r=>{const h=String(r.le).slice(0,2);parH[h]=r;});
+    const heures=Object.keys(parH).sort();
+    let prec=null;
+    const evol=heures.map(h=>{const r=parH[h],m=minutesHHMM(r.fin);let cls='',fl='';
+      if(prec!=null&&m!=null){const dm=m-prec;if(dm>=5){cls='plus';fl=' ▲ +'+dm+' min';}else if(dm<=-5){cls='moins';fl=' ▼ '+dm+' min';}}
+      prec=m;return '<span class="'+cls+'">'+(+h)+' h →<b>'+r.fin+'</b>'+fl+'</span>';}).join('');
+    const maintenant=new Date(),mn=maintenant.getHours()*60+maintenant.getMinutes(),age=mn-minutesHHMM(der.le);
+    if(der.termine){
+      box.className='fin-lavage fini';
+      box.innerHTML='<div class="fl-titre">🧺 Lavage du jour</div><div class="fl-ligne"><span class="fl-heure">✓ Terminé à '+der.fin+'</span><span class="fl-info">'+der.total+' galettes lavées</span></div><div class="fl-evol">'+evol+'</div>';
+    }else{
+      box.className='fin-lavage';
+      box.innerHTML='<div class="fl-titre">🧺 Fin du lavage prévue aujourd\'hui</div><div class="fl-ligne"><span class="fl-heure">'+der.fin+'</span><span class="fl-info">reste <b>'+der.reste+'</b> galette'+(der.reste>1?'s':'')+' sur '+der.total+' · mis à jour à '+der.le+(age>30?' <span style="color:#c62828">(il y a '+age+' min — le Plan de travail est peut-être fermé)</span>':'')+'</span></div><div class="fl-evol">'+evol+'</div>';
+    }
+  }catch(e){box.innerHTML='<div class="fl-titre">🧺 Fin du lavage aujourd\'hui</div><div class="fl-vide">Impossible de lire l\'heure de fin pour le moment.</div>';}
+}
+chargerFinLavage();
+setInterval(chargerFinLavage,5*60000);
 
 /* ---------- Messagerie bureau -> atelier ---------- */
 let clientOuvert = null, messagesB = [];
