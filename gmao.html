@@ -419,6 +419,7 @@ VUES.bon=async function(id,extra){
       var s=await q(sb.rpc('gmao_mouvement',{p_article:a.id,p_qte:-Math.abs(n),p_bon:id,p_motif:'Sortie '+numBT(b.numero),p_auteur:NOM}));
       a.stock=s;await logSys(id,NOM+' : sortie de '+n+' × '+a.designation);
       if((+s)<=(+a.stock_mini||0))toast('⚠ Stock bas : il reste '+s+' '+(a.unite||''));
+      if(e&&!piecesDe(e).some(function(x){return x.l.article_id===a.id;})&&confirm('« '+a.designation+' » n\'est pas encore dans la liste des pièces de '+e.nom+'.\n\nL\'ajouter, pour la retrouver directement la prochaine fois ?')){await lierPiece({article:a,equipement:e});return;}
       route();
     }catch(x){erreur(x);}
   };
