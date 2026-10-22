@@ -212,7 +212,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v159</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v160</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1627,9 +1627,11 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
     var _isEditor=adminUnlocked||!isOperateur;   // admin OU laveur (la finition reste en lecture seule)
     var _dragH=_isEditor?'<span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span>':'';
     var _ign=estIgn(r);
-    var _faitBtn=(!isOperateur)?((_ign?'':'<button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait">'+(_fait?'\u2713 fait':'fait')+'</button>')
-      +(_fait?'':'<button class="btn-ghost bl-ign no-print'+(_ign?' on':'')+'" data-ign="'+i+'" title="Client absent ce jour : reste sur le plan mais n\'apparaît pas à l\'atelier">'+(_ign?'\u21b6 présent':'absent')+'</button>'))
+    // « fait » à gauche, « absent » tout à DROITE de la ligne (loin de « fait », pour ne plus se tromper de bouton).
+    var _faitBtn=(!isOperateur)?(_ign?'<button class="btn-ghost bl-ign no-print on" data-ign="'+i+'" title="Remettre ce client présent">\u21b6 présent</button>'
+        :'<button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait">'+(_fait?'\u2713 fait':'fait')+'</button>')
       :(_fait?'<span class="pill" style="color:var(--teal)">\u2713 fait</span>':'');
+    var _ignBtn=(!isOperateur && !_fait && !_ign)?'<button class="btn-ghost bl-ign no-print" data-ign="'+i+'" title="Client absent ce jour : reste sur le plan mais n\'apparaît pas à l\'atelier" style="margin-left:auto;border:1px dashed #d9a5a0">\u2205 absent</button>':'';
     var _moveBtns=_isEditor?('<button class="btn-ghost bl-tete no-print" data-tete="'+i+'" title="Envoyer ce client tout en haut (position 1)">\u2b06 en tête</button>'+btn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button>'):'';
     var _admBtns=adminUnlocked?(_lavBtn+'<button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button>'+(prioFind(prioKey(r))?'<button class="btn-ghost bl-adprio no-print" data-adprio="'+i+'" title="Retirer la priorité" style="color:var(--danger)">\u2715 priorité</button>':(_fait?'':'<button class="btn-ghost bl-adprio no-print" data-adprio="'+i+'" title="Mettre ce client en priorité (marquage orange)" style="color:#8a5a07">\u{1F64B} priorité</button>'))+'<button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button>'):'';
     var _prioMk=prioriteDemandee(r)?'<span class="pill" style="background:#fde7c8;color:#8a5a07" title="Priorité demandée">\u{1F64B} priorité</span>':'';
@@ -1640,7 +1642,7 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
         _opBtn=_sl+'<button class="btn-ghost bl-unprio no-print" data-unprio="'+esc(prioKey(r))+'" title="Annuler ma demande" style="color:var(--danger)">\u2715 annuler</button>'; }
       else if(!_fait){ _opBtn='<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>'; }
     }
-    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+(_ign?' ign':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(_ordreJour.indexOf(r)+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+codesTunnelHtml(r,i)+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+'</div></div>';
+    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+(_ign?' ign':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(_ordreJour.indexOf(r)+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+codesTunnelHtml(r,i)+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+_ignBtn+'</div></div>';
     if(_fait||_ign) _done.push({h:rowHtml, t:(_ign?2e9:(r._faitAt!=null?r._faitAt:1e9)), n:_done.length}); else _pend.push(rowHtml);
   });
   h+=_pend.join('');
@@ -2189,7 +2191,9 @@ if(pickedId!=null||pickedSel){pickedId=null;pickedSel=null;renderResults();retur
   var res=document.getElementById('results');
   res.addEventListener('click',function(e){
     var ign=e.target.closest&&e.target.closest('.bl-ign');
-    if(ign){ var ii=parseInt(ign.getAttribute('data-ign')); if(!isNaN(ii)&&rows[ii]) toggleIgn(rows[ii]); return; }
+    if(ign){ var ii=parseInt(ign.getAttribute('data-ign')); if(!isNaN(ii)&&rows[ii]){ var rr=rows[ii];
+        if(!rr._ign && !confirm('« '+((rr.client||'').trim())+' » ABSENT ce jour ?\n\n(pas lavé, n\u2019apparaît pas à l\u2019atelier)\n\nSi le linge a été lavé, c\u2019est « fait » qu\u2019il faut toucher.')) return;
+        toggleIgn(rr); } return; }
     var fait=e.target.closest&&e.target.closest('.bl-fait');
     if(fait){ var fi=parseInt(fait.getAttribute('data-fait')); if(!isNaN(fi)&&rows[fi]) toggleFait(rows[fi]); return; }
     var lav=e.target.closest&&e.target.closest('.bl-lav');
