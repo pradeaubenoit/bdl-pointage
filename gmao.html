@@ -95,6 +95,10 @@ table.imp td,table.imp th{border-bottom:1px solid var(--ligne);padding:5px;text-
 table.imp tr.ex{opacity:.45}
 .warn{color:var(--orange);font-size:12px}
 #login{max-width:360px;margin:70px auto}
+.solution{display:block;color:var(--txt);border:1px solid var(--ligne);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.solution:hover{background:#fafbfc}.solution .t{font-weight:700}.solution .s{font-size:12.5px;color:var(--doux);margin-top:2px}
+.solution .rep{margin-top:6px;font-size:14px;white-space:pre-wrap}
+mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 .planche{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
 .etq{background:#fff;border:2px dashed #999;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}
 .etq-h{background:var(--rouge);color:#fff;font-weight:800;border-radius:6px;padding:4px;font-size:13px}
@@ -153,7 +157,7 @@ table.imp tr.ex{opacity:.45}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v7.1';
+var VERSION='v7.2';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -330,7 +334,7 @@ function aller(h){location.hash=h;}
 async function route(){
   var h=location.hash.replace(/^#/,'')||'accueil', p=h.split('/'), v=p[0];
   document.querySelectorAll('#nav a').forEach(function(a){
-    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&v==='bon')||(d==='planning'&&v==='planning')||(d==='parc'&&(v==='eq'||v==='etiquettes'))||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
+    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&(v==='bon'||v==='pannes'))||(d==='planning'&&v==='planning')||(d==='parc'&&(v==='eq'||v==='etiquettes'))||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
   });
   var f=VUES[v]||VUES.accueil;
   $('main').innerHTML='<div class="vide">Chargement…</div>';
@@ -350,7 +354,7 @@ VUES.accueil=async function(){
   var urg=bons.filter(function(b){return b.priorite==='Urgente'||b.machine_arretee;});
   var aValider=V6?await q(sb.from('gmao_interventions').select('*').eq('statut','Terminé').is('valide_le',null).order('fin',{ascending:false}).limit(50)):[];
   var html='<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau\')">⚠ Signaler une panne</button>'+
-    '<button class="btn p" onclick="aller(\'articles\')">🔎 Chercher une pièce</button></div>'+
+    '<button class="btn p" onclick="aller(\'articles\')">🔎 Chercher une pièce</button><button class="btn" onclick="aller(\'pannes\')">💡 Panne déjà vue ?</button></div>'+
     '<div class="tuiles">'+
     '<a class="tuile'+(urg.length?' alerte':'')+'" href="#bons"><b>'+urg.length+'</b><span>urgent / machine arrêtée</span></a>'+
     '<a class="tuile" href="#bons"><b>'+bons.length+'</b><span>bons ouverts</span></a>'+
@@ -387,7 +391,7 @@ VUES.bons=async function(){
   var l=await q(sb.from('gmao_interventions').select('*').order('cree_le',{ascending:false}).limit(1000));
   var F={ouverts:function(b){return b.statut!=='Terminé';},attente:function(b){return b.statut==='Attente pièce';},termines:function(b){return b.statut==='Terminé';},tous:function(){return true;}};
   var lib={ouverts:'Ouverts',attente:'Attente pièce',termines:'Terminés',tous:'Tous'};
-  $('main').innerHTML='<h1 class="titre">Bons de travail <button class="btn p sm" style="float:right" onclick="aller(\'bon/nouveau\')">+ Nouveau bon</button></h1>'+
+  $('main').innerHTML='<h1 class="titre">Bons de travail <button class="btn p sm" style="float:right" onclick="aller(\'bon/nouveau\')">+ Nouveau bon</button><button class="btn sm" style="float:right;margin-right:8px" onclick="aller(\'pannes\')">💡 Pannes déjà résolues</button></h1>'+
     '<div class="rech"><input id="rb" placeholder="Chercher : machine, mot, n° de bon…"></div><div class="puces" id="pb">'+
     Object.keys(lib).map(function(k){return '<button class="puce'+(k===filtreBons?' on':'')+'" data-k="'+k+'">'+lib[k]+'</button>';}).join('')+'</div><div class="carte" id="lb"></div>';
   function rendre(){
@@ -456,12 +460,16 @@ VUES.bon=async function(id,extra){
       return '<div class="msg"><div class="q"><b>'+esc(m.auteur||'?')+'</b> · '+fmtDH(m.cree_le)+'</div>'+(m.texte?'<div style="white-space:pre-wrap">'+esc(m.texte)+'</div>':'')+(m.photo?'<img src="'+esc(m.photo)+'" onclick="zoom(this.src)">':'')+'</div>';
     }).join(''):'<div class="vide">Pas encore d\'échange. Note ici ce que tu constates, ce que tu as fait, ce qu\'il manque…</div>')+'</div>'+
     '<div class="compo"><textarea id="mTxt" placeholder="Écrire un message…"></textarea><button class="btn" id="mPh" title="Photo">📷</button><button class="btn p" id="mEnv">Envoyer</button></div></div>';
+  if(!fini)html+='<div class="carte" id="simCarte" style="display:none"></div>';
   var sugg=e?piecesDe(e):[];
   html+='<div class="carte"><h2>🔩 Pièces utilisées <button class="btn sm d" id="bPiece">+ Sortir une pièce</button></h2>'+
     (mvts.length?mvts.map(function(m){var a=ARTID[m.article_id];return '<div class="ligne">'+(a?renduArt(a):'<div class="g">(pièce supprimée)</div>')+'<b>'+(m.quantite<0?'':'+')+m.quantite+'</b></div>';}).join(''):'<div class="vide">Aucune pièce sortie.</div>')+
     (sugg.length?'<div class="etiq" style="margin-top:8px">Pièces connues pour cette machine : '+sugg.map(function(x){return esc(ARTID[x.l.article_id].designation);}).join(', ')+'</div>':'')+'</div>';
   $('main').innerHTML=html;
 
+  if(!fini)chargerHistorique().then(function(){var c=$('simCarte');if(!c)return;var t=b.titre+' '+(L.filter(function(x){return x.libre;}).map(function(x){return x.txt;}).join(' '));
+    var r=chercherPannes(t,e,b.id).slice(0,3),mots=motsCles(t);if(!r.length)return;
+    c.style.display='';c.style.borderColor='var(--bleu)';c.innerHTML='<h2>💡 Déjà vu ? Réparations similaires<a class="btn sm l d" href="#pannes">chercher autrement</a></h2>'+r.map(function(x){return carteSolution(x.b,mots,e);}).join('');}).catch(function(){});
   async function changer(statut,texte,maj){
     maj=Object.assign({statut:statut},maj||{});if(statut!=='Terminé')maj.fin=null;
     try{await q(sb.from('gmao_interventions').update(maj).eq('id',id));await logSys(id,texte);route();}catch(x){erreur(x);}
@@ -566,6 +574,7 @@ function terminerBon(b,minutes,resteACocher){
     try{
       await q(sb.from('gmao_interventions').update(maj).eq('id',b.id));
       if(b.preventif_id){var p=PREV.find(function(x){return x.id===b.preventif_id;}),majp={dernier:auj()};if(p&&p.mesure_id&&DERN[p.mesure_id])majp.dernier_valeur=+DERN[p.mesure_id].valeur;await q(sb.from('gmao_preventifs').update(majp).eq('id',b.preventif_id));if(p)Object.assign(p,majp);}
+      HIST=null;
       await logSys(b.id,'■ '+val('tbI')+' : bon terminé ('+fmtMin(d)+')');
       fermer();route();
     }catch(x){erreur(x);}
@@ -1347,6 +1356,63 @@ VUES.etiquettes=async function(seul){
   $('eRien').onclick=function(){selEtiq={};liste();planche();};
   $('eImp').onclick=function(){window.print();};
   liste();planche();
+};
+
+
+/* =====================================================================
+   PANNES DÉJÀ RÉSOLUES : retrouver une réparation passée en décrivant la panne
+   ===================================================================== */
+var HIST=null, HIST_T=0;
+var MOTS_VIDES={le:1,la:1,les:1,de:1,du:1,des:1,un:1,une:1,et:1,en:1,au:1,aux:1,sur:1,pas:1,plus:1,est:1,il:1,elle:1,qui:1,que:1,ne:1,se:1,sa:1,son:1,ses:1,par:1,pour:1,avec:1,dans:1,peu:1,peine:1,machine:1,veut:1,fait:1,tres:1,trop:1,cest:1,mais:1,ou:1,ca:1};
+async function chargerHistorique(force){
+  if(HIST&&!force&&Date.now()-HIST_T<120000)return HIST;
+  var r=await Promise.all([
+    q(sb.from('gmao_interventions').select('*').eq('statut','Terminé').order('fin',{ascending:false}).limit(1500)),
+    q(sb.from('gmao_messages').select('intervention_id,texte,auteur').neq('auteur','•').limit(8000)),
+    q(sb.from('gmao_mouvements').select('article_id,intervention_id,quantite').limit(8000))
+  ]);
+  var msg={},pcs={};
+  r[1].forEach(function(m){if(m.texte)(msg[m.intervention_id]=msg[m.intervention_id]||[]).push(m.texte);});
+  r[2].forEach(function(m){if(m.intervention_id&&m.quantite<0&&ARTID[m.article_id])(pcs[m.intervention_id]=pcs[m.intervention_id]||[]).push({a:ARTID[m.article_id],n:-m.quantite});});
+  HIST=r[0].map(function(b){var e=EQID[b.equipement_id],md=e&&MODID[e.modele_id];
+    b._msgs=msg[b.id]||[];b._pcs=pcs[b.id]||[];
+    b._titreN=norm(b.titre);
+    b._hayN=norm([b.titre,b.description,b.rapport,b.justification,b._msgs.join(' '),b._pcs.map(function(x){return x.a.designation+' '+(x.a.ref||'');}).join(' '),e?chemin(e)+' '+e.code:'',md?md.nom:''].join(' '));
+    return b;});
+  HIST_T=Date.now();return HIST;
+}
+function motsCles(t){return norm(t).split(/[^a-z0-9]+/).filter(function(w){return w.length>=3&&!MOTS_VIDES[w];});}
+/* score : mots trouvés (le titre compte double, début de mot accepté : « cercle » ↔ « cercleuse »), + même machine / même modèle */
+function scorePanne(b,mots,eq){
+  var s=0;mots.forEach(function(w){var p=w.length>5?w.slice(0,5):w;
+    if(b._titreN.indexOf(w)>=0)s+=2;else if(b._titreN.indexOf(p)>=0)s+=1.2;
+    if(b._hayN.indexOf(w)>=0)s+=1;else if(b._hayN.indexOf(p)>=0)s+=0.6;});
+  if(s>0&&eq){var e=EQID[b.equipement_id];if(e&&e.id===eq.id)s+=3;else if(e&&eq.modele_id&&e.modele_id===eq.modele_id)s+=2;}
+  return s;
+}
+function chercherPannes(texte,eq,exclureId){
+  var mots=motsCles(texte);if(!mots.length||!HIST)return [];
+  return HIST.filter(function(b){return b.id!==exclureId;}).map(function(b){return {b:b,s:scorePanne(b,mots,eq)};})
+    .filter(function(x){return x.s>=Math.max(1.5,mots.length*0.6);}).sort(function(a,b){return b.s-a.s;});
+}
+function surligner(t,mots){var h=esc(t);mots.forEach(function(w){var p=w.length>5?w.slice(0,5):w;h=h.replace(new RegExp('(^|[^a-z0-9à-ÿ])('+p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'[a-zà-ÿ]*)','gi'),'$1<mark>$2</mark>');});return h;}
+function carteSolution(b,mots,eq){
+  var e=EQID[b.equipement_id],md=e&&MODID[e.modele_id];
+  var lien=eq&&e?(e.id===eq.id?'<span class="badge b-vert">même machine</span>':(eq.modele_id&&e.modele_id===eq.modele_id?'<span class="badge b-bleu">même modèle</span>':'')):'';
+  return '<a class="solution" href="#bon/'+b.id+'"><div class="t">'+numBT(b.numero)+' · '+surligner(b.titre,mots)+' '+lien+'</div>'+
+    '<div class="s">'+esc(e?chemin(e):'—')+(md?' ('+esc(md.nom)+')':'')+' · '+fmtD(b.fin)+(b.intervenant?' · '+esc(b.intervenant):'')+(b.duree_min?' · ⏱ '+fmtMin(b.duree_min):'')+'</div>'+
+    (b.rapport?'<div class="rep"><b>Ce qui a été fait :</b> '+surligner(b.rapport,mots)+'</div>':'<div class="rep etiq">(pas de compte rendu)</div>')+
+    (b._pcs.length?'<div class="s">🔩 '+b._pcs.map(function(x){return x.n+' × '+esc(x.a.designation)+(x.a.ref?' ('+esc(x.a.ref)+')':'');}).join(', ')+'</div>':'')+'</a>';
+}
+VUES.pannes=async function(){
+  $('main').innerHTML='<h1 class="titre">💡 Pannes déjà résolues</h1><div class="carte" style="background:var(--bleu2)">Décris la panne avec tes mots (« cercleuse feuillard ne sort pas », « fuite vérin », « courroie qui patine »…) : la GMAO retrouve les réparations passées, avec ce qui a été fait et les pièces utilisées.</div>'+
+    '<div class="rech"><input id="rpn" placeholder="Décris la panne…"></div><div id="lpn"><div class="vide">Chargement de l\'historique…</div></div>';
+  await chargerHistorique(true);
+  function rendre(){var t=val('rpn'),mots=motsCles(t);
+    if(!mots.length){$('lpn').innerHTML='<div class="carte"><div class="etiq">'+HIST.length+' réparation'+(HIST.length>1?'s':'')+' terminée'+(HIST.length>1?'s':'')+' dans l\'historique. Les dernières :</div>'+HIST.slice(0,10).map(function(b){return carteSolution(b,[],null);}).join('')+'</div>';return;}
+    var r=chercherPannes(t,null).slice(0,40);
+    $('lpn').innerHTML='<div class="carte">'+(r.length?r.map(function(x){return carteSolution(x.b,mots,null);}).join(''):'<div class="vide">Aucune réparation ne correspond. Essaie avec d\'autres mots (nom de la machine, pièce, symptôme).</div>')+'</div>';}
+  $('rpn').oninput=rendre;rendre();setTimeout(function(){$('rpn').focus();},50);
 };
 
 /* =====================================================================
