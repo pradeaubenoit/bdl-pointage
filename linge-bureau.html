@@ -177,6 +177,10 @@
   .fl-evol span { background: #f2f4f7; border-radius: 8px; padding: 4px 8px; font-size: 13px; }
   .fl-evol span b { margin-left: 4px; }
   .fl-evol .plus { color: #c62828; } .fl-evol .moins { color: #2e7d32; }
+  .fl-deux { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .fl-deux > div:first-child { flex: 1; min-width: 260px; }
+  .fl-pliage { border-left: 2px solid #e3e6ea; padding-left: 20px; }
+  .fl-heure.p { color: #6a3fa0; }
   .fl-vide { color: #777; font-style: italic; margin-top: 4px; }
   @media print { .fin-lavage { display: none; } }
 </style>
@@ -618,6 +622,8 @@ function fermer() { document.getElementById('fond').style.display = 'none'; }
 
 
 /* ---------- Fin de production lavage (envoyée par le Plan de travail) ---------- */
+const DELAI_PLIAGE_MIN = 75;   // fin du pliage à l'atelier = fin du lavage + 1 h 15 (moyenne relevée)
+function plusMin(t,n){const m=minutesHHMM(t);if(m==null)return '—';const x=(m+n)%1440;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');}
 function minutesHHMM(t){const m=String(t||'').match(/(\d+):(\d+)/);return m?(+m[1])*60+(+m[2]):null;}
 async function chargerFinLavage(){
   const box=document.getElementById('finLavage');if(!box)return;
@@ -637,10 +643,12 @@ async function chargerFinLavage(){
     const maintenant=new Date(),mn=maintenant.getHours()*60+maintenant.getMinutes(),age=mn-minutesHHMM(der.le);
     if(der.termine){
       box.className='fin-lavage fini';
-      box.innerHTML='<div class="fl-titre">🧺 Lavage du jour</div><div class="fl-ligne"><span class="fl-heure">✓ Terminé à '+der.fin+'</span><span class="fl-info">'+der.total+' galettes lavées</span></div><div class="fl-evol">'+evol+'</div>';
+      box.innerHTML='<div class="fl-deux"><div><div class="fl-titre">🧺 Lavage du jour</div><div class="fl-ligne"><span class="fl-heure">✓ Terminé à '+der.fin+'</span><span class="fl-info">'+der.total+' galettes lavées</span></div></div>'+
+        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,DELAI_PLIAGE_MIN)+'</div><div class="fl-info">fin du lavage + 1 h 15</div></div></div><div class="fl-evol">'+evol+'</div>';
     }else{
       box.className='fin-lavage';
-      box.innerHTML='<div class="fl-titre">🧺 Fin du lavage prévue aujourd\'hui</div><div class="fl-ligne"><span class="fl-heure">'+der.fin+'</span><span class="fl-info">reste <b>'+der.reste+'</b> galette'+(der.reste>1?'s':'')+' sur '+der.total+' · mis à jour à '+der.le+(age>30?' <span style="color:#c62828">(il y a '+age+' min — le Plan de travail est peut-être fermé)</span>':'')+'</span></div><div class="fl-evol">'+evol+'</div>';
+      box.innerHTML='<div class="fl-deux"><div><div class="fl-titre">🧺 Fin du lavage prévue aujourd\'hui</div><div class="fl-ligne"><span class="fl-heure">'+der.fin+'</span><span class="fl-info">reste <b>'+der.reste+'</b> galette'+(der.reste>1?'s':'')+' sur '+der.total+' · mis à jour à '+der.le+(age>30?' <span style="color:#c62828">(il y a '+age+' min — le Plan de travail est peut-être fermé)</span>':'')+'</span></div></div>'+
+        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,DELAI_PLIAGE_MIN)+'</div><div class="fl-info">fin du lavage + 1 h 15</div></div></div><div class="fl-evol">'+evol+'</div>';
     }
   }catch(e){box.innerHTML='<div class="fl-titre">🧺 Fin du lavage aujourd\'hui</div><div class="fl-vide">Impossible de lire l\'heure de fin pour le moment.</div>';}
 }
