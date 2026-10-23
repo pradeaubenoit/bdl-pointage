@@ -137,6 +137,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
       <a href="#accueil" data-v="accueil">Accueil</a>
       <a href="#bons" data-v="bons">Bons de travail</a>
       <a href="#planning" data-v="planning">Planning</a>
+      <a href="#achats" data-v="achats">Achats</a>
       <a href="#parc" data-v="parc">Parc</a>
       <a href="#articles" data-v="articles">Pièces</a>
       <a href="#preventif" data-v="preventif">Préventif</a>
@@ -157,12 +158,12 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v7.3';
+var VERSION='v8';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
 var USER=null, NOM='';
-var EQ=[], EQID={}, MOD=[], MODID={}, ART=[], ARTID={}, LIENS=[], PREV=[], PART=[], MES=[], MESID={}, DERN={}, V2=true, SRC=[], SRCA={}, V4=true, PERS=[], STATS={}, V6=true;
+var EQ=[], EQID={}, MOD=[], MODID={}, ART=[], ARTID={}, LIENS=[], PREV=[], PART=[], MES=[], MESID={}, DERN={}, V2=true, SRC=[], SRCA={}, V4=true, PERS=[], STATS={}, V6=true, V8=true;
 
 /* ---------- outils ---------- */
 function $(id){return document.getElementById(id);}
@@ -224,6 +225,7 @@ async function chargerTout(){
     STATS={};(await q(sb.from('gmao_interventions').select('preventif_id,duree_min,valide_le').eq('statut','Terminé'))).forEach(function(b){if(b.preventif_id&&b.valide_le&&b.duree_min){var x=STATS[b.preventif_id]=STATS[b.preventif_id]||{n:0,t:0};x.n++;x.t+=+b.duree_min;}});
     Object.keys(STATS).forEach(function(k){STATS[k].moy=Math.round(STATS[k].t/STATS[k].n);});
   }catch(e){PERS=[];STATS={};V6=false;}
+  try{await q(sb.from('gmao_commandes').select('id').limit(1));V8=true;}catch(e){V8=false;}
   SRCA={};SRC.forEach(function(x){(SRCA[x.article_id]=SRCA[x.article_id]||[]).push(x);});
   EQID={};EQ.forEach(function(e){EQID[e.id]=e;});
   MODID={};MOD.forEach(function(m){MODID[m.id]=m;});
@@ -352,6 +354,7 @@ VUES.accueil=async function(){
   var sousMini=ART.filter(function(a){return (+a.stock||0)<=(+a.stock_mini||0)&&(+a.stock_mini||0)>0;});
   var degr=EQ.filter(function(e){return e.en_service&&e.etat&&e.etat!=='En service';});
   var urg=bons.filter(function(b){return b.priorite==='Urgente'||b.machine_arretee;});
+  var aCmd=V8?(await q(sb.from('gmao_commandes').select('id').eq('statut','À commander'))).length:0;
   var aValider=V6?await q(sb.from('gmao_interventions').select('*').eq('statut','Terminé').is('valide_le',null).order('fin',{ascending:false}).limit(50)):[];
   var html='<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau\')">⚠ Signaler une panne</button>'+
     '<button class="btn p" onclick="aller(\'articles\')">🔎 Chercher une pièce</button><button class="btn" onclick="aller(\'pannes\')">💡 Panne déjà vue ?</button></div>'+
@@ -360,7 +363,7 @@ VUES.accueil=async function(){
     '<a class="tuile" href="#bons"><b>'+bons.length+'</b><span>bons ouverts</span></a>'+
     '<a class="tuile'+(retard.length?' alerte':'')+'" href="#preventif"><b>'+retard.length+'</b><span>préventifs à faire (7 j)</span></a>'+
     '<a class="tuile'+(sousMini.length?' alerte':'')+'" href="#articles/mini"><b>'+sousMini.length+'</b><span>pièces sous le mini</span></a>'+
-    '<a class="tuile" href="#parc"><b>'+degr.length+'</b><span>machines dégradées</span></a>'+(V6?'<a class="tuile'+(aValider.length?' alerte':'')+'" href="#bons"><b>'+aValider.length+'</b><span>travaux à valider</span></a>':'')+'</div>';
+    '<a class="tuile" href="#parc"><b>'+degr.length+'</b><span>machines dégradées</span></a>'+(V6?'<a class="tuile'+(aValider.length?' alerte':'')+'" href="#bons"><b>'+aValider.length+'</b><span>travaux à valider</span></a>':'')+(V8?'<a class="tuile'+(aCmd?' alerte':'')+'" href="#achats/acommander"><b>'+aCmd+'</b><span>pièces à commander</span></a>':'')+'</div>';
   html+='<div class="carte"><h2>Bons ouverts</h2>'+(bons.length?bons.slice(0,12).map(ligneBon).join(''):'<div class="vide">Aucun bon ouvert. 👍</div>')+'</div>';
   if(aValider.length)html+='<div class="carte"><h2>✔ À valider</h2>'+aValider.map(function(b){var dep=b.temps_prevu_min&&b.duree_min>b.temps_prevu_min;return ligneBon(b).replace('</div></div>',' · '+fmtMin(b.duree_min)+(b.temps_prevu_min?' / prévu '+fmtMin(b.temps_prevu_min):'')+(dep?' <b style="color:var(--rouge)">dépassé</b>':'')+'</div></div>');}).join('')+'</div>';
   html+='<div class="carte"><h2>Préventif à venir</h2>'+(retard.length?retard.map(lignePrev).join(''):'<div class="vide">Rien d\'ici 7 jours.</div>')+'</div>';
@@ -426,6 +429,13 @@ VUES.bon=async function(id,extra){
   var msgs=await q(sb.from('gmao_messages').select('*').eq('intervention_id',id).order('cree_le'));
   var mvts=await q(sb.from('gmao_mouvements').select('*').eq('intervention_id',id).order('cree_le'));
   var e=EQID[b.equipement_id], tp=tempsPasse(msgs), prevu=+b.temps_prevu_min||0, fini=b.statut==='Terminé';
+  var cmds=[],suites=[],parent=null;
+  if(V8){try{
+    cmds=await q(sb.from('gmao_commandes').select('*').eq('bon_origine',id));
+    (await q(sb.from('gmao_commandes').select('*').eq('bon_suite',id))).forEach(function(c){if(!cmds.some(function(x){return x.id===c.id;}))cmds.push(c);});
+    suites=await q(sb.from('gmao_interventions').select('id,numero,titre,statut').eq('suite_de',id));
+    if(b.suite_de)parent=(await q(sb.from('gmao_interventions').select('id,numero,titre').eq('id',b.suite_de)))[0]||null;
+  }catch(x){}}
   if(fini&&b.duree_min!=null)tp.min=+b.duree_min;
   var L=lignesCheck(b.description), items=L.filter(function(x){return !x.libre;}), nbFait=items.filter(function(x){return x.fait;}).length;
   function quiCoche(txt){var r=null;msgs.forEach(function(m){var t=m.texte||'';if(m.auteur==='•'&&t.indexOf('☑')===0&&t.indexOf('« '+txt+' »')>0)r=m;});return r;}
@@ -436,6 +446,9 @@ VUES.bon=async function(id,extra){
     '<h1 class="titre">'+numBT(b.numero)+' · '+esc(b.titre)+'</h1>'+
     '<div class="carte"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+badgeStatut(b.statut)+(b.valide_le?'<span class="badge b-vert">✔ validé</span>':'')+badgePrio(b.priorite,b.machine_arretee&&!fini)+'<span class="badge">'+esc(b.type)+'</span><span class="etiq">demandé par '+esc(b.demandeur||'?')+' le '+fmtDH(b.cree_le)+'</span></div>'+
     (e?'<div><b>Machine :</b> <a href="#eq/'+e.id+'">'+esc(chemin(e))+'</a> <span class="etiq">'+esc(e.code)+'</span></div>':'<div><b>Machine :</b> — <button class="btn l sm" id="bChMach">choisir</button></div>')+
+    (parent?'<div style="margin-top:4px">↩ Suite de <a href="#bon/'+parent.id+'">'+numBT(parent.numero)+' · '+esc(parent.titre)+'</a></div>':'')+
+    (suites.length?'<div style="margin-top:4px">➡ Suite prévue : '+suites.map(function(x){return '<a href="#bon/'+x.id+'">'+numBT(x.numero)+'</a> '+badgeStatut(x.statut);}).join(' ')+'</div>':'')+
+    (cmds.length?'<div style="margin-top:6px">🛒 '+cmds.map(function(c){return esc((c.quantite&&c.quantite!=1?c.quantite+' × ':'')+c.designation)+' '+badgeCmd(c.statut);}).join(' · ')+' <a class="etiq" href="#achats">voir les commandes</a></div>':'')+
     (b.assigne_a||b.prevu_le?'<div style="margin-top:4px"><b>Confié à :</b> '+esc(b.assigne_a||'—')+(b.prevu_le?' · prévu le '+fmtD(b.prevu_le):'')+'</div>':'')+
     (L.some(function(x){return x.libre&&x.txt.trim();})?'<label>Description</label><div style="white-space:pre-wrap">'+esc(L.filter(function(x){return x.libre;}).map(function(x){return x.txt;}).join('\n').trim())+'</div>':'')+
     (items.length?'<label>À faire — '+nbFait+'/'+items.length+' fait'+(nbFait>1?'s':'')+'</label><div class="check">'+items.map(function(x){var m=x.fait?quiCoche(x.txt):null;
@@ -448,7 +461,7 @@ VUES.bon=async function(id,extra){
     '<div class="actions" style="justify-content:flex-start">'+
       (!fini&&b.statut!=='Attente pièce'?'<button class="btn sm" id="bAtt">⏳ Attente pièce</button>':'')+
       (fini?'<button class="btn sm" id="bRouv">↺ Rouvrir</button>':'')+
-      '<button class="btn sm l" id="bEdit">✎ Modifier / confier</button><button class="btn sm l" onclick="qrTel()">📱 Sur le téléphone</button></div></div>';
+      '<button class="btn sm" id="bSuite">🔁 Suite à donner / commander une pièce</button><button class="btn sm l" id="bEdit">✎ Modifier / confier</button><button class="btn sm l" onclick="qrTel()">📱 Sur le téléphone</button></div></div>';
   if(fini){
     html+='<div class="carte" style="background:var(--vert2)"><h2>✓ Terminé le '+fmtDH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</h2><div style="white-space:pre-wrap">'+esc(b.rapport||'')+'</div>'+
       '<div class="stats" style="margin-top:8px"><div><span class="etiq">Temps passé</span><b>'+fmtMin(b.duree_min)+'</b></div>'+(prevu?'<div><span class="etiq">Prévu</span><b>'+fmtMin(prevu)+'</b></div>':'')+'<div><span class="etiq">Arrêt machine</span><b>'+fmtMin(b.arret_min)+'</b></div></div>'+
@@ -489,6 +502,7 @@ VUES.bon=async function(id,extra){
     try{await q(sb.from('gmao_interventions').update({description:lignes.join('\n')}).eq('id',id));await logSys(id,(nv?'☑ ':'☐ ')+NOM+' : '+(nv?'fait':'décoché')+' « '+it.txt+' »');route();}catch(x){erreur(x);}
   };});
   $('bEdit').onclick=function(){editerBon(b);};
+  $('bSuite').onclick=function(){suiteADonner(b);};
   if($('bChMach'))$('bChMach').onclick=async function(){var x=await choisirEq();if(!x)return;await q(sb.from('gmao_interventions').update({equipement_id:x.id}).eq('id',id));route();};
   var photoMsg=null;
   $('mPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;$('mPh').textContent='⏳';try{photoMsg=await envoyerPhoto(f);$('mPh').textContent='✅';}catch(x){$('mPh').textContent='📷';erreur(x);}};
@@ -1296,6 +1310,8 @@ VUES.planning=async function(){
   });
   var retard=ouverts.filter(function(b){return b.prevu_le&&b.prevu_le<auj()&&!b.assigne_a;});
   if(retard.length)html+='<div class="carte" style="border-color:var(--rouge)"><h2>⏰ Prévus un jour passé, pas terminés</h2>'+retard.map(ligneBonPlan).join('')+'</div>';
+  if(V8){var cmdA=await q(sb.from('gmao_commandes').select('*').neq('statut','Reçue').order('cree_le'));
+    if(cmdA.length)html+='<div class="carte" style="border-color:var(--orange)"><h2>🛒 Pièces en attente ('+cmdA.length+')<a class="btn sm d" href="#achats">gérer</a></h2>'+cmdA.map(function(c){return '<div class="ligne"><div class="g"><div class="t">'+esc((c.quantite&&c.quantite!=1?c.quantite+' × ':'')+c.designation)+'</div><div class="s">'+esc(c.fournisseur||'fournisseur ?')+' · depuis le '+fmtD(c.cree_le)+'</div></div>'+badgeCmd(c.statut)+'</div>';}).join('')+'</div>';}
   var nonPl=ouverts.filter(function(b){return !b.prevu_le||!b.assigne_a;});
   html+='<div class="carte"><h2>📥 À planifier ('+nonPl.length+')</h2>'+(nonPl.length?nonPl.map(ligneBonPlan).join(''):'<div class="vide">Tout est planifié.</div>')+'</div>';
   var prevSansBon=PREV.filter(function(p){return p.actif&&infoPrev(p).aFaire&&!ouverts.some(function(b){return b.preventif_id===p.id;});});
@@ -1423,6 +1439,90 @@ VUES.pannes=async function(){
     var r=chercherPannes(t,null).slice(0,40);
     $('lpn').innerHTML='<div class="carte">'+(r.length?r.map(function(x){return carteSolution(x.b,mots,null);}).join(''):'<div class="vide">Aucune réparation ne correspond. Essaie avec d\'autres mots (nom de la machine, pièce, symptôme).</div>')+'</div>';}
   $('rpn').oninput=rendre;rendre();setTimeout(function(){$('rpn').focus();},50);
+};
+
+
+/* =====================================================================
+   SUITE À DONNER + COMMANDES DE PIÈCES
+   ===================================================================== */
+var STATUTS_CMD=['À commander','Commandée','Reçue'];
+function badgeCmd(s){var c={'À commander':'b-rouge','Commandée':'b-orange','Reçue':'b-vert'}[s]||'';return '<span class="badge '+c+'">'+esc(s)+'</span>';}
+function pasV8(){$('main').innerHTML='<div class="carte"><b>Il faut d\'abord installer la mise à jour de la base.</b><br>Lance le fichier <code>gmao-installation-7.sql</code> dans Supabase (SQL Editor → + → Run).</div>';}
+function meilleureSource(a){var l=(SRCA[a.id]||[]).slice().sort(function(x,y){return (x.prix==null?1e12:+x.prix)-(y.prix==null?1e12:+y.prix);});return l[0]||null;}
+/* depuis un bon : commander une pièce et créer l'intervention de suite */
+async function suiteADonner(b){
+  if(!V8){toast('Mise à jour de la base nécessaire (gmao-installation-7.sql)');return;}
+  var e=EQID[b.equipement_id],sugg=e?piecesDe(e).map(function(x){return ARTID[x.l.article_id];}):[];
+  var art=await choisir({titre:'Quelle pièce faut-il commander ?',items:sugg.concat(ART.filter(function(a){return sugg.indexOf(a)<0;})),hay:hayArt,prim:primArt,
+    rendu:function(a){return (sugg.indexOf(a)>=0?'⭐ ':'')+renduArt(a);},creer:'Pièce pas encore dans la liste',
+    entete:'<div class="etiq">⭐ = pièce connue pour cette machine. Si la pièce n\'existe pas encore, touche le bouton en bas.</div>'});
+  if(art===null)return;
+  var libre=art==='__creer__'?'':null; if(libre!==null)art=null;
+  var src=art?meilleureSource(art):null;
+  ouvrir('<h3>🔁 Suite à donner — '+numBT(b.numero)+'</h3>'+
+    '<label>Pièce à commander</label>'+(art?'<div class="ligne" style="border:1px solid var(--ligne);border-radius:8px">'+renduArt(art)+'</div>':'<input id="sdP" placeholder="ex. Sangle empileur SFM, réf. 4479069">')+
+    '<div class="grille"><div><label>Quantité</label><input id="sdQ" inputmode="decimal" value="1"></div>'+
+    '<div><label>Fournisseur</label><input id="sdF" list="dlSdF" value="'+esc(src?src.partenaire:'')+'"><datalist id="dlSdF">'+PART.map(function(p){return '<option value="'+esc(p.nom)+'">';}).join('')+'</datalist></div></div>'+
+    (src&&src.prix!=null?'<div class="etiq">Prix connu : '+(+src.prix).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+' chez '+esc(src.partenaire)+(src.ref?' (réf. '+esc(src.ref)+')':'')+'</div>':'')+
+    '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:15px;margin-top:14px"><input type="checkbox" id="sdB" style="width:auto" checked> Créer l\'intervention à faire quand la pièce arrivera</label>'+
+    '<div id="sdBz"><label>Ce qu\'il faudra faire</label><input id="sdT" value="'+esc('Remplacer '+(art?art.designation:'la pièce')+(e?' — '+e.nom:''))+'">'+
+    '<div class="grille"><div><label>Temps prévu (minutes)</label><input id="sdM" inputmode="numeric" placeholder="ex. 60"></div><div><label>Confié à</label><select id="sdA"><option value="">— plus tard —</option>'+PERS.filter(function(p){return p.actif!==false;}).map(function(p){return '<option'+(memePers(p.nom,b.intervenant||NOM)?' selected':'')+'>'+esc(p.nom)+'</option>';}).join('')+'</select></div></div></div>'+
+    '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="sdO">Enregistrer</button></div>');
+  $('sdB').onchange=function(){$('sdBz').style.display=this.checked?'':'none';};
+  if($('sdP'))$('sdP').focus();
+  $('sdO').onclick=async function(){
+    var des=art?art.designation:val('sdP');if(!des){toast('Indique la pièce');return;}
+    this.disabled=true;
+    try{
+      var suite=null;
+      if($('sdB').checked){
+        var r=await q(sb.from('gmao_interventions').insert({titre:val('sdT')||('Suite de '+numBT(b.numero)),description:'Suite de '+numBT(b.numero)+' : '+b.titre+'\n☐ '+(val('sdT')||'Remplacer '+des),
+          type:b.type==='Préventif'?'Curatif':(b.type||'Curatif'),priorite:b.priorite||'Normale',statut:'Attente pièce',equipement_id:b.equipement_id,demandeur:NOM,
+          suite_de:b.id,temps_prevu_min:nb(val('sdM')),assigne_a:$('sdA').value||null}).select());
+        suite=r[0];
+        await q(sb.from('gmao_messages').insert({intervention_id:suite.id,auteur:'•',texte:'🔁 '+NOM+' : suite de '+numBT(b.numero)+' — en attente de « '+des+' »'}));
+      }
+      await q(sb.from('gmao_commandes').insert({article_id:art?art.id:null,designation:des,quantite:nb(val('sdQ'))||1,fournisseur:val('sdF')||null,ref:src?src.ref:null,
+        bon_origine:b.id,bon_suite:suite?suite.id:null,demande_par:NOM,statut:'À commander'}));
+      await logSys(b.id,'🛒 '+NOM+' : pièce à commander « '+des+' »'+(suite?' — suite prévue : '+numBT(suite.numero):''));
+      fermer();toast('✓ Commande notée'+(suite?' et '+numBT(suite.numero)+' créé':''));route();
+    }catch(x){this.disabled=false;erreur(x);}
+  };
+}
+VUES.achats=async function(f){
+  if(!V8)return pasV8();
+  var filtre=f||'ouvertes';
+  var l=await q(sb.from('gmao_commandes').select('*').order('cree_le',{ascending:false}).limit(500));
+  var bons={};(await q(sb.from('gmao_interventions').select('id,numero,titre,statut').limit(3000))).forEach(function(b){bons[b.id]=b;});
+  var F={ouvertes:function(c){return c.statut!=='Reçue';},acommander:function(c){return c.statut==='À commander';},commandees:function(c){return c.statut==='Commandée';},recues:function(c){return c.statut==='Reçue';}};
+  var lib={ouvertes:'En cours',acommander:'À commander',commandees:'Commandées',recues:'Reçues'};
+  var r=l.filter(F[filtre]);
+  $('main').innerHTML='<h1 class="titre">🛒 Commandes de pièces <button class="btn p sm" style="float:right" id="acN">+ Commande</button></h1>'+
+    '<div class="puces">'+Object.keys(lib).map(function(k){return '<button class="puce'+(k===filtre?' on':'')+'" onclick="aller(\'achats/'+k+'\')">'+lib[k]+' ('+l.filter(F[k]).length+')</button>';}).join('')+'</div>'+
+    '<div class="carte">'+(r.length?r.map(function(c){var a=ARTID[c.article_id],bo=bons[c.bon_origine],bs=bons[c.bon_suite];
+      return '<div class="ligne"><div class="g"><div class="t">'+(c.quantite&&c.quantite!=1?c.quantite+' × ':'')+esc(c.designation)+(c.ref?' <span class="etiq">réf. '+esc(c.ref)+'</span>':'')+'</div><div class="s">'+
+        esc(c.fournisseur||'fournisseur ?')+' · demandé le '+fmtD(c.cree_le)+(c.demande_par?' par '+esc(c.demande_par):'')+(c.commandee_le?' · commandé le '+fmtD(c.commandee_le):'')+(c.recue_le?' · reçu le '+fmtD(c.recue_le):'')+
+        (bo?' · pour <a href="#bon/'+bo.id+'">'+numBT(bo.numero)+'</a>':'')+(bs?' · suite <a href="#bon/'+bs.id+'">'+numBT(bs.numero)+'</a> '+badgeStatut(bs.statut):'')+'</div></div>'+
+        badgeCmd(c.statut)+
+        (c.statut==='À commander'?'<button class="btn sm" data-cm="'+c.id+'">Commandée</button>':'')+
+        (c.statut!=='Reçue'?'<button class="btn v sm" data-rc="'+c.id+'">📦 Reçue</button>':'')+
+        (a?'<a class="btn l sm" href="#art/'+a.id+'">fiche</a>':'')+'<button class="btn l sm" data-cx="'+c.id+'">✕</button></div>';}).join(''):'<div class="vide">Rien ici.</div>')+'</div>';
+  $('acN').onclick=async function(){var d=await demander('Pièce à commander','');if(!d)return;try{await q(sb.from('gmao_commandes').insert({designation:d.trim(),demande_par:NOM,statut:'À commander',quantite:1}));route();}catch(x){erreur(x);}};
+  document.querySelectorAll('[data-cm]').forEach(function(x){x.onclick=async function(){var c=l.find(function(z){return z.id===x.dataset.cm;});
+    var fo=await demander('Commandée chez quel fournisseur ?',c.fournisseur||'');if(fo===null)return;
+    try{await q(sb.from('gmao_commandes').update({statut:'Commandée',commandee_le:new Date().toISOString(),fournisseur:fo||c.fournisseur}).eq('id',c.id));
+      if(c.bon_suite)await logSys(c.bon_suite,'🛒 '+NOM+' : « '+c.designation+' » commandé'+(fo?' chez '+fo:''));route();}catch(e){erreur(e);}};});
+  document.querySelectorAll('[data-rc]').forEach(function(x){x.onclick=async function(){var c=l.find(function(z){return z.id===x.dataset.rc;});
+    var n=nb(await demander('Quantité reçue',c.quantite||1,c.article_id?'Le stock de la pièce sera augmenté d\'autant.':''));if(n===null)return;
+    try{
+      if(c.article_id&&n>0)await q(sb.rpc('gmao_mouvement',{p_article:c.article_id,p_qte:Math.abs(n),p_bon:null,p_motif:'Réception commande'+(c.fournisseur?' '+c.fournisseur:''),p_auteur:NOM}));
+      await q(sb.from('gmao_commandes').update({statut:'Reçue',recue_le:new Date().toISOString()}).eq('id',c.id));
+      var bs=c.bon_suite&&bons[c.bon_suite];
+      if(bs&&bs.statut==='Attente pièce'){await q(sb.from('gmao_interventions').update({statut:'Demandé'}).eq('id',bs.id));await logSys(bs.id,'📦 '+NOM+' : « '+c.designation+' » reçu — intervention à planifier');}
+      if(c.article_id)await chargerTout();
+      toast(bs?'📦 Reçu — '+numBT(bs.numero)+' est prêt à être planifié':'📦 Reçu');route();
+    }catch(e){erreur(e);}};});
+  document.querySelectorAll('[data-cx]').forEach(function(x){x.onclick=async function(){if(!confirm('Supprimer cette ligne de commande ?'))return;try{await q(sb.from('gmao_commandes').delete().eq('id',x.dataset.cx));route();}catch(e){erreur(e);}};});
 };
 
 /* =====================================================================
