@@ -95,6 +95,12 @@ table.imp td,table.imp th{border-bottom:1px solid var(--ligne);padding:5px;text-
 table.imp tr.ex{opacity:.45}
 .warn{color:var(--orange);font-size:12px}
 #login{max-width:360px;margin:70px auto}
+.planche{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.etq{background:#fff;border:2px dashed #999;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}
+.etq-h{background:var(--rouge);color:#fff;font-weight:800;border-radius:6px;padding:4px;font-size:13px}
+.etq-qr{display:flex;justify-content:center;margin:8px 0}.etq-qr img,.etq-qr canvas{width:150px;height:150px}
+.etq-n{font-weight:800;font-size:15px;line-height:1.2}.etq-c{font-size:11px;color:#555}
+@media print{header,.noprint,#toast{display:none!important}body{background:#fff}main{padding:0;max-width:none}.planche{grid-template-columns:repeat(3,1fr);gap:6mm}.etq{border:1px dashed #888}}
 .grosbt{display:flex;gap:10px;margin-top:14px}
 .btn.o{background:var(--orange);border-color:var(--orange);color:#fff}
 .chrono.rouge{background:var(--rouge2);color:var(--rouge)}
@@ -147,7 +153,7 @@ table.imp tr.ex{opacity:.45}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v6.1';
+var VERSION='v7';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -324,7 +330,7 @@ function aller(h){location.hash=h;}
 async function route(){
   var h=location.hash.replace(/^#/,'')||'accueil', p=h.split('/'), v=p[0];
   document.querySelectorAll('#nav a').forEach(function(a){
-    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&v==='bon')||(d==='planning'&&v==='planning')||(d==='parc'&&v==='eq')||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
+    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&v==='bon')||(d==='planning'&&v==='planning')||(d==='parc'&&(v==='eq'||v==='etiquettes'))||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
   });
   var f=VUES[v]||VUES.accueil;
   $('main').innerHTML='<div class="vide">Chargement…</div>';
@@ -568,7 +574,7 @@ function terminerBon(b,minutes,resteACocher){
    ===================================================================== */
 var ouverts={}, voirHS=false;
 VUES.parc=async function(){
-  $('main').innerHTML='<h1 class="titre">Parc machines <button class="btn p sm" style="float:right" onclick="nouvelEq()">+ Équipement</button></h1>'+
+  $('main').innerHTML='<h1 class="titre">Parc machines <button class="btn p sm" style="float:right" onclick="nouvelEq()">+ Équipement</button><button class="btn sm" style="float:right;margin-right:8px" onclick="aller(\'etiquettes\')">🏷 Étiquettes QR</button></h1>'+
     '<div class="rech"><input id="rp" placeholder="Chercher : nom, code, marque, n° de série, emplacement…"></div>'+
     '<div class="puces"><button class="puce" id="pTout">Tout déplier</button><button class="puce" id="pRien">Tout replier</button><button class="puce'+(voirHS?' on':'')+'" id="pHS">Afficher hors service</button></div>'+
     '<div class="carte arbre" id="ap"></div>';
@@ -615,7 +621,7 @@ VUES.eq=async function(id){
   var emplacements=uniques(EQ.map(function(x){return x.emplacement;})), familles=uniques(EQ.map(function(x){return x.famille;}));
   var html='<div class="chemin"><a href="#parc">Parc</a>'+(e.parent_id?' › '+cheminLiens(e):'')+'</div>'+
     '<h1 class="titre"><span class="pt '+esc(e.criticite||'')+'"></span> '+esc(e.nom)+' <span class="etiq">'+esc(e.code)+'</span> '+badgeEtat(e.etat)+'</h1>'+
-    '<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau/eq='+id+'\')">⚠ Signaler une panne sur cette machine</button></div>'+
+    '<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau/eq='+id+'\')">⚠ Signaler une panne sur cette machine</button><button class="btn" style="flex:0 1 auto;min-width:0" onclick="aller(\'etiquettes/'+id+'\')">🏷 Étiquette QR</button></div>'+
     '<div class="carte"><h2>Fiche</h2><div class="grille"><div>'+
       (e.photo?'<img class="photo" src="'+esc(e.photo)+'" onclick="zoom(this.src)">':'<div class="photo" style="height:140px;display:flex;align-items:center;justify-content:center;color:var(--doux)">Pas de photo</div>')+
       '<button class="btn sm" id="ePh" style="margin-top:6px">📷 '+(e.photo?'Changer':'Ajouter')+' la photo</button></div><div>'+
@@ -1301,6 +1307,37 @@ function editerPersonne(pid){
     try{if(pid)await q(sb.from('gmao_personnes').update(d).eq('id',pid));else await q(sb.from('gmao_personnes').insert(d));PERS=await q(sb.from('gmao_personnes').select('*').order('nom'));fermer();route();}catch(x){erreur(x);}};
   if(pid)$('psX').onclick=async function(){if(!confirm('Supprimer '+p.nom+' ?'))return;try{await q(sb.from('gmao_personnes').delete().eq('id',pid));PERS=PERS.filter(function(x){return x.id!==pid;});fermer();route();}catch(x){erreur(x);}};
 }
+
+
+/* =====================================================================
+   ÉTIQUETTES QR : coller sur la machine → n'importe quel téléphone signale une panne
+   ===================================================================== */
+function urlDemande(e){return location.href.split('#')[0].replace(/[^\/]*$/,'')+'demande.html?m='+encodeURIComponent(e.code);}
+function chargerQR(){return new Promise(function(ok,ko){if(window.QRCode)return ok();var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc);});}
+var selEtiq=null;
+VUES.etiquettes=async function(seul){
+  var actifs=EQ.filter(function(e){return e.en_service!==false;}).sort(function(a,b){return chemin(a).localeCompare(chemin(b),'fr',{numeric:true});});
+  if(seul&&EQID[seul])selEtiq={};
+  if(!selEtiq){selEtiq={};actifs.forEach(function(e){if(!enfants(e.id).length||e.criticite)selEtiq[e.id]=1;});}
+  if(seul&&EQID[seul])selEtiq[seul]=1;
+  $('main').innerHTML='<div class="chemin noprint"><a href="#parc">← Parc</a></div><h1 class="titre noprint">🏷 Étiquettes QR « Signaler une panne »</h1>'+
+    '<div class="carte noprint" style="background:var(--bleu2)">Colle une étiquette sur chaque machine. N\'importe qui la scanne avec l\'appareil photo de son téléphone → la page « Signaler une panne » s\'ouvre déjà sur la bonne machine, <b>sans compte ni mot de passe</b>. La demande arrive ici dans les bons de travail.</div>'+
+    '<div class="carte noprint"><div class="rech"><input id="re" placeholder="Filtrer…"></div><div class="puces"><button class="puce" id="eTout">Tout cocher</button><button class="puce" id="eRien">Tout décocher</button><span class="etiq" id="eNb"></span></div><div id="eL" style="max-height:300px;overflow:auto"></div>'+
+    '<div class="actions"><button class="btn p" id="eImp">🖨 Imprimer les étiquettes</button></div></div><div id="planche" class="planche"></div>';
+  function liste(){var t=val('re');$('eL').innerHTML=actifs.filter(function(e){return correspond(t,hayEq(e));}).map(function(e){return '<label class="ligne" style="margin:0;cursor:pointer;color:var(--txt);font-size:14px"><input type="checkbox" data-e="'+e.id+'" style="width:auto"'+(selEtiq[e.id]?' checked':'')+'><div class="g"><div class="t">'+esc(e.nom)+' <span class="etiq">'+esc(e.code)+'</span></div><div class="s">'+esc(chemin(e))+'</div></div></label>';}).join('');
+    document.querySelectorAll('[data-e]').forEach(function(c){c.onchange=function(){if(c.checked)selEtiq[c.dataset.e]=1;else delete selEtiq[c.dataset.e];planche();};});}
+  async function planche(){
+    var l=actifs.filter(function(e){return selEtiq[e.id];});$('eNb').textContent=l.length+' étiquette'+(l.length>1?'s':'');
+    try{await chargerQR();}catch(x){$('planche').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
+    $('planche').innerHTML=l.map(function(e,i){return '<div class="etq"><div class="etq-h">⚠ PANNE ? SCANNEZ-MOI</div><div class="etq-qr" id="qr'+i+'"></div><div class="etq-n">'+esc(e.nom)+'</div><div class="etq-c">'+esc(e.code)+' · BdL maintenance</div></div>';}).join('');
+    l.forEach(function(e,i){new QRCode($('qr'+i),{text:urlDemande(e),width:150,height:150,correctLevel:QRCode.CorrectLevel.M});});
+  }
+  $('re').oninput=liste;
+  $('eTout').onclick=function(){actifs.forEach(function(e){selEtiq[e.id]=1;});liste();planche();};
+  $('eRien').onclick=function(){selEtiq={};liste();planche();};
+  $('eImp').onclick=function(){window.print();};
+  liste();planche();
+};
 
 /* =====================================================================
    DÉMARRAGE
