@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v8.2';
+var VERSION='v8.3';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -902,9 +902,9 @@ async function editerPrev(pid,eqId,mesId){
     '<div class="grille"><div><label>Toutes les… (unités du compteur)</label><input id="pvPV" inputmode="decimal" value="'+(p.periodicite_valeur==null?'':p.periodicite_valeur)+'" placeholder="ex. 500"></div>'+
     '<div><label>Valeur du compteur la dernière fois</label><input id="pvDV" inputmode="decimal" value="'+(p.dernier_valeur==null?'':p.dernier_valeur)+'"></div></div></div>'+
     (V6?'<label>Temps prévu (minutes)</label><div style="display:flex;gap:6px"><input id="pvTP" inputmode="numeric" value="'+(p.temps_prevu_min||'')+'" placeholder="ex. 90">'+(pid&&STATS[pid]?'<button class="btn sm" type="button" onclick="$(\'pvTP\').value='+STATS[pid].moy+'">Prendre le réel moyen ('+fmtMin(STATS[pid].moy)+')</button>':'')+'</div>':'')+
-    '<label>Points à vérifier (un par ligne)</label><textarea id="pvC" placeholder="Graisser palier gauche&#10;Graisser palier droit&#10;Contrôler tension courroie">'+esc(p.checklist||'')+'</textarea>'+
+    '<label>Points à vérifier (un par ligne)'+(PREV.length?' <button class="btn l sm" type="button" id="pvCp">📋 copier depuis un autre plan</button>':'')+'</label><textarea id="pvC" placeholder="Graisser palier gauche&#10;Graisser palier droit&#10;Contrôler tension courroie">'+esc(p.checklist||'')+'</textarea>'+
     '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px"><input type="checkbox" id="pvA" style="width:auto"'+(p.actif!==false?' checked':'')+'> Plan actif</label>'+
-    '<div class="actions">'+(pid?'<button class="btn r sm" id="pvX" style="margin-right:auto">Supprimer</button>':'')+'<button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="pvO">Enregistrer</button></div>');
+    '<div class="actions">'+(pid?'<button class="btn r sm" id="pvX" style="margin-right:auto">Supprimer</button><button class="btn sm" id="pvDup">⧉ Dupliquer vers d\'autres machines</button>':'')+'<button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="pvO">Enregistrer</button></div>');
   var boite=$('boite').innerHTML, CH=['pvT','pvK','pvN','pvU','pvD','pvPV','pvDV','pvC'].concat(V6?['pvTP']:[]);
   function sauver(){var o={a:$('pvA').checked};CH.forEach(function(k){o[k]=$(k).value;});return o;}
   function remettre(o){ouvrir(boite);CH.forEach(function(k){$(k).value=o[k];});$('pvA').checked=o.a;lier();}
@@ -933,9 +933,39 @@ async function editerPrev(pid,eqId,mesId){
       try{if(pid)await q(sb.from('gmao_preventifs').update(d).eq('id',pid));else await q(sb.from('gmao_preventifs').insert(d));
         PREV=await q(sb.from('gmao_preventifs').select('*'));fermer();route();}catch(x){erreur(x);}
     };
+    if($('pvCp'))$('pvCp').onclick=async function(){var o=sauver();
+      var src=await choisir({titre:'Copier les points de quel plan ?',items:PREV.filter(function(x){return x.id!==pid;}),hay:function(x){var e=EQID[x.equipement_id];return x.titre+' '+(e?hayEq(e):'');},
+        rendu:function(x){var e=EQID[x.equipement_id];return '<div class="g"><div class="t">'+esc(x.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · '+((x.checklist||'').split('\n').filter(function(l){return l.trim();}).length)+' points</div></div>';}});
+      if(src){o.pvC=(o.pvC.trim()?o.pvC.replace(/\s+$/,'')+'\n':'')+(src.checklist||'');if(!o.pvT)o.pvT=src.titre;if(V6&&!o.pvTP&&src.temps_prevu_min)o.pvTP=src.temps_prevu_min;
+        if(!src.mesure_id){var pj=src.periodicite_jours||30;o.pvN=String(pj%30===0?pj/30:pj%7===0?pj/7:pj);o.pvU=String(pj%30===0?30:pj%7===0?7:1);}}
+      remettre(o);};
+    if(pid&&$('pvDup'))$('pvDup').onclick=function(){fermer();dupliquerPlan(pid);};
     if($('pvX'))$('pvX').onclick=async function(){if(!confirm('Supprimer ce plan ?'))return;try{await q(sb.from('gmao_preventifs').delete().eq('id',pid));PREV=PREV.filter(function(x){return x.id!==pid;});fermer();route();}catch(x){erreur(x);}};
   }
   lier();
+}
+
+/* copier un plan préventif sur d'autres machines (mêmes points, même fréquence, même temps prévu) */
+async function dupliquerPlan(pid){
+  var p=PREV.find(function(x){return x.id===pid;});if(!p)return;
+  var src=EQID[p.equipement_id],sel={};
+  var l=EQ.filter(function(e){return e.en_service!==false&&(!src||e.id!==src.id);});
+  if(src&&src.modele_id)l.filter(function(e){return e.modele_id===src.modele_id;}).forEach(function(e){sel[e.id]=1;});
+  l.sort(function(a,b){var ma=src&&a.modele_id===src.modele_id?0:1,mb=src&&b.modele_id===src.modele_id?0:1;return ma-mb||chemin(a).localeCompare(chemin(b),'fr',{numeric:true});});
+  ouvrir('<h3>⧉ Dupliquer « '+esc(p.titre)+' »</h3><div class="etiq">Mêmes points à vérifier, même fréquence'+(p.temps_prevu_min?', même temps prévu ('+fmtMin(p.temps_prevu_min)+')':'')+'. Chaque machine aura son propre calendrier (« jamais fait » au départ).'+(src&&src.modele_id?' Les machines du même modèle sont cochées d\'office.':'')+'</div>'+
+    '<div class="rech" style="margin-top:8px"><input id="dpQ" placeholder="Filtrer les machines…"></div><div class="liste-choix" id="dpL"></div>'+
+    '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="dpO">Créer les plans</button></div>');
+  function rendre(){var t=val('dpQ');$('dpL').innerHTML=l.filter(function(e){return correspond(t,hayEq(e));}).map(function(e){return '<label class="ligne" style="margin:0;cursor:pointer;color:var(--txt);font-size:14px"><input type="checkbox" data-d="'+e.id+'" style="width:auto"'+(sel[e.id]?' checked':'')+'>'+renduEq(e)+(src&&src.modele_id&&e.modele_id===src.modele_id?'<span class="badge b-bleu">même modèle</span>':'')+'</label>';}).join('');
+    document.querySelectorAll('[data-d]').forEach(function(c){c.onchange=function(){if(c.checked)sel[c.dataset.d]=1;else delete sel[c.dataset.d];maj();};});maj();}
+  function maj(){var n=Object.keys(sel).length;$('dpO').textContent='Créer '+n+' plan'+(n>1?'s':'');$('dpO').disabled=!n;}
+  $('dpQ').oninput=rendre;rendre();
+  $('dpO').onclick=async function(){
+    var ids=Object.keys(sel);if(!ids.length)return;this.disabled=true;
+    var base={titre:p.titre,checklist:p.checklist,actif:true,periodicite_jours:p.periodicite_jours||30};
+    if(V2){base.mesure_id=null;}if(V6)base.temps_prevu_min=p.temps_prevu_min||null;
+    try{await q(sb.from('gmao_preventifs').insert(ids.map(function(id){return Object.assign({equipement_id:id},base);})));
+      PREV=await q(sb.from('gmao_preventifs').select('*'));fermer();toast('✓ '+ids.length+' plan'+(ids.length>1?'s':'')+' créé'+(ids.length>1?'s':''));route();}catch(x){this.disabled=false;erreur(x);}
+  };
 }
 async function lancerPrev(pid){
   var p=PREV.find(function(x){return x.id===pid;});if(!p)return;
