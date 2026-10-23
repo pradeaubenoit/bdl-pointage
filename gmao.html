@@ -157,7 +157,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v7.2';
+var VERSION='v7.3';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -553,7 +553,17 @@ function editerBon(b){
   $('ebO').onclick=async function(){
     var maj={titre:val('ebT'),description:$('ebD').value,type:$('ebTy').value,priorite:$('ebP').value,intervenant:val('ebI'),machine_arretee:$('ebA').value==='1'};
     if(V6)Object.assign(maj,{assigne_a:val('ebAs')||null,prevu_le:val('ebPl')||null,temps_prevu_min:nb(val('ebTp'))});
-    try{await q(sb.from('gmao_interventions').update(maj).eq('id',b.id));fermer();route();}catch(x){erreur(x);}};
+    try{await q(sb.from('gmao_interventions').update(maj).eq('id',b.id));
+      var pl=b.preventif_id&&PREV.find(function(x){return x.id===b.preventif_id;});
+      if(pl){
+        var dans=(pl.checklist||'').split('\n').map(function(x){return norm(x);}).filter(Boolean);
+        var nouv=lignesCheck(maj.description).filter(function(x){return !x.libre&&x.txt.trim()&&dans.indexOf(norm(x.txt))<0;}).map(function(x){return x.txt.trim();});
+        if(nouv.length&&confirm('Nouveau point : « '+nouv.join(' », « ')+' ».\n\nL\'ajouter aussi au plan préventif « '+pl.titre+' » pour les prochaines fois ?')){
+          var ck=((pl.checklist||'').replace(/\s+$/,'')+'\n'+nouv.join('\n')).replace(/^\n/,'');
+          await q(sb.from('gmao_preventifs').update({checklist:ck}).eq('id',pl.id));pl.checklist=ck;toast('✓ Ajouté au plan préventif');
+        }
+      }
+      fermer();route();}catch(x){erreur(x);}};
   $('ebX').onclick=async function(){if(!confirm('Supprimer définitivement ce bon ? (Les pièces sorties restent sorties du stock.)'))return;try{await q(sb.from('gmao_interventions').delete().eq('id',b.id));fermer();aller('bons');}catch(x){erreur(x);}};
 }
 function terminerBon(b,minutes,resteACocher){
