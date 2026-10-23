@@ -31,6 +31,8 @@ textarea{min-height:110px;resize:vertical}
 .deja{background:#fff8e1;border-color:#f3d27a}
 .deja li{margin:4px 0}
 .etiq{color:var(--doux);font-size:14px}
+.dem{border-top:1px solid var(--ligne);padding:10px 0 4px;margin-top:8px}
+.et{font-weight:700;margin:4px 0}.et.ok{color:var(--vert)}.et.cours{color:var(--bleu)}.et.att{color:#b26a00}
 #apercu{max-width:100%;border-radius:10px;margin-top:8px;display:none}
 </style>
 </head>
@@ -48,15 +50,38 @@ function lire(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
 function ecrire(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 var MOTIFS=['Fuite','Bruit anormal','Bloqué / ne démarre pas','Casse','Problème électrique','Linge abîmé','Autre'];
 
+function mesDemandes(){try{return JSON.parse(localStorage.getItem('mes_demandes')||'[]');}catch(e){return [];}}
+function ajouterDemande(n){var l=mesDemandes().filter(function(x){return x!==n;});l.unshift(n);try{localStorage.setItem('mes_demandes',JSON.stringify(l.slice(0,20)));}catch(e){}}
+var SUIVI=[];
+function bt(n){return 'BT-'+String(n||0).padStart(4,'0');}
+function jourH(d){if(!d)return '';var x=new Date(d);return x.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' à '+x.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
+function etatDemande(b){
+  if(b.statut==='Terminé')return '<div class="et ok">✅ Réparé le '+jourH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</div>'+(b.rapport?'<div class="etiq">'+esc(b.rapport)+'</div>':'');
+  if(b.statut==='En cours')return '<div class="et cours">🔧 Réparation en cours'+(b.intervenant?' ('+esc(b.intervenant)+')':'')+'</div>';
+  if(b.statut==='Attente pièce')return '<div class="et att">⏳ En attente d\'une pièce</div>';
+  if(b.statut==='En pause')return '<div class="et att">⏸ Commencé, à terminer</div>';
+  return '<div class="et att">🕓 Reçue, pas encore prise en charge</div>';
+}
 async function charger(){
-  if(CODE){try{var r=await sb.rpc('gmao_machine_publique',{p_code:CODE});if(!r.error)M=r.data;}catch(e){}}
+  var t=[];
+  if(CODE)t.push(sb.rpc('gmao_machine_publique',{p_code:CODE}).then(function(r){if(!r.error)M=r.data;}).catch(function(){}));
+  var mes=mesDemandes();
+  if(mes.length)t.push(sb.rpc('gmao_suivi_publique',{p_numeros:mes}).then(function(r){if(!r.error)SUIVI=r.data||[];}).catch(function(){}));
+  await Promise.all(t);
   formulaire();
+}
+function blocSuivi(){
+  if(!SUIVI.length)return '';
+  return '<div class="carte"><b>📋 Mes demandes</b>'+SUIVI.slice(0,5).map(function(b){return '<div class="dem"><div><b>'+bt(b.numero)+'</b> · '+esc(b.titre)+' <span class="etiq">· '+jourH(b.le)+'</span></div>'+etatDemande(b)+'</div>';}).join('')+'</div>';
 }
 function formulaire(){
   var h='';
   if(M)h+='<div class="carte"><div class="etiq">Machine</div><div class="machine">'+esc(M.nom)+'</div><div class="chemin">'+esc(M.chemin)+' · '+esc(M.code)+'</div></div>';
   else h+='<div class="carte"><div class="etiq">Machine</div>'+(CODE?'<div class="machine" style="font-size:18px">Code « '+esc(CODE)+' » non reconnu</div>':'')+'<label>Où est le problème ? (machine, endroit)</label><input id="ou" placeholder="ex. séchoir 2, tapis sortie TR1…"></div>';
+  if(M&&M.repares&&M.repares.length)h+='<div class="carte"><b>✅ Réparé récemment sur cette machine :</b>'+M.repares.map(function(b){return '<div class="dem"><div><b>'+bt(b.numero)+'</b> · '+esc(b.titre)+'</div><div class="et ok">Réparé le '+jourH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</div>'+(b.rapport?'<div class="etiq">'+esc(b.rapport)+'</div>':'')+'</div>';}).join('')+'</div>';
   if(M&&M.ouverts&&M.ouverts.length)h+='<div class="carte deja"><b>Déjà signalé sur cette machine :</b><ul>'+M.ouverts.map(function(b){return '<li>BT-'+String(b.numero).padStart(4,'0')+' · '+esc(b.titre)+' <span class="etiq">('+esc(b.statut)+')</span></li>';}).join('')+'</ul><div class="etiq">Si c\'est le même problème, inutile de refaire une demande.</div></div>';
+  if(!CODE&&SUIVI.length){$('main').innerHTML=blocSuivi()+'<div class="etiq" style="text-align:center">Pour signaler une nouvelle panne, scanne l\'étiquette de la machine.</div>';return;}
+  h=blocSuivi()+h;
   h+='<div class="carte"><label>Que se passe-t-il ?</label><div class="puces" id="motifs">'+MOTIFS.map(function(m){return '<button class="puce" type="button">'+esc(m)+'</button>';}).join('')+'</div>'+
     '<label>Explique en quelques mots</label><textarea id="txt" placeholder="Ce que tu vois, ce que tu entends, depuis quand…"></textarea>'+
     '<div class="arret" id="arret"><input type="checkbox" id="cbA"> ⛔ La machine est ARRÊTÉE</div>'+
@@ -82,8 +107,8 @@ function formulaire(){
     try{
       var r=await sb.rpc('gmao_demande_publique',{p_code:CODE||null,p_nom:nom,p_titre:titre,p_description:(ou?'Lieu : '+ou+'\n':'')+txt,p_arret:$('cbA').checked,p_photo:photo});
       if(r.error)throw r.error;
-      var n=r.data&&r.data.numero;
-      $('main').innerHTML='<div class="carte ok"><div class="grand">✅</div><h2>Demande envoyée</h2><p>N° <b>BT-'+String(n||0).padStart(4,'0')+'</b><br>Le service maintenance est prévenu.</p>'+($('cbA')&&$('cbA').checked?'<p style="color:var(--rouge);font-weight:700">Machine arrêtée : la demande est marquée URGENTE.</p>':'')+'<button class="btn g" onclick="location.reload()">Faire une autre demande</button></div>';
+      var n=r.data&&r.data.numero;if(n)ajouterDemande(n);
+      $('main').innerHTML='<div class="carte ok"><div class="grand">✅</div><h2>Demande envoyée</h2><p>N° <b>BT-'+String(n||0).padStart(4,'0')+'</b><br>Le service maintenance est prévenu.</p>'+($('cbA')&&$('cbA').checked?'<p style="color:var(--rouge);font-weight:700">Machine arrêtée : la demande est marquée URGENTE.</p>':'')+'<p class="etiq">Pour savoir quand c\'est réparé : rescanne l\'étiquette, ou ouvre ce lien plus tard :</p><a class="btn g" style="text-decoration:none;text-align:center;color:inherit" href="'+location.pathname+'">📋 Suivre mes demandes</a><button class="btn g" onclick="location.reload()">Faire une autre demande</button></div>';
     }catch(e){envoiEnCours=false;$('env').disabled=false;$('env').textContent='Envoyer la demande';alert('Envoi impossible (réseau ?). Réessaie dans un instant.');}
   };
 }
