@@ -153,7 +153,7 @@ table.imp tr.ex{opacity:.45}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v7';
+var VERSION='v7.1';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -466,7 +466,10 @@ VUES.bon=async function(id,extra){
     maj=Object.assign({statut:statut},maj||{});if(statut!=='Terminé')maj.fin=null;
     try{await q(sb.from('gmao_interventions').update(maj).eq('id',id));await logSys(id,texte);route();}catch(x){erreur(x);}
   }
-  if($('bGo'))$('bGo').onclick=function(){changer('En cours','▶ '+NOM+(tp.min>0?' reprend':' démarre'),b.intervenant?{}:{intervenant:NOM});};
+  if($('bGo'))$('bGo').onclick=function(){
+    var maj=b.intervenant?{}:{intervenant:NOM};
+    if(V6){if(!b.assigne_a)maj.assigne_a=personneDe(NOM);if(!b.prevu_le||b.prevu_le<auj())maj.prevu_le=auj();}
+    changer('En cours','▶ '+NOM+(tp.min>0?' reprend':' démarre'),maj);};
   if($('bPause'))$('bPause').onclick=function(){var t=tempsPasse(msgs).min;changer('En pause','⏸ '+NOM+' met en pause ('+fmtMin(t)+' au total)',{duree_min:t});};
   if($('bAtt'))$('bAtt').onclick=function(){var t=tempsPasse(msgs).min;changer('Attente pièce','⏸ '+NOM+' : attente pièce ('+fmtMin(t)+' au total)',{duree_min:t});};
   if($('bRouv'))$('bRouv').onclick=function(){changer('En pause','↺ '+NOM+' rouvre le bon',V6?{valide_le:null,valide_par:null}:{});};
@@ -1246,24 +1249,31 @@ function editerSource(sid,artId){
    ===================================================================== */
 var jourPlan=null;
 function pasV6(){$('main').innerHTML='<div class="carte"><b>Il faut d\'abord installer la mise à jour de la base.</b><br>Lance le fichier <code>gmao-installation-4.sql</code> dans Supabase (SQL Editor → + → Run).</div>';}
+function personneDe(nom){var n=norm(nom),p=PERS.find(function(x){return norm(x.nom)===n;})||PERS.find(function(x){return norm(x.nom).split(' ')[0]===n.split(' ')[0];});return p?p.nom:nom;}
+function memePers(a,b){a=norm(a);b=norm(b);if(!a||!b)return false;return a===b||a.split(' ')[0]===b.split(' ')[0];}
+function jourLocal(d){var x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
 function restant(b){var p=+b.temps_prevu_min||0;return p?Math.max(0,p-(+b.duree_min||0)):0;}
 VUES.planning=async function(){
   if(!V6)return pasV6();
   var j=jourPlan||auj();
   var ouverts=await q(sb.from('gmao_interventions').select('*').neq('statut','Terminé').order('cree_le'));
+  var finis=(await q(sb.from('gmao_interventions').select('*').eq('statut','Terminé').order('fin',{ascending:false}).limit(300))).filter(function(b){return b.fin&&jourLocal(b.fin)===j;});
   var jour=new Date(j+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   var html='<h1 class="titre">Planning</h1><div class="carte" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="pjM">◀</button><input type="date" id="pjD" value="'+j+'" style="width:auto"><button class="btn" id="pjP">▶</button><b style="text-transform:capitalize">'+jour+'</b>'+(j!==auj()?'<button class="btn l sm" id="pjA">aujourd\'hui</button>':'')+'</div>';
   var actifs=PERS.filter(function(p){return p.actif!==false;});
   if(!actifs.length)html+='<div class="carte" style="background:var(--bleu2)">Ajoute d\'abord les personnes de l\'équipe maintenance avec leur temps disponible par jour (en bas de la page).</div>';
   actifs.forEach(function(p){
-    var l=ouverts.filter(function(b){return norm(b.assigne_a)===norm(p.nom)&&(b.prevu_le===j||(j===auj()&&b.prevu_le&&b.prevu_le<j));});
-    var charge=l.reduce(function(s,b){return s+restant(b);},0), cap=+p.capacite_min||420, sansT=l.filter(function(b){return !b.temps_prevu_min;}).length;
+    var l=ouverts.filter(function(b){return memePers(b.assigne_a,p.nom)&&(b.prevu_le===j||(j===auj()&&b.prevu_le&&b.prevu_le<j));});
+    var f=finis.filter(function(b){return memePers(b.assigne_a||b.intervenant,p.nom);});
+    var fait=f.reduce(function(s,b){return s+(+b.duree_min||0);},0);
+    var charge=fait+l.reduce(function(s,b){return s+restant(b);},0), cap=+p.capacite_min||420, sansT=l.filter(function(b){return !b.temps_prevu_min;}).length;
     var pc=Math.min(100,charge/cap*100), trop=charge>cap;
     html+='<div class="carte"><h2>👷 '+esc(p.nom)+'<span class="d etiq">'+fmtMin(charge)+' / '+fmtMin(cap)+'</span></h2>'+
       '<div class="barre gros'+(trop?' rouge':'')+'"><div style="width:'+pc+'%"></div></div>'+
       (trop?'<div class="alerte">⚠ Trop de tâches pour cette journée : <b>+'+fmtMin(charge-cap)+'</b>. Décale un bon à un autre jour ou confie-le à quelqu\'un d\'autre.</div>':(l.length?'<div class="etiq" style="margin:6px 0">Encore '+fmtMin(cap-charge)+' de disponible.</div>':''))+
       (sansT?'<div class="etiq" style="color:var(--orange)">'+sansT+' bon'+(sansT>1?'s':'')+' sans temps prévu (non compté'+(sansT>1?'s':'')+')</div>':'')+
-      (l.length?l.map(ligneBonPlan).join(''):'<div class="vide">Rien de prévu.</div>')+'</div>';
+      (l.length?l.map(ligneBonPlan).join(''):(f.length?'':'<div class="vide">Rien de prévu.</div>'))+
+      (f.length?'<div class="etiq" style="margin-top:8px;font-weight:600">✓ Fait ce jour-là · '+fmtMin(fait)+'</div>'+f.map(function(b){var e=EQID[b.equipement_id];return '<a class="ligne" href="#bon/'+b.id+'" style="opacity:.85"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · terminé à '+new Date(b.fin).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+(b.prevu_le?'':' · <i>non prévu</i>')+'</div></div><b>'+fmtMin(b.duree_min)+'</b>'+(b.valide_le?'<span class="badge b-vert">✔</span>':'<span class="badge b-orange">à valider</span>')+'</a>';}).join(''):'')+'</div>';
   });
   var retard=ouverts.filter(function(b){return b.prevu_le&&b.prevu_le<auj()&&!b.assigne_a;});
   if(retard.length)html+='<div class="carte" style="border-color:var(--rouge)"><h2>⏰ Prévus un jour passé, pas terminés</h2>'+retard.map(ligneBonPlan).join('')+'</div>';
