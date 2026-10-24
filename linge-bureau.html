@@ -623,6 +623,9 @@ function fermer() { document.getElementById('fond').style.display = 'none'; }
 
 /* ---------- Fin de production lavage (envoyée par le Plan de travail) ---------- */
 const DELAI_PLIAGE_MIN = 75;   // fin du pliage à l'atelier = fin du lavage + 1 h 15 (moyenne relevée)
+const DELAI_PLIAGE_SAMEDI_MIN = 195;   // le samedi l'atelier commence plus tard : + 3 h 15
+function delaiPliage(){return new Date().getDay()===6?DELAI_PLIAGE_SAMEDI_MIN:DELAI_PLIAGE_MIN;}
+function txtDelai(n){return 'fin du lavage + '+Math.floor(n/60)+' h '+String(n%60).padStart(2,'0')+(new Date().getDay()===6?' (samedi)':'');}
 function plusMin(t,n){const m=minutesHHMM(t);if(m==null)return '—';const x=(m+n)%1440;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');}
 function minutesHHMM(t){const m=String(t||'').match(/(\d+):(\d+)/);return m?(+m[1])*60+(+m[2]):null;}
 async function chargerFinLavage(){
@@ -644,11 +647,11 @@ async function chargerFinLavage(){
     if(der.termine){
       box.className='fin-lavage fini';
       box.innerHTML='<div class="fl-deux"><div><div class="fl-titre">🧺 Lavage du jour</div><div class="fl-ligne"><span class="fl-heure">✓ Terminé à '+der.fin+'</span><span class="fl-info">'+der.total+' galettes lavées</span></div></div>'+
-        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,DELAI_PLIAGE_MIN)+'</div><div class="fl-info">fin du lavage + 1 h 15</div></div></div><div class="fl-evol">'+evol+'</div>';
+        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,delaiPliage())+'</div><div class="fl-info">'+txtDelai(delaiPliage())+'</div></div></div><div class="fl-evol">'+evol+'</div>';
     }else{
       box.className='fin-lavage';
       box.innerHTML='<div class="fl-deux"><div><div class="fl-titre">🧺 Fin du lavage prévue aujourd\'hui</div><div class="fl-ligne"><span class="fl-heure">'+der.fin+'</span><span class="fl-info">reste <b>'+der.reste+'</b> galette'+(der.reste>1?'s':'')+' sur '+der.total+' · mis à jour à '+der.le+(age>30?' <span style="color:#c62828">(il y a '+age+' min — le Plan de travail est peut-être fermé)</span>':'')+'</span></div></div>'+
-        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,DELAI_PLIAGE_MIN)+'</div><div class="fl-info">fin du lavage + 1 h 15</div></div></div><div class="fl-evol">'+evol+'</div>';
+        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,delaiPliage())+'</div><div class="fl-info">'+txtDelai(delaiPliage())+'</div></div></div><div class="fl-evol">'+evol+'</div>';
     }
   }catch(e){box.innerHTML='<div class="fl-titre">🧺 Fin du lavage aujourd\'hui</div><div class="fl-vide">Impossible de lire l\'heure de fin pour le moment.</div>';}
 }
