@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.1';
+var VERSION='v9.2';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -436,25 +436,30 @@ function telecharger(nom,lignes){
   var txt='﻿'+lignes.map(function(r){return r.map(function(c){c=c==null?'':String(c);return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(';');}).join('\r\n');
   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=nom;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1000);
 }
-var STK={onglet:'valo',date:null,periode:'12m',tri:'valeur',voirZero:false};
+var STK={onglet:'valo',date:null,periode:'12m',tri:'valeur',voirZero:false,couv:2};
 VUES.stock=async function(){
   $('main').innerHTML='<h1 class="titre">Stock : valeur et consommation</h1><div class="carte">Chargement…</div>';
   var r=await Promise.all([
     q(sb.from('gmao_mouvements').select('article_id,intervention_id,quantite,motif,cree_le').order('cree_le',{ascending:false}).limit(20000)),
-    q(sb.from('gmao_interventions').select('id,numero,equipement_id').limit(10000))
+    q(sb.from('gmao_interventions').select('id,numero,equipement_id').limit(10000)),
+    V8?q(sb.from('gmao_commandes').select('article_id,quantite,statut').neq('statut','Reçue')).catch(function(){return [];}):Promise.resolve([])
   ]);
   var MV=r[0],BID={};r[1].forEach(function(b){BID[b.id]=b;});
+  var ENCMD={};(r[2]||[]).forEach(function(c){if(c.article_id)ENCMD[c.article_id]=(ENCMD[c.article_id]||0)+(+c.quantite||1);});
   if(!STK.date)STK.date=auj();
   function rendre(){
     var h='<h1 class="titre">Stock : valeur et consommation <button class="btn sm" style="float:right" onclick="aller(\'articles\')">← Pièces</button></h1>'+
-      '<div class="puces"><button class="puce'+(STK.onglet==='valo'?' on':'')+'" data-o="valo">💶 Valorisation du stock</button><button class="puce'+(STK.onglet==='conso'?' on':'')+'" data-o="conso">🔧 Pièces les plus consommées</button></div>';
-    h+=STK.onglet==='valo'?valo():conso();
+      '<div class="puces"><button class="puce'+(STK.onglet==='valo'?' on':'')+'" data-o="valo">💶 Valorisation du stock</button><button class="puce'+(STK.onglet==='conso'?' on':'')+'" data-o="conso">🔧 Pièces les plus consommées</button><button class="puce'+(STK.onglet==='reco'?' on':'')+'" data-o="reco">🛒 Quoi commander ? ('+conseils().length+')</button></div>';
+    h+=STK.onglet==='valo'?valo():STK.onglet==='reco'?reco():conso();
     $('main').innerHTML=h;
     document.querySelectorAll('[data-o]').forEach(function(b){b.onclick=function(){STK.onglet=b.dataset.o;rendre();};});
     if(STK.onglet==='valo'){
       $('stD').onchange=function(){STK.date=$('stD').value||auj();rendre();};
       $('stZ').onchange=function(){STK.voirZero=$('stZ').checked;rendre();};
       $('stCsv').onclick=function(){exportValo();};
+    }else if(STK.onglet==='reco'){
+      document.querySelectorAll('[data-cv]').forEach(function(b){b.onclick=function(){STK.couv=+b.dataset.cv;rendre();};});
+      document.querySelectorAll('[data-cmd]').forEach(function(b){b.onclick=function(){var x=conseils().find(function(z){return z.a.id===b.dataset.cmd;});if(x)commanderPiece(x.a,x.qte);};});
     }else{
       document.querySelectorAll('[data-p]').forEach(function(b){b.onclick=function(){STK.periode=b.dataset.p;rendre();};});
       document.querySelectorAll('[data-t]').forEach(function(b){b.onclick=function(){STK.tri=b.dataset.t;rendre();};});
@@ -492,6 +497,39 @@ VUES.stock=async function(){
     var tot=0;L.forEach(function(x){tot+=x.val;rows.push([x.a.ref||'',x.a.designation,x.a.emplacement||'',x.a.unite||'pce',qFr(x.qte),x.pr?qFr(x.pr.p):'',x.pr?qFr(x.val):'',x.pr?x.pr.src:'SANS PRIX']);});
     rows.push([],['','','','','','TOTAL',qFr(tot),'']);
     telecharger('valorisation-stock-'+STK.date+'.csv',rows);
+  }
+  /* ---------- Conseil de commande ---------- */
+  function conseils(){
+    var couv=STK.couv||2, now=Date.now(), plusVieux=now;
+    MV.forEach(function(m){var t=new Date(m.cree_le).getTime();if(t<plusVieux)plusVieux=t;});
+    /* Mois d'historique réellement disponibles dans la GMAO (au moins 1, au plus 12) */
+    var mois=Math.min(12,Math.max(1,(now-plusVieux)/(30.4*864e5))), de=now-mois*30.4*864e5, C={};
+    MV.forEach(function(m){var q2=+m.quantite||0;if(q2>=0||/^inventaire/i.test(m.motif||''))return;if(new Date(m.cree_le).getTime()<de)return;C[m.article_id]=(C[m.article_id]||0)-q2;});
+    var out=[];
+    ART.forEach(function(a){
+      var parMois=(C[a.id]||0)/mois, stock=+a.stock||0, cmd=ENCMD[a.id]||0, dispo=stock+cmd, mini=+a.stock_mini||0;
+      if(!parMois&&!mini)return;
+      var seuil=Math.max(mini,Math.ceil(parMois)), cible=Math.max(seuil+Math.ceil(parMois*couv),mini>0?mini+1:0,1);
+      if(dispo>seuil)return;
+      var qte=Math.max(1,Math.ceil(cible-dispo)),pr=prixRetenu(a);
+      var pourquoi=parMois?'consomme ~'+qFr(parMois)+' / mois':'';
+      if(mini&&dispo<=mini)pourquoi=(pourquoi?pourquoi+' · ':'')+'sous le mini ('+qFr(mini)+')';
+      var urgent=stock<=0||(parMois&&stock<parMois/2);
+      out.push({a:a,qte:qte,parMois:parMois,stock:stock,cmd:cmd,seuil:seuil,cible:cible,pr:pr,pourquoi:pourquoi,urgent:urgent,mois:mois});
+    });
+    return out.sort(function(x,y){return (y.urgent-x.urgent)||((y.pr?y.pr.p*y.qte:0)-(x.pr?x.pr.p*x.qte:0));});
+  }
+  function reco(){
+    var L=conseils(),couv=STK.couv||2,tot=L.reduce(function(t,x){return t+(x.pr?x.pr.p*x.qte:0);},0);
+    var mois=L.length?L[0].mois:null;
+    var h='<div class="carte"><div class="etiq">La GMAO regarde ce que tu as <b>consommé</b>, ce qu\'il te <b>reste</b> et ce qui est <b>déjà en commande</b>. Elle conseille de commander quand le stock ne couvre plus un mois de consommation (ou passe sous le mini).</div>'+
+      '<div class="puces" style="margin-top:10px"><span class="etiq" style="align-self:center">Commander pour tenir :</span>'+[1,2,3,6].map(function(n){return '<button class="puce'+(couv===n?' on':'')+'" data-cv="'+n+'">'+n+' mois</button>';}).join('')+'</div>'+
+      (L.length?'<div style="font-size:24px;font-weight:800;margin-top:10px">'+L.length+' pièce'+(L.length>1?'s':'')+' à commander <span style="font-size:15px;font-weight:600;color:var(--doux)">≈ '+eur(tot)+'</span></div>':'')+
+      (mois&&mois<6?'<div class="etiq" style="color:var(--orange);margin-top:4px">⚠ Seulement '+qFr(mois)+' mois d\'historique dans la GMAO : les conseils deviendront plus justes avec le temps.</div>':'')+'</div>';
+    if(!L.length)return h+'<div class="carte"><div class="vide">Rien à commander pour l\'instant : le stock couvre la consommation. (Pense à mettre un « stock mini » sur les pièces critiques.)</div></div>';
+    h+='<div class="carte" style="overflow-x:auto"><table class="imp"><tr><th>Pièce</th><th>Pourquoi</th><th style="text-align:right">Stock</th><th style="text-align:right">En commande</th><th style="text-align:right">Conseil</th><th style="text-align:right">≈ Coût</th><th></th></tr>'+
+      L.map(function(x){return '<tr><td><a href="#art/'+x.a.id+'">'+esc(x.a.designation)+'</a>'+(x.urgent?' <span class="badge b-rouge">urgent</span>':'')+(x.a.ref?'<div class="etiq">'+esc(x.a.ref)+'</div>':'')+'</td><td class="etiq">'+esc(x.pourquoi)+'</td><td style="text-align:right">'+qFr(x.stock)+'</td><td style="text-align:right">'+(x.cmd?qFr(x.cmd):'—')+'</td><td style="text-align:right"><b>'+qFr(x.qte)+' '+esc(x.a.unite||'pce')+'</b></td><td style="text-align:right">'+(x.pr?eur(x.pr.p*x.qte):'<span class="etiq">prix ?</span>')+'</td><td><button class="btn sm p" data-cmd="'+x.a.id+'">🛒 Commander</button></td></tr>';}).join('')+'</table></div>';
+    return h;
   }
   /* ---------- Consommation ---------- */
   function bornes(){
@@ -1693,11 +1731,11 @@ async function suiteADonner(b){
   };
 }
 /* Commander une pièce depuis sa fiche (lien avec la pièce : à la réception, le stock monte tout seul) */
-function commanderPiece(a){
+function commanderPiece(a,qteConseil){
   var srcs=(SRCA[a.id]||[]).slice().sort(function(x,y){return (x.prix==null?1e9:+x.prix)-(y.prix==null?1e9:+y.prix);});
   var noms=[];srcs.forEach(function(x){if(x.partenaire&&noms.indexOf(x.partenaire)<0)noms.push(x.partenaire);});if(a.fournisseur&&noms.indexOf(a.fournisseur)<0)noms.push(a.fournisseur);
   ouvrir('<h3>🛒 Commander « '+esc(a.designation)+' »</h3>'+
-    '<div class="grille"><div><label>Quantité</label><input id="cqQ" inputmode="decimal" value="'+Math.max(1,(+a.stock_mini||0)-(+a.stock||0)||1)+'"></div>'+
+    '<div class="grille"><div><label>Quantité</label><input id="cqQ" inputmode="decimal" value="'+(qteConseil||Math.max(1,(+a.stock_mini||0)-(+a.stock||0)||1))+'"></div>'+
     '<div><label>Fournisseur</label><input id="cqF" list="cqL" value="'+esc(noms[0]||'')+'"><datalist id="cqL">'+noms.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist></div></div>'+
     (srcs.length?'<div class="etiq" style="margin-top:6px">'+srcs.filter(function(x){return x.prix!=null;}).slice(0,4).map(function(x){return esc(x.partenaire)+' : '+eur(x.prix)+(x.ref?' (réf. '+esc(x.ref)+')':'');}).join(' · ')+'</div>':'')+
     '<label>Où en est la commande ?</label><div class="puces" id="cqS"><button class="puce on" data-s="À commander">À commander</button><button class="puce" data-s="Commandée">Déjà commandée</button></div>'+
