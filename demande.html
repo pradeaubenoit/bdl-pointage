@@ -60,6 +60,7 @@ function etatDemande(b){
   if(b.statut==='En cours')return '<div class="et cours">🔧 Réparation en cours'+(b.intervenant?' ('+esc(b.intervenant)+')':'')+'</div>';
   if(b.statut==='Attente pièce')return '<div class="et att">⏳ En attente d\'une pièce</div>';
   if(b.statut==='En pause')return '<div class="et att">⏸ Commencé, à terminer</div>';
+  if(b.prevu_le)return '<div class="et cours">📅 Prise en charge : prévue '+jourCourt(b.prevu_le)+(b.assigne_a?' ('+esc(b.assigne_a)+')':'')+'</div>';
   return '<div class="et att">🕓 Reçue, pas encore prise en charge</div>';
 }
 async function charger(){
@@ -72,16 +73,18 @@ async function charger(){
 }
 function blocSuivi(){
   if(!SUIVI.length)return '';
-  return '<div class="carte"><b>📋 Mes demandes</b>'+SUIVI.slice(0,5).map(function(b){return '<div class="dem"><div><b>'+bt(b.numero)+'</b> · '+esc(b.titre)+' <span class="etiq">· '+jourH(b.le)+'</span></div>'+etatDemande(b)+'</div>';}).join('')+'</div>';
+  return '<div class="carte"><b>📋 Mes demandes</b>'+SUIVI.slice(0,5).map(function(b){return '<div class="dem"><div><b>'+bt(b.numero)+'</b> · '+esc(b.titre)+' <span class="etiq">· '+jourH(b.le)+'</span></div>'+etatDemande(b)+prevuTxt(b)+msgMaint(b)+'</div>';}).join('')+'</div>';
 }
 function jourCourt(d){if(!d)return '';var x=new Date(d+'T12:00');return x.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'2-digit'});}
+function msgMaint(b){if(!b.msg||!b.msg.texte||b.statut==='Terminé')return '';return '<div style="background:#eef4fb;border-radius:10px;padding:8px 10px;margin:6px 0"><div class="etiq">💬 Maintenance · '+jourH(b.msg.le)+'</div><div>'+esc(b.msg.texte)+'</div></div>';}
+function prevuTxt(b){if(!b.prevu_le||b.statut==='Terminé'||b.statut==='En cours'||b.statut==='Demandé')return '';return '<div class="etiq">📅 Prévu '+jourCourt(b.prevu_le)+(b.assigne_a?' ('+esc(b.assigne_a)+')':'')+'</div>';}
 function carteOuvert(b){
   var h='<div class="dem"><div><b>'+bt(b.numero)+'</b> · '+esc(b.titre)+(b.arret?' <span style="color:var(--rouge);font-weight:700">⛔ arrêt</span>':'')+'</div>';
   h+='<div class="etiq">Signalé le '+jourH(b.le)+(b.demandeur?' par '+esc(b.demandeur):'')+'</div>';
   if(b.description)h+='<div style="margin:6px 0;white-space:pre-wrap">'+esc(b.description)+'</div>';
   if(b.photo)h+='<img src="'+esc(b.photo)+'" style="max-width:100%;max-height:220px;border-radius:10px;margin:4px 0" loading="lazy">';
   h+=etatDemande(b);
-  if(b.prevu_le&&b.statut!=='En cours')h+='<div class="etiq">📅 Prévu '+jourCourt(b.prevu_le)+(b.assigne_a?' ('+esc(b.assigne_a)+')':'')+'</div>';
+  h+=prevuTxt(b)+msgMaint(b);
   if(b.confirmations)h+='<div class="etiq">👀 Constaté aussi par '+b.confirmations+' autre'+(b.confirmations>1?'s':'')+' personne'+(b.confirmations>1?'s':'')+'</div>';
   h+='<div id="cf'+b.numero+'"><button class="btn g" type="button" style="margin-top:8px" onclick="ouvrirConfirm('+b.numero+')">👀 Je le constate aussi</button></div></div>';
   return h;
