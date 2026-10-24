@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v8.8';
+var VERSION='v9.0';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -338,7 +338,7 @@ async function route(){
   try{var ss=await sb.auth.getSession();if(!ss.data||!ss.data.session){var rf=await sb.auth.refreshSession();if(!rf.data||!rf.data.session){toast('Connexion expirée : reconnecte-toi');setTimeout(function(){location.reload();},1200);return;}}}catch(e){}
   var h=location.hash.replace(/^#/,'')||'accueil', p=h.split('/'), v=p[0];
   document.querySelectorAll('#nav a').forEach(function(a){
-    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&(v==='bon'||v==='pannes'))||(d==='planning'&&v==='planning')||(d==='parc'&&(v==='eq'||v==='etiquettes'))||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
+    var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&(v==='bon'||v==='pannes'))||(d==='planning'&&v==='planning')||(d==='parc'&&(v==='eq'||v==='etiquettes'))||(d==='articles'&&(v==='art'||v==='stock'||v==='doublons'))||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
   });
   var f=VUES[v]||VUES.accueil;
   $('main').innerHTML='<div class="vide">Chargement…</div>';
@@ -418,6 +418,131 @@ function lignePrev(p){
   return '<div class="ligne"><div class="g"><div class="t">'+esc(p.titre)+(dbl?' <span class="badge b-orange">⚠ 2 plans identiques sur cette machine ?</span>':'')+'</div><div class="s">'+esc(e?chemin(e):'—')+' · '+periodeTxt(p)+(p.temps_prevu_min?' · ⏱ prévu '+fmtMin(p.temps_prevu_min):'')+(STATS[p.id]?' · réel moyen '+fmtMin(STATS[p.id].moy)+' ('+STATS[p.id].n+' fois)':'')+'</div></div>'+
     badgeEcheance(p)+'<button class="btn sm" onclick="lancerPrev(\''+p.id+'\')">Créer le bon</button><button class="btn sm l" onclick="editerPrev(\''+p.id+'\')">✎</button></div>';
 }
+
+/* =====================================================================
+   STOCK : valorisation (pour le comptable) + pièces les plus consommées
+   ===================================================================== */
+function eur(x){return (+x||0).toLocaleString('fr-FR',{style:'currency',currency:'EUR'});}
+function qFr(x){var r=Math.round((+x||0)*100)/100;return r.toLocaleString('fr-FR');}
+/* Prix unitaire retenu : prix de la fiche, sinon le prix fournisseur le plus récent (le moins cher à date égale) */
+function prixRetenu(a){
+  if(a.prix!=null&&+a.prix>0)return {p:+a.prix,src:'fiche pièce'};
+  var l=(SRCA[a.id]||[]).filter(function(x){return x.prix!=null&&+x.prix>0;});
+  if(!l.length)return null;
+  l.sort(function(x,y){var dx=x.date_prix||'',dy=y.date_prix||'';if(dx!==dy)return dx<dy?1:-1;return (+x.prix)-(+y.prix);});
+  return {p:+l[0].prix,src:l[0].partenaire+(l[0].date_prix?' ('+fmtD(l[0].date_prix)+')':'')};
+}
+function telecharger(nom,lignes){
+  var txt='﻿'+lignes.map(function(r){return r.map(function(c){c=c==null?'':String(c);return /[;"\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(';');}).join('\r\n');
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=nom;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1000);
+}
+var STK={onglet:'valo',date:null,periode:'12m',tri:'valeur',voirZero:false};
+VUES.stock=async function(){
+  $('main').innerHTML='<h1 class="titre">Stock : valeur et consommation</h1><div class="carte">Chargement…</div>';
+  var r=await Promise.all([
+    q(sb.from('gmao_mouvements').select('article_id,intervention_id,quantite,motif,cree_le').order('cree_le',{ascending:false}).limit(20000)),
+    q(sb.from('gmao_interventions').select('id,numero,equipement_id').limit(10000))
+  ]);
+  var MV=r[0],BID={};r[1].forEach(function(b){BID[b.id]=b;});
+  if(!STK.date)STK.date=auj();
+  function rendre(){
+    var h='<h1 class="titre">Stock : valeur et consommation <button class="btn sm" style="float:right" onclick="aller(\'articles\')">← Pièces</button></h1>'+
+      '<div class="puces"><button class="puce'+(STK.onglet==='valo'?' on':'')+'" data-o="valo">💶 Valorisation du stock</button><button class="puce'+(STK.onglet==='conso'?' on':'')+'" data-o="conso">🔧 Pièces les plus consommées</button></div>';
+    h+=STK.onglet==='valo'?valo():conso();
+    $('main').innerHTML=h;
+    document.querySelectorAll('[data-o]').forEach(function(b){b.onclick=function(){STK.onglet=b.dataset.o;rendre();};});
+    if(STK.onglet==='valo'){
+      $('stD').onchange=function(){STK.date=$('stD').value||auj();rendre();};
+      $('stZ').onchange=function(){STK.voirZero=$('stZ').checked;rendre();};
+      $('stCsv').onclick=function(){exportValo();};
+    }else{
+      document.querySelectorAll('[data-p]').forEach(function(b){b.onclick=function(){STK.periode=b.dataset.p;rendre();};});
+      document.querySelectorAll('[data-t]').forEach(function(b){b.onclick=function(){STK.tri=b.dataset.t;rendre();};});
+      $('scCsv').onclick=function(){exportConso();};
+    }
+  }
+  /* ---------- Valorisation ---------- */
+  function lignesValo(){
+    var fin=STK.date+'T23:59:59', apres={};
+    if(STK.date<auj())MV.forEach(function(m){if(new Date(m.cree_le)>new Date(fin))apres[m.article_id]=(apres[m.article_id]||0)+(+m.quantite||0);});
+    return ART.map(function(a){
+      var qte=(+a.stock||0)-(apres[a.id]||0), pr=prixRetenu(a);
+      return {a:a,qte:qte,pr:pr,val:pr&&qte>0?qte*pr.p:0};
+    });
+  }
+  function valo(){
+    var L=lignesValo(), enStock=L.filter(function(x){return x.qte>0;});
+    var tot=enStock.reduce(function(t,x){return t+x.val;},0), sansPrix=enStock.filter(function(x){return !x.pr;}), neg=L.filter(function(x){return x.qte<0;});
+    var vis=(STK.voirZero?L:enStock).slice().sort(function(x,y){return y.val-x.val||x.a.designation.localeCompare(y.a.designation,'fr');});
+    var h='<div class="carte"><div class="grille"><div><label>Valeur du stock au</label><input type="date" id="stD" value="'+STK.date+'" max="'+auj()+'"></div>'+
+      '<div style="align-self:end"><button class="btn p" id="stCsv">⬇ Export pour le comptable (CSV)</button></div></div>'+
+      '<div style="font-size:30px;font-weight:800;margin:14px 0 2px">'+eur(tot)+'</div>'+
+      '<div class="etiq">'+enStock.length+' références en stock · '+qFr(enStock.reduce(function(t,x){return t+x.qte;},0))+' pièces'+(STK.date<auj()?' · stock recalculé au '+fmtD(STK.date)+' à partir des mouvements':'')+'</div>'+
+      (sansPrix.length?'<div class="carte" style="background:#fff8e1;border-color:#f3d27a;margin:12px 0 0"><b>⚠ '+sansPrix.length+' pièce'+(sansPrix.length>1?'s':'')+' en stock sans prix</b> : '+(sansPrix.length>1?'elles comptent':'elle compte')+' pour 0 €. Ouvre la fiche pour saisir un prix (ou un prix fournisseur).<div style="margin-top:6px">'+sansPrix.slice(0,30).map(function(x){return '<a href="#art/'+x.a.id+'" class="badge b-orange" style="margin:2px">'+esc(x.a.designation)+' ('+qFr(x.qte)+')</a>';}).join('')+(sansPrix.length>30?' …':'')+'</div></div>':'')+
+      (neg.length?'<div class="etiq" style="color:var(--rouge);margin-top:8px">⚠ '+neg.length+' pièce'+(neg.length>1?'s':'')+' en stock négatif (sorties sans entrée) : fais un inventaire sur la fiche.</div>':'')+
+      '<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="stZ"'+(STK.voirZero?' checked':'')+' style="width:auto"> afficher aussi les pièces à 0</label></div>';
+    h+='<div class="carte" style="overflow-x:auto"><table class="imp"><tr><th>Pièce</th><th>Réf.</th><th>Emplacement</th><th style="text-align:right">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Valeur</th><th>Prix pris chez</th></tr>'+
+      vis.map(function(x){return '<tr><td><a href="#art/'+x.a.id+'">'+esc(x.a.designation)+'</a></td><td>'+esc(x.a.ref||'')+'</td><td>'+esc(x.a.emplacement||'')+'</td><td style="text-align:right">'+qFr(x.qte)+'</td><td style="text-align:right">'+(x.pr?eur(x.pr.p):'<span style="color:var(--orange)">?</span>')+'</td><td style="text-align:right"><b>'+(x.pr?eur(x.val):'—')+'</b></td><td class="etiq">'+(x.pr?esc(x.pr.src):'')+'</td></tr>';}).join('')+
+      '<tr><td colspan="5"><b>Total</b></td><td style="text-align:right"><b>'+eur(tot)+'</b></td><td></td></tr></table></div>';
+    return h;
+  }
+  function exportValo(){
+    var L=lignesValo().filter(function(x){return x.qte>0;}).sort(function(x,y){return x.a.designation.localeCompare(y.a.designation,'fr');});
+    var rows=[['Valorisation du stock pièces détachées au '+fmtD(STK.date)],[],['Référence','Désignation','Emplacement','Unité','Quantité','Prix unitaire HT','Valeur HT','Origine du prix']];
+    var tot=0;L.forEach(function(x){tot+=x.val;rows.push([x.a.ref||'',x.a.designation,x.a.emplacement||'',x.a.unite||'pce',qFr(x.qte),x.pr?qFr(x.pr.p):'',x.pr?qFr(x.val):'',x.pr?x.pr.src:'SANS PRIX']);});
+    rows.push([],['','','','','','TOTAL',qFr(tot),'']);
+    telecharger('valorisation-stock-'+STK.date+'.csv',rows);
+  }
+  /* ---------- Consommation ---------- */
+  function bornes(){
+    var a=auj(),y=+a.slice(0,4);
+    if(STK.periode==='3m')return [ajoutJours(a,-91),a,'3 derniers mois',3];
+    if(STK.periode==='6m')return [ajoutJours(a,-182),a,'6 derniers mois',6];
+    if(STK.periode==='an')return [y+'-01-01',a,'année '+y,Math.max(1,new Date().getMonth()+1)];
+    if(STK.periode==='an1')return [(y-1)+'-01-01',(y-1)+'-12-31','année '+(y-1),12];
+    return [ajoutJours(a,-365),a,'12 derniers mois',12];
+  }
+  function calcConso(){
+    var b=bornes(),de=new Date(b[0]+'T00:00:00'),a=new Date(b[1]+'T23:59:59'),P={},M={};
+    MV.forEach(function(m){
+      var q2=+m.quantite||0,d=new Date(m.cree_le);
+      if(q2>=0||d<de||d>a||/^inventaire/i.test(m.motif||''))return;
+      var x=P[m.article_id]=P[m.article_id]||{qte:0,bons:{},eq:{}};x.qte+=-q2;
+      var bn=m.intervention_id&&BID[m.intervention_id];
+      if(bn){x.bons[bn.id]=1;if(bn.equipement_id){x.eq[bn.equipement_id]=(x.eq[bn.equipement_id]||0)+(-q2);}}
+    });
+    var L=Object.keys(P).map(function(id){var art=ARTID[id]||ART.find(function(z){return z.id===id;});if(!art)return null;var pr=prixRetenu(art),x=P[id];
+      return {a:art,qte:x.qte,val:pr?x.qte*pr.p:0,pr:pr,nbBons:Object.keys(x.bons).length,eq:x.eq,parMois:x.qte/b[3]};}).filter(Boolean);
+    L.forEach(function(x){Object.keys(x.eq).forEach(function(e){var v=x.pr?x.eq[e]*x.pr.p:0;M[e]=M[e]||{val:0,qte:0};M[e].val+=v;M[e].qte+=x.eq[e];});});
+    return {L:L,M:M,b:b};
+  }
+  function conso(){
+    var c=calcConso(),L=c.L.slice().sort(STK.tri==='qte'?function(x,y){return y.qte-x.qte;}:function(x,y){return y.val-x.val||y.qte-x.qte;});
+    var tot=L.reduce(function(t,x){return t+x.val;},0);
+    var per=[['3m','3 mois'],['6m','6 mois'],['12m','12 mois'],['an','Cette année'],['an1','Année dernière']];
+    var h='<div class="carte"><div class="puces">'+per.map(function(p){return '<button class="puce'+(STK.periode===p[0]?' on':'')+'" data-p="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'+
+      '<div style="font-size:26px;font-weight:800;margin:10px 0 2px">'+eur(tot)+' <span style="font-size:15px;font-weight:600;color:var(--doux)">de pièces consommées · '+esc(c.b[2])+'</span></div>'+
+      '<div class="etiq">'+L.length+' pièces différentes sorties du stock · les corrections d\'inventaire ne comptent pas</div>'+
+      '<div class="puces" style="margin-top:10px"><span class="etiq" style="align-self:center">Trier par :</span><button class="puce'+(STK.tri==='valeur'?' on':'')+'" data-t="valeur">€ coût</button><button class="puce'+(STK.tri==='qte'?' on':'')+'" data-t="qte">quantité</button><button class="btn sm" id="scCsv" style="margin-left:auto">⬇ CSV</button></div></div>';
+    if(!L.length)return h+'<div class="carte"><div class="vide">Aucune pièce sortie du stock sur cette période. Les sorties se font depuis un bon (« Sortir une pièce ») ou depuis la fiche pièce.</div></div>';
+    h+='<div class="carte" style="overflow-x:auto"><table class="imp"><tr><th>#</th><th>Pièce</th><th style="text-align:right">Qté</th><th style="text-align:right">Coût</th><th style="text-align:right">Bons</th><th>Sur quelles machines</th><th style="text-align:right">Par mois</th><th style="text-align:right">Stock</th><th>Mini</th></tr>'+
+      L.slice(0,60).map(function(x,i){
+        var eqs=Object.keys(x.eq).sort(function(p,q2){return x.eq[q2]-x.eq[p];}).slice(0,3).map(function(e){var E=EQID[e];return E?esc(E.nom)+' ('+qFr(x.eq[e])+')':'';}).join(', ');
+        var mini=+x.a.stock_mini||0,conseil=Math.ceil(x.parMois),alerte=conseil>0&&mini<conseil;
+        return '<tr><td>'+(i+1)+'</td><td><a href="#art/'+x.a.id+'">'+esc(x.a.designation)+'</a>'+(x.a.ref?'<div class="etiq">'+esc(x.a.ref)+'</div>':'')+'</td><td style="text-align:right"><b>'+qFr(x.qte)+'</b></td><td style="text-align:right">'+(x.pr?eur(x.val):'<span style="color:var(--orange)">prix ?</span>')+'</td><td style="text-align:right">'+x.nbBons+'</td><td class="etiq">'+(eqs||'—')+'</td><td style="text-align:right">'+qFr(x.parMois)+'</td><td style="text-align:right">'+qFr(+x.a.stock||0)+'</td><td>'+(alerte?'<span class="badge b-orange" title="Le stock mini est plus bas que la consommation d\'un mois">mini '+qFr(mini)+' → '+conseil+' ?</span>':'<span class="etiq">'+qFr(mini)+'</span>')+'</td></tr>';
+      }).join('')+'</table></div>';
+    var mk=Object.keys(c.M).sort(function(p,q2){return c.M[q2].val-c.M[p].val;}).slice(0,10);
+    if(mk.length)h+='<div class="carte"><h2>🏭 Machines qui consomment le plus de pièces</h2>'+mk.map(function(e){var E=EQID[e];return '<div class="ligne"><div class="g"><div class="t">'+esc(E?E.nom:'?')+'</div><div class="s">'+esc(E?chemin(E):'')+' · '+qFr(c.M[e].qte)+' pièces</div></div><b>'+eur(c.M[e].val)+'</b></div>';}).join('')+'</div>';
+    return h;
+  }
+  function exportConso(){
+    var c=calcConso(),L=c.L.slice().sort(function(x,y){return y.val-x.val||y.qte-x.qte;});
+    var rows=[['Pièces consommées — '+c.b[2]+' (du '+fmtD(c.b[0])+' au '+fmtD(c.b[1])+')'],[],['Référence','Désignation','Quantité','Prix unitaire HT','Coût HT','Nb de bons','Machines','Conso par mois','Stock actuel','Stock mini']];
+    L.forEach(function(x){rows.push([x.a.ref||'',x.a.designation,qFr(x.qte),x.pr?qFr(x.pr.p):'',x.pr?qFr(x.val):'',x.nbBons,Object.keys(x.eq).map(function(e){var E=EQID[e];return E?E.nom+' ('+qFr(x.eq[e])+')':'';}).join(', '),qFr(x.parMois),qFr(+x.a.stock||0),qFr(+x.a.stock_mini||0)]);});
+    telecharger('consommation-pieces-'+STK.periode+'-'+auj()+'.csv',rows);
+  }
+  rendre();
+};
 
 /* =====================================================================
    BONS DE TRAVAIL
@@ -805,7 +930,7 @@ VUES.articles=async function(filtre){
   var mini=filtre==='mini';
   $('main').innerHTML='<h1 class="titre">Pièces détachées <button class="btn p sm" style="float:right" id="aN">+ Nouvelle pièce</button></h1>'+
     '<div class="rech"><input id="ra" placeholder="Nom, référence (avec ou sans tirets), fournisseur, machine…"></div>'+
-    '<div class="puces"><button class="puce'+(mini?'':' on')+'" id="aT">Toutes ('+ART.length+')</button><button class="puce'+(mini?' on':'')+'" id="aM">Sous le stock mini</button>'+(V4?'<button class="puce" onclick="aller(\'doublons\')">⇄ Doublons probables ('+paireDoublons().length+')</button>':'')+'</div><div class="carte" id="la"></div>';
+    '<div class="puces"><button class="puce'+(mini?'':' on')+'" id="aT">Toutes ('+ART.length+')</button><button class="puce'+(mini?' on':'')+'" id="aM">Sous le stock mini</button>'+'<button class="puce" onclick="aller(\'stock\')">💶 Valeur du stock · consommation</button>'+(V4?'<button class="puce" onclick="aller(\'doublons\')">⇄ Doublons probables ('+paireDoublons().length+')</button>':'')+'</div><div class="carte" id="la"></div>';
   function rendre(){
     var t=val('ra');
     var r=ART.filter(function(a){
@@ -1626,7 +1751,7 @@ async function connexion(){
 }
 $('li-btn').onclick=connexion;
 $('li-pw').onkeydown=function(e){if(e.key==='Enter')connexion();};
-sb.auth.onAuthStateChange(function(ev){if(ev==='SIGNED_OUT'&&USER)location.reload();});
+try{sb.auth.onAuthStateChange(function(ev){if(ev==='SIGNED_OUT'&&USER)location.reload();});}catch(e){}
 (async function(){var s=await sb.auth.getSession();if(s.data&&s.data.session){USER=s.data.session.user;demarrer();}else $('login').style.display='block';})();
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&USER&&/^#bon\//.test(location.hash)&&!$('fond').classList.contains('on'))route();});
 </script>
