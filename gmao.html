@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v8.3';
+var VERSION='v8.5';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -389,17 +389,31 @@ function occurrences(p,de,a){
   while(e<=a&&g++<1000){out.push(e);e=ajoutJours(e,per);}
   return out;
 }
+/* Anti-doublon : bons encore ouverts sur la même machine */
+async function ouvertsSur(eqId){if(!eqId)return [];return await q(sb.from('gmao_interventions').select('id,numero,titre,prevu_le,statut').eq('equipement_id',eqId).neq('statut','Terminé'));}
+function memeTitre(a,b){a=norm(a);b=norm(b);return !!a&&!!b&&(a===b||a.indexOf(b)>=0||b.indexOf(a)>=0);}
+function txtBons(l){return l.slice(0,6).map(function(b){return '• '+numBT(b.numero)+' — '+b.titre+(b.prevu_le?' (prévu le '+fmtD(b.prevu_le)+')':'')+' ['+b.statut+']';}).join('\n');}
+/* Retourne true si on peut créer ; sinon ouvre le bon existant */
+async function verifDoublon(eqId,titre,tous){
+  var l=await ouvertsSur(eqId);if(!l.length)return true;
+  var m=l.filter(function(b){return memeTitre(b.titre,titre);});
+  if(m.length){if(confirm('⚠ Un bon « '+m[0].titre+' » est DÉJÀ ouvert sur cette machine :\n'+txtBons(m)+'\n\nCréer quand même un 2ᵉ bon ?\n(« Annuler » = ouvrir le bon existant)'))return true;aller('bon/'+m[0].id);return false;}
+  if(tous&&!confirm('Déjà ouvert sur cette machine :\n'+txtBons(l)+'\n\nSi c\'est le même problème, « Annuler » et complète le bon existant.\nCréer un nouveau bon ?'))return false;
+  return true;
+}
 async function lancerPrevLe(pid,jour){
   var p=PREV.find(function(x){return x.id===pid;});if(!p)return;
   var deja=await q(sb.from('gmao_interventions').select('*').eq('preventif_id',pid).neq('statut','Terminé'));
   if(deja.length){planifier(deja[0],jour);return;}
+  if(!(await verifDoublon(p.equipement_id,p.titre)))return;
   var desc=(p.checklist||'').split('\n').filter(function(x){return x.trim();}).map(function(x){return '☐ '+x.trim();}).join('\n');
   try{var r=await q(sb.from('gmao_interventions').insert({titre:p.titre,description:desc,type:'Préventif',priorite:'Normale',equipement_id:p.equipement_id,preventif_id:pid,demandeur:NOM,prevu_le:jour,temps_prevu_min:p.temps_prevu_min||null}).select());
     planifier(r[0],jour);}catch(x){erreur(x);}
 }
 function lignePrev(p){
   var e=EQID[p.equipement_id];
-  return '<div class="ligne"><div class="g"><div class="t">'+esc(p.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · '+periodeTxt(p)+(p.temps_prevu_min?' · ⏱ prévu '+fmtMin(p.temps_prevu_min):'')+(STATS[p.id]?' · réel moyen '+fmtMin(STATS[p.id].moy)+' ('+STATS[p.id].n+' fois)':'')+'</div></div>'+
+  var dbl=PREV.some(function(x){return x.id!==p.id&&x.equipement_id===p.equipement_id&&memeTitre(x.titre,p.titre);});
+  return '<div class="ligne"><div class="g"><div class="t">'+esc(p.titre)+(dbl?' <span class="badge b-orange">⚠ 2 plans identiques sur cette machine ?</span>':'')+'</div><div class="s">'+esc(e?chemin(e):'—')+' · '+periodeTxt(p)+(p.temps_prevu_min?' · ⏱ prévu '+fmtMin(p.temps_prevu_min):'')+(STATS[p.id]?' · réel moyen '+fmtMin(STATS[p.id].moy)+' ('+STATS[p.id].n+' fois)':'')+'</div></div>'+
     badgeEcheance(p)+'<button class="btn sm" onclick="lancerPrev(\''+p.id+'\')">Créer le bon</button><button class="btn sm l" onclick="editerPrev(\''+p.id+'\')">✎</button></div>';
 }
 
@@ -566,6 +580,7 @@ async function nouveauBon(extra){
   $('nbOk').onclick=async function(){
     var t=val('nbT');if(!t){toast('Donne un titre court');return;}
     $('nbOk').disabled=true;
+    try{if(eqSel&&!(await verifDoublon(eqSel.id,t,true))){$('nbOk').disabled=false;return;}}catch(x){}
     try{
       var r=await q(sb.from('gmao_interventions').insert({titre:t,description:val('nbD'),type:$('nbTy').value,priorite:$('nbP').value,machine_arretee:$('nbA').checked,equipement_id:eqSel?eqSel.id:null,demandeur:NOM}).select());
       if(photo)await q(sb.from('gmao_messages').insert({intervention_id:r[0].id,auteur:NOM,texte:'Photo à la création',photo:photo}));
@@ -971,8 +986,10 @@ async function lancerPrev(pid){
   var p=PREV.find(function(x){return x.id===pid;});if(!p)return;
   var deja=await q(sb.from('gmao_interventions').select('id').eq('preventif_id',pid).neq('statut','Terminé'));
   if(deja.length){aller('bon/'+deja[0].id);return;}
+  if(!(await verifDoublon(p.equipement_id,p.titre)))return;
+  var ech=p.mesure_id?null:echeance(p),jourP=(ech&&ech>auj())?ech:auj();
   var desc=(p.checklist||'').split('\n').filter(function(x){return x.trim();}).map(function(x){return '☐ '+x.trim();}).join('\n');
-  try{var r=await q(sb.from('gmao_interventions').insert(Object.assign({titre:p.titre,description:desc,type:'Préventif',priorite:'Normale',equipement_id:p.equipement_id,preventif_id:pid,demandeur:NOM},V6?{temps_prevu_min:p.temps_prevu_min||null}:{})).select());aller('bon/'+r[0].id);}catch(x){erreur(x);}
+  try{var r=await q(sb.from('gmao_interventions').insert(Object.assign({titre:p.titre,description:desc,type:'Préventif',priorite:'Normale',equipement_id:p.equipement_id,preventif_id:pid,demandeur:NOM},V6?{temps_prevu_min:p.temps_prevu_min||null}:{})).select());aller('bon/'+r[0].id);if(V6)setTimeout(function(){planifier(r[0],jourP);},400);}catch(x){erreur(x);}
 }
 
 /* =====================================================================
