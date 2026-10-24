@@ -124,6 +124,7 @@
   .priobar .btn-ghost{background:rgba(255,255,255,.55)}
   .bl-add,.bl-del{font-size:12px;padding:2px 7px;margin-left:6px}
   .bl-fait{font-size:12px;padding:2px 7px;margin-left:6px}
+  .bl-suiv.on{background:#ede4fb;border-color:#c9b3ef;color:#6a3fa0;font-weight:600}
   .bl-fait.on{background:var(--teal-bg);border-color:var(--teal-line);color:var(--teal);font-weight:600}
   .bl-lav{font-size:12px;padding:2px 7px;margin-left:6px;color:#6d28d9}
   .bline.fait .b-name{text-decoration:line-through;color:var(--faint)}
@@ -212,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v161</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v162</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -425,7 +426,7 @@ async function saveConfig(){try{await sb.from('reglages').upsert({user_id:USER.i
    modif locale n'est en attente (cfgPending), donc sans risque d'écraser un pointage qu'on vient de faire. */
 async function loadPriorites(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data&&r.data.data.cfg){ var c=r.data.data.cfg; CFG.priorites=c.priorites||{}; CFG.faitById=c.faitById||{}; CFG.lavById=c.lavById||{}; CFG.faitsG=c.faitsG||{}; CFG.lavG=c.lavG||{}; CFG.faitAtG=c.faitAtG||{}; CFG.ignById=c.ignById||{}; }
+    if(r.data&&r.data.data&&r.data.data.cfg){ var c=r.data.data.cfg; CFG.priorites=c.priorites||{}; CFG.faitById=c.faitById||{}; CFG.lavById=c.lavById||{}; CFG.faitsG=c.faitsG||{}; CFG.lavG=c.lavG||{}; CFG.faitAtG=c.faitAtG||{}; CFG.ignById=c.ignById||{}; CFG.suivById=c.suivById||{}; }
   }catch(e){}
 }
 function mapRow(x){return {id:(x.lid||uid()),client:x.client||'',postes:normPostes(x.poste),machine:x.machine||'tunnel',code:x.code==null?'':String(x.code),nbTransferts:x.galettes==null?'':String(x.galettes)};}
@@ -442,14 +443,20 @@ function estLav(r){ return !!(r&&(r._lav||r.machine==='laveuse')); }
    dans le travail, et n'est PAS envoyé comme « lavé » à l'atelier. Persisté par ligne : CFG.ignById[date][id]. */
 function estIgn(r){ return !!(r&&r._ign); }
 function triFaits(l){ return l.map(function(r,i){return {r:r,i:i};}).sort(function(a,b){var ta=a.r._faitAt!=null?a.r._faitAt:1e9, tb=b.r._faitAt!=null?b.r._faitAt:1e9; return (ta-tb)||(a.i-b.i);}).map(function(x){return x.r;}); }
+/* LIVRAISON SUIVANTE : ligne lavée aujourd'hui mais qui part à la prochaine livraison (ex. peignoirs du samedi pour lundi).
+   Persisté par ligne : CFG.suivById[date][id]. L'atelier la saisit directement sur le jour de livraison. */
+function toggleSuiv(r){ if(!r)return; r._suiv=!r._suiv; persistFaits(); scheduleSaveConfig(); renderRows(); }
+function libJourCourt(iso){ var p=iso.split('-').map(Number); var d=new Date(p[0],p[1]-1,p[2]); return ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'][d.getDay()]+' '+String(p[2]).padStart(2,'0')+'/'+String(p[1]).padStart(2,'0'); }
 function toggleIgn(r){ if(!r)return; r._ign=!r._ign; if(r._ign){ r._fait=false; r._faitAt=null; r._lav=false; }
   persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); scheduleSavePlan(); }
 function persistFaits(){
   var fb={},lb={};
   var ib={};
-  rows.forEach(function(r){ if(r._fait) fb[r.id]=(r._faitAt!=null?r._faitAt:-1); if(r._lav) lb[r.id]=1; if(r._ign) ib[r.id]=1; });
-  if(!CFG.faitById)CFG.faitById={}; if(!CFG.lavById)CFG.lavById={}; if(!CFG.ignById)CFG.ignById={};
+  var sv={};
+  rows.forEach(function(r){ if(r._fait) fb[r.id]=(r._faitAt!=null?r._faitAt:-1); if(r._lav) lb[r.id]=1; if(r._ign) ib[r.id]=1; if(r._suiv) sv[r.id]=1; });
+  if(!CFG.faitById)CFG.faitById={}; if(!CFG.lavById)CFG.lavById={}; if(!CFG.ignById)CFG.ignById={}; if(!CFG.suivById)CFG.suivById={};
   CFG.faitById[curDate]=fb; CFG.lavById[curDate]=lb; CFG.ignById[curDate]=ib;
+  if(Object.keys(sv).length) CFG.suivById[curDate]=sv; else delete CFG.suivById[curDate];
 }
 function applyGroupFlags(map,prop){
   var need={}; for(var k in map) need[k]=map[k];
@@ -468,6 +475,7 @@ function applyFaits(){
   applyFaitsBase();
   rows.forEach(function(r){ r._ign=!!ib[r.id]; });
   if(!CFG.ignById)CFG.ignById={}; CFG.ignById[curDate]=ib;
+  var sv=(CFG.suivById&&CFG.suivById[curDate])||{}; rows.forEach(function(r){ r._suiv=!!sv[r.id]; });
 }
 function applyFaitsBase(){
   if(CFG.faitById && CFG.faitById[curDate]){                       // format stable par identifiant de ligne
@@ -1655,6 +1663,7 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
         :'<button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait">'+(_fait?'\u2713 fait':'fait')+'</button>')
       :(_fait?'<span class="pill" style="color:var(--teal)">\u2713 fait</span>':'');
     var _ignBtn=(!isOperateur && !_fait && !_ign)?'<button class="btn-ghost bl-ign no-print" data-ign="'+i+'" title="Client absent ce jour : reste sur le plan mais n\'apparaît pas à l\'atelier" style="margin-left:auto;border:1px dashed #d9a5a0">\u2205 absent</button>':'';
+    var _suivBtn=(!isOperateur && !_ign)?'<button class="btn-ghost bl-suiv no-print'+(r._suiv?' on':'')+'" data-suiv="'+i+'" title="Lavé aujourd\'hui mais livré à la livraison suivante : l\'atelier le saisira directement sur ce jour-là">'+(r._suiv?'\u{1F4E6} pour '+libJourCourt(jourOuvreSuivant(curDate)):'\u{1F4E6} livraison suivante')+'</button>':'';
     var _moveBtns=_isEditor?('<button class="btn-ghost bl-tete no-print" data-tete="'+i+'" title="Envoyer ce client tout en haut (position 1)">\u2b06 en tête</button>'+btn+'<button class="btn-ghost bl-add no-print" data-add="'+i+'" title="Ajouter un client juste après cette ligne">+ ajouter</button>'):'';
     var _admBtns=adminUnlocked?(_lavBtn+'<button class="btn-ghost reopt-here no-print" data-i="'+i+'" title="Ré-optimiser la suite à partir de cette ligne" style="margin-left:6px;font-size:12px;padding:2px 8px">\u21bb à partir d\'ici</button>'+(prioFind(prioKey(r))?'<button class="btn-ghost bl-adprio no-print" data-adprio="'+i+'" title="Retirer la priorité" style="color:var(--danger)">\u2715 priorité</button>':(_fait?'':'<button class="btn-ghost bl-adprio no-print" data-adprio="'+i+'" title="Mettre ce client en priorité (marquage orange)" style="color:#8a5a07">\u{1F64B} priorité</button>'))+'<button class="btn-ghost bl-del no-print" data-del="'+i+'" title="Retirer ce client de la journée">\u2715</button>'):'';
     var _prioMk=prioriteDemandee(r)?'<span class="pill" style="background:#fde7c8;color:#8a5a07" title="Priorité demandée">\u{1F64B} priorité</span>':'';
@@ -1665,7 +1674,7 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
         _opBtn=_sl+'<button class="btn-ghost bl-unprio no-print" data-unprio="'+esc(prioKey(r))+'" title="Annuler ma demande" style="color:var(--danger)">\u2715 annuler</button>'; }
       else if(!_fait){ _opBtn='<button class="btn-ghost bl-prio no-print" data-prio="'+i+'" title="Demander ce client en priorité">\u{1F64B} demander en priorité</button>'; }
     }
-    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+(_ign?' ign':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(_ordreJour.indexOf(r)+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+codesTunnelHtml(r,i)+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+_ignBtn+'</div></div>';
+    var rowHtml='<div class="bline'+(_lav?' lav':'')+(pris?' picked':'')+(_fait?' fait':'')+(_ign?' ign':'')+((prSel&&prSel[r.id])?' sel':'')+'" draggable="'+(_isEditor?'true':'false')+'" data-i="'+i+'" data-id="'+esc(r.id)+'"><div>'+_dragH+_faitBtn+'<span class="b-name">'+(_ordreJour.indexOf(r)+1)+'. '+esc((r.client||'').trim()||'(sans nom)')+'</span>'+codesTunnelHtml(r,i)+_hr+'<span class="tag '+t+'">'+typeLabel(t)+'</span><span class="dot '+co+'">'+colLabel(co)+'</span>'+_mk+_prioMk+(_lav?'<span class="lavtag">LAVEUSE</span>':'')+(r._suiv?'<span class="pill" style="background:#ede4fb;color:#6a3fa0">\u{1F4E6} livré '+libJourCourt(jourOuvreSuivant(curDate))+'</span>':'')+'</div><div class="b-meta">'+g+' gal '+_moveBtns+_admBtns+_opBtn+_suivBtn+_ignBtn+'</div></div>';
     if(_fait||_ign) _done.push({h:rowHtml, t:(_ign?2e9:(r._faitAt!=null?r._faitAt:1e9)), n:_done.length}); else _pend.push(rowHtml);
   });
   h+=_pend.join('');
@@ -2217,6 +2226,8 @@ if(pickedId!=null||pickedSel){pickedId=null;pickedSel=null;renderResults();retur
     if(ign){ var ii=parseInt(ign.getAttribute('data-ign')); if(!isNaN(ii)&&rows[ii]){ var rr=rows[ii];
         if(!rr._ign && !confirm('« '+((rr.client||'').trim())+' » ABSENT ce jour ?\n\n(pas lavé, n\u2019apparaît pas à l\u2019atelier)\n\nSi le linge a été lavé, c\u2019est « fait » qu\u2019il faut toucher.')) return;
         toggleIgn(rr); } return; }
+    var suiv=e.target.closest&&e.target.closest('.bl-suiv');
+    if(suiv){ var si=parseInt(suiv.getAttribute('data-suiv')); if(!isNaN(si)&&rows[si]) toggleSuiv(rows[si]); return; }
     var fait=e.target.closest&&e.target.closest('.bl-fait');
     if(fait){ var fi=parseInt(fait.getAttribute('data-fait')); if(!isNaN(fi)&&rows[fi]) toggleFait(rows[fi]); return; }
     var lav=e.target.closest&&e.target.closest('.bl-lav');
