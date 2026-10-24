@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v8.5';
+var VERSION='v8.8';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -334,6 +334,8 @@ function badgeEcheance(p){var i=infoPrev(p);return '<span class="badge '+i.cls+'
 var VUES={};
 function aller(h){location.hash=h;}
 async function route(){
+  /* Connexion perdue (après des heures ouvertes, coupure Supabase…) : sans elle, les listes arrivent VIDES sans erreur */
+  try{var ss=await sb.auth.getSession();if(!ss.data||!ss.data.session){var rf=await sb.auth.refreshSession();if(!rf.data||!rf.data.session){toast('Connexion expirée : reconnecte-toi');setTimeout(function(){location.reload();},1200);return;}}}catch(e){}
   var h=location.hash.replace(/^#/,'')||'accueil', p=h.split('/'), v=p[0];
   document.querySelectorAll('#nav a').forEach(function(a){
     var d=a.dataset.v;a.classList.toggle('on',d===v||(d==='bons'&&(v==='bon'||v==='pannes'))||(d==='planning'&&v==='planning')||(d==='parc'&&(v==='eq'||v==='etiquettes'))||(d==='articles'&&v==='art')||(d==='modeles'&&v==='mod')||(d==='compteurs'&&v==='mes')||(d==='partenaires'&&v==='par'));
@@ -912,7 +914,7 @@ async function editerPrev(pid,eqId,mesId){
     '<label>Opération</label><input id="pvT" value="'+esc(p.titre)+'" placeholder="ex. Graissage paliers, vidange compresseur…">'+
     '<label>Se déclenche</label><select id="pvK"><option value="date">à la date (tous les X jours / semaines / mois)</option><option value="cpt"'+(p.mesure_id?' selected':'')+'>au compteur (heures, cycles, m³…)</option></select>'+
     '<div id="pvZD" class="grille"><div><label>Tous les…</label><div style="display:flex;gap:6px"><input id="pvN" inputmode="numeric" value="'+(pj%30===0?pj/30:pj%7===0?pj/7:pj)+'"><select id="pvU"><option value="1">jours</option><option value="7"'+(pj%30!==0&&pj%7===0?' selected':'')+'>semaines</option><option value="30"'+(pj%30===0?' selected':'')+'>mois</option></select></div></div>'+
-    '<div><label>Dernière fois faite</label><input id="pvD" type="date" value="'+(p.dernier||'')+'"></div></div>'+
+    '<div><label>Dernière fois faite <span class="etiq">(vide si jamais fait)</span></label><input id="pvD" type="date" max="'+auj()+'" value="'+(p.dernier||'')+'"></div></div>'+
     '<div id="pvZC"><label>Compteur</label><div class="ligne" id="pvM" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
     '<div class="grille"><div><label>Toutes les… (unités du compteur)</label><input id="pvPV" inputmode="decimal" value="'+(p.periodicite_valeur==null?'':p.periodicite_valeur)+'" placeholder="ex. 500"></div>'+
     '<div><label>Valeur du compteur la dernière fois</label><input id="pvDV" inputmode="decimal" value="'+(p.dernier_valeur==null?'':p.dernier_valeur)+'"></div></div></div>'+
@@ -942,7 +944,7 @@ async function editerPrev(pid,eqId,mesId){
         if(!mesSel||!nb(val('pvPV'))){toast('Choisis le compteur et la périodicité');return;}
         Object.assign(d,{mesure_id:mesSel.id,periodicite_valeur:nb(val('pvPV')),dernier_valeur:nb(val('pvDV'))});
       }else{
-        d.periodicite_jours=Math.max(1,Math.round((nb(val('pvN'))||1)*(+$('pvU').value)));d.dernier=val('pvD')||null;
+        d.periodicite_jours=Math.max(1,Math.round((nb(val('pvN'))||1)*(+$('pvU').value)));d.dernier=val('pvD')||null;if(d.dernier&&d.dernier>auj()){toast('« Dernière fois faite » ne peut pas être dans le futur. Pour prévoir une date : « Créer le bon » puis choisir le jour.');return;}
         if(V2){d.mesure_id=null;}
       }
       try{if(pid)await q(sb.from('gmao_preventifs').update(d).eq('id',pid));else await q(sb.from('gmao_preventifs').insert(d));
@@ -1378,11 +1380,14 @@ VUES.planning=async function(){
     if(cmdA.length)html+='<div class="carte" style="border-color:var(--orange)"><h2>🛒 Pièces en attente ('+cmdA.length+')<a class="btn sm d" href="#achats">gérer</a></h2>'+cmdA.map(function(c){return '<div class="ligne"><div class="g"><div class="t">'+esc((c.quantite&&c.quantite!=1?c.quantite+' × ':'')+c.designation)+'</div><div class="s">'+esc(c.fournisseur||'fournisseur ?')+' · depuis le '+fmtD(c.cree_le)+'</div></div>'+badgeCmd(c.statut)+'</div>';}).join('')+'</div>';}
   var nonPl=ouverts.filter(function(b){return !b.prevu_le||!b.assigne_a;});
   html+='<div class="carte"><h2>📥 À planifier ('+nonPl.length+')</h2>'+(nonPl.length?nonPl.map(ligneBonPlan).join(''):'<div class="vide">Tout est planifié.</div>')+'</div>';
-  var prevJour=PREV.filter(function(p){return occurrences(p,j,j).length&&!ouverts.some(function(b){return b.preventif_id===p.id;});});
+  /* Bon déjà ouvert pour ce plan : lié au plan, ou même opération sur la même machine (plan recréé / copié) */
+  function bonDuPlan(p){return ouverts.find(function(b){return b.preventif_id===p.id;})||ouverts.find(function(b){return b.equipement_id===p.equipement_id&&memeTitre(b.titre,p.titre)&&(!b.preventif_id||!PREV.some(function(x){return x.id===b.preventif_id;}));});}
+  PREV.forEach(function(p){var b=bonDuPlan(p);if(b&&b.preventif_id!==p.id){b.preventif_id=p.id;sb.from('gmao_interventions').update({preventif_id:p.id}).eq('id',b.id).then(function(){});}});
+  var prevJour=PREV.filter(function(p){return occurrences(p,j,j).length&&!bonDuPlan(p);});
   if(j>auj()&&prevJour.length)html+='<div class="carte" style="border-color:var(--bleu)"><h2>🗓 Préventifs qui tombent ce jour-là ('+prevJour.length+')</h2>'+prevJour.map(function(p){var e=EQID[p.equipement_id];
     return '<div class="ligne"><div class="g"><div class="t">'+esc(p.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+(p.temps_prevu_min?' · prévu '+fmtMin(p.temps_prevu_min):' · <span style="color:var(--orange)">temps ?</span>')+'</div></div><button class="btn sm p" data-plj="'+p.id+'">Planifier</button></div>';}).join('')+
     '<div class="etiq" style="margin-top:6px">Ils ne sont confiés à personne tant que tu ne les as pas planifiés : « Planifier » crée le bon et le met dans la journée de quelqu\'un.</div></div>';
-  var prevSansBon=PREV.filter(function(p){return p.actif&&infoPrev(p).aFaire&&!ouverts.some(function(b){return b.preventif_id===p.id;});});
+  var prevSansBon=PREV.filter(function(p){return p.actif&&infoPrev(p).aFaire&&!bonDuPlan(p);});
   if(prevSansBon.length)html+='<div class="carte"><h2>🗓 Préventifs dus, pas encore lancés</h2>'+prevSansBon.map(lignePrev).join('')+'</div>';
   html+='<div class="carte"><h2>Équipe maintenance <button class="btn sm d" id="peN">+ Personne</button></h2>'+(PERS.length?PERS.map(function(p){return '<div class="ligne" style="cursor:pointer" data-pe="'+p.id+'"><div class="g"><div class="t">'+esc(p.nom)+(p.actif===false?' <span class="etiq">(inactif)</span>':'')+'</div><div class="s">'+fmtMin(p.capacite_min||420)+' disponibles par jour</div></div><span class="etiq">✎</span></div>';}).join(''):'<div class="vide">Personne pour l\'instant.</div>')+'</div>';
   $('main').innerHTML=html;
@@ -1621,6 +1626,7 @@ async function connexion(){
 }
 $('li-btn').onclick=connexion;
 $('li-pw').onkeydown=function(e){if(e.key==='Enter')connexion();};
+sb.auth.onAuthStateChange(function(ev){if(ev==='SIGNED_OUT'&&USER)location.reload();});
 (async function(){var s=await sb.auth.getSession();if(s.data&&s.data.session){USER=s.data.session.user;demarrer();}else $('login').style.display='block';})();
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&USER&&/^#bon\//.test(location.hash)&&!$('fond').classList.contains('on'))route();});
 </script>
