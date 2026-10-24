@@ -27,7 +27,7 @@ textarea{min-height:110px;resize:vertical}
 .btn{display:block;width:100%;border:none;border-radius:14px;padding:18px;font:inherit;font-size:20px;font-weight:800;margin-top:16px;cursor:pointer}
 .btn.r{background:var(--rouge);color:#fff}.btn.g{background:#fff;border:1px solid var(--ligne);font-size:17px;font-weight:600;padding:14px}
 .btn:disabled{opacity:.5}
-.ok{text-align:center}.ok .grand{font-size:56px}.ok h2{margin:6px 0}
+.carte.ok{text-align:center}.ok .grand{font-size:56px}.ok h2{margin:6px 0}
 .deja{background:#fff8e1;border-color:#f3d27a}
 .deja li{margin:4px 0}
 .etiq{color:var(--doux);font-size:14px}
@@ -105,7 +105,7 @@ function formulaire(){
   if(M&&M.repares&&M.repares.length)h+='<div class="carte"><b>✅ Réparé récemment sur cette machine :</b>'+M.repares.map(function(b){return '<div class="dem"><div><b>'+bt(b.numero)+'</b> · '+esc(b.titre)+'</div><div class="et ok">Réparé le '+jourH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</div>'+(b.rapport?'<div class="etiq">'+esc(b.rapport)+'</div>':'')+'</div>';}).join('')+'</div>';
   if(M&&M.ouverts&&M.ouverts.length)h+='<div class="carte deja"><b>⚠ Déjà signalé sur cette machine :</b>'+M.ouverts.map(carteOuvert).join('')+'<div class="etiq" style="margin-top:10px">Si c\'est le même problème, touche « 👀 Je le constate aussi » : inutile de refaire une demande.</div></div>';
   if(!CODE&&SUIVI.length){$('main').innerHTML=blocSuivi()+'<div class="etiq" style="text-align:center">Pour signaler une nouvelle panne, scanne l\'étiquette de la machine.</div>';return;}
-  h=blocSuivi()+h;
+  h=h+blocSuivi();
   var replie=!!(M&&M.ouverts&&M.ouverts.length);
   if(replie)h+='<button class="btn g" type="button" id="autre">➕ C\'est un AUTRE problème : faire une nouvelle demande</button>';
   h+='<div class="carte" id="form"'+(replie?' style="display:none"':'')+'><label>Que se passe-t-il ?</label><div class="puces" id="motifs">'+MOTIFS.map(function(m){return '<button class="puce" type="button">'+esc(m)+'</button>';}).join('')+'</div>'+
