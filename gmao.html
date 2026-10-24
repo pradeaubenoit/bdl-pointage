@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.0';
+var VERSION='v9.1';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -959,11 +959,13 @@ async function creerArticleRapide(){
 VUES.art=async function(id){
   var a=ARTID[id];if(!a){$('main').innerHTML='<div class="carte">Pièce introuvable.</div>';return;}
   var mv=await q(sb.from('gmao_mouvements').select('*').eq('article_id',id).order('cree_le',{ascending:false}).limit(60));
+  var cmdO=[];if(V8){try{cmdO=await q(sb.from('gmao_commandes').select('*').eq('article_id',id).neq('statut','Reçue').order('cree_le'));}catch(e){}}
   var liens=LIENS.filter(function(l){return l.article_id===id;});
   var u=ouUtilise(id);
   var html='<div class="chemin"><a href="#articles">← Pièces</a></div><h1 class="titre">'+esc(a.designation)+'</h1>'+
     '<div class="carte"><div class="stats"><div><span class="etiq">En stock</span><b style="color:'+((+a.stock||0)<=(+a.stock_mini||0)?'var(--rouge)':'var(--vert)')+'">'+(+a.stock||0)+' '+esc(a.unite||'')+'</b></div><div><span class="etiq">Mini</span><b>'+(+a.stock_mini||0)+'</b></div><div><span class="etiq">Emplacement</span><b style="font-size:17px">'+esc(a.emplacement||'—')+'</b></div></div>'+
-    '<div class="actions" style="justify-content:flex-start"><button class="btn v" id="sE">+ Entrée</button><button class="btn" id="sS">− Sortie</button><button class="btn" id="sI">Inventaire</button></div></div>'+
+    (cmdO.length?'<div style="margin-top:10px;padding:8px 10px;border-radius:10px;background:var(--orange2)">🛒 <b>En commande :</b> '+cmdO.map(function(c){return (c.quantite||1)+' '+esc(a.unite||'pce')+(c.fournisseur?' chez '+esc(c.fournisseur):'')+' '+badgeCmd(c.statut)+(c.commandee_le?' <span class="etiq">le '+fmtD(c.commandee_le)+'</span>':' <span class="etiq">demandé le '+fmtD(c.cree_le)+'</span>');}).join(' · ')+' <a href="#achats">gérer</a></div>':'')+
+    '<div class="actions" style="justify-content:flex-start"><button class="btn v" id="sE">+ Entrée</button><button class="btn" id="sS">− Sortie</button><button class="btn" id="sI">Inventaire</button>'+(V8?'<button class="btn" id="sC">🛒 Commander</button>':'')+'</div></div>'+
     '<div class="carte"><h2>Fiche</h2><div class="grille"><div>'+
       (a.photo?'<img class="photo" src="'+esc(a.photo)+'" onclick="zoom(this.src)">':'<div class="photo" style="height:120px;display:flex;align-items:center;justify-content:center;color:var(--doux)">Pas de photo</div>')+
       '<button class="btn sm" id="aPh" style="margin-top:6px">📷 '+(a.photo?'Changer':'Ajouter')+' la photo</button></div><div>'+
@@ -1002,6 +1004,7 @@ VUES.art=async function(id){
   async function mouv(qte,motif){try{var s=await q(sb.rpc('gmao_mouvement',{p_article:id,p_qte:qte,p_bon:null,p_motif:motif,p_auteur:NOM}));a.stock=s;route();}catch(x){erreur(x);}}
   $('sE').onclick=async function(){var n=nb(await demander('Quantité reçue','1'));if(!n)return;var m=await demander('Motif','Réception','ex. Réception commande, retour…');mouv(Math.abs(n),m||'Entrée');};
   $('sS').onclick=async function(){var n=nb(await demander('Quantité sortie','1','Pour une réparation, sors plutôt la pièce depuis le bon de travail.'));if(!n)return;var m=await demander('Motif','Sortie');mouv(-Math.abs(n),m||'Sortie');};
+  if($('sC'))$('sC').onclick=function(){commanderPiece(a);};
   $('sI').onclick=async function(){var n=nb(await demander('Quantité comptée en rayon',a.stock||0));if(n===null)return;var d=n-(+a.stock||0);if(!d){toast('Stock déjà juste');return;}mouv(d,'Inventaire ('+(+a.stock||0)+' → '+n+')');};
   $('aPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;this.textContent='⏳';try{var u=await envoyerPhoto(f);await q(sb.from('gmao_articles').update({photo:u}).eq('id',id));a.photo=u;route();}catch(x){erreur(x);}};
   $('aOk').onclick=async function(){
@@ -1687,6 +1690,26 @@ async function suiteADonner(b){
       await logSys(b.id,'🛒 '+NOM+' : pièce à commander « '+des+' »'+(suite?' — suite prévue : '+numBT(suite.numero):''));
       fermer();toast('✓ Commande notée'+(suite?' et '+numBT(suite.numero)+' créé':''));route();
     }catch(x){this.disabled=false;erreur(x);}
+  };
+}
+/* Commander une pièce depuis sa fiche (lien avec la pièce : à la réception, le stock monte tout seul) */
+function commanderPiece(a){
+  var srcs=(SRCA[a.id]||[]).slice().sort(function(x,y){return (x.prix==null?1e9:+x.prix)-(y.prix==null?1e9:+y.prix);});
+  var noms=[];srcs.forEach(function(x){if(x.partenaire&&noms.indexOf(x.partenaire)<0)noms.push(x.partenaire);});if(a.fournisseur&&noms.indexOf(a.fournisseur)<0)noms.push(a.fournisseur);
+  ouvrir('<h3>🛒 Commander « '+esc(a.designation)+' »</h3>'+
+    '<div class="grille"><div><label>Quantité</label><input id="cqQ" inputmode="decimal" value="'+Math.max(1,(+a.stock_mini||0)-(+a.stock||0)||1)+'"></div>'+
+    '<div><label>Fournisseur</label><input id="cqF" list="cqL" value="'+esc(noms[0]||'')+'"><datalist id="cqL">'+noms.map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist></div></div>'+
+    (srcs.length?'<div class="etiq" style="margin-top:6px">'+srcs.filter(function(x){return x.prix!=null;}).slice(0,4).map(function(x){return esc(x.partenaire)+' : '+eur(x.prix)+(x.ref?' (réf. '+esc(x.ref)+')':'');}).join(' · ')+'</div>':'')+
+    '<label>Où en est la commande ?</label><div class="puces" id="cqS"><button class="puce on" data-s="À commander">À commander</button><button class="puce" data-s="Commandée">Déjà commandée</button></div>'+
+    '<label>Remarque (facultatif)</label><input id="cqN" placeholder="ex. devis demandé, délai 3 semaines…">'+
+    '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="cqO">Enregistrer</button></div>');
+  var st='À commander';
+  $('cqS').onclick=function(e){var b=e.target.closest('[data-s]');if(!b)return;st=b.dataset.s;document.querySelectorAll('#cqS .puce').forEach(function(x){x.classList.toggle('on',x===b);});};
+  $('cqO').onclick=async function(){
+    var fo=val('cqF'),src=srcs.find(function(x){return x.partenaire===fo;});this.disabled=true;
+    try{await q(sb.from('gmao_commandes').insert({article_id:a.id,designation:a.designation,quantite:nb(val('cqQ'))||1,fournisseur:fo||null,ref:src&&src.ref?src.ref:(a.ref_fournisseur||a.ref||null),
+      statut:st,commandee_le:st==='Commandée'?new Date().toISOString():null,demande_par:NOM,notes:val('cqN')||null}));
+      fermer();toast('✓ '+(st==='Commandée'?'Commande enregistrée':'Ajouté aux pièces à commander'));route();}catch(x){this.disabled=false;erreur(x);}
   };
 }
 VUES.achats=async function(f){
