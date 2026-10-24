@@ -298,6 +298,13 @@ function afficherClients() {
       }
     }
   });
+  // Livraison suivante : linge lavé aujourd'hui mais marqué dans le plan pour la prochaine livraison (ex. peignoirs du samedi pour lundi).
+  Object.keys(listeCache().suivants || {}).forEach(k => {
+    const S = listeCache().suivants[k];
+    const c = liste.find(x => cleNom(x.client) === k) || catalogue.find(x => cleNom(x.client) === k);
+    if (!c || !S || !S.date) return;
+    items.push({ c, lot: 0, suiv: S, cible: null, orange: !journeeFinie && !(S.deja > 0), tot: S.deja || 0 });
+  });
   // Rappels : 2ᵉ / 3ᵉ livraisons d'hier soir pas encore saisies (à saisir sur aujourd'hui).
   if (!journeeFinie && jourCourant() === isoLocal(new Date())) {
     (listeCache().rappels || []).forEach(r => {
@@ -322,6 +329,20 @@ function afficherClients() {
     b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile"></span>';
     b.querySelector('.nom-tuile').textContent = c.client + (it.lot === 2 ? ' — 2ᵉ livraison' : it.lot === 3 ? ' — 3ᵉ livraison' : '');
     b.querySelector('.deja-tuile').textContent = tot ? etiquette + ' : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
+    if (it.suiv) {
+      const S = it.suiv, lib = libelleJour(S.date);
+      b.className = 'tuile' + (it.orange ? ' alave' : ' saisi');
+      b.querySelector('.nom-tuile').textContent = c.client + ' — pour ' + lib;
+      b.querySelector('.deja-tuile').textContent = it.tot ? 'Saisi sur ' + lib + ' : ' + it.tot + ' pièce' + (it.tot > 1 ? 's' : '') : '';
+      const badge = document.createElement('span');
+      badge.className = it.orange ? 'badge-lave' : 'sortie';
+      badge.textContent = (S.articles && S.articles.length ? S.articles.join(', ') + ' · ' : '') + (S.depuis != null ? 'lavé à ' + hhmmSec(S.depuis) + ' · ' : '') + 'à saisir sur ' + lib;
+      b.appendChild(badge);
+      b.onclick = () => ouvrirReporte(c, S.date);
+      b.dataset.nom = sansAccent(c.client);
+      zone.appendChild(b);
+      return;
+    }
     if (it.rappel) {
       const r = it.rappel, jourV = NOMS_J[dateDe(r.veille).getDay()];
       b.querySelector('.nom-tuile').textContent = c.client + ' — ' + (r.lot === 3 ? '3ᵉ' : '2ᵉ') + ' livraison de ' + jourV;
@@ -784,7 +805,7 @@ async function chargerListeJour() {
     if (!data.ok || date !== jourCourant()) return;
     const listes = lire(CLE_LISTES, {});
     const sorties = {};
-    const reports = {}, reportesDe = {}, dernierFait = {}, suites = {}, suitesDate = {}, lots2 = {};
+    const reports = {}, reportesDe = {}, dernierFait = {}, suites = {}, suitesDate = {}, lots2 = {}, suivants = {};
     data.clients.forEach(c => {
       if (c.dernierFait != null) dernierFait[cleNom(c.client)] = c.dernierFait;
       if (c.suite) suites[cleNom(c.client)] = c.suite;
@@ -793,9 +814,10 @@ async function chargerListeJour() {
       if (c.reporte) reports[cleNom(c.client)] = c.reporte;
       if (c.lot2) { lots2[cleNom(c.client)] = { depuis: c.lot2.depuis, limite: c.lot2.limite || c.lot2.depuis, l3: c.lot3 ? { depuis: c.lot3.depuis, limite: c.lot3.limite, reporte: c.lot3.reporte || null } : null }; if (c.lot2.reporte) reports[cleNom(c.client)] = c.lot2.reporte; }
       if (c.reporteDe) reportesDe[cleNom(c.client)] = c.reporteDe;
+      if (c.suivant) suivants[cleNom(c.client)] = c.suivant;
     });
     listes[date] = { noms: data.clients.map(c => c.client), laves: data.clients.filter(c => c.lave).map(c => c.client),
-      sorties: sorties, reports: reports, reportesDe: reportesDe, dernierFait: dernierFait, suites: suites, suitesDate: suitesDate, lots2: lots2, bascule: data.bascule || 14 };
+      sorties: sorties, reports: reports, reportesDe: reportesDe, dernierFait: dernierFait, suites: suites, suitesDate: suitesDate, lots2: lots2, suivants: suivants, bascule: data.bascule || 14 };
     Object.keys(listes).forEach(d => { if (d < isoLocal(new Date(Date.now() - 7 * 864e5))) delete listes[d]; });
     ecrire(CLE_LISTES, listes);
     if (!clientCourant) afficherClients();
