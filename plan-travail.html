@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v178</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v179</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -345,6 +345,9 @@
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">♨️ Ordre des Thermes (l'après-midi)</div>
             <div class="sub" style="margin:2px 0 6px">Dans l'ordre de passage (↑ ↓ pour déplacer) : un Therme = ses peignoirs puis ses serviettes. « … serviettes » repousse les serviettes de ce Therme à cette place.</div>
             <div id="r-th"></div></div>
+          <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">🌅 Ordre des Thermes (le matin)</div>
+            <div class="sub" style="margin:2px 0 6px">Ce qui reste de la veille, dans l'ordre où vous voulez le finir le matin (ex. « dome serviettes » avant « chatel serviettes »). Vide = le moteur garde l'ordre de la veille. N'agit pas sur l'après-midi.</div>
+            <div id="r-thm"></div></div>
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">🏨 Ordre des hôtels</div>
             <div class="sub" style="margin:2px 0 6px">Dans l'ordre de passage (↑ ↓ pour déplacer). Les hôtels ⏰ restent les premiers. Ceux de la liste passent dans cet ordre (le matin entre eux, l'après-midi entre eux), puis ceux qui n'y sont pas, placés automatiquement.</div>
             <div id="r-ho"></div></div>
@@ -427,7 +430,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.echeances)CFG.echeances={'campanile aubiere':'12:00','premiere classe aubiere':'12:00','campanile clermont':'12:00'};if(!CFG.avance)CFG.avance={'magnetic':1};if(!CFG.ordreHotels)CFG.ordreHotels=[];if(!CFG.ordreThermes)CFG.ordreThermes=['evaux','bourboule','neris','dome','chatel','callou','chatel serviette','callou serviette'];if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(!CFG.attelages)CFG.attelages={};if(!CFG.cadenas)CFG.cadenas={};if(CFG.bouchonMin==null)CFG.bouchonMin=10;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.echeances)CFG.echeances={'campanile aubiere':'12:00','premiere classe aubiere':'12:00','campanile clermont':'12:00'};if(!CFG.avance)CFG.avance={'magnetic':1};if(!CFG.ordreHotels)CFG.ordreHotels=[];if(!CFG.ordreThermesMatin)CFG.ordreThermesMatin=[];if(!CFG.ordreThermes)CFG.ordreThermes=['evaux','bourboule','neris','dome','chatel','callou','chatel serviette','callou serviette'];if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(!CFG.attelages)CFG.attelages={};if(!CFG.cadenas)CFG.cadenas={};if(CFG.bouchonMin==null)CFG.bouchonMin=10;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
@@ -750,7 +753,7 @@ function clientsConnus(){
   Object.keys(CFG.echeances||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
   Object.keys(CFG.avance||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
   (CFG.ordreHotels||[]).forEach(function(k){ if(k && H[k]==null) H[k]=false; });
-  (CFG.ordreThermes||[]).forEach(function(l){ var t=l.replace(/ serviettes?$/,''); if(T[t]==null) T[t]=false; });
+  (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ var t=l.replace(/ serviettes?$/,''); if(T[t]==null) T[t]=false; });
   delete H['']; delete T[''];
   function tri(o){ return Object.keys(o).sort(function(a,b){ return (o[b]?1:0)-(o[a]?1:0) || a.localeCompare(b,'fr'); }).map(function(k){ return {k:k,jour:o[k]}; }); }
   return {hotels:tri(H), thermes:tri(T)};
@@ -771,7 +774,7 @@ function renderReglesClients(){
   // ♨️ ordre des Thermes (avec ↑ ↓)
   var optT=[]; C.thermes.forEach(function(x){ optT.push(x); optT.push({k:x.k+' serviettes',jour:x.jour}); });
   bT.innerHTML=OT.map(function(l,i){ var v=l.replace(/ serviette$/,' serviettes'); return '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center"><span class="sub" style="width:22px">'+(i+1)+'.</span><select data-ti="'+i+'" '+sel+'>'+_options(optT,v)+'</select><button class="btn-ghost" data-tu="'+i+'" '+btn+'>↑</button><button class="btn-ghost" data-td="'+i+'" '+btn+'>↓</button><button class="btn-ghost" data-tx="'+i+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-th-add">+ Ajouter un Therme</button>';
-  function sauve(){ delete E['']; delete A['']; CFG.echeances=E; CFG.avance=A; CFG.ordreThermes=(CFG.ordreThermes||[]).filter(Boolean); CFG.ordreHotels=(CFG.ordreHotels||[]).filter(Boolean); scheduleSaveConfig(); renderReglesClients(); }
+  function sauve(){ delete E['']; delete A['']; CFG.echeances=E; CFG.avance=A; CFG.ordreThermes=(CFG.ordreThermes||[]).filter(Boolean); CFG.ordreHotels=(CFG.ordreHotels||[]).filter(Boolean); CFG.ordreThermesMatin=(CFG.ordreThermesMatin||[]).filter(Boolean); scheduleSaveConfig(); renderReglesClients(); }
   bE.querySelectorAll('[data-ek]').forEach(function(x){ x.onchange=function(){ var old=x.dataset.ek, t=E[old]||'12:00'; delete E[old]; if(x.value) E[x.value]=t; sauve(); }; });
   bE.querySelectorAll('[data-et]').forEach(function(x){ x.onchange=function(){ E[x.dataset.et]=x.value||'12:00'; CFG.echeances=E; sauve(); }; });
   bE.querySelectorAll('[data-ex]').forEach(function(x){ x.onclick=function(){ delete E[x.dataset.ex]; CFG.echeances=E; sauve(); }; });
@@ -785,6 +788,18 @@ function renderReglesClients(){
   bT.querySelectorAll('[data-td]').forEach(function(x){ x.onclick=function(){ var i=+x.dataset.td; if(i<OT.length-1){ var t=OT[i]; OT[i]=OT[i+1]; OT[i+1]=t; majT(); } }; });
   bT.querySelectorAll('[data-tx]').forEach(function(x){ x.onclick=function(){ OT.splice(+x.dataset.tx,1); majT(); }; });
   document.getElementById('r-th-add').onclick=function(){ OT.push(''); CFG.ordreThermes=OT; renderReglesClients(); };
+  // 🌅 ordre des Thermes du matin (avec ↑ ↓)
+  var bM=document.getElementById('r-thm');
+  if(bM){
+    var OM=(CFG.ordreThermesMatin||[]).slice();
+    bM.innerHTML=OM.map(function(l,i){ var v=l.replace(/ serviette$/,' serviettes'); return '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center"><span class="sub" style="width:22px">'+(i+1)+'.</span><select data-mi="'+i+'" '+sel+'>'+_options(optT,v)+'</select><button class="btn-ghost" data-mu="'+i+'" '+btn+'>↑</button><button class="btn-ghost" data-md="'+i+'" '+btn+'>↓</button><button class="btn-ghost" data-mx="'+i+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-thm-add">+ Ajouter un Therme</button>';
+    function majM(){ CFG.ordreThermesMatin=OM.filter(Boolean).map(function(l){return l.replace(/ serviettes$/,' serviette');}); sauve(); }
+    bM.querySelectorAll('[data-mi]').forEach(function(x){ x.onchange=function(){ OM[+x.dataset.mi]=x.value; majM(); }; });
+    bM.querySelectorAll('[data-mu]').forEach(function(x){ x.onclick=function(){ var i=+x.dataset.mu; if(i>0){ var t=OM[i]; OM[i]=OM[i-1]; OM[i-1]=t; majM(); } }; });
+    bM.querySelectorAll('[data-md]').forEach(function(x){ x.onclick=function(){ var i=+x.dataset.md; if(i<OM.length-1){ var t=OM[i]; OM[i]=OM[i+1]; OM[i+1]=t; majM(); } }; });
+    bM.querySelectorAll('[data-mx]').forEach(function(x){ x.onclick=function(){ OM.splice(+x.dataset.mx,1); majM(); }; });
+    document.getElementById('r-thm-add').onclick=function(){ OM.push(''); CFG.ordreThermesMatin=OM; renderReglesClients(); };
+  }
   // 🏨 ordre des hôtels (avec ↑ ↓)
   if(bH){
     bH.innerHTML=OH.map(function(k,i){ return '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center"><span class="sub" style="width:22px">'+(i+1)+'.</span><select data-hi="'+i+'" '+sel+'>'+_options(C.hotels,k)+'</select><button class="btn-ghost" data-hu="'+i+'" '+btn+'>↑</button><button class="btn-ghost" data-hd="'+i+'" '+btn+'>↓</button><button class="btn-ghost" data-hx="'+i+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-ho-add">+ Ajouter un hôtel</button>';
@@ -1252,8 +1267,10 @@ function construireTourniquet(rows, W, ctx){
   // ORDRE DES THERMES (Réglages) : l'après-midi, les Thermes passent dans l'ordre de Benoît (Evaux, Bourboule, Néris, Dôme,
   // Chatel, Callou, puis serviettes Chatel, puis serviettes Callou). On ne change que l'ordre ENTRE Thermes : ils gardent
   // les créneaux qu'ils occupaient dans la journée (les hôtels restent intercalés).
-  if(ctx && (ctx.apresMidi||ctx.journeeEntiere) && (CFG.ordreThermes||[]).length){   // le matin : on finit ce qui a été commencé la veille, dans ton ordre
-    var OT=CFG.ordreThermes, servPousse={}, items=[];
+  // l'après-midi (ou journée entière) : ordre des Thermes ; le matin : ordre « Thermes du matin » s'il est rempli, sinon on garde l'ordre de la veille
+  var _OTsel=(ctx && (ctx.apresMidi||ctx.journeeEntiere)) ? (CFG.ordreThermes||[]) : (CFG.ordreThermesMatin||[]);
+  if(_OTsel.length){
+    var OT=_OTsel, servPousse={}, items=[];
     OT.forEach(function(l){ var m=l.match(/^(.*) serviettes?$/); if(m) servPousse[m[1].trim()]=1; });
     function thermeDe(k){ if(!/therm/.test(k)) return null; for(var i=0;i<OT.length;i++){ var t=OT[i].replace(/ serviettes?$/,''); if((' '+k+' ').indexOf(' '+t+' ')>=0) return t; } return null; }
     OT.forEach(function(l){ var m=l.match(/^(.*) serviettes?$/);
@@ -2049,7 +2066,7 @@ function bLoadCurrent(){
 bRows=triFaits(rows.filter(estFait)).concat(rows.filter(function(x){return !estFait(x)&&!estIgn(x);})).map(function(r){return Object.assign({},r);});
   bBase=bRows.slice(); bBaseDate=curDate; bLoaded=true; bProposFin=null; bOptimized=false;
   var bb=document.getElementById('b-base'); if(bb)bb.value=curDate;
-  var bt=document.getElementById('b-target'); if(bt)bt.value=isoPlus(curDate,7);
+  var bt=document.getElementById('b-target'); if(bt)bt.value=curDate;   // journée en cours : on rediffuse sur le MÊME jour
   document.getElementById('b-status').textContent=bRows.length?('Journée en cours ('+curDate+') reprise : '+bRows.length+' ligne(s), dans ton ordre actuel. Optimisez puis diffusez.'):'La journée en cours est vide.';
   renderBrouillon();
 }
