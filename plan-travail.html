@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v162</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v163</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1873,7 +1873,15 @@ function bOptimize(){
   bRows=opt.order.concat(others);
   bOptimized=true;
   if(opt.galIn!==opt.galOut){ alert('\u26a0 Contrôle : '+opt.galIn+' galettes en entrée, '+opt.galOut+' en sortie. '+Math.abs(opt.galIn-opt.galOut)+' galette(s) '+(opt.galOut<opt.galIn?'perdues':'en trop')+' — signalez-le, c\'est un bug.'); }
-  if(opt.orphelins&&opt.orphelins.length){ alert('\u26a0 Attelage ignoré : l\'ancre n\'est pas un client lavé au tunnel (souvent un drap, qui sert de tampon et ne peut pas servir d\'ancre).\n\n'+opt.orphelins.join('\n')+'\n\nAttelez plutôt à un client éponge/vêtement.'); }
+  if(opt.orphelins&&opt.orphelins.length){
+    var _nomsJour={}; tunnelRows.forEach(function(r){_nomsJour[(r.client||'').trim().toLowerCase()]=1;});
+    var _abs=[],_drap=[];
+    opt.orphelins.forEach(function(o){var anc=o.split(' → ')[1]||''; (_nomsJour[anc]?_drap:_abs).push(o);});
+    var _msg='⚠ Attelage ignoré pour cette journée (le reste de l\'optimisation est fait normalement).';
+    if(_abs.length)_msg+='\n\nLe client « ancre » n\'est pas lavé ce jour-là, donc rien à quoi s\'atteler :\n'+_abs.join('\n');
+    if(_drap.length)_msg+='\n\nL\'ancre est un drap (il sert de tampon et ne peut pas servir d\'ancre) — attelez plutôt à un client éponge/vêtement :\n'+_drap.join('\n');
+    alert(_msg);
+  }
   // Contrôle règle des 8 : le moteur se dénonce s'il produit une série lente trop longue.
   (function(){var s=0,worst=0;opt.order.forEach(function(r){if(isDrapRow(r))s=0;else{s+=parseInt(r.nbTransferts)||0;if(s>worst)worst=s;}});
     if(worst>ML && !_garde) alert('\u26a0 Règle des '+ML+' non respectée : '+worst+' galettes lentes d\'affilée sans tampon de draps. Trop peu de draps disponibles, ou un attelage force la main.');})();
