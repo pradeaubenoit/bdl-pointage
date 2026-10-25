@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v174</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v176</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -980,8 +980,10 @@ function fusionnerMemeClient(rows){
 /* ATTENTE SÉCHOIR selon la règle de Benoît : on accumule les galettes lentes ; au-delà de
    serieMax sans bloc de draps suffisant pour tamponner, on compte un bouchon. Renvoie le nb de bouchons. */
 /* Galettes lentes AU-DELÀ de la règle des 8 (une série repart à zéro après n'importe quel drap). */
-function excesRegle8(order){ var ML=(CFG.maxLent==null?8:CFG.maxLent), run=0, ex=0;
-  (order||[]).forEach(function(r){ if(isDrapRow(r)){ run=0; return; } var g=parseInt(r.nbTransferts)||0; for(var k=0;k<g;k++){ run++; if(run>ML) ex++; } });
+function dernierDrap(order){ for(var i=(order||[]).length-1;i>=0;i--){ if(isDrapRow(order[i])) return i; } return -1; }
+function excesRegle8(order){ var ML=(CFG.maxLent==null?8:CFG.maxLent), run=0, ex=0, dd=dernierDrap(order);
+  // fin de journée : quand il n'y a plus de draps, l'éponge qui reste passe en bloc — c'est normal (Benoît)
+  (order||[]).forEach(function(r,i){ if(i>dd) return; if(isDrapRow(r)){ run=0; return; } var g=parseInt(r.nbTransferts)||0; for(var k=0;k<g;k++){ run++; if(run>ML) ex++; } });
   return ex; }
 function attenteRegle(order){
   var serieMax=(CFG.maxLent==null?8:CFG.maxLent), bloc=(CFG.blocDraps==null?4:CFG.blocDraps);
@@ -1448,6 +1450,9 @@ function construireTourniquet(rows, W, ctx){
         else if(/(^| )sacs?( |$)/.test(nomCle(r.client)) || gal(r)===0) u.sacs.push(r);
         else u.epo.push(r);
       } else if(isDrapRow(r) && gal(r)>0) reserve.push({row:r,g:gal(r),pos:i});      // draps des Thermes : réserve de tampon
+      else if(!isDrapRow(r) && gal(r)>ML){   // une série d'éponge de plus de 8 galettes est coupée en morceaux de 8 max : on pourra glisser un drap entre
+        var reste=gal(r), sid2=r.src||r.id; while(reste>0){ var k2=Math.min(ML,reste); reste-=k2; fillers.push({row:Object.assign({},r,{id:sid2+'#F'+(tk++),src:sid2,nbTransferts:String(k2)}),pos:i}); }
+      }
       else fillers.push({row:r,pos:i});
     });
     if(!ordreU.length) return;
@@ -1488,9 +1493,20 @@ function construireTourniquet(rows, W, ctx){
       if(run+gSuivant>ML && reserve.length){ res.push(reserve.shift().row); run=0; }
       return pris;
     }
-    fillers.forEach(function(F){
+    fillers.forEach(function(F,fi){
       var g=gal(F.row);
       cumul+=g*ratio; var n=Math.floor(cumul); if(n>0 && n<2 && run+g<=ML) n=0; cumul-=n;
+      // FIN DE JOURNÉE : il ne reste que les hôtels « réserve de draps » (Estaing, Saint-Victor…). On économise :
+      // un drap seulement quand la série lente va dépasser 8, et juste ce qu'il faut pour en garder jusqu'au dernier Therme.
+      var uC=ordreU[ui]; while(uC && uC.fini) uC=ordreU[++ui];
+      if(uC && reserveH(uC) && ordreU.slice(ui).every(reserveH)){
+        var remF=0; for(var q=fi;q<fillers.length;q++) remF+=gal(fillers[q].row);
+        var remD=ordreU.slice(ui).reduce(function(t,u){return t+drapsReste(u);},0);
+        var besoinT=Math.max(1,Math.ceil((run+remF)/ML)-1);
+        var taille=Math.max(2,Math.floor(remD/besoinT));
+        n=(run+g>ML)?taille:0; cumul=0;
+        if(CFG._finDrapsVite) n=1e9;   // variante : on finit tous les draps tout de suite, l'éponge des Thermes passe derrière
+      }
       prendreDraps(n,g);
       res.push(F.row); run+=g;
     });
@@ -1513,7 +1529,7 @@ function construireTourniquet(rows, W, ctx){
       for(var i=0;i<out.length;i++){
         if(estDrap(out[i])){ run=0; continue; }
         run+=parseInt(out[i].nbTransferts)||0;
-        if(run>ML){ faute=i; break; }                       // c'est ici qu'il manque un tampon
+        if(run>ML){ if(i>dernierDrap(out)) break; faute=i; break; }   // c'est ici qu'il manque un tampon (sauf la queue de fin de journée)
       }
       if(faute<0) return;                                    // plus de violation
       // chercher un tampon de draps à plus d'une galette, le plus proche possible
@@ -2157,7 +2173,7 @@ function bOptimize(){
   var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
   function _variante(over){ var sv={}; for(var k in over){ sv[k]=CFG[k]; CFG[k]=over[k]; } try{ return optimiserParLot(tunnelRows,speed,start); } finally{ for(var k2 in sv) CFG[k2]=sv[k2]; } }
   var opt=null, best=Infinity;
-  [{}, {maxClientsBloc:99}].forEach(function(v){ var o=_variante(v); if(o.galIn!==o.galOut){ if(!opt) opt=o; return; } var c=_cout(o.order); if(c<best){ best=c; opt=o; } });
+  [{}, {maxClientsBloc:99}, {_finDrapsVite:true}, {maxClientsBloc:99,_finDrapsVite:true}].forEach(function(v){ var o=_variante(v); if(o.galIn!==o.galOut){ if(!opt) opt=o; return; } var c=_cout(o.order); if(c<best){ best=c; opt=o; } });
   var _garde=false;
   if(!(best < _cout(tunnelRows))){ _garde=true; opt={order:tunnelRows.slice(), run:maxLentRun(tunnelRows), galIn:opt.galIn, galOut:opt.galIn, orphelins:[], bouchons:attenteRegle(tunnelRows)}; }
   if(!_garde){ opt.order=comblerPostes(opt.order,start,CFG.tempsGaletteOpt); opt.run=maxLentRun(opt.order); }
@@ -2175,9 +2191,9 @@ function bOptimize(){
     alert(_msg);
   }
   // Contrôle règle des 8 : le moteur se dénonce s'il produit une série lente trop longue.
-  (function(){var s=0,worst=0;opt.order.forEach(function(r){if(isDrapRow(r))s=0;else{s+=parseInt(r.nbTransferts)||0;if(s>worst)worst=s;}});
+  (function(){var s=0,worst=0,dd=dernierDrap(opt.order);opt.order.forEach(function(r,i){if(i>dd)return;if(isDrapRow(r))s=0;else{s+=parseInt(r.nbTransferts)||0;if(s>worst)worst=s;}});
     if(worst>ML && !_garde) alert('\u26a0 Règle des '+ML+' non respectée : '+worst+' galettes lentes d\'affilée sans tampon de draps. Trop peu de draps disponibles, ou un attelage force la main.');})();
-  var manques=opt.order.filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
+  var manques=opt.order.slice(0,dernierDrap(opt.order)+1).filter(function(r){return !isDrapRow(r)&&(parseInt(r.nbTransferts)||0)>ML;}).map(function(r){return (r.client||'').trim()||'(sans nom)';});
   var sBase=simSechoirs(tunnelRows,CFG.tempsGaletteOpt,start);   // plan actuel, à la MÊME cadence que l'optimisé (comparaison juste)
   var sOpt=simSechoirs(opt.order,CFG.tempsGaletteOpt,start);  // optimisé (temps optimisé)
   var vBase=simulerTunnel(tunnelRows), vOpt=simulerTunnel(opt.order);
@@ -2188,6 +2204,7 @@ var finAvant=(CFG.optFin&&CFG.optFin[bBaseDate]!=null)?CFG.optFin[bBaseDate]:(st
   window.bFinOpt=finReelOpt;
   var gainNet=Math.round((finAvant-finReelOpt)/60);           // écart entre les deux heures = le gain
   var dRun=runBefore-opt.run;
+  var _ddO=dernierDrap(opt.order), _runHF=maxLentRun(opt.order.slice(0,_ddO+1)), _queueFin=opt.order.slice(_ddO+1).reduce(function(t,r){return t+(parseInt(r.nbTransferts)||0);},0);
   var trousAvant=trousTotal(sBase), trousApres=trousTotal(sOpt);
   var dTrous=trousAvant-trousApres;
   renderBrouillon();
@@ -2199,7 +2216,7 @@ var finAvant=(CFG.optFin&&CFG.optFin[bBaseDate]!=null)?CFG.optFin[bBaseDate]:(st
       +'• <b>Heure de fin : plan actuel '+fmtHHMM(finAvant)+' \u2192 optimisé '+fmtHHMM(finReelOpt)+finTxt+'</b><br>'
       +'• Blocage séchoir : '+blocAvant+' \u2192 '+blocApres+' min'+(blocAvant-blocApres>0?' (\u2212'+(blocAvant-blocApres)+' min d\'arrêts en moins)':'')+'<br>'
       +'• Trous de postes : '+trousAvant+' \u2192 '+trousApres+' heures creuses'+(dTrous>0?' (\u2212'+dTrous+')':(dTrous<0?' (+'+(-dTrous)+')':''))+'<br>'
-      +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
+      +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(_queueFin>0?' — dont la fin de journée : '+_queueFin+' galettes d\'éponge après les derniers draps (normal)':'')+(_runHF>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
       +(manques.length?'<span style="color:var(--danger)">Pas assez de draps pour tamponner : <b>'+manques.join(', ')+'</b> tourne(nt) en bloc.</span><br>':'')
       +(_combles.length?'• Trous de postes comblés : <b>'+_combles.map(esc).join(', ')+'</b> avancé'+(_combles.length>1?'s':'')+' pour que le poste n\'attende pas.<br>':'')
       +(function(){ var f=feedByHour(sOpt.deliveries||[],sOpt.start,(sOpt.finSec||sOpt.fin)), lab={faxm:'FAXM',pliage_table:'Table',repassage:'Repassage'}, t=[];
