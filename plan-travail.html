@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v164</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v165</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1851,6 +1851,12 @@ async function bLoad(){
 /* Heure de bascule (11 h) : ce qui a été lavé AVANT part le jour même, ce qui est lavé APRÈS part le
    lendemain. On optimise les deux parties séparément (le matin reste le matin), et on ne fusionne
    jamais le Royat du matin avec celui du soir. */
+/* Un attelage « orphelin » dans le lot du matin ne l'est pas si son ancre est lavée l'après-midi (et inversement) :
+   ex. Chatel serviette du matin, Callou peignoir le soir -> l'attelage joue le soir, rien à signaler. */
+function _orphVrais(liste,autreLot){
+  var noms={}; (autreLot||[]).forEach(function(r){ if(!isDrapRow(r)) noms[nomCle(r.client)]=1; });
+  return (liste||[]).filter(function(o){ var anc=o.split(' \u2192 ')[1]||''; return !noms[nomCle(anc)]; });
+}
 function optimiserParLot(tunnelRows,speed,start){
   var bas=(CFG.heureBascule==null?11:CFG.heureBascule)*3600;
   var fb=((CFG.faitById||{})[bBaseDate])||{};
@@ -1864,7 +1870,7 @@ function optimiserParLot(tunnelRows,speed,start){
   var o2=optimiserOrdre(fusionnerMemeClient(soir),speed,start,contexteDepuis(o1.order));
   var order=o1.order.concat(o2.order);
   return {order:order, run:maxLentRun(order), galIn:o1.galIn+o2.galIn, galOut:o1.galOut+o2.galOut,
-    orphelins:(o1.orphelins||[]).concat(o2.orphelins||[]), bouchons:attenteRegle(order)};
+    orphelins:_orphVrais(o1.orphelins,soir).concat(_orphVrais(o2.orphelins,matin)), bouchons:attenteRegle(order)};
 }  
 /* COMBLER LES TROUS DES POSTES : si un poste attend plusieurs heures puis reçoit encore un peu de linge
    tout à la fin (ex. la Table vide de 16 h à 21 h, puis 10 galettes d'éponge d'hôtel à 22 h), on avance
