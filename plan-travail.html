@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v168</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v169</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2012,6 +2012,11 @@ function optimiserParLot(tunnelRows,speed,start){
   var tri=tunnelRows.map(function(r,i){return {r:r,h:heureDe(r),i:i};}).sort(function(a,b){return (a.h-b.h)||(a.i-b.i);});
   var matin=tri.filter(function(x){return x.h<bas;}).map(function(x){return x.r;});
   var soir=tri.filter(function(x){return x.h>=bas;}).map(function(x){return x.r;});
+  // Un HÔTEL n'est jamais coupé par la bascule matin / après-midi : s'il est commencé le matin (ex. hôtel Evaux éponge
+  // à 10:45, ses draps à 11:10), tout son linge reste dans le matin -> ses draps passent avec son éponge.
+  (function(){ var hM={}; matin.forEach(function(r){ var n=nomCle(r.client); if(!/therm/.test(n)) hM[grpHotel(r.client)]=1; });
+    var bascules=soir.filter(function(r){ return !/therm/.test(nomCle(r.client)) && hM[grpHotel(r.client)]; });
+    if(bascules.length){ matin=matin.concat(bascules); soir=soir.filter(function(r){ return bascules.indexOf(r)<0; }); } })();
   if(!matin.length||!soir.length) return optimiserOrdre(fusionnerMemeClient(tri.map(function(x){return x.r;})),speed,start,{journeeEntiere:true});
   var o1=optimiserOrdre(fusionnerMemeClient(matin),speed,start);
   var _ctx2=contexteDepuis(o1.order); _ctx2.apresMidi=true;
