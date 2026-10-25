@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v169</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v171</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -336,14 +336,14 @@
         </div>
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin:0 0 12px;padding:10px;background:var(--bg-soft,#f6f6f4);border-radius:8px">
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">⏰ Clients à finir avant une heure</div>
-            <div class="sub" style="margin:2px 0 6px">Un client par ligne : <i>nom = heure</i>. Ex. « campanile aubiere = 12:00 » (départ du camion).</div>
-            <textarea id="r-ech" rows="4" class="mono" style="width:100%"></textarea></div>
+            <div class="sub" style="margin:2px 0 6px">Choisissez le client et l'heure de départ du camion.</div>
+            <div id="r-ech"></div></div>
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">📦 Clients avec du linge d'avance</div>
-            <div class="sub" style="margin:2px 0 6px">Un client par ligne. Le moteur peut les avancer pour qu'un poste n'attende pas.</div>
-            <textarea id="r-av" rows="4" class="mono" style="width:100%"></textarea></div>
+            <div class="sub" style="margin:2px 0 6px">Le moteur peut les avancer pour qu'un poste n'attende pas.</div>
+            <div id="r-av"></div></div>
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">♨️ Ordre des Thermes (l'après-midi)</div>
-            <div class="sub" style="margin:2px 0 6px">Un Therme par ligne, dans l'ordre : ses peignoirs puis ses serviettes. Une ligne « chatel serviette » repousse ses serviettes à cette place.</div>
-            <textarea id="r-th" rows="8" class="mono" style="width:100%"></textarea></div>
+            <div class="sub" style="margin:2px 0 6px">Dans l'ordre de passage (↑ ↓ pour déplacer) : un Therme = ses peignoirs puis ses serviettes. « … serviettes » repousse les serviettes de ce Therme à cette place.</div>
+            <div id="r-th"></div></div>
         </div>
         <div class="reg-wrap"><div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
         <div id="codes"></div></div>
@@ -735,6 +735,52 @@ function demanderAdmin(){
   if(String(c)===String(CFG.adminCode)){ adminUnlocked=true; updateLockUI(); }
   else alert('Code incorrect.');
 }
+/* ---------- Réglages : listes de clients (menus déroulants) ---------- */
+function _jolie(k){ return String(k||'').replace(/\b\w/g,function(c){return c.toUpperCase();}); }
+function clientsConnus(){
+  // tous les clients de la journée affichée + l'historique + ce qui est déjà réglé
+  var H={}, T={};
+  function ajoute(nom,jour){ var n=nomCle(nom); if(!n) return; if(/therm/.test(n)){ var t=noyauClient(nom).replace(/^thermes? /,''); if(t){ T[t]=T[t]||jour; } } else { var h=grpHotel(nom); if(h){ H[h]=H[h]||jour; } } }
+  (rows||[]).forEach(function(r){ ajoute(r.client,true); });
+  (clientNames||[]).forEach(function(n){ ajoute(n,false); });
+  Object.keys(CFG.echeances||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
+  Object.keys(CFG.avance||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
+  (CFG.ordreThermes||[]).forEach(function(l){ var t=l.replace(/ serviettes?$/,''); if(T[t]==null) T[t]=false; });
+  delete H['']; delete T[''];
+  function tri(o){ return Object.keys(o).sort(function(a,b){ return (o[b]?1:0)-(o[a]?1:0) || a.localeCompare(b,'fr'); }).map(function(k){ return {k:k,jour:o[k]}; }); }
+  return {hotels:tri(H), thermes:tri(T)};
+}
+function _options(liste,sel){
+  var aj=liste.filter(function(x){return x.jour;}), au=liste.filter(function(x){return !x.jour;});
+  function opt(x){ return '<option value="'+esc(x.k)+'"'+(x.k===sel?' selected':'')+'>'+esc(_jolie(x.k))+'</option>'; }
+  return '<option value=""'+(sel?'':' selected')+'>— choisir —</option>'+(aj.length?'<optgroup label="Clients de la journée">'+aj.map(opt).join('')+'</optgroup>':'')+(au.length?'<optgroup label="Autres clients">'+au.map(opt).join('')+'</optgroup>':'');
+}
+function renderReglesClients(){
+  var bE=document.getElementById('r-ech'), bA=document.getElementById('r-av'), bT=document.getElementById('r-th'); if(!bE) return;
+  var C=clientsConnus(), E=CFG.echeances||{}, A=CFG.avance||{}, OT=(CFG.ordreThermes||[]).slice();
+  var btn='style="padding:2px 8px;margin-left:4px"', sel='style="flex:1;min-width:0"';
+  // ⏰ heure limite
+  bE.innerHTML=Object.keys(E).map(function(k){ return '<div style="display:flex;gap:4px;margin-bottom:4px"><select data-ek="'+esc(k)+'" '+sel+'>'+_options(C.hotels,k)+'</select><input type="time" data-et="'+esc(k)+'" value="'+esc(E[k])+'" style="width:110px"><button class="btn-ghost" data-ex="'+esc(k)+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-ech-add">+ Ajouter un client</button>';
+  // 📦 linge d'avance
+  bA.innerHTML=Object.keys(A).filter(function(k){return A[k];}).map(function(k){ return '<div style="display:flex;gap:4px;margin-bottom:4px"><select data-ak="'+esc(k)+'" '+sel+'>'+_options(C.hotels,k)+'</select><button class="btn-ghost" data-ax="'+esc(k)+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-av-add">+ Ajouter un client</button>';
+  // ♨️ ordre des Thermes (avec ↑ ↓)
+  var optT=[]; C.thermes.forEach(function(x){ optT.push(x); optT.push({k:x.k+' serviettes',jour:x.jour}); });
+  bT.innerHTML=OT.map(function(l,i){ var v=l.replace(/ serviette$/,' serviettes'); return '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center"><span class="sub" style="width:22px">'+(i+1)+'.</span><select data-ti="'+i+'" '+sel+'>'+_options(optT,v)+'</select><button class="btn-ghost" data-tu="'+i+'" '+btn+'>↑</button><button class="btn-ghost" data-td="'+i+'" '+btn+'>↓</button><button class="btn-ghost" data-tx="'+i+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-th-add">+ Ajouter un Therme</button>';
+  function sauve(){ delete E['']; delete A['']; CFG.echeances=E; CFG.avance=A; CFG.ordreThermes=(CFG.ordreThermes||[]).filter(Boolean); scheduleSaveConfig(); renderReglesClients(); }
+  bE.querySelectorAll('[data-ek]').forEach(function(x){ x.onchange=function(){ var old=x.dataset.ek, t=E[old]||'12:00'; delete E[old]; if(x.value) E[x.value]=t; sauve(); }; });
+  bE.querySelectorAll('[data-et]').forEach(function(x){ x.onchange=function(){ E[x.dataset.et]=x.value||'12:00'; CFG.echeances=E; sauve(); }; });
+  bE.querySelectorAll('[data-ex]').forEach(function(x){ x.onclick=function(){ delete E[x.dataset.ex]; CFG.echeances=E; sauve(); }; });
+  document.getElementById('r-ech-add').onclick=function(){ if(E['']!=null) return; E['']='12:00'; CFG.echeances=E; renderReglesClients(); };   // nouvelle ligne : « — choisir — »
+  bA.querySelectorAll('[data-ak]').forEach(function(x){ x.onchange=function(){ delete A[x.dataset.ak]; if(x.value) A[x.value]=1; CFG.avance=A; sauve(); }; });
+  bA.querySelectorAll('[data-ax]').forEach(function(x){ x.onclick=function(){ delete A[x.dataset.ax]; CFG.avance=A; sauve(); }; });
+  document.getElementById('r-av-add').onclick=function(){ A['']=1; CFG.avance=A; renderReglesClients(); };
+  function majT(){ CFG.ordreThermes=OT.filter(Boolean).map(function(l){return l.replace(/ serviettes$/,' serviette');}); sauve(); }
+  bT.querySelectorAll('[data-ti]').forEach(function(x){ x.onchange=function(){ OT[+x.dataset.ti]=x.value; majT(); }; });
+  bT.querySelectorAll('[data-tu]').forEach(function(x){ x.onclick=function(){ var i=+x.dataset.tu; if(i>0){ var t=OT[i]; OT[i]=OT[i-1]; OT[i-1]=t; majT(); } }; });
+  bT.querySelectorAll('[data-td]').forEach(function(x){ x.onclick=function(){ var i=+x.dataset.td; if(i<OT.length-1){ var t=OT[i]; OT[i]=OT[i+1]; OT[i+1]=t; majT(); } }; });
+  bT.querySelectorAll('[data-tx]').forEach(function(x){ x.onclick=function(){ OT.splice(+x.dataset.tx,1); majT(); }; });
+  document.getElementById('r-th-add').onclick=function(){ OT.push(''); CFG.ordreThermes=OT; renderReglesClients(); };
+}
 function setView(name){
   if(lockedView(name)&&!adminUnlocked){ demanderAdmin(); if(!adminUnlocked)return; }
   curView=name;
@@ -742,6 +788,7 @@ function setView(name){
   document.getElementById('addbar').classList.toggle('show',name==='saisie');
   var tabs=document.querySelectorAll('.tab');for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('active',tabs[i].getAttribute('data-view')===name);
   if(name==='plan')renderResults();
+  if(name==='reglages')renderReglesClients();
   if(name==='quantites'){renderQuantites();var qf=document.getElementById('q-find');if(qf&&!qf._wired){qf._wired=1;qf.addEventListener('change',function(){qQuery=qf.value;renderQuantites();});qf.addEventListener('keydown',function(e){if(e.key==='Enter'){qQuery=qf.value;renderQuantites();qf.blur();}});var qc=document.getElementById('q-clear');if(qc)qc.addEventListener('click',function(){qf.value='';qQuery='';renderQuantites();qf.focus();});}}
   window.scrollTo({top:0,behavior:'auto'});
 }
@@ -1368,7 +1415,7 @@ function construireTourniquet(rows, W, ctx){
     var rangH={}; rows.forEach(function(r){ var g=grpH(r.client); if(r._arr!=null && (rangH[g]==null||r._arr<rangH[g])) rangH[g]=r._arr; });
     var rowById={}; rows.forEach(function(r){ rowById[r.id]=r; });
     function gal(r){ return parseInt(r.nbTransferts)||0; }
-    function estTampon(r){ return isDrapRow(r) && !drapsPrio[noyauClient(r.client)] && gal(r)>0; }
+    function estTampon(r){ return isDrapRow(r) && !r._fixe && !drapsPrio[noyauClient(r.client)] && gal(r)>0; }
     // 0) HÔTELS AVEC ÉPONGE : on trie leur linge à l'arrivée -> leurs draps passent d'un bloc, juste avant leur éponge.
     //    Seuls les hôtels sans éponge (et les draps des Thermes) restent dans la réserve de tampons.
     (function(){
@@ -1385,7 +1432,7 @@ function construireTourniquet(rows, W, ctx){
         var lignes=Object.keys(parH[h]).map(function(sid){ var L=parH[h][sid]; return Object.assign({},L.row,{id:sid+'#E'+(tk++),src:sid,nbTransferts:String(L.g),_arr:L.row._arr}); });
         lignes.sort(function(a,b){ return (a._arr||0)-(b._arr||0); });
         var devant=[], cum=0;
-        lignes.forEach(function(l){ var g=gal(l); if(cum<CAPD){ var n=Math.min(g,CAPD-cum); if(g-n>0 && g-n<3) n=g; devant.push(Object.assign({},l,{nbTransferts:String(n)})); cum+=n; if(g-n>0) resteH.push(Object.assign({},l,{id:l.id+'b',nbTransferts:String(g-n)})); } else resteH.push(l); });
+        lignes.forEach(function(l){ var g=gal(l); if(cum<CAPD){ var n=Math.min(g,CAPD-cum); if(g-n>0 && g-n<3) n=g; devant.push(Object.assign({},l,{nbTransferts:String(n),_fixe:true})); cum+=n; if(g-n>0) resteH.push(Object.assign({},l,{id:l.id+'b',nbTransferts:String(g-n)})); } else resteH.push(l); });
         var at=garde.indexOf(epo[h]); if(at<0) at=garde.length;
         Array.prototype.splice.apply(garde,[at,0].concat(devant));
       });
@@ -2272,10 +2319,7 @@ async function startApp(){
   document.getElementById('date').value=curDate;
   document.getElementById('start').value=CFG.heureDemarrage;
   document.getElementById('rot').value=tempsGalette();
-  if(document.getElementById('r-ech')){ var _e=CFG.echeances||{}, _a=CFG.avance||{};
-    document.getElementById('r-ech').value=Object.keys(_e).map(function(k){return k+' = '+_e[k];}).join('\n');
-    document.getElementById('r-av').value=Object.keys(_a).filter(function(k){return _a[k];}).join('\n');
-    document.getElementById('r-th').value=(CFG.ordreThermes||[]).join('\n'); }
+  renderReglesClients();
   if(document.getElementById('r-serie')){document.getElementById('r-serie').value=(CFG.maxLent==null?8:CFG.maxLent);document.getElementById('r-bloc').value=(CFG.blocDraps==null?4:CFG.blocDraps);document.getElementById('r-bouchon').value=(CFG.bouchonMin==null?10:CFG.bouchonMin);}
   document.getElementById('b-rot').value=(CFG.tempsGaletteOpt==null?tempsGalette():CFG.tempsGaletteOpt);
   document.getElementById('b-cvide').value=(CFG.casesVide==null?2:CFG.casesVide);
@@ -2368,9 +2412,6 @@ document.getElementById('btn-restore').addEventListener('click',async function()
 document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;renderResults();renderBrouillon();scheduleSaveConfig();});
 document.getElementById('rot').addEventListener('input',function(e){CFG.tempsGalette=Math.max(1,parseInt(e.target.value)||120);renderCodes();renderRows();renderResults();renderBrouillon();scheduleSaveConfig();});
 document.getElementById('r-serie').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.maxLent=isNaN(v)?8:Math.max(1,v);scheduleSaveConfig();});
-document.getElementById('r-ech').addEventListener('change',function(e){var o={};String(e.target.value||'').split('\n').forEach(function(l){var m=l.match(/^(.*?)[=:\s]+(\d{1,2})[h:](\d{2})?\s*$/i);if(m&&m[1].trim()){o[grpHotel(m[1])]=String(m[2]).padStart(2,'0')+':'+(m[3]||'00');}});CFG.echeances=o;scheduleSaveConfig();e.target.value=Object.keys(o).map(function(k){return k+' = '+o[k];}).join('\n');});
-document.getElementById('r-av').addEventListener('change',function(e){var o={};String(e.target.value||'').split('\n').forEach(function(l){if(l.trim())o[grpHotel(l)]=1;});CFG.avance=o;scheduleSaveConfig();e.target.value=Object.keys(o).join('\n');});
-document.getElementById('r-th').addEventListener('change',function(e){var l=String(e.target.value||'').split('\n').map(function(x){return nomCle(x).replace(/^thermes? /,'');}).filter(Boolean);CFG.ordreThermes=l;scheduleSaveConfig();e.target.value=l.join('\n');});
 document.getElementById('r-bloc').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.blocDraps=isNaN(v)?4:Math.max(1,v);scheduleSaveConfig();});
 document.getElementById('r-bouchon').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.bouchonMin=isNaN(v)?10:Math.max(0,v);scheduleSaveConfig();});
 document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();mergeClientNames();});
