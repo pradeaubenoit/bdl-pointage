@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v166</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v167</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -334,6 +334,14 @@
           <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bloc de draps pour tamponner</span><input type="number" id="r-bloc" class="mono w-auto" style="width:64px" step="1" min="1"></div>
           <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bouchon si pas assez (min)</span><input type="number" id="r-bouchon" class="mono w-auto" style="width:64px" step="1" min="0"></div>
         </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin:0 0 12px;padding:10px;background:var(--bg-soft,#f6f6f4);border-radius:8px">
+          <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">⏰ Clients à finir avant une heure</div>
+            <div class="sub" style="margin:2px 0 6px">Un client par ligne : <i>nom = heure</i>. Ex. « campanile aubiere = 12:00 » (départ du camion).</div>
+            <textarea id="r-ech" rows="4" class="mono" style="width:100%"></textarea></div>
+          <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">📦 Clients avec du linge d'avance</div>
+            <div class="sub" style="margin:2px 0 6px">Un client par ligne. Le moteur peut les avancer pour qu'un poste n'attende pas.</div>
+            <textarea id="r-av" rows="4" class="mono" style="width:100%"></textarea></div>
+        </div>
         <div class="reg-wrap"><div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
         <div id="codes"></div></div>
         <button id="btn-addcode" style="margin-top:6px">+ Ajouter un numéro</button>
@@ -412,7 +420,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(!CFG.attelages)CFG.attelages={};if(!CFG.cadenas)CFG.cadenas={};if(CFG.bouchonMin==null)CFG.bouchonMin=10;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.echeances)CFG.echeances={'campanile aubiere':'12:00','premiere classe aubiere':'12:00','campanile clermont':'12:00'};if(!CFG.avance)CFG.avance={'magnetic':1};if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(!CFG.attelages)CFG.attelages={};if(!CFG.cadenas)CFG.cadenas={};if(CFG.bouchonMin==null)CFG.bouchonMin=10;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
@@ -1172,6 +1180,9 @@ function construireTourniquet(rows, W, ctx){
   chunks.forEach(function(c){ var k=ckey(c), m=noyauClient(c.client).match(/^(.*) (\d+)$/); if(!m) return;
     var base=m[1]; if(noyMax[base]!=null && rangCli[k]<=noyMax[base]) rangCli[k]=noyMax[base]+0.5+parseInt(m[2])/1000+rangCli[k]/1e6; });
   chunks.forEach(function(c){ var k=ckey(c); if(PRIO[noyauClient(c.client)] && rangCli[k]>-1e5) rangCli[k]-=1e6; });
+  // APRÈS-MIDI : les hôtels qui ont de l'éponge (linge pour la Table) sont avancés (rang × 0,3), toujours dans ton ordre,
+  // et intercalés avec les Thermes ; sinon ils sortiraient à 22 h et la Table attendrait tout l'après-midi.
+  if(ctx && ctx.apresMidi){ chunks.forEach(function(c){ var k=ckey(c); if(!/therm/.test(k) && posteOf(c)==='pliage_table' && rangCli[k]>-1e5){ rangCli[k]=rangCli[k]*0.3; } }); }
   var resteNoy={}; chunks.forEach(function(c){ var n=noyauClient(c.client); resteNoy[n]=(resteNoy[n]||0)+1; });
   var apres={};                                           // index seq -> draps du client prioritaire qui vient de finir
   var prioSeuls=Object.keys(drapsPrio).filter(function(n){ return !resteNoy[n]; });   // prioritaire sans éponge : draps en tête
@@ -1337,6 +1348,32 @@ function construireTourniquet(rows, W, ctx){
     var rowById={}; rows.forEach(function(r){ rowById[r.id]=r; });
     function gal(r){ return parseInt(r.nbTransferts)||0; }
     function estTampon(r){ return isDrapRow(r) && !drapsPrio[noyauClient(r.client)] && gal(r)>0; }
+    // 0) HÔTELS AVEC ÉPONGE : on trie leur linge à l'arrivée -> leurs draps passent d'un bloc, juste avant leur éponge.
+    //    Seuls les hôtels sans éponge (et les draps des Thermes) restent dans la réserve de tampons.
+    (function(){
+      var epo={}; out.forEach(function(r){ if(!isDrapRow(r) && gal(r)>0 && !/therm/.test(nomCle(r.client))) { var h=grpH(r.client); if(!epo[h]) epo[h]=r; } });
+      var parH={}, garde=[];
+      out.forEach(function(r){
+        if(estTampon(r) && epo[grpH(r.client)]){ var h=grpH(r.client), sid=r.src||r.id; parH[h]=parH[h]||{}; var L=parH[h][sid]; if(!L){ L=parH[h][sid]={row:rowById[sid]||r,g:0}; } L.g+=gal(r); }
+        else garde.push(r);
+      });
+      // au plus ~6 galettes collées devant l'éponge (on ne bloque pas les séchoirs) ; le reste des draps de l'hôtel
+      // repart dans les tampons suivants, en priorité (hôtel commencé = à finir d'abord).
+      var CAPD=6, resteH=[];
+      Object.keys(parH).forEach(function(h){
+        var lignes=Object.keys(parH[h]).map(function(sid){ var L=parH[h][sid]; return Object.assign({},L.row,{id:sid+'#E'+(tk++),src:sid,nbTransferts:String(L.g),_arr:L.row._arr}); });
+        lignes.sort(function(a,b){ return (a._arr||0)-(b._arr||0); });
+        var devant=[], cum=0;
+        lignes.forEach(function(l){ var g=gal(l); if(cum<CAPD){ var n=Math.min(g,CAPD-cum); if(g-n>0 && g-n<3) n=g; devant.push(Object.assign({},l,{nbTransferts:String(n)})); cum+=n; if(g-n>0) resteH.push(Object.assign({},l,{id:l.id+'b',nbTransferts:String(g-n)})); } else resteH.push(l); });
+        var at=garde.indexOf(epo[h]); if(at<0) at=garde.length;
+        Array.prototype.splice.apply(garde,[at,0].concat(devant));
+      });
+      // le reste repasse dans les tampons existants (juste après l'éponge de son hôtel, en tampon suivant)
+      resteH.forEach(function(l){ var h=grpH(l.client), at=garde.indexOf(epo[h]);
+        for(var z=at+1;z<garde.length;z++){ if(estTampon(garde[z])){ at=z; break; } }
+        garde.splice(at+1,0,l); });
+      out=garde;
+    })();
     // blocs de tampon = suites de lignes de draps consécutives
     var blocs=[], cur=null;
     out.forEach(function(r,i){ if(estTampon(r)){ if(cur && cur.fin===i-1){ cur.fin=i; cur.size+=gal(r); } else { cur={deb:i,fin:i,size:gal(r)}; blocs.push(cur); } } else cur=null; });
@@ -1350,7 +1387,9 @@ function construireTourniquet(rows, W, ctx){
     var file=ordre.map(function(sid){ var b=parSrc[sid].row, g=grpH(b.client); return {sid:sid,row:b,g:parSrc[sid].g,h:g,rh:(rangH[g]!=null?rangH[g]:(b._arr||0)),ra:(b._arr||0)}; });
     file.sort(function(a,b){ return (a.rh-b.rh)||(a.ra-b.ra); });
     blocs.forEach(function(b,ix){ b.prev=(ix>0?blocs[ix-1].fin+1:0); });
-    var enCoursH=null;
+    var enCoursH=null, MINP=3;
+    var ECH={}; (function(){ var E=CFG.echeances||{}; for(var k in E){ var m=String(E[k]).match(/(\d+):(\d+)/); if(m) ECH[k]=(+m[1])*60+(+m[2]); } })();
+    var AVEC_EPO={}; rows.forEach(function(r){ if(!isDrapRow(r) && !/therm/.test(nomCle(r.client)) && (parseInt(r.nbTransferts)||0)>0) AVEC_EPO[grpH(r.client)]=1; });
     function morceau(L,n){ return Object.assign({},L.row,{id:L.sid+'#H'+(tk++),src:L.sid,nbTransferts:String(n)}); }
     // hôtels déjà COMMENCÉS (une de leurs lignes non-draps est déjà passée) : position de 1re apparition
     var vuH={}; 
@@ -1360,9 +1399,10 @@ function construireTourniquet(rows, W, ctx){
       var suivH=null; for(var j=b.fin+1;j<out.length;j++){ if(!isDrapRow(out[j])){ suivH=grpH(out[j].client); break; } }
       function prio(L){
         if(L.h===enCoursH) return 0;                       // 1) on finit l'hôtel en cours
-        if(L.h===suivH) return 1;                          // 2) l'hôtel dont l'éponge suit
-        if(vuH[L.h]!=null) return 2+vuH[L.h]/1e6;          // 3) les hôtels déjà commencés, le plus ancien d'abord
-        if(L.rh<=b.lim) return 3+L.rh/1e6;                 // 4) les hôtels dus, dans ton ordre
+        if(ECH[L.h]) return 0.5+ECH[L.h]/1e4;              // 2) ⏰ heure limite (départ du camion) : les plus pressés d'abord
+        if(L.h===suivH) return 1;                          // 3) l'hôtel dont l'éponge suit (ses draps d'abord)
+        if(vuH[L.h]!=null) return 2+vuH[L.h]/1e6;          // 4) les hôtels déjà commencés, le plus ancien d'abord
+        if(L.rh<=b.lim) return (AVEC_EPO[L.h]?3:4)+L.rh/1e6; // 5) les hôtels dus : ceux qui ont de l'éponge, puis la réserve de draps
         return null;                                       // pas encore dû
       }
       var need=b.size, lst=[];
@@ -1370,7 +1410,8 @@ function construireTourniquet(rows, W, ctx){
         var best=-1, bp=null;
         for(var z=0;z<file.length;z++){ if(file[z].g<=0) continue; var pz=prio(file[z]); if(pz==null) continue; if(bp==null || pz<bp || (pz===bp && file[z].ra<file[best].ra)){ bp=pz; best=z; } }
         if(best<0) break;
-        var L=file[best], n=Math.min(need,L.g); lst.push(morceau(L,n)); L.g-=n; need-=n; enCoursH=L.h;
+        // pas de miettes : on prend au moins 3 galettes d'une ligne (ou tout ce qu'il en reste)
+        var L=file[best], n=Math.min(L.g, Math.max(need, MINP)); if(L.g-n>0 && L.g-n<MINP) n=L.g; lst.push(morceau(L,n)); L.g-=n; need-=n; enCoursH=L.h;
         if(L.g<=0){ file.splice(best,1); var reste=file.some(function(x){return x.h===L.h && x.g>0;}); if(!reste) enCoursH=null; }
       }
       b.contenu=lst;
@@ -1396,8 +1437,8 @@ function construireTourniquet(rows, W, ctx){
     bouger.forEach(function(r){
       var i=m.indexOf(r); if(i<0) return; var h=grpH(r.client), der=-1;
       for(var z=m.length-1;z>=0;z--){ if(m[z]!==r && grpH(m[z].client)===h && bouger.indexOf(m[z])<0){ der=z; break; } }
-      if(der<0 || der<i) return;
-      m.splice(i,1); m.splice(der,0,r);   // der a reculé d'un cran après le retrait de r
+      if(der<0) return;
+      m.splice(i,1); if(der>i) der--; m.splice(der+1,0,r);   // juste après la dernière ligne de son hôtel
     });
     out=m;
   })();
@@ -1406,7 +1447,8 @@ function construireTourniquet(rows, W, ctx){
      UNE galette à un tampon de draps trop gras (ailleurs dans la journée) et la pose là où elle manque.
      On ne crée pas de drap : on redistribue. S'il n'y a vraiment plus de drap disponible, on s'arrête. */
   (function reparer(){
-    var ML=serieMax, tours=0;
+    var ML=serieMax, tours=0, EPO_R={};
+    rows.forEach(function(r){ if(!isDrapRow(r) && !/therm/.test(nomCle(r.client)) && (parseInt(r.nbTransferts)||0)>0) EPO_R[grpHotel(r.client)]=1; });
     function estDrap(r){ return rowType(r)==='drap'; }
     while(tours++<500){
       var run=(ctx&&ctx.run)||0, faute=-1;
@@ -1422,7 +1464,8 @@ function construireTourniquet(rows, W, ctx){
         if(!estDrap(out[j])) continue;
         if((parseInt(out[j].nbTransferts)||0)<2) continue;   // ne pas vider un tampon d'une seule galette
         if(drapsPrio[noyauClient(out[j].client)]) continue;   // les draps d'un client prioritaire restent avec lui
-        var d=Math.abs(j-faute); if(d<best){best=d;don=j;}
+        var d=Math.abs(j-faute)+(EPO_R[grpHotel(out[j].client)]?1000:0);   // on prend d'abord dans la réserve (hôtels sans éponge, Thermes)
+        if(d<best){best=d;don=j;}
       }
       if(don<0) return;                                      // vraiment pas assez de draps ce jour-là
       out[don].nbTransferts=String((parseInt(out[don].nbTransferts)||0)-1);
@@ -1950,7 +1993,8 @@ function optimiserParLot(tunnelRows,speed,start){
   var soir=tri.filter(function(x){return x.h>=bas;}).map(function(x){return x.r;});
   if(!matin.length||!soir.length) return optimiserOrdre(fusionnerMemeClient(tri.map(function(x){return x.r;})),speed,start);
   var o1=optimiserOrdre(fusionnerMemeClient(matin),speed,start);
-  var o2=optimiserOrdre(fusionnerMemeClient(soir),speed,start,contexteDepuis(o1.order));
+  var _ctx2=contexteDepuis(o1.order); _ctx2.apresMidi=true;
+  var o2=optimiserOrdre(fusionnerMemeClient(soir),speed,start,_ctx2);
   var order=o1.order.concat(o2.order);
   return {order:order, run:maxLentRun(order), galIn:o1.galIn+o2.galIn, galOut:o1.galOut+o2.galOut,
     orphelins:_orphVrais(o1.orphelins,soir).concat(_orphVrais(o2.orphelins,matin)), bouchons:attenteRegle(order)};
@@ -1986,7 +2030,8 @@ function comblerPostes(order,start,tg,prefix){
       for(var h=d;h>=f.gFirst;h--){ var v=f.grid[p][h]||0; if(v>0.001){ if(zero>=2){ q+=tail; return; } tail+=v; zero=0; } else zero++; } });
     return q; }
   function evalue(o){ var all=prefix.concat(o), sm=simSechoirs(all,tg,start); return {s:sm, trous:trousTotal(sm), q:queue(sm), fin:(sm.finSec||sm.fin), ex:excesRegle8(all)}; }
-  function bougeable(r){ if(!r||isDrapRow(r)) return false; var k=nomCle(r.client); if(!k||LOCK[cliKey(r)]||ATTm[k]) return false;
+  var AV=CFG.avance||{};
+  function bougeable(r){ if(!r||isDrapRow(r)) return false; var k=nomCle(r.client); if(!k||LOCK[cliKey(r)]||ATTm[k]) return false; if(!AV[grpHotel(r.client)]) return false;
     if(/therm/.test(k)||/(^| )sacs?( |$)/.test(k)) return false; return true; }
   var cur=order.slice(), E=evalue(cur), tour=0, deplaces=[];
   while(tour++<8){
@@ -2022,7 +2067,7 @@ function comblerPostes(order,start,tg,prefix){
           if(excesRegle8(prefix.concat(o))>E.ex) o=reparer8(o);       // un drap emprunté au tampon voisin si besoin
           if(excesRegle8(prefix.concat(o))>E.ex) continue;
           var e=evalue(o);
-          if(e.ex<=E.ex && e.trous<=E.trous && (e.trous<E.trous || e.q<E.q) && e.fin<=E.fin+300){
+          if(e.ex<=E.ex && e.trous<=E.trous && (e.trous<E.trous || e.q<E.q) && e.fin<=E.fin+1200){
             var sc=e.trous*3600+e.q*300+e.fin; if(!meilleur||sc<meilleur.sc) meilleur={sc:sc,o:o,e:e,nom:it.client};
           }
         }
@@ -2093,6 +2138,9 @@ var finAvant=(CFG.optFin&&CFG.optFin[bBaseDate]!=null)?CFG.optFin[bBaseDate]:(st
       +'• Plus longue série lente : '+runBefore+' \u2192 '+opt.run+' galettes'+(dRun>0?' (\u2212'+dRun+')':'')+(opt.run>ML?' <span style="color:var(--danger)">(au-dessus de '+ML+' : pas assez de draps ce jour-là)</span>':' \u2713')+'<br>'
       +(manques.length?'<span style="color:var(--danger)">Pas assez de draps pour tamponner : <b>'+manques.join(', ')+'</b> tourne(nt) en bloc.</span><br>':'')
       +(_combles.length?'• Trous de postes comblés : <b>'+_combles.map(esc).join(', ')+'</b> avancé'+(_combles.length>1?'s':'')+' pour que le poste n\'attende pas.<br>':'')
+      +(function(){ var f=feedByHour(sOpt.deliveries||[],sOpt.start,(sOpt.finSec||sOpt.fin)), lab={faxm:'FAXM',pliage_table:'Table',repassage:'Repassage'}, t=[];
+          f.posts.forEach(function(p){ if(!f.idle[p].used) return; var z0=null; for(var h=f.gFirst;h<=f.idle[p].fin+1;h++){ var v=(h<=f.idle[p].fin)?(f.grid[p][h]||0):1; if(v<=0.001){ if(z0==null) z0=h; } else { if(z0!=null && h-z0>=2) t.push(lab[p]+' : rien de '+(z0%24)+' h à '+(h%24)+' h'); z0=null; } } });
+          return t.length?'<span style="color:var(--danger)">• Postes qui attendent : <b>'+t.join(' ; ')+'</b> → prévoir l\'équipe sur un autre poste.</span><br>':''; })()
       +'Si ça vous convient, diffusez-le.</div>';
   resEl.insertAdjacentHTML('beforeend',msg);
 }
@@ -2198,6 +2246,9 @@ async function startApp(){
   document.getElementById('date').value=curDate;
   document.getElementById('start').value=CFG.heureDemarrage;
   document.getElementById('rot').value=tempsGalette();
+  if(document.getElementById('r-ech')){ var _e=CFG.echeances||{}, _a=CFG.avance||{};
+    document.getElementById('r-ech').value=Object.keys(_e).map(function(k){return k+' = '+_e[k];}).join('\n');
+    document.getElementById('r-av').value=Object.keys(_a).filter(function(k){return _a[k];}).join('\n'); }
   if(document.getElementById('r-serie')){document.getElementById('r-serie').value=(CFG.maxLent==null?8:CFG.maxLent);document.getElementById('r-bloc').value=(CFG.blocDraps==null?4:CFG.blocDraps);document.getElementById('r-bouchon').value=(CFG.bouchonMin==null?10:CFG.bouchonMin);}
   document.getElementById('b-rot').value=(CFG.tempsGaletteOpt==null?tempsGalette():CFG.tempsGaletteOpt);
   document.getElementById('b-cvide').value=(CFG.casesVide==null?2:CFG.casesVide);
@@ -2290,6 +2341,8 @@ document.getElementById('btn-restore').addEventListener('click',async function()
 document.getElementById('start').addEventListener('input',function(e){CFG.heureDemarrage=e.target.value;renderResults();renderBrouillon();scheduleSaveConfig();});
 document.getElementById('rot').addEventListener('input',function(e){CFG.tempsGalette=Math.max(1,parseInt(e.target.value)||120);renderCodes();renderRows();renderResults();renderBrouillon();scheduleSaveConfig();});
 document.getElementById('r-serie').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.maxLent=isNaN(v)?8:Math.max(1,v);scheduleSaveConfig();});
+document.getElementById('r-ech').addEventListener('change',function(e){var o={};String(e.target.value||'').split('\n').forEach(function(l){var m=l.match(/^(.*?)[=:\s]+(\d{1,2})[h:](\d{2})?\s*$/i);if(m&&m[1].trim()){o[grpHotel(m[1])]=String(m[2]).padStart(2,'0')+':'+(m[3]||'00');}});CFG.echeances=o;scheduleSaveConfig();e.target.value=Object.keys(o).map(function(k){return k+' = '+o[k];}).join('\n');});
+document.getElementById('r-av').addEventListener('change',function(e){var o={};String(e.target.value||'').split('\n').forEach(function(l){if(l.trim())o[grpHotel(l)]=1;});CFG.avance=o;scheduleSaveConfig();e.target.value=Object.keys(o).join('\n');});
 document.getElementById('r-bloc').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.blocDraps=isNaN(v)?4:Math.max(1,v);scheduleSaveConfig();});
 document.getElementById('r-bouchon').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.bouchonMin=isNaN(v)?10:Math.max(0,v);scheduleSaveConfig();});
 document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();mergeClientNames();});
