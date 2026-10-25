@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v171</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v174</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -344,6 +344,9 @@
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">♨️ Ordre des Thermes (l'après-midi)</div>
             <div class="sub" style="margin:2px 0 6px">Dans l'ordre de passage (↑ ↓ pour déplacer) : un Therme = ses peignoirs puis ses serviettes. « … serviettes » repousse les serviettes de ce Therme à cette place.</div>
             <div id="r-th"></div></div>
+          <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">🏨 Ordre des hôtels</div>
+            <div class="sub" style="margin:2px 0 6px">Dans l'ordre de passage (↑ ↓ pour déplacer). Les hôtels ⏰ restent les premiers. Ceux de la liste passent dans cet ordre (le matin entre eux, l'après-midi entre eux), puis ceux qui n'y sont pas, placés automatiquement.</div>
+            <div id="r-ho"></div></div>
         </div>
         <div class="reg-wrap"><div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
         <div id="codes"></div></div>
@@ -423,7 +426,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.echeances)CFG.echeances={'campanile aubiere':'12:00','premiere classe aubiere':'12:00','campanile clermont':'12:00'};if(!CFG.avance)CFG.avance={'magnetic':1};if(!CFG.ordreThermes)CFG.ordreThermes=['evaux','bourboule','neris','dome','chatel','callou','chatel serviette','callou serviette'];if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(!CFG.attelages)CFG.attelages={};if(!CFG.cadenas)CFG.cadenas={};if(CFG.bouchonMin==null)CFG.bouchonMin=10;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.echeances)CFG.echeances={'campanile aubiere':'12:00','premiere classe aubiere':'12:00','campanile clermont':'12:00'};if(!CFG.avance)CFG.avance={'magnetic':1};if(!CFG.ordreHotels)CFG.ordreHotels=[];if(!CFG.ordreThermes)CFG.ordreThermes=['evaux','bourboule','neris','dome','chatel','callou','chatel serviette','callou serviette'];if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(!CFG.attelages)CFG.attelages={};if(!CFG.cadenas)CFG.cadenas={};if(CFG.bouchonMin==null)CFG.bouchonMin=10;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
@@ -745,6 +748,7 @@ function clientsConnus(){
   (clientNames||[]).forEach(function(n){ ajoute(n,false); });
   Object.keys(CFG.echeances||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
   Object.keys(CFG.avance||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
+  (CFG.ordreHotels||[]).forEach(function(k){ if(k && H[k]==null) H[k]=false; });
   (CFG.ordreThermes||[]).forEach(function(l){ var t=l.replace(/ serviettes?$/,''); if(T[t]==null) T[t]=false; });
   delete H['']; delete T[''];
   function tri(o){ return Object.keys(o).sort(function(a,b){ return (o[b]?1:0)-(o[a]?1:0) || a.localeCompare(b,'fr'); }).map(function(k){ return {k:k,jour:o[k]}; }); }
@@ -756,8 +760,8 @@ function _options(liste,sel){
   return '<option value=""'+(sel?'':' selected')+'>— choisir —</option>'+(aj.length?'<optgroup label="Clients de la journée">'+aj.map(opt).join('')+'</optgroup>':'')+(au.length?'<optgroup label="Autres clients">'+au.map(opt).join('')+'</optgroup>':'');
 }
 function renderReglesClients(){
-  var bE=document.getElementById('r-ech'), bA=document.getElementById('r-av'), bT=document.getElementById('r-th'); if(!bE) return;
-  var C=clientsConnus(), E=CFG.echeances||{}, A=CFG.avance||{}, OT=(CFG.ordreThermes||[]).slice();
+  var bE=document.getElementById('r-ech'), bA=document.getElementById('r-av'), bT=document.getElementById('r-th'), bH=document.getElementById('r-ho'); if(!bE) return;
+  var C=clientsConnus(), E=CFG.echeances||{}, A=CFG.avance||{}, OT=(CFG.ordreThermes||[]).slice(), OH=(CFG.ordreHotels||[]).slice();
   var btn='style="padding:2px 8px;margin-left:4px"', sel='style="flex:1;min-width:0"';
   // ⏰ heure limite
   bE.innerHTML=Object.keys(E).map(function(k){ return '<div style="display:flex;gap:4px;margin-bottom:4px"><select data-ek="'+esc(k)+'" '+sel+'>'+_options(C.hotels,k)+'</select><input type="time" data-et="'+esc(k)+'" value="'+esc(E[k])+'" style="width:110px"><button class="btn-ghost" data-ex="'+esc(k)+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-ech-add">+ Ajouter un client</button>';
@@ -766,7 +770,7 @@ function renderReglesClients(){
   // ♨️ ordre des Thermes (avec ↑ ↓)
   var optT=[]; C.thermes.forEach(function(x){ optT.push(x); optT.push({k:x.k+' serviettes',jour:x.jour}); });
   bT.innerHTML=OT.map(function(l,i){ var v=l.replace(/ serviette$/,' serviettes'); return '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center"><span class="sub" style="width:22px">'+(i+1)+'.</span><select data-ti="'+i+'" '+sel+'>'+_options(optT,v)+'</select><button class="btn-ghost" data-tu="'+i+'" '+btn+'>↑</button><button class="btn-ghost" data-td="'+i+'" '+btn+'>↓</button><button class="btn-ghost" data-tx="'+i+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-th-add">+ Ajouter un Therme</button>';
-  function sauve(){ delete E['']; delete A['']; CFG.echeances=E; CFG.avance=A; CFG.ordreThermes=(CFG.ordreThermes||[]).filter(Boolean); scheduleSaveConfig(); renderReglesClients(); }
+  function sauve(){ delete E['']; delete A['']; CFG.echeances=E; CFG.avance=A; CFG.ordreThermes=(CFG.ordreThermes||[]).filter(Boolean); CFG.ordreHotels=(CFG.ordreHotels||[]).filter(Boolean); scheduleSaveConfig(); renderReglesClients(); }
   bE.querySelectorAll('[data-ek]').forEach(function(x){ x.onchange=function(){ var old=x.dataset.ek, t=E[old]||'12:00'; delete E[old]; if(x.value) E[x.value]=t; sauve(); }; });
   bE.querySelectorAll('[data-et]').forEach(function(x){ x.onchange=function(){ E[x.dataset.et]=x.value||'12:00'; CFG.echeances=E; sauve(); }; });
   bE.querySelectorAll('[data-ex]').forEach(function(x){ x.onclick=function(){ delete E[x.dataset.ex]; CFG.echeances=E; sauve(); }; });
@@ -780,6 +784,16 @@ function renderReglesClients(){
   bT.querySelectorAll('[data-td]').forEach(function(x){ x.onclick=function(){ var i=+x.dataset.td; if(i<OT.length-1){ var t=OT[i]; OT[i]=OT[i+1]; OT[i+1]=t; majT(); } }; });
   bT.querySelectorAll('[data-tx]').forEach(function(x){ x.onclick=function(){ OT.splice(+x.dataset.tx,1); majT(); }; });
   document.getElementById('r-th-add').onclick=function(){ OT.push(''); CFG.ordreThermes=OT; renderReglesClients(); };
+  // 🏨 ordre des hôtels (avec ↑ ↓)
+  if(bH){
+    bH.innerHTML=OH.map(function(k,i){ return '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center"><span class="sub" style="width:22px">'+(i+1)+'.</span><select data-hi="'+i+'" '+sel+'>'+_options(C.hotels,k)+'</select><button class="btn-ghost" data-hu="'+i+'" '+btn+'>↑</button><button class="btn-ghost" data-hd="'+i+'" '+btn+'>↓</button><button class="btn-ghost" data-hx="'+i+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-ho-add">+ Ajouter un hôtel</button>';
+    function majH(){ var vu={}; CFG.ordreHotels=OH.filter(function(k){ if(!k||vu[k]) return false; vu[k]=1; return true; }); sauve(); }
+    bH.querySelectorAll('[data-hi]').forEach(function(x){ x.onchange=function(){ OH[+x.dataset.hi]=x.value; majH(); }; });
+    bH.querySelectorAll('[data-hu]').forEach(function(x){ x.onclick=function(){ var i=+x.dataset.hu; if(i>0){ var t=OH[i]; OH[i]=OH[i-1]; OH[i-1]=t; majH(); } }; });
+    bH.querySelectorAll('[data-hd]').forEach(function(x){ x.onclick=function(){ var i=+x.dataset.hd; if(i<OH.length-1){ var t=OH[i]; OH[i]=OH[i+1]; OH[i+1]=t; majH(); } }; });
+    bH.querySelectorAll('[data-hx]').forEach(function(x){ x.onclick=function(){ OH.splice(+x.dataset.hx,1); majH(); }; });
+    document.getElementById('r-ho-add').onclick=function(){ OH.push(''); CFG.ordreHotels=OH; renderReglesClients(); };
+  }
 }
 function setView(name){
   if(lockedView(name)&&!adminUnlocked){ demanderAdmin(); if(!adminUnlocked)return; }
@@ -1411,103 +1425,79 @@ function construireTourniquet(rows, W, ctx){
      2) Les SACS d'un hôtel passent après tout le reste de cet hôtel (on vide les sacs pour laver le linge).
         Une ligne à 0 galette suit son hôtel. */
   (function coherenceAtelier(){
+    /* RÈGLES D'ATELIER (Benoît) :
+       - un HÔTEL commencé est fini avant d'en commencer un autre : entre sa 1re et sa dernière ligne, on ne voit passer
+         que du linge « bouche-trou » (Thermes, clients éponge seule), jamais un autre hôtel ;
+       - ses draps d'abord (ils font tampon entre les séries d'éponge), puis son éponge, puis ses sacs ;
+       - ⏰ les hôtels à heure limite passent les premiers ;
+       - règle des 8 : jamais plus de 8 galettes lentes sans un drap. */
     var grpH=grpHotel;
-    var rangH={}; rows.forEach(function(r){ var g=grpH(r.client); if(r._arr!=null && (rangH[g]==null||r._arr<rangH[g])) rangH[g]=r._arr; });
-    var rowById={}; rows.forEach(function(r){ rowById[r.id]=r; });
     function gal(r){ return parseInt(r.nbTransferts)||0; }
-    function estTampon(r){ return isDrapRow(r) && !r._fixe && !drapsPrio[noyauClient(r.client)] && gal(r)>0; }
-    // 0) HÔTELS AVEC ÉPONGE : on trie leur linge à l'arrivée -> leurs draps passent d'un bloc, juste avant leur éponge.
-    //    Seuls les hôtels sans éponge (et les draps des Thermes) restent dans la réserve de tampons.
-    (function(){
-      var epo={}; out.forEach(function(r){ if(!isDrapRow(r) && gal(r)>0 && !/therm/.test(nomCle(r.client))) { var h=grpH(r.client); if(!epo[h]) epo[h]=r; } });
-      var parH={}, garde=[];
-      out.forEach(function(r){
-        if(estTampon(r) && epo[grpH(r.client)]){ var h=grpH(r.client), sid=r.src||r.id; parH[h]=parH[h]||{}; var L=parH[h][sid]; if(!L){ L=parH[h][sid]={row:rowById[sid]||r,g:0}; } L.g+=gal(r); }
-        else garde.push(r);
-      });
-      // au plus ~6 galettes collées devant l'éponge (on ne bloque pas les séchoirs) ; le reste des draps de l'hôtel
-      // repart dans les tampons suivants, en priorité (hôtel commencé = à finir d'abord).
-      var CAPD=6, resteH=[];
-      Object.keys(parH).forEach(function(h){
-        var lignes=Object.keys(parH[h]).map(function(sid){ var L=parH[h][sid]; return Object.assign({},L.row,{id:sid+'#E'+(tk++),src:sid,nbTransferts:String(L.g),_arr:L.row._arr}); });
-        lignes.sort(function(a,b){ return (a._arr||0)-(b._arr||0); });
-        var devant=[], cum=0;
-        lignes.forEach(function(l){ var g=gal(l); if(cum<CAPD){ var n=Math.min(g,CAPD-cum); if(g-n>0 && g-n<3) n=g; devant.push(Object.assign({},l,{nbTransferts:String(n),_fixe:true})); cum+=n; if(g-n>0) resteH.push(Object.assign({},l,{id:l.id+'b',nbTransferts:String(g-n)})); } else resteH.push(l); });
-        var at=garde.indexOf(epo[h]); if(at<0) at=garde.length;
-        Array.prototype.splice.apply(garde,[at,0].concat(devant));
-      });
-      // le reste repasse dans les tampons existants (juste après l'éponge de son hôtel, en tampon suivant)
-      resteH.forEach(function(l){ var h=grpH(l.client), at=garde.indexOf(epo[h]);
-        for(var z=at+1;z<garde.length;z++){ if(estTampon(garde[z])){ at=z; break; } }
-        garde.splice(at+1,0,l); });
-      out=garde;
-    })();
-    // blocs de tampon = suites de lignes de draps consécutives
-    var blocs=[], cur=null;
-    out.forEach(function(r,i){ if(estTampon(r)){ if(cur && cur.fin===i-1){ cur.fin=i; cur.size+=gal(r); } else { cur={deb:i,fin:i,size:gal(r)}; blocs.push(cur); } } else cur=null; });
-    if(!blocs.length) return;
-    // rang atteint (« dû ») avant chaque bloc = max des rangs des lignes non-draps déjà passées
-    var mx=(ctx&&ctx.run!=null)?-1:-1, bi=0;
-    out.forEach(function(r,i){ while(bi<blocs.length && blocs[bi].deb===i){ blocs[bi].lim=mx; bi++; } if(!isDrapRow(r)){ var v=(r._arr==null?0:r._arr); var gH=grpH(r.client); var rh=rangH[gH]!=null?rangH[gH]:v; if(rh>mx) mx=rh; } });
-    // file des draps : hôtel par hôtel (ordre de 1re apparition), puis ordre des lignes
-    var parSrc={}, ordre=[];
-    blocs.forEach(function(b){ for(var i=b.deb;i<=b.fin;i++){ var r=out[i], sid=r.src||r.id; var base=rowById[sid]||r; if(!parSrc[sid]){ parSrc[sid]={row:base,g:0}; ordre.push(sid); } parSrc[sid].g+=gal(r); } });
-    var file=ordre.map(function(sid){ var b=parSrc[sid].row, g=grpH(b.client); return {sid:sid,row:b,g:parSrc[sid].g,h:g,rh:(rangH[g]!=null?rangH[g]:(b._arr||0)),ra:(b._arr||0)}; });
-    file.sort(function(a,b){ return (a.rh-b.rh)||(a.ra-b.ra); });
-    blocs.forEach(function(b,ix){ b.prev=(ix>0?blocs[ix-1].fin+1:0); });
-    var enCoursH=null, MINP=3;
+    var rowById={}; rows.forEach(function(r){ rowById[r.id]=r; });
+    var ML=serieMax, TAMP=Math.max(2,Math.min(4,(CFG.blocDraps==null?4:CFG.blocDraps)));
     var ECH={}; (function(){ var E=CFG.echeances||{}; for(var k in E){ var m=String(E[k]).match(/(\d+):(\d+)/); if(m) ECH[k]=(+m[1])*60+(+m[2]); } })();
-    var AVEC_EPO={}; rows.forEach(function(r){ if(!isDrapRow(r) && !/therm/.test(nomCle(r.client)) && (parseInt(r.nbTransferts)||0)>0) AVEC_EPO[grpH(r.client)]=1; });
-    function morceau(L,n){ return Object.assign({},L.row,{id:L.sid+'#H'+(tk++),src:L.sid,nbTransferts:String(n)}); }
-    // hôtels déjà COMMENCÉS (une de leurs lignes non-draps est déjà passée) : position de 1re apparition
-    var vuH={}; 
-    blocs.forEach(function(b){
-      for(var i=(b.prev==null?0:b.prev);i<b.deb;i++){ var r=out[i]; if(!isDrapRow(r)){ var h=grpH(r.client); if(vuH[h]==null) vuH[h]=i; } }
-      // hôtel dont l'éponge arrive juste après ce tampon : ses draps passent d'abord (tri du linge)
-      var suivH=null; for(var j=b.fin+1;j<out.length;j++){ if(!isDrapRow(out[j])){ suivH=grpH(out[j].client); break; } }
-      function prio(L){
-        if(L.h===enCoursH) return 0;                       // 1) on finit l'hôtel en cours
-        if(ECH[L.h]) return 0.5+ECH[L.h]/1e4;              // 2) ⏰ heure limite (départ du camion) : les plus pressés d'abord
-        if(L.h===suivH) return 1;                          // 3) l'hôtel dont l'éponge suit (ses draps d'abord)
-        if(vuH[L.h]!=null) return 2+vuH[L.h]/1e6;          // 4) les hôtels déjà commencés, le plus ancien d'abord
-        if(L.rh<=b.lim) return (AVEC_EPO[L.h]?3:4)+L.rh/1e6; // 5) les hôtels dus : ceux qui ont de l'éponge, puis la réserve de draps
-        return null;                                       // pas encore dû
-      }
-      var need=b.size, lst=[];
-      while(need>0){
-        var best=-1, bp=null;
-        for(var z=0;z<file.length;z++){ if(file[z].g<=0) continue; var pz=prio(file[z]); if(pz==null) continue; if(bp==null || pz<bp || (pz===bp && file[z].ra<file[best].ra)){ bp=pz; best=z; } }
-        if(best<0) break;
-        // pas de miettes : on prend au moins 3 galettes d'une ligne (ou tout ce qu'il en reste)
-        var L=file[best], n=Math.min(L.g, Math.max(need, MINP)); if(L.g-n>0 && L.g-n<MINP) n=L.g; lst.push(morceau(L,n)); L.g-=n; need-=n; enCoursH=L.h;
-        if(L.g<=0){ file.splice(best,1); var reste=file.some(function(x){return x.h===L.h && x.g>0;}); if(!reste) enCoursH=null; }
-      }
-      b.contenu=lst;
+    function estTherme(r){ return /therm/.test(nomCle(r.client)); }
+    // hôtels = clients (hors Thermes) qui ont des draps
+    var aDraps={}; out.forEach(function(r){ if(isDrapRow(r) && gal(r)>0 && !estTherme(r)) aDraps[grpH(r.client)]=1; });
+    var units={}, ordreU=[], fillers=[], reserve=[];
+    out.forEach(function(r,i){
+      var h=grpH(r.client);
+      if(!estTherme(r) && aDraps[h]){
+        var u=units[h]; if(!u){ u=units[h]={h:h,pos:i,draps:[],epo:[],sacs:[],parSrc:{}}; ordreU.push(u); }
+        if(isDrapRow(r)){ var sid=r.src||r.id; var L=u.parSrc[sid]; if(!L){ L=u.parSrc[sid]={row:rowById[sid]||r,g:0}; u.draps.push(L); } L.g+=gal(r); }
+        else if(/(^| )sacs?( |$)/.test(nomCle(r.client)) || gal(r)===0) u.sacs.push(r);
+        else u.epo.push(r);
+      } else if(isDrapRow(r) && gal(r)>0) reserve.push({row:r,g:gal(r),pos:i});      // draps des Thermes : réserve de tampon
+      else fillers.push({row:r,pos:i});
     });
-    // reconstruire
-    var res=[], bmap={}; blocs.forEach(function(b){ bmap[b.deb]=b; });
-    for(var i=0;i<out.length;i++){
-      var b=bmap[i];
-      if(b){ b.contenu.forEach(function(x){ res.push(x); }); i=b.fin; continue; }
-      res.push(out[i]);
+    if(!ordreU.length) return;
+    ordreU.forEach(function(u){ u.draps.sort(function(a,b){ return (a.row._arr||0)-(b.row._arr||0); }); });
+    // ⏰ heure limite d'abord (les plus pressés en tête), puis l'ordre du moteur
+    // hôtels SANS éponge et sans heure limite (Estaing, Saint-Victor…) = réserve de draps : ils ferment la marche
+    function reserveH(u){ return !u.epo.length && ECH[u.h]==null; }
+    // 🏨 ordre des hôtels choisi dans les Réglages : ceux de la liste passent dans cet ordre, avant ceux qui n'y sont pas
+    var OHi={}; (CFG.ordreHotels||[]).forEach(function(k,i){ if(k && OHi[k]==null) OHi[k]=i; });
+    function rangH(u){ return OHi[u.h]!=null ? OHi[u.h] : null; }
+    ordreU.sort(function(a,b){ var ea=ECH[a.h], eb=ECH[b.h]; var oa=rangH(a), ob=rangH(b);
+      if(ea!=null||eb!=null){ if(ea==null) return 1; if(eb==null) return -1; if(ea!==eb) return ea-eb; if(oa!=null&&ob!=null) return oa-ob; return a.pos-b.pos; }
+      if(oa!=null||ob!=null){ if(oa==null) return 1; if(ob==null) return -1; return oa-ob; }
+      var ra=reserveH(a)?1:0, rb=reserveH(b)?1:0; if(ra!==rb) return ra-rb; return a.pos-b.pos; });
+    var res=[], run=(ctx&&ctx.run)||0, ui=0;
+    function piece(L,n){ L.g-=n; return Object.assign({},L.row,{id:(L.row.src||L.row.id)+'#U'+(tk++),src:(L.row.src||L.row.id),nbTransferts:String(n)}); }
+    function drapsReste(u){ return u.draps.reduce(function(t,L){return t+L.g;},0); }
+    function finirUnite(u){ u.epo.forEach(function(r){ res.push(r); run+=gal(r); }); u.sacs.forEach(function(r){ res.push(r); run+=gal(r); }); u.fini=true; }
+    // On répartit les draps des hôtels régulièrement entre les séries d'éponge (Thermes…), pour qu'il en reste jusqu'au soir.
+    var totD=ordreU.reduce(function(t,u){return t+drapsReste(u);},0)+reserve.reduce(function(t,R){return t+R.g;},0);
+    // au prorata de la taille de chaque série d'éponge (une petite ligne d'1 galette n'a pas besoin d'un gros tampon)
+    var totF=fillers.reduce(function(t,F){return t+gal(F.row);},0), ratio=totD/Math.max(1,totF), cumul=0;
+    // prend n galettes de draps : on finit l'hôtel en cours (draps -> éponge -> sacs) puis on attaque le suivant
+    function prendreDraps(n, gSuivant){
+      var pris=0;
+      while(ui<ordreU.length){
+        var u=ordreU[ui];
+        if(!drapsReste(u)){ finirUnite(u); ui++; continue; }
+        var besoin=n-pris;
+        // un hôtel AVEC éponge ne traîne pas : au moins 3 galettes de ses draps à la fois, pour que son éponge arrive vite
+        if(u.epo.length && besoin>0) besoin=Math.max(besoin, Math.min(3,drapsReste(u)));
+        if(besoin<=0){ if(run+gSuivant<=ML) break; besoin=1; }
+        var L=u.draps[0], k=Math.min(L.g,besoin); if(L.g-k>0 && L.g-k<2) k=L.g;
+        res.push(piece(L,k)); pris+=k; run=0; if(L.g<=0) u.draps.shift();
+        if(!drapsReste(u)){ finirUnite(u); ui++; }
+        if(pris>=n && run+gSuivant<=ML) break;
+      }
+      if(run+gSuivant>ML && reserve.length){ res.push(reserve.shift().row); run=0; }
+      return pris;
     }
-    // draps restants (hôtel pas encore dû) : à leur place, après la dernière ligne de leur rang
-    file.forEach(function(L){ if(L.g<=0) return; var d=morceau(L,L.g), at=res.length;
-      for(var z=0;z<res.length;z++){ if(!isDrapRow(res[z]) && (res[z]._arr||0)<=L.rh) at=z+1; }
-      // si l'hôtel est déjà dans le plan, on colle derrière son dernier morceau
-      for(var z2=res.length-1;z2>=0;z2--){ if(grpH(res[z2].client)===L.h){ at=Math.max(at,z2+1); break; } }
-      res.splice(at,0,d); });
+    fillers.forEach(function(F){
+      var g=gal(F.row);
+      cumul+=g*ratio; var n=Math.floor(cumul); if(n>0 && n<2 && run+g<=ML) n=0; cumul-=n;
+      prendreDraps(n,g);
+      res.push(F.row); run+=g;
+    });
+    while(ui<ordreU.length){ prendreDraps(1e9,0); }
+    reserve.forEach(function(R){ res.push(R.row); });
     // fusion des morceaux consécutifs d'une même ligne
     var m=[]; res.forEach(function(x){ var l=m[m.length-1]; if(l && isDrapRow(l) && isDrapRow(x) && (l.src||l.id)===(x.src||x.id)){ l.nbTransferts=String(gal(l)+gal(x)); } else m.push(x); });
-    // 2) sacs et lignes vides : après tout le reste de leur hôtel (hors Thermes)
-    var bouger=[]; 
-    m.forEach(function(r){ var n=nomCle(r.client); if(/therm/.test(n)) return; if(/(^| )sacs?( |$)/.test(n) || gal(r)===0) bouger.push(r); });
-    bouger.forEach(function(r){
-      var i=m.indexOf(r); if(i<0) return; var h=grpH(r.client), der=-1;
-      for(var z=m.length-1;z>=0;z--){ if(m[z]!==r && grpH(m[z].client)===h && bouger.indexOf(m[z])<0){ der=z; break; } }
-      if(der<0) return;
-      m.splice(i,1); if(der>i) der--; m.splice(der+1,0,r);   // juste après la dernière ligne de son hôtel
-    });
     out=m;
   })();
 
@@ -1532,7 +1522,8 @@ function construireTourniquet(rows, W, ctx){
         if(!estDrap(out[j])) continue;
         if((parseInt(out[j].nbTransferts)||0)<2) continue;   // ne pas vider un tampon d'une seule galette
         if(drapsPrio[noyauClient(out[j].client)]) continue;   // les draps d'un client prioritaire restent avec lui
-        var d=Math.abs(j-faute)+(EPO_R[grpHotel(out[j].client)]?1000:0);   // on prend d'abord dans la réserve (hôtels sans éponge, Thermes)
+        if(!/therm/.test(nomCle(out[j].client))) continue;   // on ne défait JAMAIS un hôtel : seulement les draps des Thermes
+        var d=Math.abs(j-faute);
         if(d<best){best=d;don=j;}
       }
       if(don<0) return;                                      // vraiment pas assez de draps ce jour-là
@@ -2087,7 +2078,7 @@ function reparer8(list,run0){
     for(var i=0;i<out.length;i++){ if(isDrapRow(out[i])){ run=0; continue; } run+=parseInt(out[i].nbTransferts)||0; if(run>ML){ faute=i; break; } }
     if(faute<0) break;
     var don=-1, best=1e9;
-    for(var j=0;j<out.length;j++){ if(!isDrapRow(out[j])||(parseInt(out[j].nbTransferts)||0)<2) continue; var d=Math.abs(j-faute); if(d<best){best=d;don=j;} }
+    for(var j=0;j<out.length;j++){ if(!isDrapRow(out[j])||(parseInt(out[j].nbTransferts)||0)<2) continue; if(!/therm/.test(nomCle(out[j].client))) continue; var d=Math.abs(j-faute); if(d<best){best=d;don=j;} }
     if(don<0) break;
     out[don]=Object.assign({},out[don],{nbTransferts:String((parseInt(out[don].nbTransferts)||0)-1)});
     out.splice(faute,0,Object.assign({},out[don],{id:(out[don].src||out[don].id)+'#R8'+(_r8++),src:(out[don].src||out[don].id),nbTransferts:'1'}));
