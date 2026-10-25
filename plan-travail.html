@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v179</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v180</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1485,14 +1485,34 @@ function construireTourniquet(rows, W, ctx){
       if(ea!=null||eb!=null){ if(ea==null) return 1; if(eb==null) return -1; if(ea!==eb) return ea-eb; if(oa!=null&&ob!=null) return oa-ob; return a.pos-b.pos; }
       if(oa!=null||ob!=null){ if(oa==null) return 1; if(ob==null) return -1; return oa-ob; }
       var ra=reserveH(a)?1:0, rb=reserveH(b)?1:0; if(ra!==rb) return ra-rb; return a.pos-b.pos; });
-    var res=[], run=(ctx&&ctx.run)||0, ui=0;
+    // ♨️ UN THERME COMMENCÉ EST FINI : ses morceaux (peignoirs, tenues, serviettes) se suivent, seuls des draps passent entre.
+    //    Exception : « X serviettes » placé ailleurs dans l'ordre des Thermes (ex. Chatel/Callou serviettes en fin de journée).
+    // (le MATIN seulement : l'après-midi, l'éponge des hôtels passe entre les peignoirs pour nourrir la Table)
+    var _regleTh=!(ctx && (ctx.apresMidi||ctx.journeeEntiere));
+    function thK(r){ if(!_regleTh) return null; var m=nomCle(r.client).match(/thermes? (\w+)/); return m?m[1]:null; }
+    (function(){ var OTa=(ctx && (ctx.apresMidi||ctx.journeeEntiere)) ? (CFG.ordreThermes||[]) : (CFG.ordreThermesMatin||[]), sp={};
+      OTa.forEach(function(l){ var m=l.match(/^(.*) serviettes?$/); if(m) sp[m[1].trim().split(' ')[0]]=1; });
+      var used=fillers.map(function(){return false;}), f2=[];
+      fillers.forEach(function(F,i){ if(used[i]) return; used[i]=true; f2.push(F); var t=thK(F.row); if(!t) return;
+        var servI=/servi/.test(nomCle(F.row.client));
+        for(var j=i+1;j<fillers.length;j++){ if(used[j] || thK(fillers[j].row)!==t) continue;
+          if(sp[t] && !servI && /servi/.test(nomCle(fillers[j].row.client))) continue;   // serviettes repoussées volontairement
+          used[j]=true; f2.push(fillers[j]); } });
+      fillers=f2; })();
+    var res=[], run=(ctx&&ctx.run)||0, ui=0, curFi=0, attente=[];
+    // un Therme est « ouvert » entre deux de ses morceaux : un hôtel/EHPAD peut y glisser ses DRAPS, pas son linge séchoir
+    function thermeOuvert(){ var a=fillers[curFi-1], b=fillers[curFi]; return !!(a && b && thK(a.row) && thK(a.row)===thK(b.row)); }
     function piece(L,n){ L.g-=n; return Object.assign({},L.row,{id:(L.row.src||L.row.id)+'#U'+(tk++),src:(L.row.src||L.row.id),nbTransferts:String(n)}); }
     function drapsTot(u){ return u.draps.reduce(function(t,L){return t+L.g;},0); }
     // si son éponge + ses sacs dépassent 8 galettes, l'hôtel garde 1 galette de ses draps pour la glisser entre son éponge et ses sacs
     ordreU.forEach(function(u){ var gE=u.epo.reduce(function(t,r){return t+gal(r);},0), gS=u.sacs.reduce(function(t,r){return t+gal(r);},0);
       u.garde=0; });
     function drapsReste(u){ return Math.max(0,drapsTot(u)-(u.garde||0)); }
-    function finirUnite(u){ u.epo.forEach(function(r){ res.push(r); run+=gal(r); });
+    function finirUnite(u){ u.fini=true; if(thermeOuvert()){ attente.push(u); return; } viderUnite(u); }
+    function viderAttente(){ var a=attente; attente=[]; a.forEach(function(u){ var gE=u.epo.reduce(function(t,r){return t+gal(r);},0);
+      if(gE>0 && run+gE>ML){ if(reserve.length){ res.push(reserve.shift().row); run=0; } else if(ui<ordreU.length) prendreDraps(1,gE); }
+      viderUnite(u); }); }
+    function viderUnite(u){ u.epo.forEach(function(r){ res.push(r); run+=gal(r); });
       while(u.draps.length){ var L0=u.draps.shift(); if(L0.g>0){ res.push(piece(L0,L0.g)); run=0; } }
       var gS=u.sacs.reduce(function(t,r){return t+gal(r);},0);
       if(gS>0 && run+gS>ML){   // un drap entre son éponge et ses sacs : un drap de Therme, sinon 1 galette reprise à son dernier morceau de draps
@@ -1512,7 +1532,7 @@ function construireTourniquet(rows, W, ctx){
         if(!drapsReste(u)){ finirUnite(u); ui++; continue; }
         var besoin=n-pris;
         // un hôtel AVEC éponge ne traîne pas : au moins 3 galettes de ses draps à la fois, pour que son éponge arrive vite
-        if(u.epo.length && besoin>0) besoin=Math.max(besoin, Math.min(3,drapsReste(u)));
+        if(u.epo.length && besoin>0 && !thermeOuvert()) besoin=Math.max(besoin, Math.min(3,drapsReste(u)));
         if(besoin<=0){ if(run+gSuivant<=ML) break; besoin=1; }
         var L=u.draps[0], k=Math.min(L.g,besoin,drapsReste(u)); if(L.g-k>0 && L.g-k<2 && drapsReste(u)-k>0) k=L.g;
         var pc=piece(L,k); res.push(pc); u.dernier=pc; pris+=k; run=0; if(L.g<=0) u.draps.shift();
@@ -1523,8 +1543,11 @@ function construireTourniquet(rows, W, ctx){
       return pris;
     }
     fillers.forEach(function(F,fi){
+      curFi=fi;
       var g=gal(F.row);
-      cumul+=g*ratio; var n=Math.floor(cumul); if(n>0 && n<2 && run+g<=ML) n=0; cumul-=n;
+      cumul+=g*ratio; var n=Math.floor(cumul); if(n>0 && n<2 && run+g<=ML) n=0;
+      if(thermeOuvert()) n=(run+g>ML)?Math.min(Math.max(n,1),TAMP):0;   // au milieu d'un Therme : juste le tampon nécessaire
+      cumul-=n;
       // FIN DE JOURNÉE : il ne reste que les hôtels « réserve de draps » (Estaing, Saint-Victor…). On économise :
       // un drap seulement quand la série lente va dépasser 8, et juste ce qu'il faut pour en garder jusqu'au dernier Therme.
       var uC=ordreU[ui]; while(uC && uC.fini) uC=ordreU[++ui];
@@ -1538,7 +1561,11 @@ function construireTourniquet(rows, W, ctx){
       }
       prendreDraps(n,g);
       res.push(F.row); run+=g;
+      // le Therme est fini (ou on passe à autre chose) : le linge séchoir des hôtels/EHPAD en attente passe maintenant
+      var nx=fillers[fi+1];
+      if(attente.length && !(thK(F.row) && nx && thK(nx.row)===thK(F.row))){ curFi=fi+1; viderAttente(); }
     });
+    curFi=fillers.length; viderAttente();
     while(ui<ordreU.length){ prendreDraps(1e9,0); }
     reserve.forEach(function(R){ res.push(R.row); });
     // fusion des morceaux consécutifs d'une même ligne
