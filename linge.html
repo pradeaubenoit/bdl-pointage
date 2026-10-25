@@ -331,7 +331,7 @@ function afficherClients() {
     b.querySelector('.deja-tuile').textContent = tot ? etiquette + ' : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
     if (it.suiv) {
       const S = it.suiv, lib = libelleJour(S.date);
-      b.className = 'tuile' + (it.orange ? ' alave' : ' saisi');
+      b.className = 'tuile reporte';   // violet : lavé aujourd'hui, mais livré un autre jour
       b.querySelector('.nom-tuile').textContent = c.client + ' — pour ' + lib;
       b.querySelector('.deja-tuile').textContent = it.tot ? 'Saisi sur ' + lib + ' : ' + it.tot + ' pièce' + (it.tot > 1 ? 's' : '') : '';
       const badge = document.createElement('span');
