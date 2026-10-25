@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v167</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v168</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -341,6 +341,9 @@
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">📦 Clients avec du linge d'avance</div>
             <div class="sub" style="margin:2px 0 6px">Un client par ligne. Le moteur peut les avancer pour qu'un poste n'attende pas.</div>
             <textarea id="r-av" rows="4" class="mono" style="width:100%"></textarea></div>
+          <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">♨️ Ordre des Thermes (l'après-midi)</div>
+            <div class="sub" style="margin:2px 0 6px">Un Therme par ligne, dans l'ordre : ses peignoirs puis ses serviettes. Une ligne « chatel serviette » repousse ses serviettes à cette place.</div>
+            <textarea id="r-th" rows="8" class="mono" style="width:100%"></textarea></div>
         </div>
         <div class="reg-wrap"><div class="reg-head"><span>N°</span><span>Libellé</span><span>Taux</span><span>Séchage (min)</span><span>Type</span><span>Couleur</span><span>Galettes/h</span><span></span></div>
         <div id="codes"></div></div>
@@ -420,7 +423,7 @@ function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='strin
 
 async function loadConfig(){
   try{var r=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.echeances)CFG.echeances={'campanile aubiere':'12:00','premiere classe aubiere':'12:00','campanile clermont':'12:00'};if(!CFG.avance)CFG.avance={'magnetic':1};if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(!CFG.attelages)CFG.attelages={};if(!CFG.cadenas)CFG.cadenas={};if(CFG.bouchonMin==null)CFG.bouchonMin=10;
+    if(r.data&&r.data.data){var d=r.data.data;if(d.cfg)CFG=Object.assign(CFG,d.cfg);if(!CFG.echeances)CFG.echeances={'campanile aubiere':'12:00','premiere classe aubiere':'12:00','campanile clermont':'12:00'};if(!CFG.avance)CFG.avance={'magnetic':1};if(!CFG.ordreThermes)CFG.ordreThermes=['evaux','bourboule','neris','dome','chatel','callou','chatel serviette','callou serviette'];if(!CFG.rotationSec)CFG.rotationSec=13.8;if(CFG.tempsGalette==null||!(CFG.tempsGalette>0))CFG.tempsGalette=120;if(CFG.tempsGaletteOpt==null||!(CFG.tempsGaletteOpt>0))CFG.tempsGaletteOpt=CFG.tempsGalette;if(CFG.tFixe==null)CFG.tFixe=36;if(CFG.tParTaux==null)CFG.tParTaux=10;if(CFG.casesVide==null)CFG.casesVide=2;if(CFG.camionCli==null)CFG.camionCli=2;if(CFG.maxLent==null)CFG.maxLent=8;if(CFG.maxClientsBloc==null||!(CFG.maxClientsBloc>0))CFG.maxClientsBloc=3;if(CFG.blocDraps==null)CFG.blocDraps=4;if(!CFG.attelages)CFG.attelages={};if(!CFG.cadenas)CFG.cadenas={};if(CFG.bouchonMin==null)CFG.bouchonMin=10;
       if(d.codes&&d.codes.length){codes=d.codes;codes.forEach(function(c){if(c.sechageMin==null)c.sechageMin=defSechage(c.lib);if(!c.type)c.type=typeFromMin(c.sechageMin);if(!c.couleur)c.couleur=colFromLib(c.lib);});}
       return true;}
     return false;
@@ -1182,6 +1185,24 @@ function construireTourniquet(rows, W, ctx){
   chunks.forEach(function(c){ var k=ckey(c); if(PRIO[noyauClient(c.client)] && rangCli[k]>-1e5) rangCli[k]-=1e6; });
   // APRÈS-MIDI : les hôtels qui ont de l'éponge (linge pour la Table) sont avancés (rang × 0,3), toujours dans ton ordre,
   // et intercalés avec les Thermes ; sinon ils sortiraient à 22 h et la Table attendrait tout l'après-midi.
+  // ORDRE DES THERMES (Réglages) : l'après-midi, les Thermes passent dans l'ordre de Benoît (Evaux, Bourboule, Néris, Dôme,
+  // Chatel, Callou, puis serviettes Chatel, puis serviettes Callou). On ne change que l'ordre ENTRE Thermes : ils gardent
+  // les créneaux qu'ils occupaient dans la journée (les hôtels restent intercalés).
+  if(ctx && (ctx.apresMidi||ctx.journeeEntiere) && (CFG.ordreThermes||[]).length){   // le matin : on finit ce qui a été commencé la veille, dans ton ordre
+    var OT=CFG.ordreThermes, servPousse={}, items=[];
+    OT.forEach(function(l){ var m=l.match(/^(.*) serviettes?$/); if(m) servPousse[m[1].trim()]=1; });
+    function thermeDe(k){ if(!/therm/.test(k)) return null; for(var i=0;i<OT.length;i++){ var t=OT[i].replace(/ serviettes?$/,''); if((' '+k+' ').indexOf(' '+t+' ')>=0) return t; } return null; }
+    OT.forEach(function(l){ var m=l.match(/^(.*) serviettes?$/);
+      if(m) items.push({t:m[1].trim(),serv:true});
+      else { items.push({t:l,serv:false}); if(!servPousse[l]) items.push({t:l,serv:true}); } });
+    var cles={}; chunks.forEach(function(c){ var k=ckey(c), t=thermeDe(k); if(t) cles[k]={t:t,serv:/servi/.test(k)}; });
+    var keys=Object.keys(cles); if(keys.length>1){
+      var slots=keys.map(function(k){return rangCli[k];}).sort(function(a,b){return a-b;});
+      var ordre=[]; items.forEach(function(it){ keys.forEach(function(k){ var c=cles[k]; if(c.t===it.t && c.serv===it.serv && ordre.indexOf(k)<0) ordre.push(k); }); });
+      keys.forEach(function(k){ if(ordre.indexOf(k)<0) ordre.push(k); });
+      ordre.forEach(function(k,i){ rangCli[k]=slots[i]; });
+    }
+  }
   if(ctx && ctx.apresMidi){ chunks.forEach(function(c){ var k=ckey(c); if(!/therm/.test(k) && posteOf(c)==='pliage_table' && rangCli[k]>-1e5){ rangCli[k]=rangCli[k]*0.3; } }); }
   var resteNoy={}; chunks.forEach(function(c){ var n=noyauClient(c.client); resteNoy[n]=(resteNoy[n]||0)+1; });
   var apres={};                                           // index seq -> draps du client prioritaire qui vient de finir
@@ -1991,7 +2012,7 @@ function optimiserParLot(tunnelRows,speed,start){
   var tri=tunnelRows.map(function(r,i){return {r:r,h:heureDe(r),i:i};}).sort(function(a,b){return (a.h-b.h)||(a.i-b.i);});
   var matin=tri.filter(function(x){return x.h<bas;}).map(function(x){return x.r;});
   var soir=tri.filter(function(x){return x.h>=bas;}).map(function(x){return x.r;});
-  if(!matin.length||!soir.length) return optimiserOrdre(fusionnerMemeClient(tri.map(function(x){return x.r;})),speed,start);
+  if(!matin.length||!soir.length) return optimiserOrdre(fusionnerMemeClient(tri.map(function(x){return x.r;})),speed,start,{journeeEntiere:true});
   var o1=optimiserOrdre(fusionnerMemeClient(matin),speed,start);
   var _ctx2=contexteDepuis(o1.order); _ctx2.apresMidi=true;
   var o2=optimiserOrdre(fusionnerMemeClient(soir),speed,start,_ctx2);
@@ -2248,7 +2269,8 @@ async function startApp(){
   document.getElementById('rot').value=tempsGalette();
   if(document.getElementById('r-ech')){ var _e=CFG.echeances||{}, _a=CFG.avance||{};
     document.getElementById('r-ech').value=Object.keys(_e).map(function(k){return k+' = '+_e[k];}).join('\n');
-    document.getElementById('r-av').value=Object.keys(_a).filter(function(k){return _a[k];}).join('\n'); }
+    document.getElementById('r-av').value=Object.keys(_a).filter(function(k){return _a[k];}).join('\n');
+    document.getElementById('r-th').value=(CFG.ordreThermes||[]).join('\n'); }
   if(document.getElementById('r-serie')){document.getElementById('r-serie').value=(CFG.maxLent==null?8:CFG.maxLent);document.getElementById('r-bloc').value=(CFG.blocDraps==null?4:CFG.blocDraps);document.getElementById('r-bouchon').value=(CFG.bouchonMin==null?10:CFG.bouchonMin);}
   document.getElementById('b-rot').value=(CFG.tempsGaletteOpt==null?tempsGalette():CFG.tempsGaletteOpt);
   document.getElementById('b-cvide').value=(CFG.casesVide==null?2:CFG.casesVide);
@@ -2343,6 +2365,7 @@ document.getElementById('rot').addEventListener('input',function(e){CFG.tempsGal
 document.getElementById('r-serie').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.maxLent=isNaN(v)?8:Math.max(1,v);scheduleSaveConfig();});
 document.getElementById('r-ech').addEventListener('change',function(e){var o={};String(e.target.value||'').split('\n').forEach(function(l){var m=l.match(/^(.*?)[=:\s]+(\d{1,2})[h:](\d{2})?\s*$/i);if(m&&m[1].trim()){o[grpHotel(m[1])]=String(m[2]).padStart(2,'0')+':'+(m[3]||'00');}});CFG.echeances=o;scheduleSaveConfig();e.target.value=Object.keys(o).map(function(k){return k+' = '+o[k];}).join('\n');});
 document.getElementById('r-av').addEventListener('change',function(e){var o={};String(e.target.value||'').split('\n').forEach(function(l){if(l.trim())o[grpHotel(l)]=1;});CFG.avance=o;scheduleSaveConfig();e.target.value=Object.keys(o).join('\n');});
+document.getElementById('r-th').addEventListener('change',function(e){var l=String(e.target.value||'').split('\n').map(function(x){return nomCle(x).replace(/^thermes? /,'');}).filter(Boolean);CFG.ordreThermes=l;scheduleSaveConfig();e.target.value=l.join('\n');});
 document.getElementById('r-bloc').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.blocDraps=isNaN(v)?4:Math.max(1,v);scheduleSaveConfig();});
 document.getElementById('r-bouchon').addEventListener('input',function(e){var v=parseInt(e.target.value);CFG.bouchonMin=isNaN(v)?10:Math.max(0,v);scheduleSaveConfig();});
 document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();mergeClientNames();});
