@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v182</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v183</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1482,11 +1482,14 @@ function construireTourniquet(rows, W, ctx){
     ordreU.forEach(function(u){ u.draps.sort(function(a,b){ return (a.row._arr||0)-(b.row._arr||0); }); });
     // ⏰ heure limite d'abord (les plus pressés en tête), puis l'ordre du moteur
     // hôtels SANS éponge et sans heure limite (Estaing, Saint-Victor…) = réserve de draps : ils ferment la marche
-    function reserveH(u){ return !u.epo.length && ECH[u.h]==null; }
+    // CLIENT COMMENCÉ : déjà du linge lavé (lignes « fait » ou matin) -> on finit ses draps EN PREMIER (ex. Hôpital du Mont : éponge lavée, draps ajoutés ensuite)
+    var COM={}; ((ctx&&ctx.faits)||[]).forEach(function(k){ if(k && !/therm/.test(k)) COM[grpHotel(k)]=1; });
+    function reserveH(u){ return !u.epo.length && ECH[u.h]==null && !COM[u.h]; }
     // 🏨 ordre des hôtels choisi dans les Réglages : ceux de la liste passent dans cet ordre, avant ceux qui n'y sont pas
     var OHi={}; (CFG.ordreHotels||[]).forEach(function(k,i){ if(k && OHi[k]==null) OHi[k]=i; });
     function rangH(u){ return OHi[u.h]!=null ? OHi[u.h] : null; }
-    ordreU.sort(function(a,b){ var ea=ECH[a.h], eb=ECH[b.h]; var oa=rangH(a), ob=rangH(b);
+    ordreU.sort(function(a,b){ var ca=COM[a.h]?1:0, cb=COM[b.h]?1:0; if(ca!==cb) return cb-ca; if(ca&&cb) return a.pos-b.pos;
+      var ea=ECH[a.h], eb=ECH[b.h]; var oa=rangH(a), ob=rangH(b);
       if(ea!=null||eb!=null){ if(ea==null) return 1; if(eb==null) return -1; if(ea!==eb) return ea-eb; if(oa!=null&&ob!=null) return oa-ob; return a.pos-b.pos; }
       if(oa!=null||ob!=null){ if(oa==null) return 1; if(ob==null) return -1; return oa-ob; }
       var ra=reserveH(a)?1:0, rb=reserveH(b)?1:0; if(ra!==rb) return ra-rb; return a.pos-b.pos; });
