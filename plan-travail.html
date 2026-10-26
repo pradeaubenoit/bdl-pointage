@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v180</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v181</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -343,7 +343,7 @@
             <div class="sub" style="margin:2px 0 6px">Le moteur peut les avancer pour qu'un poste n'attende pas.</div>
             <div id="r-av"></div></div>
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">♨️ Ordre des Thermes (l'après-midi)</div>
-            <div class="sub" style="margin:2px 0 6px">Dans l'ordre de passage (↑ ↓ pour déplacer) : un Therme = ses peignoirs puis ses serviettes. « … serviettes » repousse les serviettes de ce Therme à cette place.</div>
+            <div class="sub" style="margin:2px 0 6px">Dans l'ordre de passage (↑ ↓ pour déplacer) : un Therme = ses peignoirs puis ses serviettes. « … serviettes » repousse les serviettes de ce Therme à cette place. Vous pouvez aussi y mettre un autre client (🏥 Hôpital du Mont…) pour le faire passer avant un Therme.</div>
             <div id="r-th"></div></div>
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">🌅 Ordre des Thermes (le matin)</div>
             <div class="sub" style="margin:2px 0 6px">Ce qui reste de la veille, dans l'ordre où vous voulez le finir le matin (ex. « dome serviettes » avant « chatel serviettes »). Vide = le moteur garde l'ordre de la veille. N'agit pas sur l'après-midi.</div>
@@ -743,7 +743,7 @@ function demanderAdmin(){
   else alert('Code incorrect.');
 }
 /* ---------- Réglages : listes de clients (menus déroulants) ---------- */
-function _jolie(k){ return String(k||'').replace(/\b\w/g,function(c){return c.toUpperCase();}); }
+function _jolie(k){ k=String(k||''); if(k.charAt(0)==='@') return '🏥 '+_jolie(k.slice(1)); return k.replace(/\b\w/g,function(c){return c.toUpperCase();}); }
 function clientsConnus(){
   // tous les clients de la journée affichée + l'historique + ce qui est déjà réglé
   var H={}, T={};
@@ -753,7 +753,7 @@ function clientsConnus(){
   Object.keys(CFG.echeances||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
   Object.keys(CFG.avance||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
   (CFG.ordreHotels||[]).forEach(function(k){ if(k && H[k]==null) H[k]=false; });
-  (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ var t=l.replace(/ serviettes?$/,''); if(T[t]==null) T[t]=false; });
+  (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ if(!l||l.charAt(0)==='@') return; var t=l.replace(/ serviettes?$/,''); if(T[t]==null) T[t]=false; });
   delete H['']; delete T[''];
   function tri(o){ return Object.keys(o).sort(function(a,b){ return (o[b]?1:0)-(o[a]?1:0) || a.localeCompare(b,'fr'); }).map(function(k){ return {k:k,jour:o[k]}; }); }
   return {hotels:tri(H), thermes:tri(T)};
@@ -773,6 +773,9 @@ function renderReglesClients(){
   bA.innerHTML=Object.keys(A).filter(function(k){return A[k];}).map(function(k){ return '<div style="display:flex;gap:4px;margin-bottom:4px"><select data-ak="'+esc(k)+'" '+sel+'>'+_options(C.hotels,k)+'</select><button class="btn-ghost" data-ax="'+esc(k)+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-av-add">+ Ajouter un client</button>';
   // ♨️ ordre des Thermes (avec ↑ ↓)
   var optT=[]; C.thermes.forEach(function(x){ optT.push(x); optT.push({k:x.k+' serviettes',jour:x.jour}); });
+  // autres clients de la journée (hôpital, EHPAD, spas…) : « @nom » = à placer dans l'ordre des Thermes (ex. Hôpital du Mont avant Evaux)
+  var _dejaT={}; (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ if(l && l.charAt(0)==='@') _dejaT[l.slice(1)]=1; });
+  C.hotels.forEach(function(x){ if(x.jour || _dejaT[x.k]) optT.push({k:'@'+x.k, jour:x.jour}); });
   bT.innerHTML=OT.map(function(l,i){ var v=l.replace(/ serviette$/,' serviettes'); return '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center"><span class="sub" style="width:22px">'+(i+1)+'.</span><select data-ti="'+i+'" '+sel+'>'+_options(optT,v)+'</select><button class="btn-ghost" data-tu="'+i+'" '+btn+'>↑</button><button class="btn-ghost" data-td="'+i+'" '+btn+'>↓</button><button class="btn-ghost" data-tx="'+i+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-th-add">+ Ajouter un Therme</button>';
   function sauve(){ delete E['']; delete A['']; CFG.echeances=E; CFG.avance=A; CFG.ordreThermes=(CFG.ordreThermes||[]).filter(Boolean); CFG.ordreHotels=(CFG.ordreHotels||[]).filter(Boolean); CFG.ordreThermesMatin=(CFG.ordreThermesMatin||[]).filter(Boolean); scheduleSaveConfig(); renderReglesClients(); }
   bE.querySelectorAll('[data-ek]').forEach(function(x){ x.onchange=function(){ var old=x.dataset.ek, t=E[old]||'12:00'; delete E[old]; if(x.value) E[x.value]=t; sauve(); }; });
@@ -1272,11 +1275,13 @@ function construireTourniquet(rows, W, ctx){
   if(_OTsel.length){
     var OT=_OTsel, servPousse={}, items=[];
     OT.forEach(function(l){ var m=l.match(/^(.*) serviettes?$/); if(m) servPousse[m[1].trim()]=1; });
-    function thermeDe(k){ if(!/therm/.test(k)) return null; for(var i=0;i<OT.length;i++){ var t=OT[i].replace(/ serviettes?$/,''); if((' '+k+' ').indexOf(' '+t+' ')>=0) return t; } return null; }
-    OT.forEach(function(l){ var m=l.match(/^(.*) serviettes?$/);
+    function thermeDe(k,c){
+      if(!/therm/.test(k)){ var g='@'+grpHotel(c.client); return OT.indexOf(g)>=0 ? g : null; }   // autre client placé dans la liste (ex. 🏥 Hôpital du Mont)
+      for(var i=0;i<OT.length;i++){ if(OT[i].charAt(0)==='@') continue; var t=OT[i].replace(/ serviettes?$/,''); if((' '+k+' ').indexOf(' '+t+' ')>=0) return t; } return null; }
+    OT.forEach(function(l){ if(l.charAt(0)==='@'){ items.push({t:l,serv:false}); return; } var m=l.match(/^(.*) serviettes?$/);
       if(m) items.push({t:m[1].trim(),serv:true});
       else { items.push({t:l,serv:false}); if(!servPousse[l]) items.push({t:l,serv:true}); } });
-    var cles={}; chunks.forEach(function(c){ var k=ckey(c), t=thermeDe(k); if(t) cles[k]={t:t,serv:/servi/.test(k)}; });
+    var cles={}; chunks.forEach(function(c){ var k=ckey(c), t=thermeDe(k,c); if(t) cles[k]={t:t,serv:(t.charAt(0)==='@')?false:/servi/.test(k)}; });
     var keys=Object.keys(cles); if(keys.length>1){
       var slots=keys.map(function(k){return rangCli[k];}).sort(function(a,b){return a-b;});
       var ordre=[]; items.forEach(function(it){ keys.forEach(function(k){ var c=cles[k]; if(c.t===it.t && c.serv===it.serv && ordre.indexOf(k)<0) ordre.push(k); }); });
@@ -2044,7 +2049,21 @@ function reOptimiserDepuis(i){
   // la série lente en cours se lit dans l'ordre RÉEL de lavage (faits par heure, puis le dessus non fait)
   var reel=triFaits(rows.filter(function(r){return estFait(r) && !estLav(r) && r.machine==='tunnel';})).concat(rows.filter(function(r,idx){return idx<i && !estFait(r) && !estIgn(r) && !estLav(r);}));
   var ctxR=contexteDepuis(reel); ctxF.run=ctxR.run; ctxF.nbCli=ctxR.nbCli; ctxF.dernier=ctxR.dernier;
-  var opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF);
+  // MATIN / APRÈS-MIDI : comme le Brouillon, ce qui se charge après la bascule (11 h) suit l'ordre des Thermes de l'APRÈS-MIDI
+  var bas=(CFG.heureBascule==null?11:CFG.heureBascule)*3600, opt;
+  var _simR=simulerTunnel(rows);   // mêmes heures « charg. » que celles affichées sur le Plan
+  function _hDe(r){ var L=_simR.lots&&_simR.lots[r.id]; return (L&&isFinite(L.charg))?L.charg:0; }
+  var pM=pool.filter(function(r){ return _hDe(r)<bas; }), pS=pool.filter(function(r){ return _hDe(r)>=bas; });
+  (function(){ var hM={}; pM.forEach(function(r){ var n=nomCle(r.client); if(!/therm/.test(n)) hM[grpHotel(r.client)]=1; });   // un hôtel commencé le matin y reste
+    var b=pS.filter(function(r){ return !/therm/.test(nomCle(r.client)) && hM[grpHotel(r.client)]; }); if(b.length){ pM=pM.concat(b); pS=pS.filter(function(r){ return b.indexOf(r)<0; }); } })();
+  if(!pM.length){ ctxF.apresMidi=true; opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF); }
+  else if(!pS.length){ opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF); }
+  else {
+    var o1=optimiserOrdre(fusionnerMemeClient(pM),0,start,ctxF);
+    var c2=contexteDepuis(reel.concat(o1.order)); c2.apresMidi=true;
+    var o2=optimiserOrdre(fusionnerMemeClient(pS),0,start,c2);
+    opt={order:o1.order.concat(o2.order)};
+  }
   // Pas de gain de temps -> on ne touche à rien.
   var _tun=function(l){ return l.filter(function(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }); };
   var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
