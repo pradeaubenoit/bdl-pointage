@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.2';
+var VERSION='v9.3';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -1526,6 +1526,7 @@ VUES.planning=async function(){
   var jour=new Date(j+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   var html='<h1 class="titre">Planning</h1><div class="carte" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="pjM">◀</button><input type="date" id="pjD" value="'+j+'" style="width:auto"><button class="btn" id="pjP">▶</button><b style="text-transform:capitalize">'+jour+'</b>'+(j!==auj()?'<button class="btn l sm" id="pjA">aujourd\'hui</button>':'')+'</div>';
   var actifs=PERS.filter(function(p){return p.actif!==false;});
+  var REPORT={};
   if(!actifs.length)html+='<div class="carte" style="background:var(--bleu2)">Ajoute d\'abord les personnes de l\'équipe maintenance avec leur temps disponible par jour (en bas de la page).</div>';
   actifs.forEach(function(p){
     var l=ouverts.filter(function(b){return memePers(b.assigne_a,p.nom)&&(b.prevu_le===j||(j===auj()&&b.prevu_le&&b.prevu_le<j));});
@@ -1533,7 +1534,9 @@ VUES.planning=async function(){
     var fait=f.reduce(function(s,b){return s+(+b.duree_min||0);},0);
     var charge=fait+l.reduce(function(s,b){return s+restant(b);},0), cap=+p.capacite_min||420, sansT=l.filter(function(b){return !b.temps_prevu_min;}).length;
     var pc=Math.min(100,charge/cap*100), trop=charge>cap;
+    if(l.length)REPORT[p.id]=l;
     html+='<div class="carte"><h2>👷 '+esc(p.nom)+'<span class="d etiq">'+fmtMin(charge)+' / '+fmtMin(cap)+'</span></h2>'+
+      (l.length?'<div style="text-align:right;margin:-4px 0 6px"><button class="btn sm" data-rep="'+p.id+'">📅 Reporter…</button></div>':'')+
       '<div class="barre gros'+(trop?' rouge':'')+'"><div style="width:'+pc+'%"></div></div>'+
       (trop?'<div class="alerte">⚠ Trop de tâches pour cette journée : <b>+'+fmtMin(charge-cap)+'</b>. Décale un bon à un autre jour ou confie-le à quelqu\'un d\'autre.</div>':(l.length?'<div class="etiq" style="margin:6px 0">Encore '+fmtMin(cap-charge)+' de disponible.</div>':''))+
       (sansT?'<div class="etiq" style="color:var(--orange)">'+sansT+' bon'+(sansT>1?'s':'')+' sans temps prévu (non compté'+(sansT>1?'s':'')+')</div>':'')+
@@ -1563,6 +1566,7 @@ VUES.planning=async function(){
   if($('pjA'))$('pjA').onclick=function(){changeJ(auj());};
   document.querySelectorAll('[data-pl]').forEach(function(x){x.onclick=function(ev){ev.preventDefault();ev.stopPropagation();planifier(ouverts.find(function(b){return b.id===x.dataset.pl;}),j);};});
   document.querySelectorAll('[data-plj]').forEach(function(x){x.onclick=function(){lancerPrevLe(x.dataset.plj,j);};});
+  document.querySelectorAll('[data-rep]').forEach(function(x){x.onclick=function(){reporterBons(REPORT[x.dataset.rep]||[],j);};});
   $('peN').onclick=function(){editerPersonne(null);};
   document.querySelectorAll('[data-pe]').forEach(function(x){x.onclick=function(){editerPersonne(x.dataset.pe);};});
 };
@@ -1571,6 +1575,24 @@ function ligneBonPlan(b){
   return '<a class="ligne" href="#bon/'+b.id+'"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+
     (b.assigne_a?' · 👷 '+esc(b.assigne_a):'')+(b.prevu_le?(b.prevu_le<auj()?' · <b style="color:var(--orange)">reporté du '+fmtD(b.prevu_le)+'</b>':' · '+fmtD(b.prevu_le)):'')+(p?' · prévu '+fmtMin(p)+(fait?' (déjà '+fmtMin(fait)+')':''):' · <span style="color:var(--orange)">temps ?</span>')+'</div></div>'+
     badgeStatut(b.statut)+'<button class="btn sm" data-pl="'+b.id+'">Planifier</button></a>';
+}
+/* REPORTER EN UNE FOIS : en fin de journée, tout ce qui n'est pas fini passe au jour suivant (on décoche ce qui reste) */
+function reporterBons(liste,j){
+  if(!liste.length)return;
+  var dem=ajoutJours(j<auj()?auj():j,1); if(new Date(dem+'T12:00:00').getDay()===0) dem=ajoutJours(dem,1);   // pas le dimanche
+  ouvrir('<h3>📅 Reporter des bons</h3><div class="etiq">Cochez les bons à décaler, puis choisissez le jour.</div>'+
+    '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px;margin-top:8px"><input type="checkbox" id="rpT" checked style="width:auto"> <b>Tout cocher / décocher</b></label>'+
+    liste.map(function(b){return '<label style="display:flex;gap:8px;align-items:flex-start;color:var(--txt);font-size:14px;margin:6px 0"><input type="checkbox" class="rpC" value="'+b.id+'" checked style="width:auto;margin-top:3px"><span>'+numBT(b.numero)+' · '+esc(b.titre)+(b.temps_prevu_min?' <span class="etiq">· '+fmtMin(restant(b)||b.temps_prevu_min)+'</span>':'')+'</span></label>';}).join('')+
+    '<label>Reporter au</label><input type="date" id="rpD" value="'+dem+'">'+
+    '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="rpO">Reporter</button></div>');
+  $('rpT').onchange=function(){var c=this.checked;document.querySelectorAll('.rpC').forEach(function(x){x.checked=c;});};
+  $('rpO').onclick=async function(){
+    var ids=[].slice.call(document.querySelectorAll('.rpC')).filter(function(x){return x.checked;}).map(function(x){return x.value;}), d=val('rpD');
+    if(!ids.length){toast('Aucun bon coché');return;} if(!d){toast('Choisissez un jour');return;}
+    try{await q(sb.from('gmao_interventions').update({prevu_le:d}).in('id',ids));
+      for(var i=0;i<ids.length;i++){try{await logSys(ids[i],'📅 '+NOM+' reporte le bon au '+fmtD(d));}catch(e){}}
+      toast(ids.length+' bon'+(ids.length>1?'s':'')+' reporté'+(ids.length>1?'s':'')+' au '+fmtD(d));fermer();route();}catch(x){erreur(x);}
+  };
 }
 function planifier(b,jourDefaut){
   if(!b)return;
