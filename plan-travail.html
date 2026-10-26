@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v181</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v182</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2067,7 +2067,9 @@ function reOptimiserDepuis(i){
   // Pas de gain de temps -> on ne touche à rien.
   var _tun=function(l){ return l.filter(function(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }); };
   var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
-  if(!(_cout(_tun(figes.concat(opt.order))) < _cout(_tun(figes.concat(pool))))){ alert('Ton ordre est déjà le meilleur : la ré-optimisation ne respecterait pas mieux la règle des 8 et ne ferait pas gagner de temps. Rien n\u2019a été changé.'); return; }
+  if(!(_cout(_tun(figes.concat(opt.order))) < _cout(_tun(figes.concat(pool))))){
+    // le nouvel ordre ne fait pas gagner de temps, mais il respecte tes Réglages (ordre des Thermes, hôpital…) : c'est toi qui choisis
+    if(!confirm('Le nouvel ordre ne fait pas gagner de temps sur la simulation.\n\nL\u2019appliquer quand même pour suivre vos Réglages (ordre des Thermes, Hôpital du Mont, hôtels…) ?\n\nOK = appliquer   ·   Annuler = garder l\u2019ordre actuel')) return; }
   // Trous de postes : on avance le linge qui arriverait seul, tard, à un poste déjà vide depuis 2 h.
   try{ opt.order=comblerPostes(opt.order,start,tempsGalette(),_tun(figes)); }catch(e){}
   var _cb=comblerPostes.deplaces||[];
