@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.3';
+var VERSION='v9.5';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -358,14 +358,17 @@ VUES.accueil=async function(){
   var urg=bons.filter(function(b){return b.priorite==='Urgente'||b.machine_arretee;});
   var aCmd=V8?(await q(sb.from('gmao_commandes').select('id').eq('statut','À commander'))).length:0;
   var aValider=V6?await q(sb.from('gmao_interventions').select('*').eq('statut','Terminé').is('valide_le',null).order('fin',{ascending:false}).limit(50)):[];
-  var html='<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau\')">⚠ Signaler une panne</button>'+
+  var nouv=V6?bons.filter(aTraiter):[];
+  var html=(nouv.length?'<div class="carte" style="border:2px solid var(--rouge);background:#fff5f5"><h2>📥 '+nouv.length+' demande'+(nouv.length>1?'s':'')+' à traiter<a class="btn sm d" href="#planning">planifier</a></h2>'+
+    '<div class="etiq" style="margin-bottom:6px">Pas encore confiée'+(nouv.length>1?'s':'')+' à quelqu\'un pour un jour donné. Elle'+(nouv.length>1?'s restent':' reste')+' ici tant que ce n\'est pas fait.</div>'+nouv.map(ligneBon).join('')+'</div>':'')+
+    '<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau\')">⚠ Signaler une panne</button>'+
     '<button class="btn p" onclick="aller(\'articles\')">🔎 Chercher une pièce</button><button class="btn" onclick="aller(\'pannes\')">💡 Panne déjà vue ?</button></div>'+
     '<div class="tuiles">'+
     '<a class="tuile'+(urg.length?' alerte':'')+'" href="#bons"><b>'+urg.length+'</b><span>urgent / machine arrêtée</span></a>'+
     '<a class="tuile" href="#bons"><b>'+bons.length+'</b><span>bons ouverts</span></a>'+
     '<a class="tuile'+(retard.length?' alerte':'')+'" href="#preventif"><b>'+retard.length+'</b><span>préventifs à faire (7 j)</span></a>'+
     '<a class="tuile'+(sousMini.length?' alerte':'')+'" href="#articles/mini"><b>'+sousMini.length+'</b><span>pièces sous le mini</span></a>'+
-    '<a class="tuile" href="#parc"><b>'+degr.length+'</b><span>machines dégradées</span></a>'+(V6?'<a class="tuile'+(aValider.length?' alerte':'')+'" href="#bons"><b>'+aValider.length+'</b><span>travaux à valider</span></a>':'')+(V8?'<a class="tuile'+(aCmd?' alerte':'')+'" href="#achats/acommander"><b>'+aCmd+'</b><span>pièces à commander</span></a>':'')+'</div>';
+    '<a class="tuile" href="#parc"><b>'+degr.length+'</b><span>machines dégradées</span></a>'+(V6?'<a class="tuile'+(aValider.length?' alerte':'')+'" href="#bons" onclick="filtreBons=\'avalider\'"><b>'+aValider.length+'</b><span>travaux à valider</span></a>':'')+(V8?'<a class="tuile'+(aCmd?' alerte':'')+'" href="#achats/acommander"><b>'+aCmd+'</b><span>pièces à commander</span></a>':'')+'</div>';
   html+='<div class="carte"><h2>Bons ouverts</h2>'+(bons.length?bons.slice(0,12).map(ligneBon).join(''):'<div class="vide">Aucun bon ouvert. 👍</div>')+'</div>';
   if(aValider.length)html+='<div class="carte"><h2>✔ À valider</h2>'+aValider.map(function(b){var dep=b.temps_prevu_min&&b.duree_min>b.temps_prevu_min;return ligneBon(b).replace('</div></div>',' · '+fmtMin(b.duree_min)+(b.temps_prevu_min?' / prévu '+fmtMin(b.temps_prevu_min):'')+(dep?' <b style="color:var(--rouge)">dépassé</b>':'')+'</div></div>');}).join('')+'</div>';
   html+='<div class="carte"><h2>Préventif à venir</h2>'+(retard.length?retard.map(lignePrev).join(''):'<div class="vide">Rien d\'ici 7 jours.</div>')+'</div>';
@@ -373,10 +376,14 @@ VUES.accueil=async function(){
   if(!EQ.length)html='<div class="carte" style="background:var(--bleu2)"><b>Bienvenue !</b> Ta GMAO est vide. Commence par <a href="#import">importer ton fichier d\'équipements DIMO</a>.</div>'+html;
   $('main').innerHTML=html;
 };
+/* DEMANDE À TRAITER : bon ouvert que personne n'a encore pris en main (pas confié ou pas de jour) — ex. une demande d'un employé par QR code */
+function aTraiter(b){return b.statut!=='Terminé'&&b.statut!=='Attente pièce'&&(!b.assigne_a||!b.prevu_le);}
+/* demande venue d'un employé (QR code) : le demandeur n'est ni toi ni quelqu'un de l'équipe maintenance */
+function deEmploye(b){return !!b.demandeur&&!memePers(b.demandeur,NOM)&&!PERS.some(function(p){return memePers(b.demandeur,p.nom);});}
 function ligneBon(b){
   var e=EQID[b.equipement_id];
   return '<a class="ligne" href="#bon/'+b.id+'"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+
-    esc(e?chemin(e):'— sans machine —')+' · '+esc(b.type)+' · '+fmtDH(b.cree_le)+(b.intervenant?' · '+esc(b.intervenant):'')+'</div></div>'+badgePrio(b.priorite,b.machine_arretee&&b.statut!=='Terminé')+badgeStatut(b.statut)+'</a>';
+    esc(e?chemin(e):'— sans machine —')+' · '+esc(b.type)+' · '+fmtDH(b.cree_le)+(b.intervenant?' · '+esc(b.intervenant):'')+(deEmploye(b)?' · <b style="color:var(--bleu)">📱 demandé par '+esc(b.demandeur)+'</b>':'')+'</div></div>'+badgePrio(b.priorite,b.machine_arretee&&b.statut!=='Terminé')+badgeStatut(b.statut)+'</a>';
 }
 function periodeTxt(p){
   if(p.mesure_id){var m=MESID[p.mesure_id];return 'toutes les '+fmtN(+p.periodicite_valeur||0)+' '+esc(m?(m.unite||''):'')+' ('+esc(m?m.nom:'compteur ?')+') · fait à '+(p.dernier_valeur==null?'—':fmtN(+p.dernier_valeur));}
@@ -588,8 +595,12 @@ VUES.stock=async function(){
 var filtreBons='ouverts';
 VUES.bons=async function(){
   var l=await q(sb.from('gmao_interventions').select('*').order('cree_le',{ascending:false}).limit(1000));
-  var F={ouverts:function(b){return b.statut!=='Terminé';},attente:function(b){return b.statut==='Attente pièce';},termines:function(b){return b.statut==='Terminé';},tous:function(){return true;}};
+  var F={atraiter:aTraiter,ouverts:function(b){return b.statut!=='Terminé';},attente:function(b){return b.statut==='Attente pièce';},avalider:function(b){return b.statut==='Terminé'&&!b.valide_le;},termines:function(b){return b.statut==='Terminé';},tous:function(){return true;}};
+  var nVal=V6?l.filter(F.avalider).length:0;
   var lib={ouverts:'Ouverts',attente:'Attente pièce',termines:'Terminés',tous:'Tous'};
+  var nTr=V6?l.filter(aTraiter).length:0;
+  if(V6)lib={atraiter:'📥 À traiter'+(nTr?' ('+nTr+')':''),ouverts:'Ouverts',attente:'Attente pièce',avalider:'✔ À valider'+(nVal?' ('+nVal+')':''),termines:'Terminés',tous:'Tous'};
+  if(!lib[filtreBons])filtreBons='ouverts';
   $('main').innerHTML='<h1 class="titre">Bons de travail <button class="btn p sm" style="float:right" onclick="aller(\'bon/nouveau\')">+ Nouveau bon</button><button class="btn sm" style="float:right;margin-right:8px" onclick="aller(\'pannes\')">💡 Pannes déjà résolues</button></h1>'+
     '<div class="rech"><input id="rb" placeholder="Chercher : machine, mot, n° de bon…"></div><div class="puces" id="pb">'+
     Object.keys(lib).map(function(k){return '<button class="puce'+(k===filtreBons?' on':'')+'" data-k="'+k+'">'+lib[k]+'</button>';}).join('')+'</div><div class="carte" id="lb"></div>';
