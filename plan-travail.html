@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v186</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v187</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -335,6 +335,7 @@
           <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bloc de draps pour tamponner</span><input type="number" id="r-bloc" class="mono w-auto" style="width:64px" step="1" min="1"></div>
           <div style="display:flex;align-items:center;gap:6px"><span class="sub">Bouchon si pas assez (min)</span><input type="number" id="r-bouchon" class="mono w-auto" style="width:64px" step="1" min="0"></div>
         </div>
+        <div id="r-jours" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 6px"></div>
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin:0 0 12px;padding:10px;background:var(--bg-soft,#f6f6f4);border-radius:8px">
           <div style="flex:1;min-width:260px"><div class="lab" style="font-weight:600">⏰ Clients à finir avant une heure</div>
             <div class="sub" style="margin:2px 0 6px">Choisissez le client et l'heure de départ du camion.</div>
@@ -771,7 +772,31 @@ function _options(liste,sel){
   function opt(x){ return '<option value="'+esc(x.k)+'"'+(x.k===sel?' selected':'')+'>'+esc(_jolie(x.k))+'</option>'; }
   return '<option value=""'+(sel?'':' selected')+'>— choisir —</option>'+(aj.length?'<optgroup label="Clients de la journée">'+aj.map(opt).join('')+'</optgroup>':'')+(au.length?'<optgroup label="Autres clients">'+au.map(opt).join('')+'</optgroup>':'');
 }
+/* RÉGLAGES PAR JOUR DE LA SEMAINE : ⏰ / 📦 / ♨️ / 🌅 / 🏨 ont leurs propres valeurs du lundi au samedi.
+   CFG.parJour[1..6] garde chaque jour ; le moteur charge ceux du jour de la journée qu'il optimise. */
+var CLES_JOUR=['echeances','avance','ordreThermes','ordreThermesMatin','ordreHotels'];
+var NOMS_JR=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+function _clone(x){ return x==null?x:JSON.parse(JSON.stringify(x)); }
+function jourSem(iso){ var d=new Date(String(iso||'')+'T12:00:00'); var j=isNaN(d)?1:d.getDay(); return j===0?1:j; }
+function initParJour(){ if(!CFG.parJour) CFG.parJour={}; for(var d=1;d<=6;d++){ if(!CFG.parJour[d]){ var o={}; CLES_JOUR.forEach(function(k){ o[k]=_clone(CFG[k]); }); CFG.parJour[d]=o; } } }
+function chargerJourCfg(d){ initParJour(); var o=CFG.parJour[d]||{}; CLES_JOUR.forEach(function(k){ CFG[k]=_clone(o[k]!=null?o[k]:(k==='echeances'||k==='avance'?{}:[])); }); }
+function garderJourCfg(d){ initParJour(); var o={}; CLES_JOUR.forEach(function(k){ o[k]=_clone(CFG[k]); }); CFG.parJour[d]=o; }
+/* exécute fn avec les réglages du jour de la date iso, puis remet ceux affichés */
+function avecJour(iso,fn){ var sv={}; CLES_JOUR.forEach(function(k){ sv[k]=CFG[k]; }); try{ chargerJourCfg(jourSem(iso)); return fn(); } finally { CLES_JOUR.forEach(function(k){ CFG[k]=sv[k]; }); } }
+var jourR=null, _jourRCharge=null;
 function renderReglesClients(){
+  if(jourR==null) jourR=jourSem(curDate);
+  if(_jourRCharge!==jourR){ chargerJourCfg(jourR); _jourRCharge=jourR; }
+  var bJ=document.getElementById('r-jours');
+  if(bJ){
+    bJ.innerHTML='<span class="sub" style="margin-right:4px">Réglages du :</span>'+[1,2,3,4,5,6].map(function(d){ return '<button class="'+(d===jourR?'btn-primary':'btn-ghost')+'" data-jr="'+d+'" style="padding:4px 12px">'+NOMS_JR[d]+'</button>'; }).join('')+
+      '<button class="btn-ghost" id="r-jcopie" style="padding:4px 10px;margin-left:8px" title="Copier les réglages de ce jour sur les autres jours">⧉ Copier sur les autres jours</button>'+
+      '<span class="sub" style="width:100%;margin-top:2px">Le moteur prend automatiquement les réglages du jour de la journée qu\'il optimise.</span>';
+    bJ.querySelectorAll('[data-jr]').forEach(function(x){ x.onclick=function(){ jourR=+x.dataset.jr; renderReglesClients(); }; });
+    document.getElementById('r-jcopie').onclick=function(){ var cibles=prompt('Copier les réglages du '+NOMS_JR[jourR].toLowerCase()+' sur quels jours ?\n1=lundi … 6=samedi, séparés par des virgules (ex. 1,3,5), ou « tous »','tous'); if(cibles==null) return;
+      var L=/tous/i.test(cibles)?[1,2,3,4,5,6]:String(cibles).split(/[^1-6]+/).filter(Boolean).map(Number); garderJourCfg(jourR);
+      L.forEach(function(d){ if(d!==jourR) CFG.parJour[d]=_clone(CFG.parJour[jourR]); }); scheduleSaveConfig(); alert('Réglages copiés.'); };
+  }
   var bE=document.getElementById('r-ech'), bA=document.getElementById('r-av'), bT=document.getElementById('r-th'), bH=document.getElementById('r-ho'); if(!bE) return;
   var C=clientsConnus(), E=CFG.echeances||{}, A=CFG.avance||{}, OT=(CFG.ordreThermes||[]).slice(), OH=(CFG.ordreHotels||[]).slice();
   var btn='style="padding:2px 8px;margin-left:4px"', sel='style="flex:1;min-width:0"';
@@ -785,7 +810,7 @@ function renderReglesClients(){
   var _dejaT={}; (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ if(l && l.charAt(0)==='@') _dejaT[l.slice(1)]=1; });
   C.hotels.forEach(function(x){ if(x.jour || _dejaT[x.k]) optT.push({k:'@'+x.k, jour:x.jour}); });
   bT.innerHTML=OT.map(function(l,i){ var v=l.replace(/ serviette$/,' serviettes'); return '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center"><span class="sub" style="width:22px">'+(i+1)+'.</span><select data-ti="'+i+'" '+sel+'>'+_options(optT,v)+'</select><button class="btn-ghost" data-tu="'+i+'" '+btn+'>↑</button><button class="btn-ghost" data-td="'+i+'" '+btn+'>↓</button><button class="btn-ghost" data-tx="'+i+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-th-add">+ Ajouter un Therme</button>';
-  function sauve(){ delete E['']; delete A['']; CFG.echeances=E; CFG.avance=A; CFG.ordreThermes=(CFG.ordreThermes||[]).filter(Boolean); CFG.ordreHotels=(CFG.ordreHotels||[]).filter(Boolean); CFG.ordreThermesMatin=(CFG.ordreThermesMatin||[]).filter(Boolean); scheduleSaveConfig(); renderReglesClients(); }
+  function sauve(){ delete E['']; delete A['']; CFG.echeances=E; CFG.avance=A; CFG.ordreThermes=(CFG.ordreThermes||[]).filter(Boolean); CFG.ordreHotels=(CFG.ordreHotels||[]).filter(Boolean); CFG.ordreThermesMatin=(CFG.ordreThermesMatin||[]).filter(Boolean); garderJourCfg(jourR); scheduleSaveConfig(); renderReglesClients(); }
   bE.querySelectorAll('[data-ek]').forEach(function(x){ x.onchange=function(){ var old=x.dataset.ek, t=E[old]||'12:00'; delete E[old]; if(x.value) E[x.value]=t; sauve(); }; });
   bE.querySelectorAll('[data-et]').forEach(function(x){ x.onchange=function(){ E[x.dataset.et]=x.value||'12:00'; CFG.echeances=E; sauve(); }; });
   bE.querySelectorAll('[data-ex]').forEach(function(x){ x.onclick=function(){ delete E[x.dataset.ex]; CFG.echeances=E; sauve(); }; });
@@ -2046,6 +2071,7 @@ function ajusterQuantite(key,newTotal,inp){
   if(inp) inp.value=newTotal;                 // on garde le même champ (les flèches restent utilisables)
 }
 function reOptimiserDepuis(i){
+  if(!reOptimiserDepuis._in){ reOptimiserDepuis._in=1; try{ return avecJour(curDate,function(){ return reOptimiserDepuis(i); }); } finally { reOptimiserDepuis._in=0; } }
   var nFige=rows.filter(function(r){return estFait(r)||estLav(r);}).length;
   if(i<=0){ if(!confirm('Ré-optimiser la journée ?\nTout ce qui est déjà « fait » ou « laveuse » ('+nFige+' ligne'+(nFige>1?'s':'')+') reste FIGÉ — on ne réorganise que le reste à faire.'))return; }
   else if(!confirm('Ré-optimiser à partir de la ligne '+(rows.filter(estFait).length+rows.filter(function(x){return !estFait(x)&&!estIgn(x);}).indexOf(rows[i])+1)+' ?\nLes lignes du dessus, ET tout ce qui est déjà « fait » ou « laveuse », restent figés.'))return;
@@ -2248,6 +2274,7 @@ function comblerPostes(order,start,tg,prefix){
   return cur;
 }
 function bOptimize(){
+  if(!bOptimize._in){ bOptimize._in=1; try{ return avecJour(bBaseDate||curDate,function(){ return bOptimize(); }); } finally { bOptimize._in=0; } }
   if(!bLoaded||!bBase.length)return;
   var start=parseHeure(CFG.heureDemarrage),speed=bSpeed();
   // on repart TOUJOURS du plan chargé (bBase), jamais de l'ordre déjà optimisé -> résultat stable si on reclique
