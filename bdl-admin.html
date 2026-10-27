@@ -5348,7 +5348,9 @@ window.changerNbJoursAbsence = async function(empId, dateISO, nbInput) {
       if (sansScan) {
         const selStyle = 'padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;background:white';
         var typeAbsCourant = absMap[empId] || '';
-        var iconeNote = (typeAbsCourant === 'injustifiee')
+        var iconeNote = (typeAbsCourant && typeAbsCourant !== 'injustifiee')
+          ? '<button type="button" title="Voir le motif" onclick="window.voirMotifAbsence(\'' + empId + '\',\'' + dateISO + '\')" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;font-size:13px">📝</button>'
+          : (typeAbsCourant === 'injustifiee')
           ? '<button type="button" title="Voir / modifier la note" onclick="window.voirNoteAbsence(\'' + empId + '\',\'' + dateISO + '\')" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;font-size:13px">📝</button>'
           : '';
         td.innerHTML =
@@ -9603,6 +9605,87 @@ else document.addEventListener('DOMContentLoaded', lancer);
     const r = await _apiAvantFin.apply(this, arguments);
     if (action === 'getPointagesJour' && r && r.ok) setTimeout(() => { try { carteFin(r); } catch (e) {} }, 0);
     return r;
+  };
+})();
+
+
+/* =====================================================================
+   ABSENCE : UNE SEULE FENÊTRE (type · du … au … · motif · Enregistrer)
+   Choisir un type dans le menu n'enregistre plus tout de suite : on remplit d'abord la fenêtre.
+   Les absences déjà présentes sur la période sont listées, cochées pour être effacées (décochez
+   celles à garder, ex. le jeudi injustifié de Théau).
+   ===================================================================== */
+(function () {
+  const LIB = { conge: '🏖️ Congé', maladie: '🤒 Maladie', injustifiee: '⚠️ Absence injustifiée' };
+  function isoPlus(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+  function joursEntre(a, b) { return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000) + 1; }
+  const JS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+  function fmtJ(iso) { const d = new Date(iso + 'T12:00:00'); return JS[d.getDay()] + ' ' + iso.slice(8, 10) + '/' + iso.slice(5, 7); }
+  function rechargerJour() { window.__memoRefAbs = null; const di = document.getElementById('pointagesDate'); if (di && di.value) loadPointagesJour(di.value); }
+
+  const _ancien = window.setAbsenceSalarie;
+  window.setAbsenceSalarie = function (empId, dateISO, type, selectEl) {
+    if (!type) return _ancien.apply(this, arguments);           // « Non qualifié » : effacement, comme avant
+    const prev = selectEl ? (selectEl.dataset.prev || '') : '';
+    if (selectEl) selectEl.value = prev;                          // rien n'est enregistré tant qu'on n'a pas validé
+    const tr = selectEl ? selectEl.closest('tr') : null;
+    const nom = tr ? (tr.querySelector('td') || {}).textContent || '' : '';
+    const nbIn = selectEl ? selectEl.parentNode.querySelector('.abs-nbjours') : null;
+    const n0 = nbIn ? Math.max(1, Number(nbIn.value) || 1) : 1;
+    const fond = document.createElement('div');
+    fond.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:9999';
+    fond.innerHTML = '<div style="background:#fff;border-radius:12px;padding:20px;max-width:440px;width:94%;max-height:90vh;overflow:auto">' +
+      '<h3 style="margin:0 0 4px">Absence — ' + nom.trim() + '</h3><div style="font-size:13px;color:#666;margin-bottom:12px">Rien n\'est enregistré avant « Enregistrer ».</div>' +
+      '<label style="font-size:13px">Type</label><select id="abT" class="form-input" style="width:100%;margin-bottom:10px">' + Object.keys(LIB).map(k => '<option value="' + k + '"' + (k === type ? ' selected' : '') + '>' + LIB[k] + '</option>').join('') + '</select>' +
+      '<div style="display:flex;gap:10px"><div style="flex:1"><label style="font-size:13px">Du</label><input type="date" id="abD" class="form-input" style="width:100%" value="' + dateISO + '"></div>' +
+      '<div style="flex:1"><label style="font-size:13px">Au (inclus)</label><input type="date" id="abA" class="form-input" style="width:100%" value="' + isoPlus(dateISO, n0 - 1) + '"></div></div>' +
+      '<div id="abN" style="font-size:12px;color:#666;margin:4px 0 10px"></div>' +
+      '<label style="font-size:13px">Motif (visible dans les pointages, le planning et le rapport mensuel)</label><input type="text" id="abM" class="form-input" style="width:100%;margin-bottom:10px" placeholder="ex. arrêt de travail, enfant malade, rendez-vous…">' +
+      '<div id="abX" style="font-size:13px;margin-bottom:12px"></div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-ghost" id="abC">Annuler</button><button class="btn" id="abO">Enregistrer</button></div></div>';
+    document.body.appendChild(fond);
+    const $ = id => fond.querySelector('#' + id);
+    let deja = [];
+    async function majPeriode() {
+      const d = $('abD').value, a = $('abA').value;
+      if (!d || !a || a < d) { $('abN').textContent = '⚠ La date de fin doit être après la date de début.'; return; }
+      const n = joursEntre(d, a);
+      $('abN').textContent = n + ' jour' + (n > 1 ? 's' : '') + ' de calendrier (' + fmtJ(d) + ' → ' + fmtJ(a) + ')';
+      if (n > 62) { $('abX').innerHTML = ''; return; }
+      $('abX').innerHTML = '<span style="color:#999">Recherche des absences déjà enregistrées…</span>';
+      const jours = []; for (let i = 0; i < n; i++) jours.push(isoPlus(d, i));
+      const rep = await Promise.all(jours.map(j => callApi('getAbsences', { date: j }).then(r => ({ j, t: (r && r.absences || {})[empId] || '' })).catch(() => ({ j, t: '' }))));
+      deja = rep.filter(x => x.t);
+      $('abX').innerHTML = deja.length
+        ? '<div style="font-weight:600;margin-bottom:4px">Déjà enregistré sur cette période — cochez ce qu\'il faut effacer :</div>' +
+          deja.map((x, i) => '<label style="display:flex;gap:6px;align-items:center;margin:2px 0"><input type="checkbox" data-ef="' + i + '" checked> ' + fmtJ(x.j) + ' : ' + (LIB[x.t] || x.t) + '</label>').join('')
+        : '<span style="color:#15803d">Aucune autre absence sur cette période.</span>';
+    }
+    $('abD').onchange = majPeriode; $('abA').onchange = majPeriode; majPeriode();
+    callApi('getNoteAbsence', { empId: empId, date: dateISO }).then(r => { if (r && r.note && !$('abM').value) $('abM').value = r.note; }).catch(() => {});
+    $('abC').onclick = () => fond.remove();
+    $('abO').onclick = async () => {
+      const t = $('abT').value, d = $('abD').value, a = $('abA').value, motif = $('abM').value.trim();
+      if (!d || !a || a < d) { alert('Vérifiez les dates.'); return; }
+      $('abO').disabled = true; $('abO').textContent = '⏳';
+      try {
+        for (const cb of fond.querySelectorAll('[data-ef]')) {
+          if (cb.checked) await callApi('deleteAbsencePlage', { empId: empId, date: deja[+cb.dataset.ef].j });
+        }
+        const resp = await callApi('setAbsenceRemplace', { empId: empId, date: d, type: t, nbJours: joursEntre(d, a), note: motif });
+        if (resp && resp.error) throw new Error(resp.error);
+        toast('Absence enregistrée : ' + LIB[t] + ' du ' + fmtJ(d) + ' au ' + fmtJ(a), 'success');
+        fond.remove(); rechargerJour();
+      } catch (err) { toast('Erreur : ' + err.message, 'error'); $('abO').disabled = false; $('abO').textContent = 'Enregistrer'; }
+    };
+  };
+  // on garde la valeur affichée du menu pour pouvoir la remettre si on annule
+  document.addEventListener('focusin', e => { const s = e.target; if (s && s.tagName === 'SELECT' && /setAbsenceSalarie/.test(s.getAttribute('onchange') || '')) s.dataset.prev = s.value; });
+
+  window.voirMotifAbsence = async function (empId, dateISO) {
+    let note = '';
+    try { const r = await callApi('getNoteAbsence', { empId: empId, date: dateISO }); note = (r && r.note) || ''; } catch (e) {}
+    alert(note ? 'Motif : ' + note : 'Pas de motif enregistré.\n\nPour en ajouter un, choisissez de nouveau le type dans le menu : la fenêtre permet de saisir le motif.');
   };
 })();
 
