@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v187</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v188</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1493,7 +1493,11 @@ function construireTourniquet(rows, W, ctx){
     function gal(r){ return parseInt(r.nbTransferts)||0; }
     var rowById={}; rows.forEach(function(r){ rowById[r.id]=r; });
     var ML=serieMax, TAMP=Math.max(2,Math.min(4,(CFG.blocDraps==null?4:CFG.blocDraps)));
-    var ECH={}; (function(){ var E=CFG.echeances||{}; for(var k in E){ var m=String(E[k]).match(/(\d+):(\d+)/); if(m) ECH[k]=(+m[1])*60+(+m[2]); } })();
+    var ECH={}; (function(){ var E=CFG.echeances||{};
+      // L'APRÈS-MIDI, un camion du matin (⏰ 12:00…) est déjà parti : ce linge est pour la livraison SUIVANTE, il n'est plus prioritaire.
+      // L'heure limite ne compte donc l'après-midi que si elle tombe après la bascule (ex. Bellegarde 15:00).
+      var lim=(ctx && ctx.apresMidi) ? (CFG.heureBascule==null?11:CFG.heureBascule)*60+60 : -1;
+      for(var k in E){ var m=String(E[k]).match(/(\d+):(\d+)/); if(!m) continue; var t=(+m[1])*60+(+m[2]); if(t>lim) ECH[k]=t; } })();
     function estTherme(r){ return /therm/.test(nomCle(r.client)); }
     // hôtels = clients (hors Thermes) qui ont des draps
     var aDraps={}; out.forEach(function(r){ if(isDrapRow(r) && gal(r)>0 && !estTherme(r)) aDraps[grpH(r.client)]=1; });
@@ -1520,7 +1524,9 @@ function construireTourniquet(rows, W, ctx){
     function reserveH(u){ return !u.epo.length && ECH[u.h]==null && !COM[u.h]; }
     // 🏨 ordre des hôtels choisi dans les Réglages : ceux de la liste passent dans cet ordre, avant ceux qui n'y sont pas
     var OHi={}; (CFG.ordreHotels||[]).forEach(function(k,i){ if(k && OHi[k]==null) OHi[k]=i; });
-    function rangH(u){ return OHi[u.h]!=null ? OHi[u.h] : null; }
+    // un client placé dans l'ordre des Thermes (« 🏥 Ibis » après « 🏥 Hôpital Mont »…) range aussi ses DRAPS à cette place
+    var OTr={}; ((ctx && (ctx.apresMidi||ctx.journeeEntiere)) ? (CFG.ordreThermes||[]) : (CFG.ordreThermesMatin||[])).forEach(function(l,i){ if(l && l.charAt(0)==='@' && OTr[l.slice(1)]==null) OTr[l.slice(1)]=i; });
+    function rangH(u){ if(OTr[u.h]!=null) return -1000+OTr[u.h]; return OHi[u.h]!=null ? OHi[u.h] : null; }
     ordreU.sort(function(a,b){ var ca=COM[a.h]?1:0, cb=COM[b.h]?1:0; if(ca!==cb) return cb-ca; if(ca&&cb) return a.pos-b.pos;
       var ea=ECH[a.h], eb=ECH[b.h]; var oa=rangH(a), ob=rangH(b);
       if(ea!=null||eb!=null){ if(ea==null) return 1; if(eb==null) return -1; if(ea!==eb) return ea-eb; if(oa!=null&&ob!=null) return oa-ob; return a.pos-b.pos; }
