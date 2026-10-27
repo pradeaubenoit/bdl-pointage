@@ -311,6 +311,9 @@ function afficherClients() {
       const c = catalogue.find(x => cleNom(x.client) === cleNom(r.client));
       if (!c) return;
       if (totalJourClient(c.client, null) > 0) return;   // saisi aujourd'hui : c'est fait
+      // Même client relavé hier soir ET lavé ce matin : c'est UNE livraison -> une seule tuile, une seule saisie
+      const ex = items.find(it => it.lot === 0 && !it.suiv && !it.rappel && cleNom(it.c.client) === cleNom(c.client));
+      if (ex) { ex.rappelAussi = r; ex.orange = true; return; }
       items.push({ c, lot: 0, rappel: r, cible: null, orange: true, tot: 0 });
     });
   }
@@ -378,7 +381,10 @@ function afficherClients() {
     if (it.orange) {
       const badge = document.createElement('span');
       badge.className = 'badge-lave';
-      badge.textContent = it.lot >= 2 ? 'Relavé à ' + it.depuis + ', à saisir' : 'Lavé, à saisir';
+      if (it.rappelAussi) {
+        const jv = NOMS_J[dateDe(it.rappelAussi.veille).getDay()];
+        badge.textContent = 'Relavé ' + jv + ' à ' + it.rappelAussi.depuis + ' + lavé ce matin : tout ensemble, à saisir';
+      } else badge.textContent = it.lot >= 2 ? 'Relavé à ' + it.depuis + ', à saisir' : 'Lavé, à saisir';
       b.appendChild(badge);
     }
     if (cible) {
@@ -404,6 +410,7 @@ function afficherClients() {
     }
     if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).limite || lot2De(c.client).depuis, lecture: true });
     else if (cible) b.onclick = () => ouvrirReporte(c, cible);
+    else if (it.orange && !veille && !it.rappelAussi && apresBascule()) b.onclick = () => demanderLivraison(it);
     else b.onclick = () => afficherArticles(c, false, it.filtre);
     if (!c.articles.length) {
       const att = document.createElement('span');
@@ -611,6 +618,7 @@ function majJourAffiche() {
   }
 }
 function ouvrirJours() {
+  document.querySelector('#panneauJour h2').textContent = 'Pour quelle journée ?';
   const liste = document.getElementById('listeJours');
   liste.innerHTML = '';
   const auj = new Date();
@@ -718,7 +726,7 @@ async function basculerReport(nom, choix) {
     if (!data.ok) throw new Error(data.error || 'Refus du serveur');
   } catch (e) {
     toast('Impossible sans réseau. Réessaie quand le voyant est vert.', true);
-    return;
+    return false;
   }
   const listes = lire(CLE_LISTES, {});
   if (listes[date] && !Array.isArray(listes[date])) {
@@ -728,10 +736,46 @@ async function basculerReport(nom, choix) {
   }
   afficherClients();
   chargerListeJour();
+  return true;
+}
+
+// Après l'heure de bascule (14 h), le linge qui sort du lavage part souvent le lendemain :
+// avant d'ouvrir la saisie, on demande pour quelle livraison c'est (obligatoire).
+function apresBascule() {
+  if (jourCourant() !== isoLocal(new Date())) return false;
+  const n = new Date();
+  return n.getHours() * 3600 + n.getMinutes() * 60 >= (listeCache().bascule || 14) * 3600;
+}
+function demanderLivraison(it) {
+  const c = it.c, liste = document.getElementById('listeJours');
+  document.querySelector('#panneauJour h2').textContent = c.client + ' : livré quand ?';
+  liste.innerHTML = '';
+  const auj = document.createElement('button');
+  auj.className = 'choixJour';
+  auj.textContent = 'Aujourd\'hui (' + libelleJour(jourCourant()) + ')';
+  auj.onclick = () => { fermerJours(); afficherArticles(c, false, it.filtre); };
+  liste.appendChild(auj);
+  const base = dateDe(jourCourant());
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i, 12);
+    if (d.getDay() === 0) continue;
+    const iso = isoLocal(d);
+    const b = document.createElement('button');
+    b.className = 'choixJour';
+    b.textContent = 'Livré ' + libelleJour(iso) + (i === 1 || (i === 2 && base.getDay() === 6) ? ' (prochaine livraison)' : '');
+    b.onclick = async () => {
+      fermerJours();
+      const ok = it.lot === 3 ? await reporterLot3(c.client, iso) : await basculerReport(c.client, iso);
+      if (ok) ouvrirReporte(c, iso);   // la saisie s'ouvre directement sur le jour de livraison
+    };
+    liste.appendChild(b);
+  }
+  document.getElementById('fondJour').style.display = 'flex';
 }
 
 // « Livré le… ? » : on demande le jour de livraison (demain, lundi, ou un autre jour).
 function choisirDateLivraison(nom, lot) {
+  document.querySelector('#panneauJour h2').textContent = 'Livré quel jour ?';
   const liste = document.getElementById('listeJours');
   liste.innerHTML = '';
   const base = dateDe(jourCourant());
@@ -767,6 +811,7 @@ async function reporterLot3(nom, cible) {
   if (L && L.l3) { L.l3.reporte = cible; ecrire(CLE_LISTES, listes); }
   afficherClients();
   chargerListeJour();
+  return true;
 }
 
 // Ouvre la saisie du client directement sur le jour de livraison.
