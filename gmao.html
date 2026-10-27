@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.8';
+var VERSION='v9.9';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -1068,7 +1068,22 @@ VUES.art=async function(id){
   html+='<div class="carte"><h2>Mouvements</h2>'+(mv.length?mv.map(function(m){return '<div class="ligne"><div class="g"><div class="t">'+(m.quantite>0?'+':'')+m.quantite+' · '+esc(m.motif||'')+'</div><div class="s">'+fmtDH(m.cree_le)+' · '+esc(m.auteur||'')+'</div></div>'+(m.intervention_id?'<a class="btn sm" href="#bon/'+m.intervention_id+'">voir le bon</a>':'')+'</div>';}).join(''):'<div class="vide">Aucun mouvement.</div>')+'</div>';
   $('main').innerHTML=html;
   async function mouv(qte,motif){try{var s=await q(sb.rpc('gmao_mouvement',{p_article:id,p_qte:qte,p_bon:null,p_motif:motif,p_auteur:NOM}));a.stock=s;route();}catch(x){erreur(x);}}
-  $('sE').onclick=async function(){var n=nb(await demander('Quantité reçue','1'));if(!n)return;var m=await demander('Motif','Réception','ex. Réception commande, retour…');mouv(Math.abs(n),m||'Entrée');};
+  // v9.9 - Une entrée de stock solde automatiquement les commandes en cours de cette pièce (les plus anciennes d'abord).
+  $('sE').onclick=async function(){
+    var ouv=cmdO.filter(function(c){return c.statut==='Commandée';});if(!ouv.length)ouv=cmdO.slice();
+    var q0=ouv.length?(ouv[0].quantite||1):1;
+    var n=nb(await demander('Quantité reçue',String(q0),ouv.length?'La commande en cours'+(ouv[0].fournisseur?' chez '+ouv[0].fournisseur:'')+' sera marquée « Reçue ».':''));if(!n)return;n=Math.abs(n);
+    var m=await demander('Motif',ouv.length?'Réception commande'+(ouv[0].fournisseur?' '+ouv[0].fournisseur:''):'Réception','ex. Réception commande, retour…');if(m===null)return;
+    try{
+      var s=await q(sb.rpc('gmao_mouvement',{p_article:id,p_qte:n,p_bon:null,p_motif:m||'Entrée',p_auteur:NOM}));a.stock=s;
+      var reste=n,soldees=0,prets=[];
+      for(var i=0;i<ouv.length;i++){var c=ouv[i],qc=+c.quantite||1;if(reste<qc)break;reste-=qc;
+        await q(sb.from('gmao_commandes').update({statut:'Reçue',recue_le:new Date().toISOString()}).eq('id',c.id));soldees++;
+        if(c.bon_suite){try{var bs=(await q(sb.from('gmao_interventions').select('id,numero,statut').eq('id',c.bon_suite)))[0];
+          if(bs&&bs.statut==='Attente pièce'){await q(sb.from('gmao_interventions').update({statut:'Demandé'}).eq('id',bs.id));await logSys(bs.id,'📦 '+NOM+' : « '+c.designation+' » reçu — intervention à planifier');prets.push(numBT(bs.numero));}}catch(e){}}}
+      toast('📦 +'+n+' en stock'+(soldees?' · commande'+(soldees>1?'s':'')+' soldée'+(soldees>1?'s':''):'')+(prets.length?' · '+prets.join(', ')+' prêt à planifier':''));route();
+    }catch(x){erreur(x);}
+  };
   $('sS').onclick=async function(){var n=nb(await demander('Quantité sortie','1','Pour une réparation, sors plutôt la pièce depuis le bon de travail.'));if(!n)return;var m=await demander('Motif','Sortie');mouv(-Math.abs(n),m||'Sortie');};
   if($('sC'))$('sC').onclick=function(){commanderPiece(a);};
   $('sI').onclick=async function(){var n=nb(await demander('Quantité comptée en rayon',a.stock||0));if(n===null)return;var d=n-(+a.stock||0);if(!d){toast('Stock déjà juste');return;}mouv(d,'Inventaire ('+(+a.stock||0)+' → '+n+')');};
