@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v188</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v189</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -549,10 +549,32 @@ function publierFin(){
       if(maint-l.t<60000&&!termine)return;
     }
     _finEnvoi={date:curDate,fin:fin,reste:reste,termine:termine,t:maint};
-    fetch(FIN_API,{method:'POST',body:JSON.stringify({action:'finLavage',date:curDate,fin:fmtHHMM(fin),reste:reste,total:total,termine:termine,rep:galettesRepassage()})}).catch(function(){_finEnvoi=null;});
+    var _df=dernierFaitSec();fetch(FIN_API,{method:'POST',body:JSON.stringify({action:'finLavage',date:curDate,fin:fmtHHMM(fin),reste:reste,total:total,termine:termine,rep:galettesRepassage(),dernierFait:_df!=null?fmtHHMM(_df):'',demarrage:CFG.heureDemarrage||'06:00'})}).catch(function(){_finEnvoi=null;});
   }catch(e){}
 }
 setInterval(publierFin,2*60000);
+/* ---------- v189 · ALARME « pas de pointage depuis 30 min » ----------
+   Le dernier « fait » du tunnel (ou l'heure de démarrage tant que rien n'est pointé) sert de repère :
+   s'il reste des galettes et qu'aucun nouveau « fait » n'arrive pendant 30 min, un bandeau rouge
+   s'affiche sur cet écran (atelier) avec un bip. Le serveur envoie de son côté le SMS / mail au responsable. */
+var ALARME_MIN=30;
+function dernierFaitSec(){var mx=null;rows.forEach(function(r){if(r.machine==='tunnel'&&r._faitAt!=null&&(mx===null||r._faitAt>mx))mx=r._faitAt;});return mx;}
+var _alarmeBip=null;
+function bipAlarme(){try{var C=window.AudioContext||window.webkitAudioContext;if(!C)return;var c=new C(),o=c.createOscillator(),g=c.createGain();o.type='square';o.frequency.value=880;g.gain.value=0.15;o.connect(g);g.connect(c.destination);o.start();setTimeout(function(){o.frequency.value=660;},300);setTimeout(function(){o.stop();c.close();},700);}catch(e){}}
+function verifierAlarme(){
+  try{
+    var el=document.getElementById('alarmePointage');
+    if(!el){el=document.createElement('div');el.id='alarmePointage';el.style.cssText='display:none;position:fixed;left:0;right:0;top:0;z-index:9998;background:#b91c1c;color:#fff;font:600 20px/1.3 system-ui,sans-serif;padding:14px 18px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.35)';document.body.appendChild(el);}
+    var actif=false,txt='';
+    if(typeof rows!=='undefined'&&rows&&rows.length&&curDate===todayISO()&&galettesTunnelTotal()>0&&galettesRestantes()>0){
+      var df=dernierFaitSec(),ref=df!=null?df:parseHeure(CFG.heureDemarrage),n=nowSec(),ecart=n-ref;
+      if(ecart>=ALARME_MIN*60){actif=true;txt='⚠ Aucune galette pointée '+(df!=null?'depuis '+fmtHHMM(df):'depuis le démarrage ('+fmtHHMM(ref)+')')+' — '+fmtDuree(ecart)+'. Pointez les galettes engagées dans le tunnel (« fait »). Le responsable est prévenu.';}
+    }
+    if(actif){el.textContent=txt;el.style.display='block';if(!_alarmeBip){bipAlarme();_alarmeBip=setInterval(bipAlarme,5*60000);}}
+    else{el.style.display='none';if(_alarmeBip){clearInterval(_alarmeBip);_alarmeBip=null;}}
+  }catch(e){}
+}
+setInterval(verifierAlarme,30000);setTimeout(verifierAlarme,3000);
 /* L'heure de fin avance avec l'horloge (maintenant + reste × cadence) : on la rafraîchit chaque minute à l'écran,
    et on la renvoie au bureau dès que la page redevient visible (Safari met en veille les onglets cachés). */
 setInterval(function(){ try{ var e=document.getElementById('hFinLive'); if(e && curDate===todayISO()) e.textContent=fmtHHMM(heureFinReste()); }catch(x){} },60000);
