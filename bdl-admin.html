@@ -9507,6 +9507,96 @@ else document.addEventListener('DOMContentLoaded', lancer);
   };
 })();
   
+
+/* =====================================================================
+   🏁 FIN DU TRAVAIL À L'ATELIER (onglet Pointages)
+   - Partie haute bouclée quand son RÉFÉRENT a pointé son départ (par défaut : Anthony Soudrie)
+   - Partie basse terminée quand son RÉFÉRENT est parti (par défaut : Christine Tixier)
+   - Fin du travail = plus personne présent (dernier départ), OU les deux référents partis (pare-feu si un oubli)
+   - « Confirmé » quand il n'y a plus aucune anomalie (oubli de départ, salarié sans pointage non qualifié)
+   Rien à enregistrer : tout se recalcule à partir des scans, pour n'importe quelle date (historique).
+   ===================================================================== */
+(function () {
+  const CLE_LS = 'bdl_fin_referents';
+  function lireRefs() {
+    let r = {};
+    try { r = JSON.parse(localStorage.getItem(CLE_LS) || '{}') || {}; } catch (e) {}
+    const P = (typeof state !== 'undefined' && state && state.parametres) || {};
+    if (P.fin_ref_haute) r.haute = String(P.fin_ref_haute);
+    if (P.fin_ref_basse) r.basse = String(P.fin_ref_basse);
+    return r;
+  }
+  function nomEmp(e) { return ((e.prenom || '') + ' ' + (e.nom || '')).trim(); }
+  function sansAcc(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function trouverRef(liste, id, motDefaut) {
+    if (id) { const x = liste.find(p => String(p.employee.id) === String(id)); if (x) return x; }
+    return liste.find(p => sansAcc(nomEmp(p.employee)).indexOf(motDefaut) >= 0) || null;
+  }
+  function depart(p) {   // heure de départ si la personne est partie, sinon null
+    if (!p || !p.nb_scans || p.est_present || p.est_anomalie || p.nb_scans % 2 !== 0) return null;
+    const s = p.scans[p.scans.length - 1]; return s ? s.time : null;
+  }
+  function carteFin(resp) {
+    const stats = document.getElementById('pointagesStats'); if (!stats || !resp || !resp.par_salarie) return;
+    const liste = resp.par_salarie, refs = lireRefs();
+    const H = trouverRef(liste, refs.haute, 'soudrie'), B = trouverRef(liste, refs.basse, 'tixier');
+    const pointes = liste.filter(p => p.nb_scans > 0);
+    const presents = pointes.filter(p => p.est_present && !p.est_anomalie);
+    const departs = pointes.map(depart).filter(Boolean).sort();
+    const dH = depart(H), dB = depart(B);
+    const nbAnom = (resp.nb_anomalies || 0) + (resp.nb_absences_non_qualifiees || 0);
+    let fin = null, raison = '';
+    if (pointes.length && !presents.length && departs.length) { fin = departs[departs.length - 1]; raison = 'tout le monde est parti'; }
+    else if (dH && dB) { fin = dH > dB ? dH : dB; raison = 'les deux référents sont partis'; }
+    const ligne = (lib, p, d) => '<div style="font-size:13px;margin-top:4px">' + lib + ' : ' +
+      (p ? (d ? '<b style="color:#15803d">✓ ' + d + '</b> <span style="color:var(--text-soft)">(' + nomEmp(p.employee) + ')</span>'
+             : '<span style="color:#d97706">en cours</span> <span style="color:var(--text-soft)">(' + nomEmp(p.employee) + ')</span>')
+         : '<span style="color:var(--text-soft)">référent absent ce jour</span>') + '</div>';
+    const ok = fin && nbAnom === 0;
+    const html = '<div class="card" id="carteFinAtelier" style="padding:12px;flex:1.4;border-left:4px solid ' + (fin ? (ok ? '#15803d' : '#2563eb') : '#9ca3af') + '">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center"><div style="color:var(--text-soft);font-size:13px">🏁 Fin du travail à l\'atelier</div>' +
+      '<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 6px" onclick="choisirReferentsFin()">⚙ référents</button></div>' +
+      (fin ? '<div style="font-size:24px;font-weight:600;color:' + (ok ? '#15803d' : '#2563eb') + '">' + fin + '</div>' +
+             '<div style="font-size:12px;color:var(--text-soft)">' + raison + (ok ? ' · <b style="color:#15803d">confirmé, 0 anomalie</b>' : ' · <b style="color:#d97706">à confirmer : ' + nbAnom + ' anomalie' + (nbAnom > 1 ? 's' : '') + '</b>') + '</div>'
+           : '<div style="font-size:20px;font-weight:600;color:#6b7280">En cours</div><div style="font-size:12px;color:var(--text-soft)">' + presents.length + ' encore présent' + (presents.length > 1 ? 's' : '') + '</div>') +
+      ligne('Partie haute', H, dH) + ligne('Partie basse', B, dB) + '</div>';
+    const old = document.getElementById('carteFinAtelier');
+    if (old) old.outerHTML = html; else stats.insertAdjacentHTML('beforeend', html);
+    window._dernierPtj = resp;
+  }
+  window.choisirReferentsFin = function () {
+    const resp = window._dernierPtj; if (!resp) return;
+    const refs = lireRefs(), liste = resp.par_salarie.slice().sort((a, b) => nomEmp(a.employee).localeCompare(nomEmp(b.employee), 'fr'));
+    const H = trouverRef(resp.par_salarie, refs.haute, 'soudrie'), B = trouverRef(resp.par_salarie, refs.basse, 'tixier');
+    const opts = sel => liste.map(p => '<option value="' + p.employee.id + '"' + (sel && String(sel.employee.id) === String(p.employee.id) ? ' selected' : '') + '>' + nomEmp(p.employee) + '</option>').join('');
+    const fond = document.createElement('div');
+    fond.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:9999';
+    fond.innerHTML = '<div style="background:#fff;border-radius:12px;padding:20px;max-width:420px;width:92%">' +
+      '<h3 style="margin:0 0 6px">🏁 Référents de fin de travail</h3><div style="font-size:13px;color:#666;margin-bottom:12px">Quand cette personne a pointé son départ, sa partie est considérée comme terminée.</div>' +
+      '<label style="font-size:13px">Partie haute</label><select id="refFinH" class="form-input" style="width:100%;margin-bottom:10px"><option value="">—</option>' + opts(H) + '</select>' +
+      '<label style="font-size:13px">Partie basse</label><select id="refFinB" class="form-input" style="width:100%;margin-bottom:14px"><option value="">—</option>' + opts(B) + '</select>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-ghost" id="refFinX">Annuler</button><button class="btn" id="refFinOk">Enregistrer</button></div></div>';
+    document.body.appendChild(fond);
+    fond.querySelector('#refFinX').onclick = () => fond.remove();
+    fond.querySelector('#refFinOk').onclick = async () => {
+      const r = { haute: fond.querySelector('#refFinH').value, basse: fond.querySelector('#refFinB').value };
+      try { localStorage.setItem(CLE_LS, JSON.stringify(r)); } catch (e) {}
+      // aussi dans les paramètres partagés si le serveur l'accepte (sinon : réglage gardé sur cet ordinateur)
+      try { await callApi('updateParametre', { cle: 'fin_ref_haute', valeur: r.haute }); await callApi('updateParametre', { cle: 'fin_ref_basse', valeur: r.basse });
+            if (typeof state !== 'undefined' && state && state.parametres) { state.parametres.fin_ref_haute = r.haute; state.parametres.fin_ref_basse = r.basse; } } catch (e) {}
+      fond.remove(); carteFin(resp);
+      if (typeof toast === 'function') toast('Référents enregistrés', 'success');
+    };
+  };
+  // On récupère la réponse « getPointagesJour » au passage, et on ajoute la carte après l'affichage normal.
+  const _apiAvantFin = callApi;
+  callApi = async function (action, params) {
+    const r = await _apiAvantFin.apply(this, arguments);
+    if (action === 'getPointagesJour' && r && r.ok) setTimeout(() => { try { carteFin(r); } catch (e) {} }, 0);
+    return r;
+  };
+})();
+
   init();
  </script>
 </body>
