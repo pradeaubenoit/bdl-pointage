@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.6';
+var VERSION='v9.7';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -255,6 +255,21 @@ function ouUtilise(artId){
 }
 
 /* ---------- photos ---------- */
+/* PHOTO PAR GLISSER-DÉPOSER OU COLLER : depuis l'app Photos du Mac, glisser la photo sur la zone,
+   ou la copier (⌘C) puis ⌘V sur la page. Valable sur la page où la zone a été préparée. */
+var _photoCollee=null;
+function accepterPhoto(zone,fn){
+  _photoCollee={hash:location.hash,fn:fn};
+  if(!zone)return;
+  zone.addEventListener('dragover',function(e){e.preventDefault();zone.style.outline='3px dashed var(--bleu)';});
+  zone.addEventListener('dragleave',function(){zone.style.outline='';});
+  zone.addEventListener('drop',function(e){e.preventDefault();zone.style.outline='';var f=[].slice.call((e.dataTransfer&&e.dataTransfer.files)||[]).find(function(x){return /^image\//.test(x.type)||/\.(jpe?g|png|heic|gif|webp)$/i.test(x.name);});if(f)fn(f);else toast('Glissez une photo (image)');});
+}
+document.addEventListener('paste',function(e){
+  if(!_photoCollee||_photoCollee.hash!==location.hash)return;
+  var it=[].slice.call((e.clipboardData&&e.clipboardData.items)||[]).find(function(x){return x.kind==='file'&&/^image\//.test(x.type);});
+  if(!it)return; e.preventDefault(); _photoCollee.fn(it.getAsFile());
+});
 function choisirPhoto(){return new Promise(function(res){var f=$('filePhoto');f.value='';f.onchange=function(){res(f.files[0]||null);};f.click();});}
 async function envoyerPhoto(file){
   var img=await new Promise(function(ok,ko){var i=new Image();i.onload=function(){ok(i);};i.onerror=ko;i.src=URL.createObjectURL(file);});
@@ -901,7 +916,9 @@ VUES.eq=async function(id){
   $('fModN').onclick=async function(){var n=await demander('Nom du nouveau modèle','',(e.marque||'')+' — ex. Kannegiesser D120');if(!n)return;
     try{var r=await q(sb.from('gmao_modeles').insert({nom:n.trim(),marque:e.marque||null}).select());MOD.push(r[0]);MODID[r[0].id]=r[0];
       var o=document.createElement('option');o.value=r[0].id;o.textContent=r[0].nom;o.selected=true;$('fMod').appendChild(o);}catch(x){erreur(x);}};
-  $('ePh').onclick=async function(){var f=await choisirPhoto();if(!f)return;this.textContent='⏳';try{var u=await envoyerPhoto(f);await q(sb.from('gmao_equipements').update({photo:u}).eq('id',id));e.photo=u;route();}catch(x){erreur(x);}};
+  async function poserPhotoEq(f){if(!f)return;$('ePh').textContent='⏳';try{var u=await envoyerPhoto(f);await q(sb.from('gmao_equipements').update({photo:u}).eq('id',id));e.photo=u;route();}catch(x){erreur(x);}}
+  $('ePh').onclick=async function(){poserPhotoEq(await choisirPhoto());};
+  accepterPhoto($('ePh').previousElementSibling,poserPhotoEq);
   $('fOk').onclick=async function(){
     var code=val('fCode');if(!code){toast('Le code est obligatoire');return;}
     if(EQ.some(function(z){return z.id!==id&&norm(z.code)===norm(code);})){toast('Ce code est déjà pris');return;}
@@ -1017,7 +1034,7 @@ VUES.art=async function(id){
     '<div class="actions" style="justify-content:flex-start"><button class="btn v" id="sE">+ Entrée</button><button class="btn" id="sS">− Sortie</button><button class="btn" id="sI">Inventaire</button>'+(V8?'<button class="btn" id="sC">🛒 Commander</button>':'')+'</div></div>'+
     '<div class="carte"><h2>Fiche</h2><div class="grille"><div>'+
       (a.photo?'<img class="photo" src="'+esc(a.photo)+'" onclick="zoom(this.src)">':'<div class="photo" style="height:120px;display:flex;align-items:center;justify-content:center;color:var(--doux)">Pas de photo</div>')+
-      '<button class="btn sm" id="aPh" style="margin-top:6px">📷 '+(a.photo?'Changer':'Ajouter')+' la photo</button></div><div>'+
+      '<button class="btn sm" id="aPh" style="margin-top:6px">📷 '+(a.photo?'Changer':'Ajouter')+' la photo</button><div class="etiq" style="margin-top:4px">ou glissez une photo depuis l\'app Photos sur la zone, ou copiez-la puis ⌘V</div></div><div>'+
       '<label>Désignation</label><input id="aD" value="'+esc(a.designation)+'"><label>Réf. interne</label><input id="aR" value="'+esc(a.ref||'')+'">'+
       '<label>Emplacement magasin</label><input id="aE" list="dlEA" value="'+esc(a.emplacement||'')+'"></div></div><div class="grille">'+
       '<div><label>Réf. normalisée / constructeur</label><input id="aRF" value="'+esc(a.ref_fabricant||'')+'" placeholder="ex. SKF 2205-E-2RS1, SPA 1250"></div>'+
@@ -1055,7 +1072,9 @@ VUES.art=async function(id){
   $('sS').onclick=async function(){var n=nb(await demander('Quantité sortie','1','Pour une réparation, sors plutôt la pièce depuis le bon de travail.'));if(!n)return;var m=await demander('Motif','Sortie');mouv(-Math.abs(n),m||'Sortie');};
   if($('sC'))$('sC').onclick=function(){commanderPiece(a);};
   $('sI').onclick=async function(){var n=nb(await demander('Quantité comptée en rayon',a.stock||0));if(n===null)return;var d=n-(+a.stock||0);if(!d){toast('Stock déjà juste');return;}mouv(d,'Inventaire ('+(+a.stock||0)+' → '+n+')');};
-  $('aPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;this.textContent='⏳';try{var u=await envoyerPhoto(f);await q(sb.from('gmao_articles').update({photo:u}).eq('id',id));a.photo=u;route();}catch(x){erreur(x);}};
+  async function poserPhotoArt(f){if(!f)return;$('aPh').textContent='⏳';try{var u=await envoyerPhoto(f);await q(sb.from('gmao_articles').update({photo:u}).eq('id',id));a.photo=u;route();}catch(x){erreur(x);}}
+  $('aPh').onclick=async function(){poserPhotoArt(await choisirPhoto());};
+  accepterPhoto($('aPh').previousElementSibling,poserPhotoArt);
   $('aOk').onclick=async function(){
     var maj={designation:val('aD'),ref:val('aR'),emplacement:val('aE'),ref_fabricant:val('aRF'),stock_mini:nb(val('aMi'))||0,unite:val('aU')||'pce',motscles:val('aK'),notes:val('aNo')};if(!V4){maj.ref_fournisseur=val('aRFo');maj.fournisseur=val('aF');maj.prix=nb(val('aP'));}
     if(!maj.designation){toast('Désignation obligatoire');return;}
