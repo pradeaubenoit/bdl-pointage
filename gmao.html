@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.7';
+var VERSION='v9.8';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -1049,7 +1049,7 @@ VUES.art=async function(id){
     var pmin=srcs.length&&srcs[0].prix!=null?+srcs[0].prix:null;
     html+='<div class="carte"><h2>🛒 Où l\'acheter <button class="btn sm d" id="srcN">+ Fournisseur</button></h2>'+
       (srcs.length?srcs.map(function(x,i){var ec=(pmin&&x.prix!=null&&i>0)?Math.round((x.prix-pmin)/pmin*100):null;
-        return '<div class="ligne" style="cursor:pointer" data-src="'+x.id+'"><div class="g"><div class="t">'+esc(x.partenaire)+(x.ref?' <span class="etiq">réf. '+esc(x.ref)+'</span>':'')+'</div><div class="s">'+
+        return '<div class="ligne" style="cursor:pointer" data-src="'+x.id+'"><div class="g"><div class="t">'+esc(x.partenaire)+(x.ref?' <span class="etiq">réf. '+esc(x.ref)+'</span>':'')+(x.lien?' <a href="'+esc(x.lien)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="btn sm l" style="padding:2px 8px">🔗 site</a>':'')+'</div><div class="s">'+
         esc([x.date_prix?'prix du '+fmtD(x.date_prix):'',x.delai?'délai '+x.delai:'',x.notes||''].filter(Boolean).join(' · '))+'</div></div>'+
         (x.prix!=null?'<b>'+(+x.prix).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</b>':'<span class="etiq">prix ?</span>')+
         (i===0&&srcs.length>1&&x.prix!=null?' <span class="badge b-vert">le moins cher</span>':'')+(ec?' <span class="badge b-orange">+'+ec+' %</span>':'')+'</div>';}).join(''):'<div class="vide">Aucun fournisseur renseigné.</div>')+
@@ -1528,11 +1528,14 @@ function editerSource(sid,artId){
   ouvrir('<h3>'+(sid?'Modifier':'Ajouter')+' un fournisseur</h3><label>Fournisseur</label><input id="soP" list="dlSoP" value="'+esc(x.partenaire)+'" placeholder="ex. 123 roulement"><datalist id="dlSoP">'+PART.map(function(p){return '<option value="'+esc(p.nom)+'">';}).join('')+'</datalist>'+
     '<div class="grille"><div><label>Sa référence</label><input id="soR" value="'+esc(x.ref||'')+'"></div><div><label>Prix unitaire HT (€)</label><input id="soX" inputmode="decimal" value="'+(x.prix==null?'':x.prix)+'"></div>'+
     '<div><label>Date du prix</label><input id="soD" type="date" value="'+(x.date_prix||'')+'"></div><div><label>Délai</label><input id="soL" value="'+esc(x.delai||'')+'" placeholder="ex. 48 h, 3 semaines"></div></div>'+
+    '<label>Lien vers la pièce sur son site</label><input id="soU" type="url" inputmode="url" value="'+esc(x.lien||'')+'" placeholder="collez ici l\'adresse de la page (https://…)">'+
     '<label>Notes</label><input id="soN" value="'+esc(x.notes||'')+'" placeholder="ex. vendu par 10, équivalent SKF">'+
     '<div class="actions">'+(sid?'<button class="btn r sm" id="soX2" style="margin-right:auto">Retirer</button>':'')+'<button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="soO">Enregistrer</button></div>');
   $('soO').onclick=async function(){var d={article_id:artId,partenaire:val('soP'),ref:val('soR')||null,prix:nb(val('soX')),date_prix:val('soD')||null,delai:val('soL')||null,notes:val('soN')||null};
+    var _u=val('soU'); if(_u){ if(!/^https?:\/\//i.test(_u)) _u='https://'+_u; d.lien=_u; } else if(sid&&x.lien) d.lien=null;
     if(!d.partenaire){toast('Nom du fournisseur obligatoire');return;}
-    try{if(sid)await q(sb.from('gmao_sources').update(d).eq('id',sid));else await q(sb.from('gmao_sources').insert(d));
+    async function ecrireSrc(dd){if(sid)await q(sb.from('gmao_sources').update(dd).eq('id',sid));else await q(sb.from('gmao_sources').insert(dd));}
+    try{try{await ecrireSrc(d);}catch(e1){ if('lien' in d && /lien/i.test(String(e1&&(e1.message||e1)))){ delete d.lien; await ecrireSrc(d); toast('Lien non enregistré : lancez gmao-installation-10.sql dans Supabase'); } else throw e1; }
       if(V2&&!PART.some(function(p){return norm(p.nom)===norm(d.partenaire);})){try{await q(sb.from('gmao_partenaires').insert({nom:d.partenaire,fournisseur:true}));}catch(e){}}
       await chargerTout();fermer();route();}catch(e){erreur(e);}};
   if(sid)$('soX2').onclick=async function(){if(!confirm('Retirer ce fournisseur pour cette pièce ?'))return;try{await q(sb.from('gmao_sources').delete().eq('id',sid));await chargerTout();fermer();route();}catch(e){erreur(e);}};
