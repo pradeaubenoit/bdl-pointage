@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v185</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v186</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -523,6 +523,8 @@ function nowSec(){var d=new Date();return d.getHours()*3600+d.getMinutes()*60+d.
    (prévisionnel), on part de l'heure de démarrage au lieu de l'heure actuelle. */
 function galettesRestantes(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&!estFait(r)&&!estIgn(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
 function galettesFaites(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&estFait(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
+/* Galettes qui partent au train de REPASSAGE (partie haute), tunnel et laveuse : sert à estimer sa fin */
+function galettesRepassage(){return Math.round(rows.reduce(function(s,r){ if(estIgn(r))return s; var p=(r.postes&&r.postes.length)?r.postes:['repassage']; if(p.indexOf('repassage')<0)return s; return s+(parseInt(r.nbTransferts)||0)/p.length; },0));}
 function galettesTunnelTotal(){return rows.reduce(function(s,r){return (r.machine==='tunnel'&&!r._lav&&!estIgn(r))?s+(parseInt(r.nbTransferts)||0):s;},0);}
 /* HEURE DE FIN, formule de Benoît : l'heure qu'il est MAINTENANT + (galettes restantes × cadence réglée).
    Ex. : 16h, 194 galettes restantes, 150 s/galette -> 194×150 = 8h05 -> fin 00h05. Plus on lave vite, moins
@@ -546,7 +548,7 @@ function publierFin(){
       if(maint-l.t<60000&&!termine)return;
     }
     _finEnvoi={date:curDate,fin:fin,reste:reste,termine:termine,t:maint};
-    fetch(FIN_API,{method:'POST',body:JSON.stringify({action:'finLavage',date:curDate,fin:fmtHHMM(fin),reste:reste,total:total,termine:termine})}).catch(function(){_finEnvoi=null;});
+    fetch(FIN_API,{method:'POST',body:JSON.stringify({action:'finLavage',date:curDate,fin:fmtHHMM(fin),reste:reste,total:total,termine:termine,rep:galettesRepassage()})}).catch(function(){_finEnvoi=null;});
   }catch(e){}
 }
 setInterval(publierFin,2*60000);
