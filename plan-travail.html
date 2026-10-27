@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v183</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v184</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -542,14 +542,18 @@ function publierFin(){
     if(l&&l.date===curDate){
       if(l.termine&&termine)return;
       var change=Math.abs(fin-l.fin)>=120||reste!==l.reste||termine!==l.termine;
-      if(!change&&maint-l.t<15*60000)return;
-      if(maint-l.t<3*60000&&!termine)return;
+      if(!change&&maint-l.t<10*60000)return;
+      if(maint-l.t<60000&&!termine)return;
     }
     _finEnvoi={date:curDate,fin:fin,reste:reste,termine:termine,t:maint};
     fetch(FIN_API,{method:'POST',body:JSON.stringify({action:'finLavage',date:curDate,fin:fmtHHMM(fin),reste:reste,total:total,termine:termine})}).catch(function(){_finEnvoi=null;});
   }catch(e){}
 }
-setInterval(publierFin,5*60000);
+setInterval(publierFin,2*60000);
+/* L'heure de fin avance avec l'horloge (maintenant + reste × cadence) : on la rafraîchit chaque minute à l'écran,
+   et on la renvoie au bureau dès que la page redevient visible (Safari met en veille les onglets cachés). */
+setInterval(function(){ try{ var e=document.getElementById('hFinLive'); if(e && curDate===todayISO()) e.textContent=fmtHHMM(heureFinReste()); }catch(x){} },60000);
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ try{ var e=document.getElementById('hFinLive'); if(e) e.textContent=fmtHHMM(heureFinReste()); }catch(x){} setTimeout(publierFin,1500); } });
 function heureFinReste(){
   var dep=parseHeure(CFG.heureDemarrage);
   var start=(curDate===todayISO())?Math.max(nowSec(),dep):dep;
@@ -1866,7 +1870,7 @@ function renderResults(){
   var _gTunnel=galettesTunnelTotal();
   var _gLav=rows.reduce(function(s,r){return (r.machine!=='tunnel'||r._lav)?s+(parseInt(r.nbTransferts)||0):s;},0);
   setTimeout(publierFin,0);
-  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReste()))+metric('Reste à laver',_gReste+' gal')+metric('Total tunnel',_gTunnel+' gal')+metric('Laveuse',_gLav+' gal')+metric('Clients',String(clients.length))+'</div>';
+  h+='<div class="metrics">'+metric('Heure de fin','<span id="hFinLive">'+fmtHHMM(heureFinReste())+'</span>')+metric('Reste à laver',_gReste+' gal')+metric('Total tunnel',_gTunnel+' gal')+metric('Laveuse',_gLav+' gal')+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
