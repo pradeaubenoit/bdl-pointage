@@ -9517,6 +9517,7 @@ else document.addEventListener('DOMContentLoaded', lancer);
    Rien à enregistrer : tout se recalcule à partir des scans, pour n'importe quelle date (historique).
    ===================================================================== */
 (function () {
+  const LINGE_API = 'https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';   // API du linge (même adresse que le Plan de travail)
   const CLE_LS = 'bdl_fin_referents';
   function lireRefs() {
     let r = {};
@@ -9563,6 +9564,14 @@ else document.addEventListener('DOMContentLoaded', lancer);
     const old = document.getElementById('carteFinAtelier');
     if (old) old.outerHTML = html; else stats.insertAdjacentHTML('beforeend', html);
     window._dernierPtj = resp;
+    // Fin du train de repassage (= départ du référent partie haute) envoyée au tableur du linge :
+    // le bureau s'en sert pour l'historique et pour apprendre à estimer l'heure de fin les jours suivants.
+    if (dH && resp.date) {
+      const cle = 'bdl_repfin_envoye_' + resp.date;
+      let deja = null; try { deja = localStorage.getItem(cle); } catch (e) {}
+      if (deja !== dH) fetch(LINGE_API, { method: 'POST', body: JSON.stringify({ action: 'finLavage', date: resp.date, repFin: dH }) })
+        .then(() => { try { localStorage.setItem(cle, dH); } catch (e) {} }).catch(() => {});
+    }
   }
   window.choisirReferentsFin = function () {
     const resp = window._dernierPtj; if (!resp) return;
