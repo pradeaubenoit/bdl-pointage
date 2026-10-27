@@ -752,7 +752,7 @@ function demanderLivraison(it) {
   liste.innerHTML = '';
   const auj = document.createElement('button');
   auj.className = 'choixJour';
-  auj.textContent = 'Aujourd\'hui (' + libelleJour(jourCourant()) + ')';
+  auj.textContent = 'Livraison cet après-midi (aujourd\'hui)';
   auj.onclick = () => { fermerJours(); afficherArticles(c, false, it.filtre); };
   liste.appendChild(auj);
   const base = dateDe(jourCourant());
@@ -762,7 +762,9 @@ function demanderLivraison(it) {
     const iso = isoLocal(d);
     const b = document.createElement('button');
     b.className = 'choixJour';
-    b.textContent = 'Livré ' + libelleJour(iso) + (i === 1 || (i === 2 && base.getDay() === 6) ? ' (prochaine livraison)' : '');
+    const prochain = i === 1 || (i === 2 && base.getDay() === 6);   // le samedi, la prochaine livraison est le lundi
+    b.textContent = prochain ? 'Livraison ' + (i === 1 ? 'demain matin' : 'lundi matin') + ' (' + libelleJour(iso) + ')' : 'Livré ' + libelleJour(iso);
+    if (prochain) b.style.fontWeight = '700';
     b.onclick = async () => {
       fermerJours();
       const ok = it.lot === 3 ? await reporterLot3(c.client, iso) : await basculerReport(c.client, iso);
