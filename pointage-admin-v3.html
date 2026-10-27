@@ -457,7 +457,7 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-si
 </div>
 
 <footer>
-  <span>BdL · Admin Pointage v4.9.6</span>
+  <span>BdL · Admin Pointage v4.9.7</span>
   <span id="api-version">—</span>
 </footer>
 
@@ -1203,7 +1203,7 @@ window.toggleDetailSalarie = async function(empId, empName) {
     html += '<div style="margin-top:10px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:12px;color:#7c2d12">';
       html += '<strong>Détail des heures non retenues :</strong><br>';
       (_r.joursInjustifies || []).forEach(function(j) {
-        html += '— ' + fmtDateFR(j.date) + ' : journée injustifiée (−7h00)<br>';
+        html += '— ' + fmtDateFR(j.date) + ' : journée injustifiée (−7h00)' + '<span class="motif-abs" data-emp="' + empId + '" data-dates="' + j.date + '"></span>' + '<br>';
       });
       (_r.joursManquants || []).forEach(function(j) {
         html += '— ' + fmtDateFR(j.date) + ' : ' + fmtHours(j.manque) + ' manquantes (' + fmtHours(j.heures) + ' pointées / 7h00 attendues)<br>';
@@ -1213,10 +1213,10 @@ window.toggleDetailSalarie = async function(empId, empName) {
       });
             // V4.9.37 - Absences justifiees : mentionnees pour que le bilan raconte le mois complet.
       if (_r.joursConges && _r.joursConges.length) {
-        html += '— ' + _r.joursConges.map(fmtDateFR).join(', ') + ' : 🏖️ congé (' + _r.joursConges.length + ' jour' + (_r.joursConges.length > 1 ? 's' : '') + ', non décompté' + (_r.joursConges.length > 1 ? 's' : '') + ')<br>';
+        html += '— ' + _r.joursConges.map(fmtDateFR).join(', ') + ' : 🏖️ congé (' + _r.joursConges.length + ' jour' + (_r.joursConges.length > 1 ? 's' : '') + ', non décompté' + (_r.joursConges.length > 1 ? 's' : '') + ')' + '<span class="motif-abs" data-emp="' + empId + '" data-dates="' + _r.joursConges.join(',') + '"></span>' + '<br>';
       }
       if (_r.joursMaladie && _r.joursMaladie.length) {
-        html += '— ' + _r.joursMaladie.map(fmtDateFR).join(', ') + ' : 🤒 maladie (' + _r.joursMaladie.length + ' jour' + (_r.joursMaladie.length > 1 ? 's' : '') + ', non décompté' + (_r.joursMaladie.length > 1 ? 's' : '') + ')<br>';
+        html += '— ' + _r.joursMaladie.map(fmtDateFR).join(', ') + ' : 🤒 maladie (' + _r.joursMaladie.length + ' jour' + (_r.joursMaladie.length > 1 ? 's' : '') + ', non décompté' + (_r.joursMaladie.length > 1 ? 's' : '') + ')' + '<span class="motif-abs" data-emp="' + empId + '" data-dates="' + _r.joursMaladie.join(',') + '"></span>' + '<br>';
       }
       html += '</div>';
     }
@@ -1236,12 +1236,28 @@ window.toggleDetailSalarie = async function(empId, empName) {
         // V4.9.28 - Bouton d'impression du bilan individuel
     html += '<div class="no-print" style="margin-top:10px;text-align:right"><button onclick="envoyerBilanMail(\'' + empId + '\', \'' + empName.replace(/'/g, "\\'") + '\')" style="padding:8px 14px;border:1px solid #1F4A47;background:white;color:#1F4A47;border-radius:8px;cursor:pointer;margin-right:8px">✉️ Envoyer par mail</button><button onclick="imprimerDetail(\'' + empId + '\', \'' + empName.replace(/'/g, "\\'") + '\')" style="padding:8px 14px;border:1px solid #1F4A47;background:white;color:#1F4A47;border-radius:8px;cursor:pointer">🖨 Imprimer ce bilan</button></div>';
     detailContent.innerHTML = html;
+    remplirMotifsAbsence(detailContent);
     
   } catch (err) {
     detailContent.innerHTML = '<div style="padding:20px;color:var(--bad)">Erreur : ' + err.message + '</div>';
   }
 };
   // V4.9.28 - Impression du detail individuel seul
+// V4.9.38 - Motif des absences (saisi dans BdL Admin) affiche dans le bilan.
+function remplirMotifsAbsence(racine) {
+  var spans = racine.querySelectorAll('.motif-abs');
+  Array.prototype.forEach.call(spans, function(sp) {
+    var emp = sp.getAttribute('data-emp');
+    var dates = String(sp.getAttribute('data-dates') || '').split(',').filter(Boolean);
+    Promise.all(dates.map(function(d) {
+      return apiGet('getNoteAbsence', { empId: emp, date: d }).then(function(r) { return (r && r.note) ? String(r.note).trim() : ''; }, function() { return ''; });
+    })).then(function(notes) {
+      var vus = [];
+      notes.forEach(function(n) { if (n && vus.indexOf(n) === -1) vus.push(n); });
+      if (vus.length) sp.textContent = ' · 📝 ' + vus.join(' / ');
+    });
+  });
+}
 window.imprimerDetail = function(empId, empName) {
   var el = document.getElementById('detail-content-' + empId);
   if (!el) return;
