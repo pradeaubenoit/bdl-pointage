@@ -2035,7 +2035,12 @@ let jsonpCounter = 0;
   const _lecture = /^(get|salaries$|analyse|reorganiser|assistant|saveAffectationsJour$)/i.test(String(action));
   const _maxEssais = _lecture ? 3 : 1;
   function _tenter(essai) {
-    return fetch(url, { method: 'GET', redirect: 'follow' })
+    // Delai maximal de 60 s : un appel sans reponse renvoie une erreur au lieu de laisser le sablier tourner.
+    const _ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const _to = _ctl ? setTimeout(() => _ctl.abort(), 60000) : null;
+    return fetch(url, { method: 'GET', redirect: 'follow', signal: _ctl ? _ctl.signal : undefined })
+      .catch(e => { if (e && e.name === 'AbortError') throw new Error('Pas de réponse du serveur après 60 s' + (_lecture ? '' : ' — vérifiez avant de recommencer')); throw e; })
+      .finally(() => { if (_to) clearTimeout(_to); })
       .then(r => {
         if (!r.ok) {
           if (essai < _maxEssais) {
@@ -9619,6 +9624,8 @@ else document.addEventListener('DOMContentLoaded', lancer);
   const LIB = { conge: '🏖️ Congé', maladie: '🤒 Maladie', injustifiee: '⚠️ Absence injustifiée' };
   function isoPlus(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
   function joursEntre(a, b) { return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000) + 1; }
+  // Le serveur compte nbJours en jours OUVRÉS (lun–ven, hors 25/12 et 01/01) : on convertit la plage.
+  function joursOuvres(a, b) { let n = 0; for (let i = 0; i < joursEntre(a, b); i++) { const iso = isoPlus(a, i), w = new Date(iso + 'T12:00:00').getDay(), md = iso.slice(5); if (w !== 0 && w !== 6 && md !== '12-25' && md !== '01-01') n++; } return n; }
   const JS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
   function fmtJ(iso) { const d = new Date(iso + 'T12:00:00'); return JS[d.getDay()] + ' ' + iso.slice(8, 10) + '/' + iso.slice(5, 7); }
   function rechargerJour() { window.__memoRefAbs = null; const di = document.getElementById('pointagesDate'); if (di && di.value) loadPointagesJour(di.value); }
@@ -9650,7 +9657,8 @@ else document.addEventListener('DOMContentLoaded', lancer);
       const d = $('abD').value, a = $('abA').value;
       if (!d || !a || a < d) { $('abN').textContent = '⚠ La date de fin doit être après la date de début.'; return; }
       const n = joursEntre(d, a);
-      $('abN').textContent = n + ' jour' + (n > 1 ? 's' : '') + ' de calendrier (' + fmtJ(d) + ' → ' + fmtJ(a) + ')';
+      const no = joursOuvres(d, a);
+      $('abN').textContent = n + ' jour' + (n > 1 ? 's' : '') + ' de calendrier (' + fmtJ(d) + ' → ' + fmtJ(a) + ') · ' + (no || 1) + ' jour' + ((no || 1) > 1 ? 's' : '') + ' enregistré' + ((no || 1) > 1 ? 's' : '') + ' (lun–ven' + (no ? '' : ', samedi seul') + ')';
       if (n > 62) { $('abX').innerHTML = ''; return; }
       $('abX').innerHTML = '<span style="color:#999">Recherche des absences déjà enregistrées…</span>';
       const jours = []; for (let i = 0; i < n; i++) jours.push(isoPlus(d, i));
@@ -9672,7 +9680,7 @@ else document.addEventListener('DOMContentLoaded', lancer);
         for (const cb of fond.querySelectorAll('[data-ef]')) {
           if (cb.checked) await callApi('deleteAbsencePlage', { empId: empId, date: deja[+cb.dataset.ef].j });
         }
-        const resp = await callApi('setAbsenceRemplace', { empId: empId, date: d, type: t, nbJours: joursEntre(d, a), note: motif });
+        const resp = await callApi('setAbsenceRemplace', { empId: empId, date: d, type: t, nbJours: Math.max(1, joursOuvres(d, a)), note: motif });
         if (resp && resp.error) throw new Error(resp.error);
         toast('Absence enregistrée : ' + LIB[t] + ' du ' + fmtJ(d) + ' au ' + fmtJ(a), 'success');
         fond.remove(); rechargerJour();
