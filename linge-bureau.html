@@ -657,6 +657,15 @@ async function chargerFinLavage(){
       box.innerHTML='<div class="fl-deux"><div><div class="fl-titre">🧺 '+(estAuj?'Fin du lavage prévue aujourd\'hui':'Lavage du '+jF.slice(8,10)+'/'+jF.slice(5,7)+' : dernière estimation (fin non pointée)')+'</div><div class="fl-ligne"><span class="fl-heure">'+der.fin+'</span><span class="fl-info">reste <b>'+der.reste+'</b> galette'+(der.reste>1?'s':'')+' sur '+der.total+' · mis à jour à '+der.le+(estAuj&&age>30?' <span style="color:#c62828">(il y a '+age+' min — le Plan de travail est peut-être fermé)</span>':'')+'</span></div></div>'+
         '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,delaiPliage())+'</div><div class="fl-info">'+txtDelai(delaiPliage())+'</div></div></div><div class="fl-evol">'+evol+'</div>';
     }
+    // 3ᵉ case : fin du TRAIN DE REPASSAGE (partie haute) — réelle si le référent est parti, sinon estimée d'après les jours précédents
+    const rp=d.repassage, zone=box.querySelector('.fl-deux');
+    if(rp&&zone){
+      let h='<div class="fl-pliage"><div class="fl-titre">🧺 Fin du train de repassage</div>';
+      if(rp.fin) h+='<div class="fl-heure p" style="color:#15803d">✓ '+rp.fin+'</div><div class="fl-info">partie haute terminée'+(rp.galettes?' · '+rp.galettes+' galettes':'')+'</div>';
+      else if(rp.estimation) h+='<div class="fl-heure p">≈ '+rp.estimation+'</div><div class="fl-info">'+rp.galettes+' galettes au repassage · d\'après '+rp.jours+' jours précédents</div>';
+      else h+='<div class="fl-heure p" style="font-size:20px">'+(estAuj?'en cours':'—')+'</div><div class="fl-info">'+(rp.jours<3?'estimation dès 3 jours de données ('+rp.jours+'/3)':'heure de fin affichée au départ du référent')+'</div>';
+      zone.insertAdjacentHTML('beforeend',h+'</div>');
+    }
   }catch(e){box.innerHTML='<div class="fl-titre">🧺 Fin du lavage</div><div class="fl-vide">Impossible de lire l\'heure de fin pour le moment.</div>';}
 }
 chargerFinLavage();
