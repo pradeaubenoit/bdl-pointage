@@ -656,7 +656,8 @@ async function chargerFinLavage(){
   }catch(e){box.innerHTML='<div class="fl-titre">🧺 Fin du lavage aujourd\'hui</div><div class="fl-vide">Impossible de lire l\'heure de fin pour le moment.</div>';}
 }
 chargerFinLavage();
-setInterval(chargerFinLavage,5*60000);
+setInterval(chargerFinLavage,2*60000);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) chargerFinLavage(); });
 
 /* ---------- Messagerie bureau -> atelier ---------- */
 let clientOuvert = null, messagesB = [];
