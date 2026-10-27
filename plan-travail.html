@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v184</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v185</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -555,6 +555,8 @@ setInterval(publierFin,2*60000);
 setInterval(function(){ try{ var e=document.getElementById('hFinLive'); if(e && curDate===todayISO()) e.textContent=fmtHHMM(heureFinReste()); }catch(x){} },60000);
 document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ try{ var e=document.getElementById('hFinLive'); if(e) e.textContent=fmtHHMM(heureFinReste()); }catch(x){} setTimeout(publierFin,1500); } });
 function heureFinReste(){
+  // Tout est pointé : l'heure de fin est FIGÉE sur le dernier pointage (elle n'avance plus avec l'horloge)
+  if(curDate===todayISO()&&galettesTunnelTotal()>0&&galettesRestantes()===0){ var mx=null; rows.forEach(function(r){ if(r.machine==='tunnel'&&r._faitAt!=null&&(mx===null||r._faitAt>mx))mx=r._faitAt; }); if(mx!=null) return mx; }
   var dep=parseHeure(CFG.heureDemarrage);
   var start=(curDate===todayISO())?Math.max(nowSec(),dep):dep;
 if(CFG.optFin&&CFG.optFin[curDate]!=null&&galettesFaites()===0) return CFG.optFin[curDate];
