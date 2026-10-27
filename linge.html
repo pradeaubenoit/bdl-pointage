@@ -353,7 +353,7 @@ function afficherClients() {
       badge.className = 'badge-lave';
       badge.textContent = 'Relavé ' + jourV + ' à ' + r.depuis + ', à saisir';
       b.appendChild(badge);
-      b.onclick = () => afficherArticles(c, false, null);
+      b.onclick = () => saisieDuJour() ? demanderLivraison(it) : afficherArticles(c, false, null);
       b.dataset.nom = sansAccent(c.client);
       zone.appendChild(b);
       return;
@@ -410,7 +410,7 @@ function afficherClients() {
     }
     if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).limite || lot2De(c.client).depuis, lecture: true });
     else if (cible) b.onclick = () => ouvrirReporte(c, cible);
-    else if (it.orange && !veille && !it.rappelAussi && apresBascule()) b.onclick = () => demanderLivraison(it);
+    else if (saisieDuJour()) b.onclick = () => demanderLivraison(it);
     else b.onclick = () => afficherArticles(c, false, it.filtre);
     if (!c.articles.length) {
       const att = document.createElement('span');
@@ -739,20 +739,16 @@ async function basculerReport(nom, choix) {
   return true;
 }
 
-// Après l'heure de bascule (14 h), le linge qui sort du lavage part souvent le lendemain :
-// avant d'ouvrir la saisie, on demande pour quelle livraison c'est (obligatoire).
-function apresBascule() {
-  if (jourCourant() !== isoLocal(new Date())) return false;
-  const n = new Date();
-  return n.getHours() * 3600 + n.getMinutes() * 60 >= (listeCache().bascule || 14) * 3600;
-}
+// Chaque fois qu'on ouvre une tuile sur la journée d'aujourd'hui, on demande d'abord
+// si c'est à noter pour aujourd'hui ou pour la prochaine livraison (obligatoire, pas d'oubli possible).
+function saisieDuJour() { return jourCourant() === isoLocal(new Date()); }
 function demanderLivraison(it) {
   const c = it.c, liste = document.getElementById('listeJours');
-  document.querySelector('#panneauJour h2').textContent = c.client + ' : livré quand ?';
+  document.querySelector('#panneauJour h2').textContent = c.client + ' : à noter pour quel jour ?';
   liste.innerHTML = '';
   const auj = document.createElement('button');
   auj.className = 'choixJour';
-  auj.textContent = 'Livraison cet après-midi (aujourd\'hui)';
+  auj.textContent = 'À noter pour aujourd\'hui (' + libelleJour(jourCourant()) + ')';
   auj.onclick = () => { fermerJours(); afficherArticles(c, false, it.filtre); };
   liste.appendChild(auj);
   const base = dateDe(jourCourant());
@@ -763,7 +759,7 @@ function demanderLivraison(it) {
     const b = document.createElement('button');
     b.className = 'choixJour';
     const prochain = i === 1 || (i === 2 && base.getDay() === 6);   // le samedi, la prochaine livraison est le lundi
-    b.textContent = prochain ? 'Livraison ' + (i === 1 ? 'demain matin' : 'lundi matin') + ' (' + libelleJour(iso) + ')' : 'Livré ' + libelleJour(iso);
+    b.textContent = prochain ? 'À noter pour ' + (i === 1 ? 'demain' : 'lundi') + ' (' + libelleJour(iso) + ')' : 'À noter pour ' + libelleJour(iso);
     if (prochain) b.style.fontWeight = '700';
     b.onclick = async () => {
       fermerJours();
