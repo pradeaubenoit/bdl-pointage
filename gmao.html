@@ -158,12 +158,12 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.11';
+var VERSION='v9.12';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
 var USER=null, NOM='';
-var EQ=[], EQID={}, MOD=[], MODID={}, ART=[], ARTID={}, LIENS=[], PREV=[], PART=[], MES=[], MESID={}, DERN={}, V2=true, SRC=[], SRCA={}, V4=true, PERS=[], STATS={}, V6=true, V8=true;
+var EQ=[], EQID={}, MOD=[], MODID={}, ART=[], ARTID={}, LIENS=[], PREV=[], PART=[], MES=[], MESID={}, DERN={}, V2=true, SRC=[], SRCA={}, V4=true, PERS=[], STATS={}, V6=true, V8=true, ASSOC=[], ASSOCA={}, V11=true;
 
 /* ---------- outils ---------- */
 function $(id){return document.getElementById(id);}
@@ -226,6 +226,8 @@ async function chargerTout(){
     Object.keys(STATS).forEach(function(k){STATS[k].moy=Math.round(STATS[k].t/STATS[k].n);});
   }catch(e){PERS=[];STATS={};V6=false;}
   try{await q(sb.from('gmao_commandes').select('id').limit(1));V8=true;}catch(e){V8=false;}
+  try{ASSOC=await q(sb.from('gmao_assoc').select('*'));V11=true;}catch(e){ASSOC=[];V11=false;}
+  ASSOCA={};ASSOC.forEach(function(x){(ASSOCA[x.article_a]=ASSOCA[x.article_a]||[]).push({id:x.id,autre:x.article_b,note:x.note});(ASSOCA[x.article_b]=ASSOCA[x.article_b]||[]).push({id:x.id,autre:x.article_a,note:x.note});});
   SRCA={};SRC.forEach(function(x){(SRCA[x.article_id]=SRCA[x.article_id]||[]).push(x);});
   EQID={};EQ.forEach(function(e){EQID[e.id]=e;});
   MODID={};MOD.forEach(function(m){MODID[m.id]=m;});
@@ -238,7 +240,8 @@ function descendants(id){var out=[],pile=[id];while(pile.length){var c=pile.pop(
 function hayEq(e){var m=MODID[e.modele_id];return [e.code,e.nom,chemin(e),e.marque,e.num_serie,e.emplacement,e.famille,m?m.nom:''].join(' ');}
 function primEq(e){return e.nom+' '+e.code;}
 function primArt(a){return [a.designation,a.ref,a.ref_fabricant,a.ref_fournisseur].concat((SRCA[a.id]||[]).map(function(x){return x.ref||'';})).join(' ');}
-function hayArt(a){return [a.ref,a.designation,a.ref_fabricant,a.ref_fournisseur,a.fournisseur,a.emplacement,a.motscles,a.notes].concat((SRCA[a.id]||[]).map(function(x){return x.partenaire+' '+(x.ref||'');})).join(' ');}
+function assocNoms(a){return (ASSOCA[a.id]||[]).map(function(x){var o=ARTID[x.autre];return o?o.designation:'';}).filter(Boolean);}
+function hayArt(a){return [assocNoms(a).join(' '),a.ref,a.designation,a.ref_fabricant,a.ref_fournisseur,a.fournisseur,a.emplacement,a.motscles,a.notes].concat((SRCA[a.id]||[]).map(function(x){return x.partenaire+' '+(x.ref||'');})).join(' ');}
 /* pièces d'un équipement : liées au modèle + liées directement */
 function piecesDe(e){
   var out=[];LIENS.forEach(function(l){
@@ -317,7 +320,7 @@ function choisir(o){
 function renduEq(e){return '<span class="pt '+esc(e.criticite||'')+'"></span><div class="g"><div class="t">'+esc(e.nom)+' <span class="etiq">'+esc(e.code)+'</span></div><div class="s">'+esc(chemin(e))+'</div></div>';}
 // v9.10 - Référence affichée partout : réf. interne, sinon constructeur, sinon la réf. du premier fournisseur.
 function refArt(a){if(!a)return '';if(a.ref)return a.ref;if(a.ref_fabricant)return a.ref_fabricant;var s=(SRCA[a.id]||[]).find(function(x){return x.ref;});return s?s.ref+(s.partenaire?' ('+s.partenaire+')':''):(a.ref_fournisseur||'');}
-function renduArt(a){return (a.photo?'<img class="mini" src="'+esc(a.photo)+'">':'<div class="mini"></div>')+'<div class="g"><div class="t">'+esc(a.designation)+'</div><div class="s">'+esc([a.ref,a.ref_fabricant,(!a.ref&&!a.ref_fabricant)?refArt(a):'',a.emplacement].filter(Boolean).join(' · '))+((SRCA[a.id]||[]).length>1?' · <b>'+SRCA[a.id].length+' fournisseurs</b>':'')+'</div></div>'+badgeStock(a);}
+function renduArt(a){return (a.photo?'<img class="mini" src="'+esc(a.photo)+'">':'<div class="mini"></div>')+'<div class="g"><div class="t">'+esc(a.designation)+'</div><div class="s">'+esc([a.ref,a.ref_fabricant,(!a.ref&&!a.ref_fabricant)?refArt(a):'',a.emplacement].filter(Boolean).join(' · '))+((SRCA[a.id]||[]).length>1?' · <b>'+SRCA[a.id].length+' fournisseurs</b>':'')+(assocNoms(a).length?'<br>🔗 va avec : '+esc(assocNoms(a).join(', ')):'')+'</div></div>'+badgeStock(a);}
 function choisirEq(titre){return choisir({titre:titre||'Choisir une machine',items:EQ,hay:hayEq,rendu:renduEq,prim:primEq});}
 function badgeStock(a){var s=+a.stock||0,m=+a.stock_mini||0;return '<span class="badge '+(s<=0?'b-rouge':(s<=m?'b-orange':'b-vert'))+'">'+s+' '+esc(a.unite||'')+'</span>';}
 
@@ -1061,6 +1064,10 @@ VUES.art=async function(id){
         (i===0&&srcs.length>1&&x.prix!=null?' <span class="badge b-vert">le moins cher</span>':'')+(ec?' <span class="badge b-orange">+'+ec+' %</span>':'')+
         (memeFo(x.partenaire,a.fournisseur)?' <span class="badge b-bleu" title="Prix utilisé pour la valeur du stock">✓ acheté ici</span>':(srcs.length>1?' <button class="btn sm" data-achete="'+esc(x.partenaire)+'" style="padding:2px 8px">acheté ici ?</button>':''))+'</div>';}).join(''):'<div class="vide">Aucun fournisseur renseigné.</div>')+
       '<div class="etiq" style="margin-top:6px">Même pièce chez un autre fournisseur (ex. le même roulement chez Kannegiesser et chez 123 roulement) : ajoute-le ici avec sa référence et son prix, au lieu de créer une 2ᵉ fiche.</div></div>';
+    if(V11){var asc=ASSOCA[a.id]||[];
+      html+='<div class="carte"><h2>🔗 Pièces associées <button class="btn sm d" id="asN">+ Associer une pièce</button></h2>'+
+        (asc.length?asc.map(function(x){var o=ARTID[x.autre];if(!o)return '';return '<div class="ligne"><a href="#art/'+o.id+'" style="display:flex;flex:1;gap:10px;align-items:center;color:inherit;text-decoration:none">'+renduArt(o)+'</a>'+(x.note?' <span class="etiq">'+esc(x.note)+'</span>':'')+' <button class="btn sm" data-asx="'+x.id+'" title="Retirer l\'association">✕</button></div>';}).join(''):'<div class="vide">Aucune. Ex. : le bloc de contacts auxiliaires qui se monte sur ce contacteur, le joint qui va avec ce roulement…</div>')+
+        '<div class="etiq" style="margin-top:6px">L\'association marche dans les deux sens : en cherchant l\'une, la recherche propose aussi l\'autre.</div></div>';}
     var sim=similaires(a);
     if(sim.length)html+='<div class="carte" style="border-color:var(--orange)"><h2>⚠ Même pièce ailleurs ?</h2><div class="etiq">Ces fiches ressemblent beaucoup à celle-ci. Si c\'est la même pièce, fusionne-les : stocks additionnés, fournisseurs et machines regroupés.</div>'+
       sim.map(function(b){return '<div class="ligne"><a href="#art/'+b.id+'" style="display:contents;color:var(--txt)">'+renduArt(b)+'</a><button class="btn sm" data-fus="'+b.id+'">Fusionner ici</button></div>';}).join('')+'</div>';
@@ -1108,6 +1115,12 @@ VUES.art=async function(id){
   if(V4){
     $('srcN').onclick=function(){editerSource(null,id);};
     document.querySelectorAll('[data-src]').forEach(function(d){d.onclick=function(){editerSource(d.dataset.src,id);};});
+    if($('asN'))$('asN').onclick=async function(){
+      var deja=(ASSOCA[id]||[]).map(function(x){return x.autre;}).concat([id]);
+      var o=await choisir({titre:'Quelle pièce va avec « '+a.designation+' » ?',items:ART.filter(function(z){return deja.indexOf(z.id)<0;}),hay:hayArt,prim:primArt,rendu:renduArt});if(!o)return;
+      var nt=await demander('Précision (facultatif)','','ex. se monte sur le côté, même joint…');if(nt===null)return;
+      try{await q(sb.from('gmao_assoc').insert({article_a:id,article_b:o.id,note:nt||null}));await chargerTout();toast('🔗 Pièces associées');route();}catch(x){erreur(x);}};
+    document.querySelectorAll('[data-asx]').forEach(function(b){b.onclick=async function(){if(!confirm('Retirer cette association ?'))return;try{await q(sb.from('gmao_assoc').delete().eq('id',b.dataset.asx));await chargerTout();route();}catch(x){erreur(x);}};});
     document.querySelectorAll('[data-achete]').forEach(function(b){b.onclick=async function(ev){ev.stopPropagation();
       try{await q(sb.from('gmao_articles').update({fournisseur:b.dataset.achete}).eq('id',id));a.fournisseur=b.dataset.achete;toast('Prix retenu : '+b.dataset.achete);route();}catch(x){erreur(x);}};});
     document.querySelectorAll('[data-fus]').forEach(function(b){b.onclick=function(){fusionner(id,b.dataset.fus);};});
