@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.10';
+var VERSION='v9.11';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -449,8 +449,12 @@ function lignePrev(p){
 function eur(x){return (+x||0).toLocaleString('fr-FR',{style:'currency',currency:'EUR'});}
 function qFr(x){var r=Math.round((+x||0)*100)/100;return r.toLocaleString('fr-FR');}
 /* Prix unitaire retenu : prix de la fiche, sinon le prix fournisseur le plus récent (le moins cher à date égale) */
+function memeFo(x,y){return norm(String(x||'')).trim()===norm(String(y||'')).trim();}
 function prixRetenu(a){
-  if(a.prix!=null&&+a.prix>0)return {p:+a.prix,src:'fiche pièce'};
+  // v9.11 - Le fournisseur chez qui la pièce a été achetée (a.fournisseur) passe avant tout le reste
+  if(a.fournisseur){var ch=(SRCA[a.id]||[]).find(function(x){return memeFo(x.partenaire,a.fournisseur)&&x.prix!=null&&+x.prix>0;});
+    if(ch)return {p:+ch.prix,src:ch.partenaire+' (acheté ici)'};}
+  if(a.prix!=null&&+a.prix>0)return {p:+a.prix,src:a.fournisseur||'fiche pièce'};
   var l=(SRCA[a.id]||[]).filter(function(x){return x.prix!=null&&+x.prix>0;});
   if(!l.length)return null;
   l.sort(function(x,y){var dx=x.date_prix||'',dy=y.date_prix||'';if(dx!==dy)return dx<dy?1:-1;return (+x.prix)-(+y.prix);});
@@ -1054,7 +1058,8 @@ VUES.art=async function(id){
         return '<div class="ligne" style="cursor:pointer" data-src="'+x.id+'"><div class="g"><div class="t">'+esc(x.partenaire)+(x.ref?' <span class="etiq">réf. '+esc(x.ref)+'</span>':'')+(x.lien?' <a href="'+esc(x.lien)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="btn sm l" style="padding:2px 8px">🔗 site</a>':'')+'</div><div class="s">'+
         esc([x.date_prix?'prix du '+fmtD(x.date_prix):'',x.delai?'délai '+x.delai:'',x.notes||''].filter(Boolean).join(' · '))+'</div></div>'+
         (x.prix!=null?'<b>'+(+x.prix).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+'</b>':'<span class="etiq">prix ?</span>')+
-        (i===0&&srcs.length>1&&x.prix!=null?' <span class="badge b-vert">le moins cher</span>':'')+(ec?' <span class="badge b-orange">+'+ec+' %</span>':'')+'</div>';}).join(''):'<div class="vide">Aucun fournisseur renseigné.</div>')+
+        (i===0&&srcs.length>1&&x.prix!=null?' <span class="badge b-vert">le moins cher</span>':'')+(ec?' <span class="badge b-orange">+'+ec+' %</span>':'')+
+        (memeFo(x.partenaire,a.fournisseur)?' <span class="badge b-bleu" title="Prix utilisé pour la valeur du stock">✓ acheté ici</span>':(srcs.length>1?' <button class="btn sm" data-achete="'+esc(x.partenaire)+'" style="padding:2px 8px">acheté ici ?</button>':''))+'</div>';}).join(''):'<div class="vide">Aucun fournisseur renseigné.</div>')+
       '<div class="etiq" style="margin-top:6px">Même pièce chez un autre fournisseur (ex. le même roulement chez Kannegiesser et chez 123 roulement) : ajoute-le ici avec sa référence et son prix, au lieu de créer une 2ᵉ fiche.</div></div>';
     var sim=similaires(a);
     if(sim.length)html+='<div class="carte" style="border-color:var(--orange)"><h2>⚠ Même pièce ailleurs ?</h2><div class="etiq">Ces fiches ressemblent beaucoup à celle-ci. Si c\'est la même pièce, fusionne-les : stocks additionnés, fournisseurs et machines regroupés.</div>'+
@@ -1079,6 +1084,7 @@ VUES.art=async function(id){
     try{
       var s=await q(sb.rpc('gmao_mouvement',{p_article:id,p_qte:n,p_bon:null,p_motif:m||'Entrée',p_auteur:NOM}));a.stock=s;
       var reste=n,soldees=0,prets=[];
+      if(ouv.length&&ouv[0].fournisseur&&!memeFo(ouv[0].fournisseur,a.fournisseur)){try{await q(sb.from('gmao_articles').update({fournisseur:ouv[0].fournisseur}).eq('id',id));a.fournisseur=ouv[0].fournisseur;}catch(e){}}
       for(var i=0;i<ouv.length;i++){var c=ouv[i],qc=+c.quantite||1;if(reste<qc)break;reste-=qc;
         await q(sb.from('gmao_commandes').update({statut:'Reçue',recue_le:new Date().toISOString()}).eq('id',c.id));soldees++;
         if(c.bon_suite){try{var bs=(await q(sb.from('gmao_interventions').select('id,numero,statut').eq('id',c.bon_suite)))[0];
@@ -1102,6 +1108,8 @@ VUES.art=async function(id){
   if(V4){
     $('srcN').onclick=function(){editerSource(null,id);};
     document.querySelectorAll('[data-src]').forEach(function(d){d.onclick=function(){editerSource(d.dataset.src,id);};});
+    document.querySelectorAll('[data-achete]').forEach(function(b){b.onclick=async function(ev){ev.stopPropagation();
+      try{await q(sb.from('gmao_articles').update({fournisseur:b.dataset.achete}).eq('id',id));a.fournisseur=b.dataset.achete;toast('Prix retenu : '+b.dataset.achete);route();}catch(x){erreur(x);}};});
     document.querySelectorAll('[data-fus]').forEach(function(b){b.onclick=function(){fusionner(id,b.dataset.fus);};});
     var bf=document.createElement('button');bf.className='btn sm';bf.textContent='⇄ Fusionner avec une autre fiche…';
     bf.onclick=async function(){var o=await choisir({titre:'Quelle fiche est la même pièce ?',items:ART.filter(function(x){return x.id!==id;}),hay:hayArt,prim:primArt,rendu:renduArt});if(o)fusionner(id,o.id);};
@@ -1850,6 +1858,7 @@ VUES.achats=async function(f){
     try{
       if(c.article_id&&n>0)await q(sb.rpc('gmao_mouvement',{p_article:c.article_id,p_qte:Math.abs(n),p_bon:null,p_motif:'Réception commande'+(c.fournisseur?' '+c.fournisseur:''),p_auteur:NOM}));
       await q(sb.from('gmao_commandes').update({statut:'Reçue',recue_le:new Date().toISOString()}).eq('id',c.id));
+      if(c.article_id&&c.fournisseur){try{await q(sb.from('gmao_articles').update({fournisseur:c.fournisseur}).eq('id',c.article_id));}catch(e){}}
       var bs=c.bon_suite&&bons[c.bon_suite];
       if(bs&&bs.statut==='Attente pièce'){await q(sb.from('gmao_interventions').update({statut:'Demandé'}).eq('id',bs.id));await logSys(bs.id,'📦 '+NOM+' : « '+c.designation+' » reçu — intervention à planifier');}
       if(c.article_id)await chargerTout();
