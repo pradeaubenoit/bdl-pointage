@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v198</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v199</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1600,13 +1600,13 @@ function construireTourniquet(rows, W, ctx){
     function drapsReste(u){ return Math.max(0,drapsTot(u)-(u.garde||0)); }
     function finirUnite(u){ u.fini=true; if(thermeOuvert()){ attente.push(u); return; } viderUnite(u); }
     function viderAttente(){ var a=attente; attente=[]; a.forEach(function(u){ var gE=u.epo.reduce(function(t,r){return t+gal(r);},0);
-      if(gE>0 && run+gE>ML){ if(reserve.length){ res.push(reserve.shift().row); run=0; } else if(ui<ordreU.length) prendreDraps(1,gE); }
+      if(gE>0 && run+gE>ML){ if(reserveE.length||reserve.length){ res.push((reserveE.length?reserveE:reserve).shift().row); run=0; } else if(ui<ordreU.length) prendreDraps(1,gE); }
       viderUnite(u); }); }
     function viderUnite(u){ u.epo.forEach(function(r){ res.push(r); run+=gal(r); });
       while(u.draps.length){ var L0=u.draps.shift(); if(L0.g>0){ res.push(piece(L0,L0.g)); run=0; } }
       var gS=u.sacs.reduce(function(t,r){return t+gal(r);},0);
       if(gS>0 && run+gS>ML){   // un drap entre son éponge et ses sacs : un drap de Therme, sinon 1 galette reprise à son dernier morceau de draps
-        if(reserve.length){ res.push(reserve.shift().row); run=0; }
+        if(reserveE.length||reserve.length){ res.push((reserveE.length?reserveE:reserve).shift().row); run=0; }
         else if(u.dernier && gal(u.dernier)>=2){ u.dernier.nbTransferts=String(gal(u.dernier)-1); res.push(Object.assign({},u.dernier,{id:u.dernier.src+'#U'+(tk++),nbTransferts:'1'})); run=0; }
       }
       u.sacs.forEach(function(r){ res.push(r); run+=gal(r); }); u.fini=true; }
@@ -1637,7 +1637,7 @@ function construireTourniquet(rows, W, ctx){
         if(!drapsReste(u)){ finirUnite(u); ui++; }
         if(pris>=n && run+gSuivant<=ML) break;
       }
-      if(run+gSuivant>ML && reserve.length){ res.push(reserve.shift().row); run=0; }
+      if(run+gSuivant>ML && (reserveE.length||reserve.length)){ res.push((reserveE.length?reserveE:reserve).shift().row); run=0; }
       return pris;
     }
     fillers.forEach(function(F,fi){
@@ -1693,6 +1693,7 @@ function construireTourniquet(rows, W, ctx){
         if((parseInt(out[j].nbTransferts)||0)<2) continue;   // ne pas vider un tampon d'une seule galette
         if(drapsPrio[noyauClient(out[j].client)]) continue;   // les draps d'un client prioritaire restent avec lui
         if(!/therm/.test(nomCle(out[j].client))) continue;   // on ne défait JAMAIS un hôtel : seulement les draps des Thermes
+        if((CFG.echeances||{})[grpHotel(out[j].client).replace(/^thermes? /,'')]!=null) continue;   // v199 : les draps d'un Therme à camion ⏰ restent groupés
         var d=Math.abs(j-faute);
         if(d<best){best=d;don=j;}
       }
@@ -2178,6 +2179,23 @@ function reOptimiserDepuis(i){
     var o2=optimiserOrdre(fusionnerMemeClient(pS),0,start,c2);
     opt={order:o1.order.concat(o2.order)};
   }
+  // v199 - la jonction matin / après-midi peut recoller deux séries d'éponge (chaque moitié est réparée seule) :
+  // on relit la journée entière et on pose 1 galette de drap là où la règle des 8 casse.
+  (function reparerJonction(){ var ML=(CFG.maxLent==null?8:CFG.maxLent), L=opt.order, tours=0;
+    var run0=(ctxF&&ctxF.run)||0;
+    while(tours++<60){ var run=run0, faute=-1;
+      for(var i=0;i<L.length;i++){ if(isDrapRow(L[i])){ run=0; continue; } var gi=parseInt(L[i].nbTransferts)||0;
+        if(run===0 && gi>ML){ var p2=Object.assign({},L[i],{id:(L[i].src||L[i].id)+'#S'+tours,src:(L[i].src||L[i].id),nbTransferts:String(gi-ML)}); L[i].nbTransferts=String(ML); L.splice(i+1,0,p2); faute=i+1; break; }   // une ligne de plus de 8 : coupée en 8 + reste
+        if(run>0 && run+gi>ML){ faute=i; break; } run+=gi; }
+      if(faute<0) return;
+      var don=-1;
+      for(var j=faute+1;j<L.length;j++){ if(isDrapRow(L[j]) && (parseInt(L[j].nbTransferts)||0)>=2){ don=j; break; } }
+      if(don<0) for(var j3=faute-1;j3>=0;j3--){ if(isDrapRow(L[j3]) && (parseInt(L[j3].nbTransferts)||0)>=2){ don=j3; break; } }
+      if(don<0) return;
+      L[don].nbTransferts=String((parseInt(L[don].nbTransferts)||0)-1);
+      var g=Object.assign({},L[don],{id:(L[don].src||L[don].id)+'#J'+(tours),src:(L[don].src||L[don].id),nbTransferts:'1'});
+      L.splice(faute,0,g); if(don>faute) don++;
+    } })();
   // Pas de gain de temps -> on ne touche à rien.
   var _tun=function(l){ return l.filter(function(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }); };
   var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
