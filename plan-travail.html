@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v199</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v200</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1600,13 +1600,13 @@ function construireTourniquet(rows, W, ctx){
     function drapsReste(u){ return Math.max(0,drapsTot(u)-(u.garde||0)); }
     function finirUnite(u){ u.fini=true; if(thermeOuvert()){ attente.push(u); return; } viderUnite(u); }
     function viderAttente(){ var a=attente; attente=[]; a.forEach(function(u){ var gE=u.epo.reduce(function(t,r){return t+gal(r);},0);
-      if(gE>0 && run+gE>ML){ if(reserveE.length||reserve.length){ res.push((reserveE.length?reserveE:reserve).shift().row); run=0; } else if(ui<ordreU.length) prendreDraps(1,gE); }
+      if(gE>0 && run+gE>ML){ if(reserveE.length||reserve.length){ tirerRes(); run=0; } else if(ui<ordreU.length) prendreDraps(1,gE); }
       viderUnite(u); }); }
     function viderUnite(u){ u.epo.forEach(function(r){ res.push(r); run+=gal(r); });
       while(u.draps.length){ var L0=u.draps.shift(); if(L0.g>0){ res.push(piece(L0,L0.g)); run=0; } }
       var gS=u.sacs.reduce(function(t,r){return t+gal(r);},0);
       if(gS>0 && run+gS>ML){   // un drap entre son éponge et ses sacs : un drap de Therme, sinon 1 galette reprise à son dernier morceau de draps
-        if(reserveE.length||reserve.length){ res.push((reserveE.length?reserveE:reserve).shift().row); run=0; }
+        if(reserveE.length||reserve.length){ tirerRes(); run=0; }
         else if(u.dernier && gal(u.dernier)>=2){ u.dernier.nbTransferts=String(gal(u.dernier)-1); res.push(Object.assign({},u.dernier,{id:u.dernier.src+'#U'+(tk++),nbTransferts:'1'})); run=0; }
       }
       u.sacs.forEach(function(r){ res.push(r); run+=gal(r); }); u.fini=true; }
@@ -1616,6 +1616,8 @@ function construireTourniquet(rows, W, ctx){
     var totF=fillers.reduce(function(t,F){return t+gal(F.row);},0), ratio=totD/Math.max(1,totF), cumul=0;
     // v198 - draps d'un Therme qui a un camion ⏰ (sacs à gaz de Royat 12:00, draps de Dôme 10:00) : ce sont les PREMIERS tampons,
     // avant les draps d'un hôtel sans heure limite (Magnetic, Hôpital…). Rangés par heure de camion.
+    function tirerRes(){ if(!reserveE.length){ res.push(reserve.shift().row); return; } var R=reserveE.shift(), k=grpH(R.row.client); res.push(R.row);
+      while(reserveE.length && grpH(reserveE[0].row.client)===k) res.push(reserveE.shift().row); }
     var reserveE=reserve.filter(function(R){ return ECH[grpH(R.row.client).replace(/^thermes? /,'')]!=null; });
     reserve=reserve.filter(function(R){ return reserveE.indexOf(R)<0; });
     reserveE.sort(function(a,b){ return ECH[grpH(a.row.client).replace(/^thermes? /,'')]-ECH[grpH(b.row.client).replace(/^thermes? /,'')] || a.pos-b.pos; });
@@ -1627,7 +1629,10 @@ function construireTourniquet(rows, W, ctx){
         if(!drapsReste(u)){ finirUnite(u); ui++; continue; }
         if(reserveE.length && ECH[u.h]==null && !COM[u.h] && !thermeOuvert()){   // v198 : d'abord les draps des Thermes à camion
           if(pris>=n && run+gSuivant<=ML) break;
-          var RE=reserveE.shift(); res.push(RE.row); pris+=RE.g; run=0; continue; }
+          // un Therme commencé est fini : on passe TOUS ses draps à camion d'un coup (les 6 sacs à gaz de Royat ensemble)
+          var RE=reserveE.shift(), kE=grpH(RE.row.client); res.push(RE.row); pris+=RE.g;
+          while(reserveE.length && grpH(reserveE[0].row.client)===kE){ var R2=reserveE.shift(); res.push(R2.row); pris+=R2.g; }
+          run=0; continue; }
         var besoin=n-pris;
         // un hôtel AVEC éponge ne traîne pas : au moins 3 galettes de ses draps à la fois, pour que son éponge arrive vite
         if(u.epo.length && besoin>0 && !thermeOuvert()) besoin=Math.max(besoin, Math.min(3,drapsReste(u)));
@@ -1637,7 +1642,7 @@ function construireTourniquet(rows, W, ctx){
         if(!drapsReste(u)){ finirUnite(u); ui++; }
         if(pris>=n && run+gSuivant<=ML) break;
       }
-      if(run+gSuivant>ML && (reserveE.length||reserve.length)){ res.push((reserveE.length?reserveE:reserve).shift().row); run=0; }
+      if(run+gSuivant>ML && (reserveE.length||reserve.length)){ tirerRes(); run=0; }
       return pris;
     }
     fillers.forEach(function(F,fi){
