@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v197</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v198</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1614,12 +1614,20 @@ function construireTourniquet(rows, W, ctx){
     var totD=ordreU.reduce(function(t,u){return t+drapsReste(u);},0)+reserve.reduce(function(t,R){return t+R.g;},0);
     // au prorata de la taille de chaque série d'éponge (une petite ligne d'1 galette n'a pas besoin d'un gros tampon)
     var totF=fillers.reduce(function(t,F){return t+gal(F.row);},0), ratio=totD/Math.max(1,totF), cumul=0;
+    // v198 - draps d'un Therme qui a un camion ⏰ (sacs à gaz de Royat 12:00, draps de Dôme 10:00) : ce sont les PREMIERS tampons,
+    // avant les draps d'un hôtel sans heure limite (Magnetic, Hôpital…). Rangés par heure de camion.
+    var reserveE=reserve.filter(function(R){ return ECH[grpH(R.row.client).replace(/^thermes? /,'')]!=null; });
+    reserve=reserve.filter(function(R){ return reserveE.indexOf(R)<0; });
+    reserveE.sort(function(a,b){ return ECH[grpH(a.row.client).replace(/^thermes? /,'')]-ECH[grpH(b.row.client).replace(/^thermes? /,'')] || a.pos-b.pos; });
     // prend n galettes de draps : on finit l'hôtel en cours (draps -> éponge -> sacs) puis on attaque le suivant
     function prendreDraps(n, gSuivant){
       var pris=0;
       while(ui<ordreU.length){
         var u=ordreU[ui];
         if(!drapsReste(u)){ finirUnite(u); ui++; continue; }
+        if(reserveE.length && ECH[u.h]==null && !COM[u.h] && !thermeOuvert()){   // v198 : d'abord les draps des Thermes à camion
+          if(pris>=n && run+gSuivant<=ML) break;
+          var RE=reserveE.shift(); res.push(RE.row); pris+=RE.g; run=0; continue; }
         var besoin=n-pris;
         // un hôtel AVEC éponge ne traîne pas : au moins 3 galettes de ses draps à la fois, pour que son éponge arrive vite
         if(u.epo.length && besoin>0 && !thermeOuvert()) besoin=Math.max(besoin, Math.min(3,drapsReste(u)));
@@ -1657,7 +1665,7 @@ function construireTourniquet(rows, W, ctx){
     });
     curFi=fillers.length; viderAttente();
     while(ui<ordreU.length){ prendreDraps(1e9,0); }
-    reserve.forEach(function(R){ res.push(R.row); });
+    reserveE.concat(reserve).forEach(function(R){ res.push(R.row); });
     // fusion des morceaux consécutifs d'une même ligne
     var m=[]; res.forEach(function(x){ var l=m[m.length-1]; if(l && isDrapRow(l) && isDrapRow(x) && (l.src||l.id)===(x.src||x.id)){ l.nbTransferts=String(gal(l)+gal(x)); } else m.push(x); });
     out=m;
