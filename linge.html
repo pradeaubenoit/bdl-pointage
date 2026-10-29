@@ -409,6 +409,7 @@ function afficherClients() {
       b.appendChild(bas);
     }
     if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).limite || lot2De(c.client).depuis, lecture: true });
+    else if (cible && tot > 0) b.onclick = () => choisirOuvertureReporte(it);
     else if (cible) b.onclick = () => ouvrirReporte(c, cible);
     else if (saisieDuJour()) b.onclick = () => demanderLivraison(it);
     else b.onclick = () => afficherArticles(c, false, it.filtre);
@@ -763,8 +764,10 @@ function demanderLivraison(it) {
     if (prochain) b.style.fontWeight = '700';
     b.onclick = async () => {
       fermerJours();
+      const deja = totalJourClient(c.client, null);
+      if (deja > 0 && !confirm(deja + ' pièce' + (deja > 1 ? 's sont' : ' est') + ' déjà saisie' + (deja > 1 ? 's' : '') + ' sur ' + libelleJour(jourCourant()) + ' pour ' + c.client + '.\n\nElles restent sur ' + libelleJour(jourCourant()) + ' : seules les quantités que tu vas taper maintenant iront sur ' + libelleJour(iso) + '.\n\nContinuer ?')) return;
       const ok = it.lot === 3 ? await reporterLot3(c.client, iso) : await basculerReport(c.client, iso);
-      if (ok) ouvrirReporte(c, iso);   // la saisie s'ouvre directement sur le jour de livraison
+      if (ok) { reportOuvert = { client: c.client, lot: it.lot }; ouvrirReporte(c, iso); }   // la saisie s'ouvre directement sur le jour de livraison
     };
     liste.appendChild(b);
   }
@@ -812,6 +815,26 @@ async function reporterLot3(nom, cible) {
   return true;
 }
 
+// Tuile violette qui a déjà des quantités sur sa propre journée : on demande laquelle ouvrir.
+function choisirOuvertureReporte(it) {
+  const c = it.c, liste = document.getElementById('listeJours');
+  document.querySelector('#panneauJour h2').textContent = c.client + ' : quelle saisie ouvrir ?';
+  liste.innerHTML = '';
+  const a = document.createElement('button');
+  a.className = 'choixJour';
+  a.textContent = 'Voir / compléter les ' + it.tot + ' pièces de ' + libelleJour(jourCourant());
+  a.onclick = () => { fermerJours(); afficherArticles(c, false, it.filtre); };
+  liste.appendChild(a);
+  const b = document.createElement('button');
+  b.className = 'choixJour';
+  b.textContent = 'Saisir pour ' + libelleJour(it.cible) + ' (livraison)';
+  b.style.fontWeight = '700';
+  b.onclick = () => { fermerJours(); ouvrirReporte(c, it.cible); };
+  liste.appendChild(b);
+  document.getElementById('fondJour').style.display = 'flex';
+}
+let reportOuvert = null;   // jour de livraison choisi à l'instant : annulé si l'on ressort sans rien saisir
+
 // Ouvre la saisie du client directement sur le jour de livraison.
 function ouvrirReporte(c, cible) {
   jourAvantReport = jourChoisi;
@@ -824,6 +847,11 @@ function ouvrirReporte(c, cible) {
 // Au retour à la liste, on revient sur la journée d'où l'on venait.
 function finReport() {
   if (jourAvantReport === undefined) return false;
+  // Ressorti sans avoir rien saisi sur le jour de livraison : on annule ce choix (sinon la tuile reste violette pour rien).
+  let annuler = null;
+  if (reportOuvert && jourRecap.date === jourCourant() && totalJourClient(reportOuvert.client, null) === 0) annuler = reportOuvert;
+  reportOuvert = null;
+  if (annuler) setTimeout(() => { if (annuler.lot === 3) reporterLot3(annuler.client, null); else if (reportDe(annuler.client)) basculerReport(annuler.client); }, 0);
   jourChoisi = jourAvantReport;
   jourAvantReport = undefined;
   majJourAffiche();
