@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v194</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v196</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -805,7 +805,7 @@ function clientsConnus(){
   Object.keys(CFG.echeances||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
   Object.keys(CFG.avance||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
   (CFG.ordreHotels||[]).forEach(function(k){ if(k && H[k]==null) H[k]=false; });
-  (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ if(!l||l.charAt(0)==='@') return; var t=l.replace(/ serviettes?$/,''); if(T[t]==null) T[t]=false; });
+  (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ if(!l||l.charAt(0)==='@') return; var t=l.replace(/ (serviettes?|draps?)$/,''); if(T[t]==null) T[t]=false; });
   delete H['']; delete T[''];
   function tri(o){ return Object.keys(o).sort(function(a,b){ return (o[b]?1:0)-(o[a]?1:0) || a.localeCompare(b,'fr'); }).map(function(k){ return {k:k,jour:o[k]}; }); }
   return {hotels:tri(H), thermes:tri(T)};
@@ -848,7 +848,7 @@ function renderReglesClients(){
   // 📦 linge d'avance
   bA.innerHTML=Object.keys(A).filter(function(k){return A[k];}).map(function(k){ return '<div style="display:flex;gap:4px;margin-bottom:4px"><select data-ak="'+esc(k)+'" '+sel+'>'+_options(C.hotels,k)+'</select><button class="btn-ghost" data-ax="'+esc(k)+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-av-add">+ Ajouter un client</button>';
   // ♨️ ordre des Thermes (avec ↑ ↓)
-  var optT=[]; C.thermes.forEach(function(x){ optT.push(x); optT.push({k:x.k+' serviettes',jour:x.jour}); });
+  var optT=[]; C.thermes.forEach(function(x){ optT.push(x); optT.push({k:x.k+' serviettes',jour:x.jour}); optT.push({k:x.k+' draps',jour:x.jour}); });
   // autres clients de la journée (hôpital, EHPAD, spas…) : « @nom » = à placer dans l'ordre des Thermes (ex. Hôpital du Mont avant Evaux)
   var _dejaT={}; (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ if(l && l.charAt(0)==='@') _dejaT[l.slice(1)]=1; });
   C.hotels.forEach(function(x){ if(x.jour || _dejaT[x.k]) optT.push({k:'@'+x.k, jour:x.jour}); });
@@ -1353,8 +1353,8 @@ function construireTourniquet(rows, W, ctx){
     OT.forEach(function(l){ var m=l.match(/^(.*) serviettes?$/); if(m) servPousse[m[1].trim()]=1; });
     function thermeDe(k,c){
       if(!/therm/.test(k)){ var g='@'+grpHotel(c.client); return OT.indexOf(g)>=0 ? g : null; }   // autre client placé dans la liste (ex. 🏥 Hôpital du Mont)
-      for(var i=0;i<OT.length;i++){ if(OT[i].charAt(0)==='@') continue; var t=OT[i].replace(/ serviettes?$/,''); if((' '+k+' ').indexOf(' '+t+' ')>=0) return t; } return null; }
-    OT.forEach(function(l){ if(l.charAt(0)==='@'){ items.push({t:l,serv:false}); return; } var m=l.match(/^(.*) serviettes?$/);
+      for(var i=0;i<OT.length;i++){ if(OT[i].charAt(0)==='@' || / draps?$/.test(OT[i])) continue; var t=OT[i].replace(/ serviettes?$/,''); if((' '+k+' ').indexOf(' '+t+' ')>=0) return t; } return null; }
+    OT.forEach(function(l){ if(/ draps?$/.test(l)) return; if(l.charAt(0)==='@'){ items.push({t:l,serv:false}); return; } var m=l.match(/^(.*) serviettes?$/);
       if(m) items.push({t:m[1].trim(),serv:true});
       else { items.push({t:l,serv:false}); if(!servPousse[l]) items.push({t:l,serv:true}); } });
     var cles={}; chunks.forEach(function(c){ var k=ckey(c), t=thermeDe(k,c); if(t) cles[k]={t:t,serv:(t.charAt(0)==='@')?false:/servi/.test(k)}; });
@@ -2153,10 +2153,14 @@ function reOptimiserDepuis(i){
   // Un client présent dans les deux (ex. Dôme) garde la répartition actuelle.
   (function(){
     function cles(r){ var n=nomCle(r.client); return /therm/.test(n) ? [grpHotel(r.client).replace(/^thermes? /,'')] : [grpHotel(r.client)]; }
-    function lst(L){ var o={}; (L||[]).forEach(function(l){ if(!l) return; l=l.charAt(0)==='@'?l.slice(1):l.replace(/ serviettes?$/,''); o[l]=1; }); return o; }
-    var Lm=lst(CFG.ordreThermesMatin), La=lst(CFG.ordreThermes), lim=(CFG.heureBascule==null?11:CFG.heureBascule)*60+60;
-    Object.keys(CFG.echeances||{}).forEach(function(k){ var m=String(CFG.echeances[k]).match(/(\d+):(\d+)/); if(m && (+m[1])*60+(+m[2])<=lim) Lm[k]=1; });
-    function cote(r){ var k=cles(r)[0], m=!!Lm[k], a=!!La[k]; return m&&!a?'M':(a&&!m?'S':''); }
+    function lst(L,dr){ var o={}; (L||[]).forEach(function(l){ if(!l) return; var d=/ draps?$/.test(l); if(!!dr!==d) return; l=l.charAt(0)==='@'?l.slice(1):l.replace(/ (serviettes?|draps?)$/,''); o[l]=1; }); return o; }
+    var Lm=lst(CFG.ordreThermesMatin), La=lst(CFG.ordreThermes), Dm=lst(CFG.ordreThermesMatin,1), Da=lst(CFG.ordreThermes,1), lim=(CFG.heureBascule==null?11:CFG.heureBascule)*60+60;
+    var Em={}; Object.keys(CFG.echeances||{}).forEach(function(k){ var m=String(CFG.echeances[k]).match(/(\d+):(\d+)/); if(m && (+m[1])*60+(+m[2])<=lim){ Lm[k]=1; Em[k]=1; } });
+    function cote(r){ var k=cles(r)[0], m=!!Lm[k], a=!!La[k];
+      if(isDrapRow(r) && /therm/.test(nomCle(r.client))){   // « Dome draps » placé dans une liste : c'est lui qui décide
+        if(Dm[k] && !Da[k]) return 'M'; if(Da[k] && !Dm[k]) return 'S'; }
+      if(Em[k] && isDrapRow(r) && /therm/.test(nomCle(r.client))) return 'M';   // les DRAPS d'un Therme à camion du matin (Dôme) partent le matin ; ses peignoirs suivent les listes
+      return m&&!a?'M':(a&&!m?'S':''); }
     var versS=pM.filter(function(r){ return cote(r)==='S'; }), versM=pS.filter(function(r){ return cote(r)==='M'; });
     pM=pM.filter(function(r){ return versS.indexOf(r)<0; }).concat(versM);
     pS=versS.concat(pS.filter(function(r){ return versM.indexOf(r)<0; }));
