@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v190</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v191</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -559,7 +559,17 @@ setInterval(publierFin,2*60000);
    s'affiche sur cet écran (atelier) avec un bip. Le serveur envoie de son côté le SMS / mail au responsable. */
 var ALARME_MIN=30;
 function dernierFaitSec(){var mx=null;rows.forEach(function(r){if(r.machine==='tunnel'&&r._faitAt!=null&&(mx===null||r._faitAt>mx))mx=r._faitAt;});return mx;}
-var _alarmeBip=null;
+var _alarmeBip=null,_alerteEnvoyee={};
+/* v191 - Notification au responsable envoyée par CET écran (ntfy accepte l'adresse de la BdL ; il refuse souvent
+   celle des serveurs Google). Le serveur arbitre : un seul écran l'envoie, une fois par trou de pointage. */
+function envoyerAlerteEcran(ref,txt){
+  var k=curDate+' '+ref; if(_alerteEnvoyee[k])return; _alerteEnvoyee[k]=1;
+  var msg='BdL lavage : '+txt.replace(/^⚠ /,'').replace(/ Le responsable est prévenu\.$/,'')+' Reste '+galettesRestantes()+' galettes.';
+  fetch(FIN_API,{method:'POST',body:JSON.stringify({action:'finLavage',date:curDate,alerteRef:ref,texte:msg})}).then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.envoyer||!d.topic)return;
+    return fetch('https://ntfy.sh/'+encodeURIComponent(d.topic)+'?title='+encodeURIComponent('Alarme pointage lavage')+'&priority=high&tags=warning',{method:'POST',body:msg});
+  }).catch(function(){ delete _alerteEnvoyee[k]; });
+}
 function bipAlarme(){try{var C=window.AudioContext||window.webkitAudioContext;if(!C)return;var c=new C(),o=c.createOscillator(),g=c.createGain();o.type='square';o.frequency.value=880;g.gain.value=0.15;o.connect(g);g.connect(c.destination);o.start();setTimeout(function(){o.frequency.value=660;},300);setTimeout(function(){o.stop();c.close();},700);}catch(e){}}
 function verifierAlarme(){
   try{
@@ -570,7 +580,7 @@ function verifierAlarme(){
       var df=dernierFaitSec(),ref=df!=null?df:parseHeure(CFG.heureDemarrage),n=nowSec(),ecart=n-ref;
       if(ecart>=ALARME_MIN*60){actif=true;txt='⚠ Aucune galette pointée '+(df!=null?'depuis '+fmtHHMM(df):'depuis le démarrage ('+fmtHHMM(ref)+')')+' — '+fmtDuree(ecart)+'. Pointez les galettes engagées dans le tunnel (« fait »). Le responsable est prévenu.';}
     }
-    if(actif){el.textContent=txt;el.style.display='block';if(!_alarmeBip){bipAlarme();_alarmeBip=setInterval(bipAlarme,5*60000);}}
+    if(actif){el.textContent=txt;el.style.display='block';if(!_alarmeBip){bipAlarme();_alarmeBip=setInterval(bipAlarme,5*60000);}envoyerAlerteEcran(df!=null?fmtHHMM(df):fmtHHMM(ref),txt);}
     else{el.style.display='none';if(_alarmeBip){clearInterval(_alarmeBip);_alarmeBip=null;}}
   }catch(e){}
 }
