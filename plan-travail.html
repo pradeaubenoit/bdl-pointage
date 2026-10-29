@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v193</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v194</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2148,6 +2148,19 @@ function reOptimiserDepuis(i){
   var pM=pool.filter(function(r){ return _hDe(r)<bas; }), pS=pool.filter(function(r){ return _hDe(r)>=bas; });
   (function(){ var hM={}; pM.forEach(function(r){ var n=nomCle(r.client); if(!/therm/.test(n)) hM[grpHotel(r.client)]=1; });   // un hôtel commencé le matin y reste
     var b=pS.filter(function(r){ return !/therm/.test(nomCle(r.client)) && hM[grpHotel(r.client)]; }); if(b.length){ pM=pM.concat(b); pS=pS.filter(function(r){ return b.indexOf(r)<0; }); } })();
+  // v194 - TES LISTES PASSENT AVANT LA POSITION ACTUELLE : un client de l'ordre de l'APRÈS-MIDI (🏥 Ehpad Courtine…) va l'après-midi,
+  // un client de l'ordre du MATIN ou à camion ⏰ du matin va le matin, même s'il est pour l'instant ailleurs dans la liste.
+  // Un client présent dans les deux (ex. Dôme) garde la répartition actuelle.
+  (function(){
+    function cles(r){ var n=nomCle(r.client); return /therm/.test(n) ? [grpHotel(r.client).replace(/^thermes? /,'')] : [grpHotel(r.client)]; }
+    function lst(L){ var o={}; (L||[]).forEach(function(l){ if(!l) return; l=l.charAt(0)==='@'?l.slice(1):l.replace(/ serviettes?$/,''); o[l]=1; }); return o; }
+    var Lm=lst(CFG.ordreThermesMatin), La=lst(CFG.ordreThermes), lim=(CFG.heureBascule==null?11:CFG.heureBascule)*60+60;
+    Object.keys(CFG.echeances||{}).forEach(function(k){ var m=String(CFG.echeances[k]).match(/(\d+):(\d+)/); if(m && (+m[1])*60+(+m[2])<=lim) Lm[k]=1; });
+    function cote(r){ var k=cles(r)[0], m=!!Lm[k], a=!!La[k]; return m&&!a?'M':(a&&!m?'S':''); }
+    var versS=pM.filter(function(r){ return cote(r)==='S'; }), versM=pS.filter(function(r){ return cote(r)==='M'; });
+    pM=pM.filter(function(r){ return versS.indexOf(r)<0; }).concat(versM);
+    pS=versS.concat(pS.filter(function(r){ return versM.indexOf(r)<0; }));
+  })();
   if(!pM.length){ ctxF.apresMidi=true; opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF); }
   else if(!pS.length){ opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF); }
   else {
