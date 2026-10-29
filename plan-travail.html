@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v192</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v197</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -1688,6 +1688,10 @@ function construireTourniquet(rows, W, ctx){
         var d=Math.abs(j-faute);
         if(d<best){best=d;don=j;}
       }
+      // v197 - plus de draps de Therme disponibles : on prend 1 galette au PROCHAIN bloc de draps d'hôtel de la journée
+      // (plus loin dans la liste, au moins 2 galettes), pour que le tunnel avance. La règle des 8 passe avant l'ordre.
+      if(don<0){ for(var j2=faute+1;j2<out.length;j2++){ if(!estDrap(out[j2])) continue; if((parseInt(out[j2].nbTransferts)||0)<2) continue;
+          if(drapsPrio[noyauClient(out[j2].client)]) continue; don=j2; break; } }
       if(don<0) return;                                      // vraiment pas assez de draps ce jour-là
       out[don].nbTransferts=String((parseInt(out[don].nbTransferts)||0)-1);
       var g=Object.assign({},out[don],{id:out[don].id+'#R'+(tk++),nbTransferts:'1'});
@@ -2142,6 +2146,22 @@ function reOptimiserDepuis(i){
   var pM=pool.filter(function(r){ return _hDe(r)<bas; }), pS=pool.filter(function(r){ return _hDe(r)>=bas; });
   (function(){ var hM={}; pM.forEach(function(r){ var n=nomCle(r.client); if(!/therm/.test(n)) hM[grpHotel(r.client)]=1; });   // un hôtel commencé le matin y reste
     var b=pS.filter(function(r){ return !/therm/.test(nomCle(r.client)) && hM[grpHotel(r.client)]; }); if(b.length){ pM=pM.concat(b); pS=pS.filter(function(r){ return b.indexOf(r)<0; }); } })();
+  // v197 - TES LISTES PASSENT AVANT LA POSITION ACTUELLE : un client de l'ordre de l'APRÈS-MIDI (🏥 Ehpad Courtine…) va l'après-midi,
+  // un client de l'ordre du MATIN ou à camion ⏰ du matin va le matin, même s'il est pour l'instant ailleurs dans la liste.
+  // Les DRAPS d'un Therme à camion du matin (Dôme 10:00) vont le matin. Un client présent dans les deux listes garde sa place.
+  (function(){
+    // clé : « t:dome » pour un Therme, « h:evaux » pour un hôtel (l'hôtel d'Évaux n'est pas les Thermes d'Évaux)
+    function cle(r){ var n=nomCle(r.client); return /therm/.test(n) ? 't:'+grpHotel(r.client).replace(/^thermes? /,'') : 'h:'+grpHotel(r.client); }
+    function lst(L){ var o={}; (L||[]).forEach(function(l){ if(!l || / draps?$/.test(l)) return; o[l.charAt(0)==='@'?'h:'+l.slice(1):'t:'+l.replace(/ serviettes?$/,'')]=1; }); return o; }
+    var Lm=lst(CFG.ordreThermesMatin), La=lst(CFG.ordreThermes), Em={}, lim=(CFG.heureBascule==null?11:CFG.heureBascule)*60+60;
+    Object.keys(CFG.echeances||{}).forEach(function(k){ var m=String(CFG.echeances[k]).match(/(\d+):(\d+)/); if(m && (+m[1])*60+(+m[2])<=lim){ Lm['h:'+k]=1; Lm['t:'+k]=1; Em['t:'+k]=1; } });
+    function cote(r){ var k=cle(r), m=!!Lm[k], a=!!La[k];
+      if(Em[k] && isDrapRow(r) && /therm/.test(nomCle(r.client))) return 'M';
+      return m&&!a?'M':(a&&!m?'S':''); }
+    var versS=pM.filter(function(r){ return cote(r)==='S'; }), versM=pS.filter(function(r){ return cote(r)==='M'; });
+    pM=pM.filter(function(r){ return versS.indexOf(r)<0; }).concat(versM);
+    pS=versS.concat(pS.filter(function(r){ return versM.indexOf(r)<0; }));
+  })();
   if(!pM.length){ ctxF.apresMidi=true; opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF); }
   else if(!pS.length){ opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF); }
   else {
@@ -2557,10 +2577,14 @@ document.getElementById('btn-export').addEventListener('click',exporterTout);
 async function exporterTout(){
   var btn=document.getElementById('btn-export');var old=btn.textContent;btn.textContent='Sauvegarde…';btn.disabled=true;
   try{
-    var plans=await sb.from('plan_charges').select('*').eq('user_id',USER.id).order('date_jour').order('ordre');
+    // v197 - la base ne renvoie que 1000 lignes à la fois : on lit par paquets jusqu'au bout (avant : seulement juin–juillet)
+    var rowsP=[];
+    for(var off=0;off<200000;off+=1000){
+      var plans=await sb.from('plan_charges').select('*').eq('user_id',USER.id).order('date_jour').order('ordre').order('id').range(off,off+999);
+      if(plans.error)throw plans.error;
+      rowsP=rowsP.concat(plans.data||[]); if(!plans.data||plans.data.length<1000) break;
+    }
     var reg=await sb.from('reglages').select('data').eq('user_id',USER.id).maybeSingle();
-    if(plans.error)throw plans.error;
-    var rowsP=plans.data||[];
     var jours={};rowsP.forEach(function(r){(jours[r.date_jour]=jours[r.date_jour]||[]).push(r);});
     var backup={app:'plan-travail-lavage',exportLe:new Date().toISOString(),userId:USER.id,nbJours:Object.keys(jours).length,nbLignes:rowsP.length,reglages:(reg.data&&reg.data.data)||null,plans:rowsP};
     var blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
