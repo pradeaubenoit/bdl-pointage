@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v189</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v190</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -261,11 +261,11 @@
           <button id="ins-cancel" class="btn-ghost">Annuler</button>
         </div>
       </div>
-      <div class="card no-print" style="margin-bottom:12px">
+      <div class="card no-print" id="sr-card" style="margin-bottom:12px;position:sticky;top:0;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,.08)">
         <div style="font-weight:600;margin-bottom:8px">Rechercher / remplacer un client</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input type="text" id="sr-find" list="client-list" placeholder="Chercher\u2026" style="flex:1;min-width:130px">
-          <input type="text" id="sr-replace" list="client-list" placeholder="Remplacer par\u2026" style="flex:1;min-width:130px">
+          <input type="text" id="sr-find" list="client-list" placeholder="Chercher…" style="flex:1;min-width:130px">
+          <input type="text" id="sr-replace" list="client-list" placeholder="Remplacer par…" style="flex:1;min-width:130px">
           <button id="sr-do" class="btn-primary">Remplacer partout</button>
           <span id="sr-count" class="sub"></span>
         </div>
@@ -374,7 +374,7 @@
   <div id="addbar" class="no-print">
     <div class="inner">
       <span class="sum" id="saisie-sum"></span>
-      <button id="btn-insert">\u2795 Insérer (date / heure)</button>
+      <button id="btn-insert">➕ Insérer (date / heure)</button>
       <button id="btn-add" class="btn-primary">+ Ajouter un client</button>
     </div>
   </div>
@@ -424,7 +424,7 @@ function colOfCode(c){return (c&&c.couleur)?c.couleur:colFromLib(c?c.lib:'');}
 function colLabel(co){return co==='couleur'?'couleur':'blanc';}
 function colOfRow(r){var c=codeByNum(r.code);return colOfCode(c);}
 
-function netErr(){var e=document.getElementById('neterr');if(e)e.style.display='block';}
+function netErr(m){var e=document.getElementById('neterr');if(e){e.style.display='block';e.textContent='Hors ligne — la base n\'a pas répondu. Vos derniers changements ne sont peut-être pas enregistrés.'+(m?' (détail : '+m+')':'');}}
 function netOk(){var e=document.getElementById('neterr');if(e)e.style.display='none';}
 
 function normPostes(p){if(Array.isArray(p))return p.slice();if(typeof p==='string'&&p)return p.split(',').map(function(x){return x.trim();}).filter(Boolean);return ['repassage'];}
@@ -619,7 +619,7 @@ async function loadPlan(date){
     rows=clean.map(mapRow); applyFaits(); netOk();
     nbServeur[date]=rows.length;
     ecrireSecours(date, rows);
-  }catch(e){ netErr(); /* on garde le plan déjà affiché */ }
+  }catch(e){ netErr('lecture : '+((e&&e.message)||e)); /* on garde le plan déjà affiché */ }
   majBandeauSecours();
 }
 function majBandeauSecours(){
@@ -659,7 +659,11 @@ async function loadDay(date){try{var r=await sb.from('plan_charges').select('*')
 var saveRunning=false, saveQueued=false;
 async function savePlan(){
   if(saveRunning){saveQueued=true;return;}
+  // v190 - Jamais d'enregistrement d'une journée qu'on n'a pas réussi à lire : un écran ouvert hors ligne
+  // affiche un plan vide, et l'enregistrer effaçait la vraie journée sur le serveur.
+  if(!Object.prototype.hasOwnProperty.call(nbServeur,curDate)){ netErr('plan pas encore lu sur le serveur, enregistrement suspendu'); await loadPlan(curDate); if(!Object.prototype.hasOwnProperty.call(nbServeur,curDate)) return; renderRows(); renderResults(); updateSummary(); return; }
   var avant=nbServeur[curDate]||0;
+  if(avant>0&&rows.length===0&&!confirm('⚠ Le plan du '+curDate+' va être VIDÉ ('+avant+' lignes sur le serveur).\n\nC\'est bien voulu ?')){ await loadPlan(curDate); renderRows(); renderResults(); updateSummary(); return; }
   if(avant>=4&&rows.length<avant/2){
     if(!confirm('⚠ Attention : le plan du '+curDate+' va passer de '+avant+' à '+rows.length+' ligne(s).\n\nC\'est bien voulu ?\n\n(Annuler = recharger le plan depuis le serveur, rien n\'est effacé.)')){
       pendingSave=false; await loadPlan(curDate); renderRows(); renderResults(); updateSummary(); return;
@@ -686,7 +690,7 @@ async function savePlan(){
     nbServeur[date]=rows.length;
     ecrireSecours(date, rows);
     netOk();
-  }catch(e){netErr();}
+  }catch(e){netErr('enregistrement : '+((e&&(e.message||e.details||e.code))||e));}
   mergeClientNames();
   saveRunning=false;pendingSave=false;
   majBandeauSecours();
@@ -1766,7 +1770,7 @@ function makeRow(r,i,charg){
   return el;
 }
 function renderRows(){var c=document.getElementById('rows');c.innerHTML='';if(rows.length===0){c.innerHTML='<div class="empty">Aucune saisie pour cette journée. Appuyez sur « + Ajouter un client » pour commencer.</div>';updateSummary();return;}var sim=simulerTunnel(rows);rows.forEach(function(r,i){var L=sim.lots[r.id];var charg=(r.machine==='tunnel'&&L&&isFinite(L.charg))?L.charg:null;c.appendChild(makeRow(r,i,charg));});updateSummary();if(document.getElementById('sr-find')&&document.getElementById('sr-find').value)srHighlight();}
-function srHighlight(){var fEl=document.getElementById('sr-find');if(!fEl)return;var q=(fEl.value||'').trim().toLowerCase();var els=document.querySelectorAll('#rows .row');var n=0,first=null;els.forEach(function(el){var ci=el.querySelector('.r-client');var v=ci?(ci.value||'').toLowerCase():'';var on=q&&v.indexOf(q)>=0;el.style.outline=on?'2px solid #c8901a':'';el.style.outlineOffset=on?'2px':'';if(on){n++;if(!first)first=el;}});var cEl=document.getElementById('sr-count');if(cEl&&!/modifi/.test(cEl.textContent||''))cEl.textContent=q?(n+' trouvé'+(n>1?'s':'')):'';if(first)first.scrollIntoView({behavior:'smooth',block:'center'});}
+function srHighlight(){var fEl=document.getElementById('sr-find');if(!fEl)return;var q=(fEl.value||'').trim().toLowerCase();var els=document.querySelectorAll('#rows .row');var n=0,first=null;els.forEach(function(el){var ci=el.querySelector('.r-client');var v=ci?(ci.value||'').toLowerCase():'';var on=q&&v.indexOf(q)>=0;el.style.outline=on?'2px solid #c8901a':'';el.style.outlineOffset=on?'2px':'';if(on){n++;if(!first)first=el;}});var cEl=document.getElementById('sr-count');if(cEl&&!/modifi/.test(cEl.textContent||''))cEl.textContent=q?(n+' trouvé'+(n>1?'s':'')):'';clearTimeout(window._srT);if(first)window._srT=setTimeout(function(){var h=(document.getElementById('sr-card')||{}).offsetHeight||0;var y=first.getBoundingClientRect().top+window.pageYOffset-h-16;window.scrollTo({top:Math.max(0,y),behavior:'smooth'});},350);}
 function srReplace(){var f=(document.getElementById('sr-find').value||'').trim();var t=(document.getElementById('sr-replace').value||'').trim();if(!f){alert('Indiquez le nom à chercher.');return;}if(!t){alert('Indiquez le nouveau nom (Remplacer par…).');return;}var re=new RegExp(f.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig');var n=0;rows.forEach(function(r){var c=r.client||'';if(c.toLowerCase().indexOf(f.toLowerCase())>=0){r.client=c.replace(re,t);n++;}});if(n){renderRows();sync();mergeClientNames();}var cEl=document.getElementById('sr-count');if(cEl)cEl.textContent=n+' ligne'+(n>1?'s':'')+' modifiée'+(n>1?'s':'');}
 function add(){
   rows.push({id:uid(),client:'',postes:['repassage'],machine:'tunnel',code:'',nbTransferts:''});
