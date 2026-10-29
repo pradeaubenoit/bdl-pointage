@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v196</b></div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v192</b></div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -805,7 +805,7 @@ function clientsConnus(){
   Object.keys(CFG.echeances||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
   Object.keys(CFG.avance||{}).forEach(function(k){ if(H[k]==null) H[k]=false; });
   (CFG.ordreHotels||[]).forEach(function(k){ if(k && H[k]==null) H[k]=false; });
-  (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ if(!l||l.charAt(0)==='@') return; var t=l.replace(/ (serviettes?|draps?)$/,''); if(T[t]==null) T[t]=false; });
+  (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ if(!l||l.charAt(0)==='@') return; var t=l.replace(/ serviettes?$/,''); if(T[t]==null) T[t]=false; });
   delete H['']; delete T[''];
   function tri(o){ return Object.keys(o).sort(function(a,b){ return (o[b]?1:0)-(o[a]?1:0) || a.localeCompare(b,'fr'); }).map(function(k){ return {k:k,jour:o[k]}; }); }
   return {hotels:tri(H), thermes:tri(T)};
@@ -848,7 +848,7 @@ function renderReglesClients(){
   // 📦 linge d'avance
   bA.innerHTML=Object.keys(A).filter(function(k){return A[k];}).map(function(k){ return '<div style="display:flex;gap:4px;margin-bottom:4px"><select data-ak="'+esc(k)+'" '+sel+'>'+_options(C.hotels,k)+'</select><button class="btn-ghost" data-ax="'+esc(k)+'" '+btn+'>✕</button></div>'; }).join('')+'<button class="btn-ghost" id="r-av-add">+ Ajouter un client</button>';
   // ♨️ ordre des Thermes (avec ↑ ↓)
-  var optT=[]; C.thermes.forEach(function(x){ optT.push(x); optT.push({k:x.k+' serviettes',jour:x.jour}); optT.push({k:x.k+' draps',jour:x.jour}); });
+  var optT=[]; C.thermes.forEach(function(x){ optT.push(x); optT.push({k:x.k+' serviettes',jour:x.jour}); });
   // autres clients de la journée (hôpital, EHPAD, spas…) : « @nom » = à placer dans l'ordre des Thermes (ex. Hôpital du Mont avant Evaux)
   var _dejaT={}; (CFG.ordreThermes||[]).concat(CFG.ordreThermesMatin||[]).forEach(function(l){ if(l && l.charAt(0)==='@') _dejaT[l.slice(1)]=1; });
   C.hotels.forEach(function(x){ if(x.jour || _dejaT[x.k]) optT.push({k:'@'+x.k, jour:x.jour}); });
@@ -1353,8 +1353,8 @@ function construireTourniquet(rows, W, ctx){
     OT.forEach(function(l){ var m=l.match(/^(.*) serviettes?$/); if(m) servPousse[m[1].trim()]=1; });
     function thermeDe(k,c){
       if(!/therm/.test(k)){ var g='@'+grpHotel(c.client); return OT.indexOf(g)>=0 ? g : null; }   // autre client placé dans la liste (ex. 🏥 Hôpital du Mont)
-      for(var i=0;i<OT.length;i++){ if(OT[i].charAt(0)==='@' || / draps?$/.test(OT[i])) continue; var t=OT[i].replace(/ serviettes?$/,''); if((' '+k+' ').indexOf(' '+t+' ')>=0) return t; } return null; }
-    OT.forEach(function(l){ if(/ draps?$/.test(l)) return; if(l.charAt(0)==='@'){ items.push({t:l,serv:false}); return; } var m=l.match(/^(.*) serviettes?$/);
+      for(var i=0;i<OT.length;i++){ if(OT[i].charAt(0)==='@') continue; var t=OT[i].replace(/ serviettes?$/,''); if((' '+k+' ').indexOf(' '+t+' ')>=0) return t; } return null; }
+    OT.forEach(function(l){ if(l.charAt(0)==='@'){ items.push({t:l,serv:false}); return; } var m=l.match(/^(.*) serviettes?$/);
       if(m) items.push({t:m[1].trim(),serv:true});
       else { items.push({t:l,serv:false}); if(!servPousse[l]) items.push({t:l,serv:true}); } });
     var cles={}; chunks.forEach(function(c){ var k=ckey(c), t=thermeDe(k,c); if(t) cles[k]={t:t,serv:(t.charAt(0)==='@')?false:/servi/.test(k)}; });
@@ -1552,11 +1552,6 @@ function construireTourniquet(rows, W, ctx){
         if(isDrapRow(r)){ var sid=r.src||r.id; var L=u.parSrc[sid]; if(!L){ L=u.parSrc[sid]={row:rowById[sid]||r,g:0}; u.draps.push(L); } L.g+=gal(r); }
         else if(/(^| )sacs?( |$)/.test(nomCle(r.client)) || gal(r)===0) u.sacs.push(r);
         else u.epo.push(r);
-      } else if(isDrapRow(r) && gal(r)>0 && estTherme(r) && ECH[h.replace(/^thermes? /,'')]!=null){
-        // v193 - draps d'un Therme qui a un camion ⏰ (draps de Dôme, sacs à gaz de Royat) : ils ne vont plus dans la réserve
-        // de tampons utilisée n'importe où. Ils forment une « unité » rangée à son heure : ce sont EUX les premiers tampons du matin.
-        var hk=h.replace(/^thermes? /,''), ut=units['th:'+hk]; if(!ut){ ut=units['th:'+hk]={h:hk,pos:i,draps:[],epo:[],sacs:[],parSrc:{}}; ordreU.push(ut); }
-        var sidT=r.src||r.id, LT=ut.parSrc[sidT]; if(!LT){ LT=ut.parSrc[sidT]={row:rowById[sidT]||r,g:0}; ut.draps.push(LT); } LT.g+=gal(r);
       } else if(isDrapRow(r) && gal(r)>0) reserve.push({row:r,g:gal(r),pos:i});      // draps des Thermes : réserve de tampon
       else if(!isDrapRow(r) && gal(r)>ML){   // une série d'éponge de plus de 8 galettes est coupée en morceaux de 8 max : on pourra glisser un drap entre
         var reste=gal(r), sid2=r.src||r.id; while(reste>0){ var k2=Math.min(ML,reste); reste-=k2; fillers.push({row:Object.assign({},r,{id:sid2+'#F'+(tk++),src:sid2,nbTransferts:String(k2)}),pos:i}); }
@@ -2129,10 +2124,9 @@ function reOptimiserDepuis(i){
   var nFige=rows.filter(function(r){return estFait(r)||estLav(r);}).length;
   if(i<=0){ if(!confirm('Ré-optimiser la journée ?\nTout ce qui est déjà « fait » ou « laveuse » ('+nFige+' ligne'+(nFige>1?'s':'')+') reste FIGÉ — on ne réorganise que le reste à faire.'))return; }
   else if(!confirm('Ré-optimiser à partir de la ligne '+(rows.filter(estFait).length+rows.filter(function(x){return !estFait(x)&&!estIgn(x);}).indexOf(rows[i])+1)+' ?\nLes lignes du dessus, ET tout ce qui est déjà « fait » ou « laveuse », restent figés.'))return;
-  var figes=[], pool=[], vides=[];
+  var figes=[], pool=[];
   rows.forEach(function(r,idx){
     if(idx<i || estFait(r) || estLav(r) || estIgn(r) || r.machine!=='tunnel') figes.push(r);
-    else if(!(parseInt(r.nbTransferts)||0)) vides.push(r);   // v193 - ligne à 0 galette : pas d'heure, elle ne doit pas passer en tête
     else pool.push(r);
   });
   if(pool.length===0){alert('Rien à ré-optimiser : tout est déjà fait, en laveuse, ou figé.');return;}
@@ -2148,23 +2142,6 @@ function reOptimiserDepuis(i){
   var pM=pool.filter(function(r){ return _hDe(r)<bas; }), pS=pool.filter(function(r){ return _hDe(r)>=bas; });
   (function(){ var hM={}; pM.forEach(function(r){ var n=nomCle(r.client); if(!/therm/.test(n)) hM[grpHotel(r.client)]=1; });   // un hôtel commencé le matin y reste
     var b=pS.filter(function(r){ return !/therm/.test(nomCle(r.client)) && hM[grpHotel(r.client)]; }); if(b.length){ pM=pM.concat(b); pS=pS.filter(function(r){ return b.indexOf(r)<0; }); } })();
-  // v194 - TES LISTES PASSENT AVANT LA POSITION ACTUELLE : un client de l'ordre de l'APRÈS-MIDI (🏥 Ehpad Courtine…) va l'après-midi,
-  // un client de l'ordre du MATIN ou à camion ⏰ du matin va le matin, même s'il est pour l'instant ailleurs dans la liste.
-  // Un client présent dans les deux (ex. Dôme) garde la répartition actuelle.
-  (function(){
-    function cles(r){ var n=nomCle(r.client); return /therm/.test(n) ? [grpHotel(r.client).replace(/^thermes? /,'')] : [grpHotel(r.client)]; }
-    function lst(L,dr){ var o={}; (L||[]).forEach(function(l){ if(!l) return; var d=/ draps?$/.test(l); if(!!dr!==d) return; l=l.charAt(0)==='@'?l.slice(1):l.replace(/ (serviettes?|draps?)$/,''); o[l]=1; }); return o; }
-    var Lm=lst(CFG.ordreThermesMatin), La=lst(CFG.ordreThermes), Dm=lst(CFG.ordreThermesMatin,1), Da=lst(CFG.ordreThermes,1), lim=(CFG.heureBascule==null?11:CFG.heureBascule)*60+60;
-    var Em={}; Object.keys(CFG.echeances||{}).forEach(function(k){ var m=String(CFG.echeances[k]).match(/(\d+):(\d+)/); if(m && (+m[1])*60+(+m[2])<=lim){ Lm[k]=1; Em[k]=1; } });
-    function cote(r){ var k=cles(r)[0], m=!!Lm[k], a=!!La[k];
-      if(isDrapRow(r) && /therm/.test(nomCle(r.client))){   // « Dome draps » placé dans une liste : c'est lui qui décide
-        if(Dm[k] && !Da[k]) return 'M'; if(Da[k] && !Dm[k]) return 'S'; }
-      if(Em[k] && isDrapRow(r) && /therm/.test(nomCle(r.client))) return 'M';   // les DRAPS d'un Therme à camion du matin (Dôme) partent le matin ; ses peignoirs suivent les listes
-      return m&&!a?'M':(a&&!m?'S':''); }
-    var versS=pM.filter(function(r){ return cote(r)==='S'; }), versM=pS.filter(function(r){ return cote(r)==='M'; });
-    pM=pM.filter(function(r){ return versS.indexOf(r)<0; }).concat(versM);
-    pS=versS.concat(pS.filter(function(r){ return versM.indexOf(r)<0; }));
-  })();
   if(!pM.length){ ctxF.apresMidi=true; opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF); }
   else if(!pS.length){ opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF); }
   else {
@@ -2182,7 +2159,7 @@ function reOptimiserDepuis(i){
   // Trous de postes : on avance le linge qui arriverait seul, tard, à un poste déjà vide depuis 2 h.
   try{ opt.order=comblerPostes(opt.order,start,tempsGalette(),_tun(figes)); }catch(e){}
   var _cb=comblerPostes.deplaces||[];
-  snapshotOrder(); rows=figes.concat(opt.order,vides);
+  snapshotOrder(); rows=figes.concat(opt.order);
   renderRows();sync();
   if(_cb.length) setTimeout(function(){ alert('Pour que les postes n\'attendent pas, j\'ai aussi avancé : '+_cb.join(', ')+'.'); },50);
 }
