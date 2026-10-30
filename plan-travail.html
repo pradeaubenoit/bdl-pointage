@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v208 · 8 séchoirs / 4 draps · client prioritaire</b> · sécurités v201</div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v209 · 8 séchoirs / 4 draps · client prioritaire</b> · sécurités v201</div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2045,7 +2045,8 @@ function ordreRespecte(list,run0,figerFaits,prioSites){
     while(E.length){
       var e=E[0], g=gal(e);
       if(run+g<=ML){ out.push(E.shift()); run+=g; pris++; continue; }
-      if(run===0){ out.push(couper(E,e,ML)); run=ML; pris++; }
+      var place=ML-run;   // on remplit les séchoirs jusqu'à 8 : la ligne suivante est coupée pour compléter
+      if(place>0){ out.push(couper(E,e,place)); run=ML; pris++; }
       break;
     }
     if(!D.length){ if(!pris && E.length){ out.push(E.shift()); } continue; }
