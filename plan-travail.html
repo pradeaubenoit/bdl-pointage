@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v204 · 8 séchoirs / 4 draps</b> · sécurités v201</div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v205 · 8 séchoirs / 4 draps · client prioritaire</b> · sécurités v201</div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2014,13 +2014,23 @@ function ajusterQuantite(key,newTotal,inp){
      une éponge de plus de 8 est coupée en tranches de 8 ;
    - draps : on prend les prochains draps jusqu'à 4 galettes (une ligne de draps peut être coupée).
    figerFaits=true (Plan, « à partir d'ici ») : les lignes faites restent en tête, intouchées. */
-function ordreRespecte(list,run0,figerFaits){
+/* SITE d'un client : « therme de royat serviette » -> royat, « royatonic » -> royat (même site), « hôtel BB drap » -> bb */
+function siteClient(nom){ var w=nomCle(nom).split(' ').filter(function(x){return !/^(therme|thermes|hotel|hotels|ehpad|ephad|residence)$/.test(x);}); return w[0]||''; }
+function memeSite(a,b){ return !!a && !!b && (a===b || a.indexOf(b)===0 || b.indexOf(a)===0) && Math.min(a.length,b.length)>=4; }
+function ordreRespecte(list,run0,figerFaits,prioSites){
   var ML=(CFG.maxLent==null?8:CFG.maxLent), BD=(CFG.blocDraps>0?CFG.blocDraps:4);
   var out=[], run=run0||0, rest=list.slice(), k=0, autres=[];
   function tun(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }
   if(figerFaits){ var debut=0; while(debut<rest.length && estFait(rest[debut])){ var f=rest[debut]; if(tun(f)){ if(isDrapRow(f)) run=0; else run+=parseInt(f.nbTransferts)||0; } debut++; } out=rest.splice(0,debut); }
   var E=[], D=[];
   rest.forEach(function(r){ if(!tun(r)||(figerFaits&&estFait(r))) autres.push(r); else if(isDrapRow(r)) D.push(r); else E.push(r); });
+  // CLIENT PRIORITAIRE : dès qu'on place une caisse d'un client (ex. Royat) et qu'on ré-optimise à partir de là,
+  // tout ce client s'enchaîne : ses éponges/tenues d'abord, et ses propres draps (sacs à gaz…) servent de tampons en premier.
+  if(prioSites && prioSites.length){
+    var estP=function(r){ var s=siteClient(r.client); return prioSites.some(function(p){ return memeSite(s,p); }); };
+    E=E.filter(estP).concat(E.filter(function(r){return !estP(r);}));
+    D=D.filter(estP).concat(D.filter(function(r){return !estP(r);}));
+  }
   function gal(r){ return parseInt(r.nbTransferts)||0; }
   function couper(q,r,n){ var src=r.src||r.id; q[0]=Object.assign({},r,{id:r.id+'~t'+(k++),src:src,nbTransferts:String(gal(r)-n)}); return Object.assign({},r,{id:r.id+'~t'+(k++),src:src,nbTransferts:String(n)}); }
   while(E.length||D.length){
@@ -2059,7 +2069,9 @@ function reOptimiserDepuis(i){
   // la série lente en cours se lit dans l'ordre RÉEL de lavage (faits par heure, puis le dessus non fait)
   var reel=triFaits(rows.filter(function(r){return estFait(r) && !estLav(r) && r.machine==='tunnel';})).concat(rows.filter(function(r,idx){return idx<i && !estFait(r) && !estIgn(r) && !estLav(r);}));
   var ctxR=contexteDepuis(reel); ctxF.run=ctxR.run; ctxF.nbCli=ctxR.nbCli; ctxF.dernier=ctxR.dernier;
-  var opt={order:ordreRespecte(pool,ctxR.run,true)};
+  var _ps=[]; if(i>0 && rows[i] && rows[i].machine==='tunnel') _ps.push(siteClient(rows[i].client));
+  (((CFG.priorites||{})[curDate])||[]).forEach(function(x){ var k=(x&&x.k)||x; if(k) _ps.push(siteClient(k)); });
+  var opt={order:ordreRespecte(pool,ctxR.run,true,_ps.filter(Boolean))};
   // Pas de gain de temps -> on ne touche à rien.
   var _tun=function(l){ return l.filter(function(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }); };
   var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
