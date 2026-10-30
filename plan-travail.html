@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v206 · 8 séchoirs / 4 draps · client prioritaire</b> · sécurités v201</div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v207 · 8 séchoirs / 4 draps · client prioritaire</b> · sécurités v201</div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2056,7 +2056,7 @@ function ordreRespecte(list,run0,figerFaits,prioSites){
 }
 function reOptimiserDepuis(i){
   var nFige=rows.filter(function(r){return estFait(r)||estLav(r);}).length;
-  if(i<=0){ if(!confirm('Ré-optimiser la journée ?\nTout ce qui est déjà « fait » ou « laveuse » ('+nFige+' ligne'+(nFige>1?'s':'')+') reste FIGÉ — on ne réorganise que le reste à faire.'))return; }
+  if(i<=0){ if(!confirm('Ré-optimiser à partir de « '+((rows[0]&&rows[0].client)||'').trim()+' » ?\nTout ce qui est déjà « fait » ou « laveuse » ('+nFige+' ligne'+(nFige>1?'s':'')+') reste FIGÉ — on ne réorganise que le reste à faire.'))return; }
   else if(!confirm('Ré-optimiser à partir de la ligne '+(rows.filter(estFait).length+rows.filter(function(x){return !estFait(x)&&!estIgn(x);}).indexOf(rows[i])+1)+' ?\nLes lignes du dessus, ET tout ce qui est déjà « fait » ou « laveuse », restent figés.'))return;
   var figes=[], pool=[];
   rows.forEach(function(r,idx){
@@ -2069,7 +2069,7 @@ function reOptimiserDepuis(i){
   // la série lente en cours se lit dans l'ordre RÉEL de lavage (faits par heure, puis le dessus non fait)
   var reel=triFaits(rows.filter(function(r){return estFait(r) && !estLav(r) && r.machine==='tunnel';})).concat(rows.filter(function(r,idx){return idx<i && !estFait(r) && !estIgn(r) && !estLav(r);}));
   var ctxR=contexteDepuis(reel); ctxF.run=ctxR.run; ctxF.nbCli=ctxR.nbCli; ctxF.dernier=ctxR.dernier;
-  var _ps=[]; if(i>0 && rows[i] && rows[i].machine==='tunnel') _ps.push(siteClient(rows[i].client));
+  var _ps=[]; if(rows[i] && rows[i].machine==='tunnel' && !estFait(rows[i])) _ps.push(siteClient(rows[i].client));
   (((CFG.priorites||{})[curDate])||[]).forEach(function(x){ var k=(x&&x.k)||x; if(k) _ps.push(siteClient(k)); });
   var opt={order:ordreRespecte(pool,ctxR.run,true,_ps.filter(Boolean))};
   // Pas de gain de temps -> on ne touche à rien.
