@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.19';
+var VERSION='v9.20';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -966,7 +966,7 @@ VUES.eq=async function(id){
         return '<div style="margin:6px 0">🗓 Visite tous les <b>'+Math.round(pv.periodicite_jours/30.4)+' mois</b> · dernière : '+(pv.dernier?fmtD(pv.dernier):'—')+' · prochaine : '+badgeEcheance(pv)+'</div>';})()+
       '<div class="actions" style="justify-content:flex-start">'+boutonsContact(ctr.p)+'<button class="btn" id="eCtP">+ Passage du prestataire</button></div>'+
       (ctr.p.telephone?'':'<div class="vide">Pas de téléphone : ajoutez-le sur la fiche <a href="#par/'+ctr.p.id+'">'+esc(ctr.p.nom)+'</a>.</div>')+
-      '<h2 style="margin-top:14px">Historique du contrat ('+ctrBons.length+')</h2>'+(ctrBons.length?ctrBons.map(ligneBon).join(''):'<div class="vide">Aucun passage enregistré.</div>')
+      '<h2 style="margin-top:14px">Historique du contrat ('+ctrBons.length+')</h2>'+(ctrBons.length?ctrBons.map(function(b){var nat=/^entretien \+ d/i.test(b.titre||'')?'🗓+🔧':(b.preventif_id?'🗓 entretien':(b.suite_de?'🔧 dépannage':''));return ligneBon(b).replace('<div class="t">','<div class="t">'+(nat?'<span class="badge b-bleu">'+nat+'</span> ':''));}).join(''):'<div class="vide">Aucun passage enregistré.</div>')
     :'<div class="vide">Pas de contrat de maintenance sur cette machine.</div>')+'</div>';
   (function(){var s3=statsPannes(bons,91),s12=statsPannes(bons,365),ret=ctr?retoursDePanne(bons,ctr.p.nom):[];
     function col(t,x){return '<div><div class="etiq">'+t+'</div><div style="font-size:15px"><b>'+x.n+'</b> panne'+(x.n>1?'s':'')+(x.arretMin?' · arrêt <b>'+fmtMin(x.arretMin)+'</b>':'')+(x.tous?'<div class="etiq">≈ 1 panne tous les '+x.tous+' j</div>':'')+'</div></div>';}
@@ -1013,10 +1013,31 @@ VUES.eq=async function(id){
         else if(pv)await q(sb.from('gmao_preventifs').update({actif:false}).eq('id',pv.id));
         await chargerTout();fermer();toast('✓ Contrat enregistré');route();}catch(x){erreur(x);}};
   };
-  if($('eCtP'))$('eCtP').onclick=async function(){
-    var t=await demander('Passage de '+ctr.p.nom+' : qu\'ont-ils fait ?','','ex. Visite annuelle, remplacement courroie…');if(!t)return;
-    try{var r=await q(sb.from('gmao_interventions').insert({titre:t.trim(),type:'Contrat',priorite:'Normale',equipement_id:id,demandeur:NOM,intervenant:ctr.p.nom,preventif_id:(planContrat(ctr.eq)||{}).id||null}).select());aller('bon/'+r[0].id);}catch(x){erreur(x);}
+  // v9.20 - Passage du prestataire : ENTRETIEN prévu au contrat, DÉPANNAGE d'une panne signalée, ou les deux.
+  if($('eCtP'))$('eCtP').onclick=function(){
+    var pv=planContrat(ctr.eq), pannes=bons.filter(function(b){return b.statut!=='Terminé'&&b.type!=='Contrat'&&b.type!=='Préventif';});
+    ouvrir('<h3>🛡 Passage de '+esc(ctr.p.nom)+'</h3>'+
+      '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:15px"><input type="checkbox" id="pcE" style="width:auto"'+(pv&&infoPrev(pv).aFaire?' checked':'')+(pv?'':' disabled')+'> 🗓 Entretien / visite prévue au contrat'+(pv?' '+badgeEcheance(pv):' <span class="etiq">(fréquence des visites non renseignée)</span>')+'</label>'+
+      '<label style="color:var(--txt);font-size:15px;margin-top:10px">🔧 Dépannage — panne(s) signalée(s) traitée(s) :</label>'+
+      (pannes.length?pannes.map(function(b){return '<label style="display:flex;gap:8px;align-items:flex-start;color:var(--txt);font-size:14px;margin:4px 0"><input type="checkbox" class="pcB" value="'+b.id+'" style="width:auto;margin-top:3px"><span>'+numBT(b.numero)+' · '+esc(b.titre)+' <span class="etiq">('+fmtD(b.cree_le)+')</span> '+badgeStatut(b.statut)+'</span></label>';}).join(''):'<div class="etiq">Aucune panne ouverte sur cette machine.</div>')+
+      '<label>Ce qu\'ils ont fait</label><input id="pcT" placeholder="ex. Visite semestrielle, remplacement du moteur de tension…">'+
+      '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="pcO">Créer le bon de passage</button></div>');
+    $('pcO').onclick=async function(){
+      var ent=$('pcE').checked, dep=[].slice.call(document.querySelectorAll('.pcB')).filter(function(x){return x.checked;}).map(function(x){return pannes.find(function(b){return b.id===x.value;});});
+      if(!ent&&!dep.length){toast('Cochez entretien et/ou la panne traitée');return;}
+      var nature=ent&&dep.length?'Entretien + dépannage':(ent?'Entretien':'Dépannage');
+      var t=val('pcT')||(ent?'Visite contrat':'Dépannage '+dep.map(function(b){return numBT(b.numero);}).join(', '));
+      this.disabled=true;
+      try{
+        var desc='Passage '+ctr.p.nom+' — '+nature+(dep.length?'\nPanne'+(dep.length>1?'s':'')+' traitée'+(dep.length>1?'s':'')+' : '+dep.map(function(b){return numBT(b.numero)+' '+b.titre;}).join(' ; '):'');
+        var r=await q(sb.from('gmao_interventions').insert({titre:nature+' — '+t.trim(),description:desc,type:'Contrat',priorite:'Normale',equipement_id:id,demandeur:NOM,intervenant:ctr.p.nom,
+          preventif_id:ent&&pv?pv.id:null,suite_de:dep.length?dep[0].id:null}).select());
+        for(var i=0;i<dep.length;i++){try{await logSys(dep[i].id,'🛡 Dépannage par '+ctr.p.nom+' : '+numBT(r[0].numero));}catch(e){}}
+        fermer();aller('bon/'+r[0].id);
+      }catch(x){this.disabled=false;erreur(x);}
+    };
   };
+
   $('fOk').onclick=async function(){
     var code=val('fCode');if(!code){toast('Le code est obligatoire');return;}
     if(EQ.some(function(z){return z.id!==id&&norm(z.code)===norm(code);})){toast('Ce code est déjà pris');return;}
