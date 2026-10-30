@@ -303,7 +303,8 @@ function afficherClients() {
     const S = listeCache().suivants[k];
     const c = liste.find(x => cleNom(x.client) === k) || catalogue.find(x => cleNom(x.client) === k);
     if (!c || !S || !S.date) return;
-    items.push({ c, lot: 0, suiv: S, cible: null, orange: !journeeFinie && !(S.deja > 0), tot: S.deja || 0 });
+    // Pas encore de jour choisi : orange, il faut répondre « Livré le… ? » (on n'impose plus le jour suivant).
+    items.push({ c, lot: 0, suiv: S, cible: null, orange: !journeeFinie && (!S.choisi || !(S.deja > 0)), tot: S.choisi ? (S.deja || 0) : 0 });
   });
   // Rappels : 2ᵉ / 3ᵉ livraisons d'hier soir pas encore saisies (à saisir sur aujourd'hui).
   if (!journeeFinie && jourCourant() === isoLocal(new Date())) {
@@ -333,15 +334,21 @@ function afficherClients() {
     b.querySelector('.nom-tuile').textContent = c.client + (it.lot === 2 ? ' — 2ᵉ livraison' : it.lot === 3 ? ' — 3ᵉ livraison' : '');
     b.querySelector('.deja-tuile').textContent = tot ? etiquette + ' : ' + tot + ' pièce' + (tot > 1 ? 's' : '') : '';
     if (it.suiv) {
-      const S = it.suiv, lib = libelleJour(S.date);
-      b.className = 'tuile reporte';   // violet : lavé aujourd'hui, mais livré un autre jour
-      b.querySelector('.nom-tuile').textContent = c.client + ' — pour ' + lib;
-      b.querySelector('.deja-tuile').textContent = it.tot ? 'Saisi sur ' + lib + ' : ' + it.tot + ' pièce' + (it.tot > 1 ? 's' : '') : '';
+      // 📦 « livraison suivante » du Plan : une 2ᵉ livraison dont on choisit le jour (« Livré le… ? »).
+      const S = it.suiv, choisi = !!S.choisi, lib = choisi ? libelleJour(S.date) : '';
+      b.className = 'tuile ' + (choisi ? 'reporte' : 'alave');
+      b.querySelector('.nom-tuile').textContent = c.client + ' — 2ᵉ livraison';
+      b.querySelector('.deja-tuile').textContent = choisi && it.tot ? 'Saisi sur ' + lib + ' : ' + it.tot + ' pièce' + (it.tot > 1 ? 's' : '') : '';
       const badge = document.createElement('span');
       badge.className = it.orange ? 'badge-lave' : 'sortie';
-      badge.textContent = (S.articles && S.articles.length ? S.articles.join(', ') + ' · ' : '') + (S.depuis != null ? 'lavé à ' + hhmmSec(S.depuis) + ' · ' : '') + 'à saisir sur ' + lib;
+      badge.textContent = (S.articles && S.articles.length ? S.articles.join(', ') + ' · ' : '') + (S.depuis != null ? 'lavé à ' + hhmmSec(S.depuis) + ' · ' : '') + (choisi ? 'à saisir sur ' + lib : 'à saisir');
       b.appendChild(badge);
-      b.onclick = () => ouvrirReporte(c, S.date);
+      const bas = document.createElement('span');
+      bas.className = 'bascule';
+      bas.textContent = choisi ? '✓ Livré ' + lib + ' — changer' : 'Livré le… ?';
+      bas.onclick = ev => { ev.stopPropagation(); choisirJourSuivant(c, false); };
+      b.appendChild(bas);
+      b.onclick = () => choisi ? ouvrirReporte(c, S.date) : choisirJourSuivant(c, true);
       b.dataset.nom = sansAccent(c.client);
       zone.appendChild(b);
       return;
@@ -770,6 +777,52 @@ function demanderLivraison(it) {
       if (ok) { reportOuvert = { client: c.client, lot: it.lot }; ouvrirReporte(c, iso); }   // la saisie s'ouvre directement sur le jour de livraison
     };
     liste.appendChild(b);
+  }
+  document.getElementById('fondJour').style.display = 'flex';
+}
+
+// 2ᵉ livraison venue du Plan (📦) : on choisit son jour de livraison ; enregistré sur le serveur (le bureau le voit).
+function choisirJourSuivant(c, ouvrirApres) {
+  document.querySelector('#panneauJour h2').textContent = c.client + ' — 2ᵉ livraison : livré quel jour ?';
+  const liste = document.getElementById('listeJours');
+  liste.innerHTML = '';
+  const base = dateDe(jourCourant());
+  const S = (listeCache().suivants || {})[cleNom(c.client)] || {};
+  const choisir = async iso => {
+    fermerJours();
+    const date = jourCourant();
+    try {
+      const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'suivDate', date: date, client: c.client, cible: iso }) });
+      const data = await rep.json();
+      if (!data.ok) throw new Error(data.error || 'Refus du serveur');
+    } catch (e) {
+      toast('Impossible sans réseau. Réessaie quand le voyant est vert.', true);
+      return;
+    }
+    const listes = lire(CLE_LISTES, {});
+    const L = listes[date] && listes[date].suivants && listes[date].suivants[cleNom(c.client)];
+    if (L) { if (iso) { L.date = iso; L.choisi = true; } else { L.choisi = false; } ecrire(CLE_LISTES, listes); }
+    afficherClients();
+    chargerListeJour();
+    if (iso && ouvrirApres) ouvrirReporte(c, iso);
+  };
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i, 12);
+    if (d.getDay() === 0) continue;
+    const iso = isoLocal(d);
+    const b = document.createElement('button');
+    b.className = 'choixJour';
+    b.textContent = 'Livré ' + libelleJour(iso) + (i === 1 ? ' (demain)' : '');
+    if (S.choisi && S.date === iso) b.style.fontWeight = '700';
+    b.onclick = () => choisir(iso);
+    liste.appendChild(b);
+  }
+  if (S.choisi) {
+    const x = document.createElement('button');
+    x.className = 'choixJour';
+    x.textContent = 'Annuler le jour choisi';
+    x.onclick = () => choisir(null);
+    liste.appendChild(x);
   }
   document.getElementById('fondJour').style.display = 'flex';
 }
