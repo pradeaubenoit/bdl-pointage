@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.18';
+var VERSION='v9.19';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -332,6 +332,23 @@ function badgeStatut(s){var c={'Demandé':'b-bleu','En cours':'b-orange','En pau
 function badgePrio(p,arr){if(arr)return '<span class="badge b-rouge">⛔ arrêt</span>';if(p==='Urgente')return '<span class="badge b-rouge">Urgent</span>';return '';}
 /* v9.15 - CONTRAT DE MAINTENANCE : le contrat d'une machine vaut aussi pour ses sous-ensembles */
 function contratDe(e){var vu={};while(e&&!vu[e.id]){vu[e.id]=1;if(e.contrat_partenaire_id){var p=PART.find(function(x){return x.id===e.contrat_partenaire_id;});if(p)return {p:p,eq:e};}e=e.parent_id?EQID[e.parent_id]:null;}return null;}
+/* v9.19 - Visites prévues au contrat = un plan préventif « Visite contrat — <prestataire> » sur la machine */
+function planContrat(e){return e?PREV.find(function(p){return p.equipement_id===e.id&&/^visite contrat/i.test(p.titre||'')&&p.actif!==false;})||null:null;}
+/* Fiabilité : une panne = bon Curatif ou machine arrêtée. Arrêt = de la demande à la fin du bon. */
+var SEUIL_PANNES=3, FENETRE_PANNES=30;
+function estPanne(b){return b.type==='Curatif'||!!b.machine_arretee;}
+function tB(b){return new Date(b.cree_le).getTime();}
+function statsPannes(bons,jours){var now=Date.now(),dep=now-jours*864e5;
+  var l=bons.filter(function(b){return estPanne(b)&&tB(b)>=dep;});
+  var arret=l.filter(function(b){return b.machine_arretee;}).reduce(function(s,b){return s+Math.max(0,(b.fin?new Date(b.fin).getTime():now)-tB(b));},0)/60000;
+  return {n:l.length,arretMin:Math.round(arret),tous:l.length?Math.round(jours/l.length):null};}
+/* Retour de panne : une panne signalée moins de 30 jours après un passage du prestataire */
+function retoursDePanne(bons,nomPart){
+  var pass=bons.filter(function(b){return b.type==='Contrat'||(nomPart&&norm(b.intervenant||'')===norm(nomPart)&&!estPanne(b));});
+  var r=[];bons.filter(estPanne).forEach(function(b){var t=tB(b);
+    var p=pass.filter(function(x){var tp=new Date(x.fin||x.cree_le).getTime();return tp<t&&t-tp<=30*864e5;}).sort(function(a,c){return tB(c)-tB(a);})[0];
+    if(p)r.push({panne:b,passage:p,jours:Math.round((t-new Date(p.fin||p.cree_le).getTime())/864e5)});});
+  return r;}
 function badgeContrat(e){var c=contratDe(e);return c?'<span class="badge b-bleu" title="Machine sous contrat de maintenance">🛡 Sous contrat · '+esc(c.p.nom)+'</span>':'';}
 function boutonsContact(p){return (p.telephone?'<a class="btn p" href="tel:'+esc(p.telephone.replace(/\s/g,''))+'">📞 Appeler '+esc(p.telephone)+'</a>':'')+(p.email?'<a class="btn" href="mailto:'+esc(p.email)+'">✉ Écrire</a>':'');}
 function badgeEtat(e){if(!e)return'';var c={'En service':'b-vert','Dégradé':'b-orange','En réparation':'b-orange','Hors service':'b-rouge'}[e]||'';return '<span class="badge '+c+'">'+esc(e)+'</span>';}
@@ -397,6 +414,20 @@ VUES.accueil=async function(){
     '<a class="tuile" href="#parc"><b>'+degr.length+'</b><span>machines dégradées</span></a>'+(V6?'<a class="tuile'+(aValider.length?' alerte':'')+'" href="#bons" onclick="filtreBons=\'avalider\'"><b>'+aValider.length+'</b><span>travaux à valider</span></a>':'')+(V8?'<a class="tuile'+(aCmd?' alerte':'')+'" href="#achats/acommander"><b>'+aCmd+'</b><span>pièces à commander</span></a>':'')+'</div>';
   html+='<div class="carte"><h2>Bons ouverts</h2>'+(bons.length?bons.slice(0,12).map(ligneBon).join(''):'<div class="vide">Aucun bon ouvert. 👍</div>')+'</div>';
   if(aValider.length)html+='<div class="carte"><h2>✔ À valider</h2>'+aValider.map(function(b){var dep=b.temps_prevu_min&&b.duree_min>b.temps_prevu_min;return ligneBon(b).replace('</div></div>',' · '+fmtMin(b.duree_min)+(b.temps_prevu_min?' / prévu '+fmtMin(b.temps_prevu_min):'')+(dep?' <b style="color:var(--rouge)">dépassé</b>':'')+'</div></div>');}).join('')+'</div>';
+  // v9.19 - Contrats : visites dues / en retard, fins de contrat proches ; machines qui tombent trop souvent en panne
+  try{
+    var visCt=PREV.filter(function(p){return p.actif!==false&&/^visite contrat/i.test(p.titre||'')&&infoPrev(p).aFaire;});
+    var lim=ajoutJours(auj(),60),finCt=EQ.filter(function(e){return e.contrat_partenaire_id&&e.contrat_fin&&e.contrat_fin<=lim;});
+    if(visCt.length||finCt.length)html='<div class="carte" style="border:2px solid var(--bleu)"><h2>🛡 Contrats de maintenance</h2>'+
+      visCt.map(function(p){var e=EQID[p.equipement_id];return '<a class="ligne" href="#eq/'+p.equipement_id+'"><div class="g"><div class="t">'+esc(p.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+'</div></div>'+badgeEcheance(p)+'</a>';}).join('')+
+      finCt.map(function(e){var fini=e.contrat_fin<auj();return '<a class="ligne" href="#eq/'+e.id+'"><div class="g"><div class="t">'+esc(e.nom)+' — fin de contrat</div><div class="s">'+esc(chemin(e))+'</div></div><span class="badge '+(fini?'b-rouge':'b-orange')+'">'+(fini?'terminé le ':'fin le ')+fmtD(e.contrat_fin)+'</span></a>';}).join('')+'</div>'+html;
+    var dep=new Date(Date.now()-FENETRE_PANNES*864e5).toISOString();
+    var rec=await q(sb.from('gmao_interventions').select('id,equipement_id,type,machine_arretee,cree_le').gte('cree_le',dep));
+    var parEq={};rec.filter(estPanne).forEach(function(b){if(b.equipement_id)parEq[b.equipement_id]=(parEq[b.equipement_id]||0)+1;});
+    var freq=Object.keys(parEq).filter(function(k){return parEq[k]>=SEUIL_PANNES&&EQID[k];}).sort(function(a,c){return parEq[c]-parEq[a];});
+    if(freq.length)html='<div class="carte" style="border:2px solid var(--rouge)"><h2>⚠ Machines qui tombent souvent en panne</h2><div class="etiq">'+SEUIL_PANNES+' pannes ou plus en '+FENETRE_PANNES+' jours</div>'+
+      freq.map(function(k){var e=EQID[k];return '<a class="ligne" href="#eq/'+k+'">'+renduEq(e)+'<span class="badge b-rouge">'+parEq[k]+' pannes</span>'+badgeContrat(e)+'</a>';}).join('')+'</div>'+html;
+  }catch(x){}
   html+='<div class="carte"><h2>Préventif à venir</h2>'+(retard.length?retard.map(lignePrev).join(''):'<div class="vide">Rien d\'ici 7 jours.</div>')+'</div>';
   if(degr.length)html+='<div class="carte"><h2>Machines dégradées</h2>'+degr.map(function(e){return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+badgeEtat(e.etat)+'</a>';}).join('')+'</div>';
   if(!EQ.length)html='<div class="carte" style="background:var(--bleu2)"><b>Bienvenue !</b> Ta GMAO est vide. Commence par <a href="#import">importer ton fichier d\'équipements DIMO</a>.</div>'+html;
@@ -931,10 +962,17 @@ VUES.eq=async function(id){
     (ctr?'<div style="font-size:16px"><b><a href="#par/'+ctr.p.id+'">'+esc(ctr.p.nom)+'</a></b>'+(ctr.p.contact?' · '+esc(ctr.p.contact):'')+(ctr.eq.id!==id?' <span class="etiq">contrat de <a href="#eq/'+ctr.eq.id+'">'+esc(ctr.eq.nom)+'</a></span>':'')+'</div>'+
       '<div class="s" style="margin:4px 0">'+(ctr.eq.contrat_ref?'Contrat n° '+esc(ctr.eq.contrat_ref):'')+(ctr.eq.contrat_fin?(ctr.eq.contrat_ref?' · ':'')+'<span style="'+(ctr.eq.contrat_fin<new Date().toISOString().slice(0,10)?'color:var(--rouge);font-weight:700':'')+'">fin le '+esc(ctr.eq.contrat_fin.split('-').reverse().join('/'))+'</span>':'')+'</div>'+
       (ctr.eq.contrat_notes?'<div style="white-space:pre-wrap;margin:6px 0">'+esc(ctr.eq.contrat_notes)+'</div>':'')+
+      (function(){var pv=planContrat(ctr.eq);if(!pv)return '<div class="etiq">Visites prévues au contrat : non renseignées (bouton Modifier).</div>';
+        return '<div style="margin:6px 0">🗓 Visite tous les <b>'+Math.round(pv.periodicite_jours/30.4)+' mois</b> · dernière : '+(pv.dernier?fmtD(pv.dernier):'—')+' · prochaine : '+badgeEcheance(pv)+'</div>';})()+
       '<div class="actions" style="justify-content:flex-start">'+boutonsContact(ctr.p)+'<button class="btn" id="eCtP">+ Passage du prestataire</button></div>'+
       (ctr.p.telephone?'':'<div class="vide">Pas de téléphone : ajoutez-le sur la fiche <a href="#par/'+ctr.p.id+'">'+esc(ctr.p.nom)+'</a>.</div>')+
       '<h2 style="margin-top:14px">Historique du contrat ('+ctrBons.length+')</h2>'+(ctrBons.length?ctrBons.map(ligneBon).join(''):'<div class="vide">Aucun passage enregistré.</div>')
     :'<div class="vide">Pas de contrat de maintenance sur cette machine.</div>')+'</div>';
+  (function(){var s3=statsPannes(bons,91),s12=statsPannes(bons,365),ret=ctr?retoursDePanne(bons,ctr.p.nom):[];
+    function col(t,x){return '<div><div class="etiq">'+t+'</div><div style="font-size:15px"><b>'+x.n+'</b> panne'+(x.n>1?'s':'')+(x.arretMin?' · arrêt <b>'+fmtMin(x.arretMin)+'</b>':'')+(x.tous?'<div class="etiq">≈ 1 panne tous les '+x.tous+' j</div>':'')+'</div></div>';}
+    html+='<div class="carte"><h2>📊 Fiabilité</h2><div class="grille">'+col('3 derniers mois',s3)+col('12 derniers mois',s12)+'</div>'+
+      (ret.length?'<div class="alerte" style="margin-top:8px">↩ <b>'+ret.length+' retour'+(ret.length>1?'s':'')+' de panne</b> moins de 30 jours après un passage du prestataire :'+ret.map(function(x){return '<div><a href="#bon/'+x.panne.id+'">'+numBT(x.panne.numero)+' · '+esc(x.panne.titre)+'</a> <span class="etiq">('+fmtD(x.panne.cree_le)+', '+x.jours+' j après <a href="#bon/'+x.passage.id+'">'+numBT(x.passage.numero)+'</a>)</span></div>';}).join('')+'</div>':'')+
+      '<div class="etiq" style="margin-top:6px">Panne = bon « Curatif » ou machine arrêtée, sur cette machine et ses sous-ensembles. Arrêt = de la demande à la fin du bon.</div></div>';})();
   html+='<div class="carte"><h2>🔩 Pièces détachées <button class="btn sm d" id="ePc">+ Lier une pièce</button></h2>'+
     (pcs.length?pcs.map(function(x){var a=ARTID[x.l.article_id];return '<div class="ligne"><a href="#art/'+a.id+'" style="display:contents;color:var(--txt)">'+renduArt(a)+'</a>'+
       '<span class="etiq">'+(x.via==='modele'?'via modèle':'cette machine')+(x.l.repere?' · '+esc(x.l.repere):'')+(x.l.quantite&&x.l.quantite!=1?' · ×'+x.l.quantite:'')+'</span><button class="btn l sm" data-dl="'+x.l.id+'" title="Retirer le lien">✕</button></div>';}).join(''):'<div class="vide">Aucune pièce liée.'+(m?'':' Astuce : donne-lui un modèle, ses pièces serviront aussi aux machines identiques.')+'</div>')+'</div>';
@@ -963,14 +1001,21 @@ VUES.eq=async function(id){
     ouvrir('<h3>🛡 Contrat de maintenance</h3><label>Prestataire (partenaire)</label><select id="ctP"><option value="">— pas de contrat —</option>'+parts.map(function(p){return '<option value="'+p.id+'"'+(p.id===e.contrat_partenaire_id?' selected':'')+'>'+esc(p.nom)+(p.sous_traitant?' (sous-traitant)':'')+'</option>';}).join('')+'</select>'+
       '<div class="s">Absent de la liste ? Créez-le d\'abord dans Partenaires (avec son téléphone).</div>'+
       '<div class="grille"><div><label>N° de contrat</label><input id="ctR" value="'+esc(e.contrat_ref||'')+'"></div><div><label>Fin du contrat</label><input id="ctF" type="date" value="'+esc(e.contrat_fin||'')+'"></div></div>'+
+      (function(){var pv=planContrat(e);return '<div class="grille"><div><label>Une visite tous les … mois (vide = aucune)</label><input id="ctV" inputmode="numeric" value="'+(pv?Math.round(pv.periodicite_jours/30.4):'')+'"></div><div><label>Dernière visite le</label><input id="ctD" type="date" value="'+esc(pv&&pv.dernier||'')+'"></div></div>';})()+
       '<label>Notes (ce qui est couvert, délai d\'intervention, n° d\'astreinte…)</label><textarea id="ctN">'+esc(e.contrat_notes||'')+'</textarea>'+
       '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="ctO">Enregistrer</button></div>');
     $('ctO').onclick=async function(){var maj={contrat_partenaire_id:$('ctP').value||null,contrat_ref:val('ctR')||null,contrat_fin:val('ctF')||null,contrat_notes:val('ctN')||null};
-      try{await q(sb.from('gmao_equipements').update(maj).eq('id',id));Object.assign(e,maj);fermer();toast('✓ Contrat enregistré');route();}catch(x){erreur(x);}};
+      try{await q(sb.from('gmao_equipements').update(maj).eq('id',id));Object.assign(e,maj);
+        // Plan « Visite contrat » : créé, mis à jour ou désactivé selon la fréquence saisie
+        var mois=nb(val('ctV')),pv=planContrat(e),pa=PART.find(function(x){return x.id===maj.contrat_partenaire_id;});
+        if(mois>0&&pa){var pl={titre:'Visite contrat — '+pa.nom,periodicite_jours:Math.round(mois*30.4),dernier:val('ctD')||null,actif:true,equipement_id:id};
+          if(pv)await q(sb.from('gmao_preventifs').update(pl).eq('id',pv.id));else await q(sb.from('gmao_preventifs').insert(pl));}
+        else if(pv)await q(sb.from('gmao_preventifs').update({actif:false}).eq('id',pv.id));
+        await chargerTout();fermer();toast('✓ Contrat enregistré');route();}catch(x){erreur(x);}};
   };
   if($('eCtP'))$('eCtP').onclick=async function(){
     var t=await demander('Passage de '+ctr.p.nom+' : qu\'ont-ils fait ?','','ex. Visite annuelle, remplacement courroie…');if(!t)return;
-    try{var r=await q(sb.from('gmao_interventions').insert({titre:t.trim(),type:'Contrat',priorite:'Normale',equipement_id:id,demandeur:NOM,intervenant:ctr.p.nom}).select());aller('bon/'+r[0].id);}catch(x){erreur(x);}
+    try{var r=await q(sb.from('gmao_interventions').insert({titre:t.trim(),type:'Contrat',priorite:'Normale',equipement_id:id,demandeur:NOM,intervenant:ctr.p.nom,preventif_id:(planContrat(ctr.eq)||{}).id||null}).select());aller('bon/'+r[0].id);}catch(x){erreur(x);}
   };
   $('fOk').onclick=async function(){
     var code=val('fCode');if(!code){toast('Le code est obligatoire');return;}
@@ -1506,7 +1551,7 @@ VUES.par=async function(id){
     '<label>Notes (n° client, conditions, délais…)</label><textarea id="ptNo">'+esc(x.notes||'')+'</textarea>'+
     '<div class="actions">'+(x.telephone?'<a class="btn" href="tel:'+esc(x.telephone)+'">📞 Appeler</a>':'')+(x.email?'<a class="btn" href="mailto:'+esc(x.email)+'">✉ Écrire</a>':'')+'<button class="btn r sm" id="ptX" style="margin-right:auto">Supprimer</button><button class="btn p" id="ptO">Enregistrer</button></div></div>'+
     '<div class="carte"><h2>🔩 Pièces fournies ('+arts.length+')</h2>'+(arts.length?arts.map(function(a){return '<a class="ligne" href="#art/'+a.id+'">'+renduArt(a)+'</a>';}).join(''):'<div class="vide">Aucune pièce avec ce fournisseur.</div>')+'</div>'+
-    (function(){var sc=EQ.filter(function(e){return e.contrat_partenaire_id===x.id;});return sc.length?'<div class="carte"><h2>🛡 Machines sous contrat ('+sc.length+')</h2>'+sc.map(function(e){return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+(e.contrat_fin?'<span class="etiq">fin '+esc(e.contrat_fin.split('-').reverse().join('/'))+'</span>':'')+'</a>';}).join('')+'</div>':'';})()+
+    (function(){var sc=EQ.filter(function(e){return e.contrat_partenaire_id===x.id;});return sc.length?'<div class="carte"><h2>🛡 Machines sous contrat ('+sc.length+')</h2>'+sc.map(function(e){var pv=planContrat(e);return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+(pv?'<span class="etiq">dernière visite '+(pv.dernier?fmtD(pv.dernier):'—')+'</span> '+badgeEcheance(pv):'<span class="etiq">visites non renseignées</span>')+(e.contrat_fin?'<span class="etiq">fin '+esc(e.contrat_fin.split('-').reverse().join('/'))+'</span>':'')+'</a>';}).join('')+'</div>':'';})()+
     (eqs.length?'<div class="carte"><h2>🏭 Machines de cette marque ('+eqs.length+')</h2>'+eqs.map(function(e){return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+'</a>';}).join('')+'</div>':'')+
     (bons.length?'<div class="carte"><h2>📋 Interventions</h2>'+bons.map(ligneBon).join('')+'</div>':'');
   $('ptO').onclick=async function(){var maj={nom:val('ptNom'),contact:val('ptC'),telephone:val('ptT'),email:val('ptM'),site:val('ptS'),code:val('ptCo'),notes:val('ptNo'),fournisseur:$('ptfournisseur').checked,constructeur:$('ptconstructeur').checked,sous_traitant:$('ptsous_traitant').checked};
