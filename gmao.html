@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.15';
+var VERSION='v9.16';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -1622,8 +1622,19 @@ function personneDe(nom){var n=norm(nom),p=PERS.find(function(x){return norm(x.n
 function memePers(a,b){a=norm(a);b=norm(b);if(!a||!b)return false;return a===b||a.split(' ')[0]===b.split(' ')[0];}
 function jourLocal(d){var x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
 function restant(b){var p=+b.temps_prevu_min||0;return p?Math.max(0,p-(+b.duree_min||0)):0;}
+/* v9.16 - AVANCE AUTOMATIQUE : un bon prévu un jour passé et pas terminé passe tout seul à aujourd'hui
+   (l'historique du bon garde la trace du jour d'origine). Les bons « Attente pièce » restent où ils sont. */
+async function avancerRetards(){
+  var a=auj();
+  var l=await q(sb.from('gmao_interventions').select('id,prevu_le,statut').lt('prevu_le',a).not('statut','in','("Terminé","Attente pièce")'));
+  if(!l.length)return 0;
+  await q(sb.from('gmao_interventions').update({prevu_le:a}).in('id',l.map(function(b){return b.id;})));
+  for(var i=0;i<l.length;i++){try{await logSys(l[i].id,'📅 Pas terminé le '+fmtD(l[i].prevu_le)+' : avancé automatiquement au '+fmtD(a));}catch(e){}}
+  return l.length;
+}
 VUES.planning=async function(){
   if(!V6)return pasV6();
+  try{var nAv=await avancerRetards();if(nAv)toast(nAv+' bon'+(nAv>1?'s':'')+' pas terminé'+(nAv>1?'s':'')+' avancé'+(nAv>1?'s':'')+' à aujourd\'hui');}catch(e){}
   var j=jourPlan||auj();
   var ouverts=await q(sb.from('gmao_interventions').select('*').neq('statut','Terminé').order('cree_le'));
   var finis=(await q(sb.from('gmao_interventions').select('*').eq('statut','Terminé').order('fin',{ascending:false}).limit(300))).filter(function(b){return b.fin&&jourLocal(b.fin)===j;});
