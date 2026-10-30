@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.20';
+var VERSION='v9.21';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -1013,31 +1013,49 @@ VUES.eq=async function(id){
         else if(pv)await q(sb.from('gmao_preventifs').update({actif:false}).eq('id',pv.id));
         await chargerTout();fermer();toast('✓ Contrat enregistré');route();}catch(x){erreur(x);}};
   };
-  // v9.20 - Passage du prestataire : ENTRETIEN prévu au contrat, DÉPANNAGE d'une panne signalée, ou les deux.
-  if($('eCtP'))$('eCtP').onclick=function(){
-    var pv=planContrat(ctr.eq), pannes=bons.filter(function(b){return b.statut!=='Terminé'&&b.type!=='Contrat'&&b.type!=='Préventif';});
-    ouvrir('<h3>🛡 Passage de '+esc(ctr.p.nom)+'</h3>'+
-      '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:15px"><input type="checkbox" id="pcE" style="width:auto"'+(pv&&infoPrev(pv).aFaire?' checked':'')+(pv?'':' disabled')+'> 🗓 Entretien / visite prévue au contrat'+(pv?' '+badgeEcheance(pv):' <span class="etiq">(fréquence des visites non renseignée)</span>')+'</label>'+
-      '<label style="color:var(--txt);font-size:15px;margin-top:10px">🔧 Dépannage — panne(s) signalée(s) traitée(s) :</label>'+
-      (pannes.length?pannes.map(function(b){return '<label style="display:flex;gap:8px;align-items:flex-start;color:var(--txt);font-size:14px;margin:4px 0"><input type="checkbox" class="pcB" value="'+b.id+'" style="width:auto;margin-top:3px"><span>'+numBT(b.numero)+' · '+esc(b.titre)+' <span class="etiq">('+fmtD(b.cree_le)+')</span> '+badgeStatut(b.statut)+'</span></label>';}).join(''):'<div class="etiq">Aucune panne ouverte sur cette machine.</div>')+
-      '<label>Ce qu\'ils ont fait</label><input id="pcT" placeholder="ex. Visite semestrielle, remplacement du moteur de tension…">'+
-      '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="pcO">Créer le bon de passage</button></div>');
+  // v9.21 - Passage du prestataire : ENTRETIEN et/ou DÉPANNAGE, sur cette machine ET les autres machines
+  // sous contrat avec le même prestataire (un passage groupé = un bon par machine, liés entre eux).
+  if($('eCtP'))$('eCtP').onclick=async function(){
+    var mach=[e].concat(EQ.filter(function(x){return x.id!==id&&x.contrat_partenaire_id===ctr.p.id;}));
+    if(e.contrat_partenaire_id!==ctr.p.id&&ctr.eq.id!==id)mach.splice(1,0,ctr.eq);
+    var ids=[];mach.forEach(function(m){ids=ids.concat([m.id],descendants(m.id));});
+    var ouv=[];try{ouv=await q(sb.from('gmao_interventions').select('id,numero,titre,statut,type,cree_le,equipement_id').in('equipement_id',ids).neq('statut','Terminé'));}catch(x){}
+    function pannesDe(m){var l=[m.id].concat(descendants(m.id));return ouv.filter(function(b){return l.indexOf(b.equipement_id)>=0&&b.type!=='Contrat'&&b.type!=='Préventif';});}
+    var html='<h3>🛡 Passage de '+esc(ctr.p.nom)+'</h3><div class="grille"><div><label>Date du passage</label><input type="date" id="pcDt" value="'+auj()+'"></div></div>';
+    mach.forEach(function(m,k){var pv=planContrat(m)||(k===0?planContrat(ctr.eq):null),pa=pannesDe(m);
+      html+='<div class="carte" style="margin:10px 0;padding:10px">'+
+        '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:15px;margin:0"><input type="checkbox" class="pcM" data-k="'+k+'" style="width:auto"'+(k===0?' checked disabled':'')+'> <b>'+esc(m.nom)+'</b> <span class="etiq">'+esc(m.code)+' · '+esc(chemin(m))+'</span></label>'+
+        '<div class="pcZ" data-k="'+k+'" style="margin-left:26px'+(k===0?'':';display:none')+'">'+
+        '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px"><input type="checkbox" class="pcE" data-k="'+k+'" style="width:auto"'+(pv&&infoPrev(pv).aFaire?' checked':'')+(pv?'':' disabled')+'> 🗓 Entretien / visite prévue'+(pv?' '+badgeEcheance(pv):' <span class="etiq">(fréquence non renseignée)</span>')+'</label>'+
+        (pa.length?pa.map(function(b){return '<label style="display:flex;gap:8px;align-items:flex-start;color:var(--txt);font-size:14px;margin:4px 0"><input type="checkbox" class="pcB" data-k="'+k+'" value="'+b.id+'" style="width:auto;margin-top:3px"><span>🔧 Dépannage '+numBT(b.numero)+' · '+esc(b.titre)+' <span class="etiq">('+fmtD(b.cree_le)+')</span></span></label>';}).join(''):'<div class="etiq">🔧 Aucune panne ouverte.</div>')+
+        '</div></div>';});
+    html+='<label>Ce qu\'ils ont fait</label><input id="pcT" placeholder="ex. Remplacement du moteur de tension + entretien">'+
+      '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="pcO">Créer le(s) bon(s) de passage</button></div>';
+    ouvrir(html);
+    document.querySelectorAll('.pcM').forEach(function(c){c.onchange=function(){document.querySelector('.pcZ[data-k="'+c.dataset.k+'"]').style.display=c.checked?'':'none';};});
     $('pcO').onclick=async function(){
-      var ent=$('pcE').checked, dep=[].slice.call(document.querySelectorAll('.pcB')).filter(function(x){return x.checked;}).map(function(x){return pannes.find(function(b){return b.id===x.value;});});
-      if(!ent&&!dep.length){toast('Cochez entretien et/ou la panne traitée');return;}
-      var nature=ent&&dep.length?'Entretien + dépannage':(ent?'Entretien':'Dépannage');
-      var t=val('pcT')||(ent?'Visite contrat':'Dépannage '+dep.map(function(b){return numBT(b.numero);}).join(', '));
+      var dt=val('pcDt')||auj(), choix=[];
+      mach.forEach(function(m,k){if(!document.querySelector('.pcM[data-k="'+k+'"]').checked)return;
+        var ent=document.querySelector('.pcE[data-k="'+k+'"]').checked;
+        var dep=[].slice.call(document.querySelectorAll('.pcB[data-k="'+k+'"]')).filter(function(x){return x.checked;}).map(function(x){return ouv.find(function(b){return b.id===x.value;});});
+        if(ent||dep.length)choix.push({m:m,k:k,ent:ent,dep:dep,pv:planContrat(m)||(k===0?planContrat(ctr.eq):null)});});
+      if(!choix.length){toast('Cochez un entretien et/ou une panne traitée');return;}
       this.disabled=true;
-      try{
-        var desc='Passage '+ctr.p.nom+' — '+nature+(dep.length?'\nPanne'+(dep.length>1?'s':'')+' traitée'+(dep.length>1?'s':'')+' : '+dep.map(function(b){return numBT(b.numero)+' '+b.titre;}).join(' ; '):'');
-        var r=await q(sb.from('gmao_interventions').insert({titre:nature+' — '+t.trim(),description:desc,type:'Contrat',priorite:'Normale',equipement_id:id,demandeur:NOM,intervenant:ctr.p.nom,
-          preventif_id:ent&&pv?pv.id:null,suite_de:dep.length?dep[0].id:null}).select());
-        for(var i=0;i<dep.length;i++){try{await logSys(dep[i].id,'🛡 Dépannage par '+ctr.p.nom+' : '+numBT(r[0].numero));}catch(e){}}
-        fermer();aller('bon/'+r[0].id);
+      var grp=choix.length>1?'\nPassage groupé du '+fmtD(dt)+' — '+choix.length+' machines : '+choix.map(function(c){return c.m.nom;}).join(', '):'';
+      try{var crees=[];
+        for(var i=0;i<choix.length;i++){var c=choix[i],nat=c.ent&&c.dep.length?'Entretien + dépannage':(c.ent?'Entretien':'Dépannage');
+          var t=val('pcT')||(c.ent?'Visite contrat':'Dépannage '+c.dep.map(function(b){return numBT(b.numero);}).join(', '));
+          var desc='Passage '+ctr.p.nom+' le '+fmtD(dt)+' — '+nat+(c.dep.length?'\nPanne'+(c.dep.length>1?'s':'')+' traitée'+(c.dep.length>1?'s':'')+' : '+c.dep.map(function(b){return numBT(b.numero)+' '+b.titre;}).join(' ; '):'')+grp;
+          var r=await q(sb.from('gmao_interventions').insert({titre:nat+' — '+t.trim(),description:desc,type:'Contrat',priorite:'Normale',equipement_id:c.m.id,demandeur:NOM,intervenant:ctr.p.nom,
+            prevu_le:dt,preventif_id:c.ent&&c.pv?c.pv.id:null,suite_de:c.dep.length?c.dep[0].id:null}).select());
+          crees.push(r[0]);
+          for(var j=0;j<c.dep.length;j++){try{await logSys(c.dep[j].id,'🛡 Dépannage par '+ctr.p.nom+' le '+fmtD(dt)+' : '+numBT(r[0].numero));}catch(x){}}
+        }
+        if(crees.length>1)for(var n=0;n<crees.length;n++){try{await logSys(crees[n].id,'🔗 Même passage : '+crees.filter(function(x,z){return z!==n;}).map(function(x){return numBT(x.numero);}).join(', '));}catch(x){}}
+        fermer();toast(crees.length+' bon'+(crees.length>1?'s':'')+' de passage créé'+(crees.length>1?'s':''));aller('bon/'+crees[0].id);
       }catch(x){this.disabled=false;erreur(x);}
     };
   };
-
   $('fOk').onclick=async function(){
     var code=val('fCode');if(!code){toast('Le code est obligatoire');return;}
     if(EQ.some(function(z){return z.id!==id&&norm(z.code)===norm(code);})){toast('Ce code est déjà pris');return;}
