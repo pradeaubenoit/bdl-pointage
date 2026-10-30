@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v207 · 8 séchoirs / 4 draps · client prioritaire</b> · sécurités v201</div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v208 · 8 séchoirs / 4 draps · client prioritaire</b> · sécurités v201</div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2024,6 +2024,12 @@ function ordreRespecte(list,run0,figerFaits,prioSites){
   if(figerFaits){ var debut=0; while(debut<rest.length && estFait(rest[debut])){ var f=rest[debut]; if(tun(f)){ if(isDrapRow(f)) run=0; else run+=parseInt(f.nbTransferts)||0; } debut++; } out=rest.splice(0,debut); }
   var E=[], D=[];
   rest.forEach(function(r){ if(!tun(r)||(figerFaits&&estFait(r))) autres.push(r); else if(isDrapRow(r)) D.push(r); else E.push(r); });
+  // Recolle les morceaux d'une même ligne (même client, même programme) qui se suivent dans la file :
+  // sinon chaque ré-optimisation recoupe les draps en morceaux de 1 galette.
+  function recoller(q){ var o=[]; q.forEach(function(r){ var l=o[o.length-1];
+    if(l && nomCle(l.client)===nomCle(r.client) && String(l.code)===String(r.code)){ o[o.length-1]=Object.assign({},l,{nbTransferts:String(gal(l)+gal(r))}); }
+    else o.push(r); }); return o; }
+  E=recoller(E); D=recoller(D);
   // CLIENT PRIORITAIRE : dès qu'on place une caisse d'un client (ex. Royat) et qu'on ré-optimise à partir de là,
   // tout ce client s'enchaîne : ses éponges/tenues d'abord, et ses propres draps (sacs à gaz…) servent de tampons en premier.
   if(prioSites && prioSites.length){
