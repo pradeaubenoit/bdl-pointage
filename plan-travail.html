@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v203 · ordre respecté + tampons</b> · sécurités v201</div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v204 · 8 séchoirs / 4 draps</b> · sécurités v201</div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2007,47 +2007,42 @@ function ajusterQuantite(key,newTotal,inp){
   renderRows(); sync();                       // met à jour le plan, sans toucher à la liste des quantités
   if(inp) inp.value=newTotal;                 // on garde le même champ (les flèches restent utilisables)
 }
-/* ORDRE RESPECTÉ (v203) : la journée présentée est LA matrice (= l'ordre de pointage). On la suit ligne par ligne.
-   Dès que la prochaine éponge ferait dépasser 8 cases d'éponge d'affilée, on passe un TAMPON de draps de 4 galettes
-   (réglage « bloc de draps ») pris dans les PROCHAINS draps de la liste, dans l'ordre : s'il n'y en a pas assez
-   dans la ligne suivante, on complète avec la suivante, etc. (une ligne de draps peut être coupée). Une éponge
-   de plus de 8 cases est coupée en tranches de 8 avec un tampon entre chaque.
+/* ORDRE RESPECTÉ (v204) : la journée présentée est LA matrice (= l'ordre de pointage).
+   Rythme : 8 cases de séchoir (éponges) puis 4 galettes de draps, puis 8 séchoirs, 4 draps, etc.
+   Les éponges avancent dans l'ordre de la matrice, les draps aussi (chacun dans sa propre file) :
+   - séchoirs : on prend les prochaines éponges tant que la suivante ne fait pas dépasser 8 ;
+     une éponge de plus de 8 est coupée en tranches de 8 ;
+   - draps : on prend les prochains draps jusqu'à 4 galettes (une ligne de draps peut être coupée).
    figerFaits=true (Plan, « à partir d'ici ») : les lignes faites restent en tête, intouchées. */
 function ordreRespecte(list,run0,figerFaits){
   var ML=(CFG.maxLent==null?8:CFG.maxLent), BD=(CFG.blocDraps>0?CFG.blocDraps:4);
-  var out=[], run=run0||0, rest=list.slice(), k=0;
+  var out=[], run=run0||0, rest=list.slice(), k=0, autres=[];
   function tun(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }
-  function fige(r){ return figerFaits && estFait(r); }
   if(figerFaits){ var debut=0; while(debut<rest.length && estFait(rest[debut])){ var f=rest[debut]; if(tun(f)){ if(isDrapRow(f)) run=0; else run+=parseInt(f.nbTransferts)||0; } debut++; } out=rest.splice(0,debut); }
-  function tampon(){
-    var besoin=BD, pris=0;
-    for(var j=0;j<rest.length && besoin>0;j++){
-      var d=rest[j]; if(!tun(d)||fige(d)||!isDrapRow(d)) continue;
-      var g=parseInt(d.nbTransferts)||0; if(g<=0) continue;
-      if(g<=besoin){ out.push(d); rest.splice(j,1); j--; besoin-=g; pris+=g; }
-      else{ var src=d.src||d.id;
-        out.push(Object.assign({},d,{id:d.id+'~t'+(k++),src:src,nbTransferts:String(besoin)}));
-        rest[j]=Object.assign({},d,{id:d.id+'~t'+(k++),src:src,nbTransferts:String(g-besoin)});
-        pris+=besoin; besoin=0; }
+  var E=[], D=[];
+  rest.forEach(function(r){ if(!tun(r)||(figerFaits&&estFait(r))) autres.push(r); else if(isDrapRow(r)) D.push(r); else E.push(r); });
+  function gal(r){ return parseInt(r.nbTransferts)||0; }
+  function couper(q,r,n){ var src=r.src||r.id; q[0]=Object.assign({},r,{id:r.id+'~t'+(k++),src:src,nbTransferts:String(gal(r)-n)}); return Object.assign({},r,{id:r.id+'~t'+(k++),src:src,nbTransferts:String(n)}); }
+  while(E.length||D.length){
+    // séchoirs : jusqu'à 8
+    var pris=0;
+    while(E.length){
+      var e=E[0], g=gal(e);
+      if(run+g<=ML){ out.push(E.shift()); run+=g; pris++; continue; }
+      if(run===0){ out.push(couper(E,e,ML)); run=ML; pris++; }
+      break;
     }
-    if(pris>0) run=0;
-    return pris>0;
-  }
-  while(rest.length){
-    var r=rest.shift();
-    if(!tun(r)||fige(r)){ out.push(r); continue; }
-    if(isDrapRow(r)){ out.push(r); run=0; continue; }
-    var g=parseInt(r.nbTransferts)||0;
-    if(run>0 && run+g>ML) tampon();
-    if(g>ML && run===0){
-      var src=r.src||r.id;
-      out.push(Object.assign({},r,{id:r.id+'~r'+(k++),src:src,nbTransferts:String(ML)})); run=ML;
-      rest.unshift(Object.assign({},r,{id:r.id+'~r'+(k++),src:src,nbTransferts:String(g-ML)}));
-      continue;
+    if(!D.length){ if(!pris && E.length){ out.push(E.shift()); } continue; }
+    // draps : 4 galettes
+    var besoin=BD;
+    while(D.length && besoin>0){
+      var d=D[0], gd=gal(d);
+      if(gd<=besoin){ out.push(D.shift()); besoin-=gd; }
+      else { out.push(couper(D,d,besoin)); besoin=0; }
     }
-    out.push(r); run+=g;
+    run=0;
   }
-  return out;
+  return out.concat(autres);
 }
 function reOptimiserDepuis(i){
   var nFige=rows.filter(function(r){return estFait(r)||estLav(r);}).length;
