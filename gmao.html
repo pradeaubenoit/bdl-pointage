@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.14';
+var VERSION='v9.15';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -319,7 +319,7 @@ function choisir(o){
     inp.oninput=rendre;rendre();setTimeout(function(){inp.focus();},50);
   });
 }
-function renduEq(e){return '<span class="pt '+esc(e.criticite||'')+'"></span><div class="g"><div class="t">'+esc(e.nom)+' <span class="etiq">'+esc(e.code)+'</span></div><div class="s">'+esc(chemin(e))+'</div></div>';}
+function renduEq(e){return '<span class="pt '+esc(e.criticite||'')+'"></span><div class="g"><div class="t">'+esc(e.nom)+' <span class="etiq">'+esc(e.code)+'</span>'+(e.contrat_partenaire_id?' <span title="Sous contrat de maintenance">🛡</span>':'')+'</div><div class="s">'+esc(chemin(e))+'</div></div>';}
 // v9.10 - Référence affichée partout : réf. interne, sinon constructeur, sinon la réf. du premier fournisseur.
 function refArt(a){if(!a)return '';if(a.ref)return a.ref;if(a.ref_fabricant)return a.ref_fabricant;var s=(SRCA[a.id]||[]).find(function(x){return x.ref;});return s?s.ref+(s.partenaire?' ('+s.partenaire+')':''):(a.ref_fournisseur||'');}
 function renduArt(a){return (a.photo?'<img class="mini" src="'+esc(a.photo)+'">':'<div class="mini"></div>')+'<div class="g"><div class="t">'+esc(a.designation)+'</div><div class="s">'+esc(refsTout(a).concat([a.emplacement]).filter(Boolean).join(' · '))+((SRCA[a.id]||[]).length>1?' · <b>'+SRCA[a.id].length+' fournisseurs</b>':'')+(assocNoms(a).length?'<br>🔗 va avec : '+esc(assocNoms(a).join(', ')):'')+'</div></div>'+badgeStock(a);}
@@ -330,6 +330,10 @@ function badgeStock(a){var s=+a.stock||0,m=+a.stock_mini||0;return '<span class=
 var STATUTS=['Demandé','En cours','En pause','Attente pièce','Terminé'];
 function badgeStatut(s){var c={'Demandé':'b-bleu','En cours':'b-orange','En pause':'b-orange','Attente pièce':'b-rouge','Terminé':'b-vert'}[s]||'';return '<span class="badge '+c+'">'+esc(s)+'</span>';}
 function badgePrio(p,arr){if(arr)return '<span class="badge b-rouge">⛔ arrêt</span>';if(p==='Urgente')return '<span class="badge b-rouge">Urgent</span>';return '';}
+/* v9.15 - CONTRAT DE MAINTENANCE : le contrat d'une machine vaut aussi pour ses sous-ensembles */
+function contratDe(e){var vu={};while(e&&!vu[e.id]){vu[e.id]=1;if(e.contrat_partenaire_id){var p=PART.find(function(x){return x.id===e.contrat_partenaire_id;});if(p)return {p:p,eq:e};}e=e.parent_id?EQID[e.parent_id]:null;}return null;}
+function badgeContrat(e){var c=contratDe(e);return c?'<span class="badge b-bleu" title="Machine sous contrat de maintenance">🛡 Sous contrat · '+esc(c.p.nom)+'</span>':'';}
+function boutonsContact(p){return (p.telephone?'<a class="btn p" href="tel:'+esc(p.telephone.replace(/\s/g,''))+'">📞 Appeler '+esc(p.telephone)+'</a>':'')+(p.email?'<a class="btn" href="mailto:'+esc(p.email)+'">✉ Écrire</a>':'');}
 function badgeEtat(e){if(!e)return'';var c={'En service':'b-vert','Dégradé':'b-orange','En réparation':'b-orange','Hors service':'b-rouge'}[e]||'';return '<span class="badge '+c+'">'+esc(e)+'</span>';}
 function echeance(p){if(!p.dernier)return null;return ajoutJours(p.dernier,p.periodicite_jours||30);}
 function fmtN(x){var r=Math.round(x*10)/10;return (r===0?0:r).toLocaleString('fr-FR');}
@@ -770,12 +774,15 @@ async function nouveauBon(extra){
     '<label>Machine concernée</label><div id="nbEq" class="ligne" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
     '<label>Que se passe-t-il ? (titre court)</label><input id="nbT" placeholder="ex. Fuite d\'eau, bruit moteur, courroie cassée…">'+
     '<label>Détails</label><textarea id="nbD" placeholder="Ce que tu as constaté, depuis quand, ce que tu as déjà essayé…"></textarea>'+
-    '<div class="grille"><div><label>Type</label><select id="nbTy"><option>Curatif</option><option>Préventif</option><option>Amélioration</option><option>Sécurité</option><option>Bâtiment</option></select></div>'+
+    '<div class="grille"><div><label>Type</label><select id="nbTy"><option>Curatif</option><option>Préventif</option><option>Amélioration</option><option>Sécurité</option><option>Bâtiment</option><option>Contrat</option></select></div>'+
     '<div><label>Priorité</label><select id="nbP"><option>Normale</option><option>Urgente</option><option>Basse</option></select></div></div>'+
     '<label style="display:flex;gap:8px;align-items:center;font-size:15px;color:var(--txt)"><input type="checkbox" id="nbA" style="width:auto"> ⛔ La machine est arrêtée</label>'+
     '<label>Photo (facultatif)</label><button class="btn" id="nbPh">📷 Ajouter une photo</button>'+
     '<div class="actions"><button class="btn" onclick="history.back()">Annuler</button><button class="btn r" id="nbOk">Créer le bon</button></div></div>';
-  function maj(){$('nbEq').innerHTML=eqSel?renduEq(eqSel)+'<span class="etiq">changer</span>':'<div class="g vide">Toucher pour choisir la machine…</div>';}
+  function maj(){$('nbEq').innerHTML=eqSel?renduEq(eqSel)+'<span class="etiq">changer</span>':'<div class="g vide">Toucher pour choisir la machine…</div>';
+    var c=eqSel?contratDe(eqSel):null, z=$('nbCtr');
+    if(!z){z=document.createElement('div');z.id='nbCtr';$('nbEq').parentNode.insertBefore(z,$('nbEq').parentNode.firstChild);}
+    z.innerHTML=c?'<div class="carte" style="background:var(--bleu2);margin:0 0 10px"><b>🛡 Machine sous contrat de maintenance : '+esc(c.p.nom)+'</b>'+(c.p.contact?' · '+esc(c.p.contact):'')+'<div class="actions" style="justify-content:flex-start">'+boutonsContact(c.p)+'</div></div>':'';}
   maj();$('nbEq').onclick=async function(){var x=await choisirEq();if(x){eqSel=x;maj();}};
   var photo=null;
   $('nbPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;$('nbPh').textContent='⏳ envoi…';try{photo=await envoyerPhoto(f);$('nbPh').textContent='✅ Photo ajoutée';}catch(x){$('nbPh').textContent='📷 Ajouter une photo';erreur(x);}};
@@ -792,7 +799,7 @@ async function nouveauBon(extra){
 }
 function editerBon(b){
   ouvrir('<h3>Modifier '+numBT(b.numero)+'</h3><label>Titre</label><input id="ebT" value="'+esc(b.titre)+'"><label>Description (une ligne « ☐ … » = un point à cocher)</label><textarea id="ebD">'+esc(b.description||'')+'</textarea>'+
-    '<div class="grille"><div><label>Type</label><select id="ebTy">'+['Curatif','Préventif','Amélioration','Sécurité','Bâtiment'].map(function(x){return '<option'+(x===b.type?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
+    '<div class="grille"><div><label>Type</label><select id="ebTy">'+['Curatif','Préventif','Amélioration','Sécurité','Bâtiment','Contrat'].map(function(x){return '<option'+(x===b.type?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
     '<div><label>Priorité</label><select id="ebP">'+['Normale','Urgente','Basse'].map(function(x){return '<option'+(x===b.priorite?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
     '<div><label>Intervenant</label><input id="ebI" value="'+esc(b.intervenant||'')+'"></div><div><label>Machine arrêtée</label><select id="ebA"><option value="0">Non</option><option value="1"'+(b.machine_arretee?' selected':'')+'>Oui</option></select></div>'+
     (V6?'<div><label>Confié à</label><input id="ebAs" list="dlPers" value="'+esc(b.assigne_a||'')+'"><datalist id="dlPers">'+PERS.map(function(p){return '<option value="'+esc(p.nom)+'">';}).join('')+'</datalist></div>'+
@@ -890,7 +897,7 @@ VUES.eq=async function(id){
   var prevs=PREV.filter(function(p){return p.equipement_id===id;});
   var emplacements=uniques(EQ.map(function(x){return x.emplacement;})), familles=uniques(EQ.map(function(x){return x.famille;}));
   var html='<div class="chemin"><a href="#parc">Parc</a>'+(e.parent_id?' › '+cheminLiens(e):'')+'</div>'+
-    '<h1 class="titre"><span class="pt '+esc(e.criticite||'')+'"></span> '+esc(e.nom)+' <span class="etiq">'+esc(e.code)+'</span> '+badgeEtat(e.etat)+'</h1>'+
+    '<h1 class="titre"><span class="pt '+esc(e.criticite||'')+'"></span> '+esc(e.nom)+' <span class="etiq">'+esc(e.code)+'</span> '+badgeEtat(e.etat)+' '+badgeContrat(e)+'</h1>'+
     '<div class="gros"><button class="btn r" onclick="aller(\'bon/nouveau/eq='+id+'\')">⚠ Signaler une panne sur cette machine</button><button class="btn" style="flex:0 1 auto;min-width:0" onclick="aller(\'etiquettes/'+id+'\')">🏷 Étiquette QR</button></div>'+
     '<div class="carte"><h2>Fiche</h2><div class="grille"><div>'+
       (e.photo?'<img class="photo" src="'+esc(e.photo)+'" onclick="zoom(this.src)">':'<div class="photo" style="height:140px;display:flex;align-items:center;justify-content:center;color:var(--doux)">Pas de photo</div>')+
@@ -907,6 +914,15 @@ VUES.eq=async function(id){
     '<label>Notes</label><textarea id="fNot">'+esc(e.notes||'')+'</textarea>'+
     '<datalist id="dlEmp">'+emplacements.map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist><datalist id="dlFam">'+familles.map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist>'+
     '<div class="actions"><button class="btn r sm" id="fDel" style="margin-right:auto">Supprimer</button><button class="btn p" id="fOk">Enregistrer</button></div></div>';
+  var ctr=contratDe(e), ctrBons=ctr?bons.filter(function(b){return norm(b.intervenant||'')===norm(ctr.p.nom);}):[];
+  html+='<div class="carte"><h2>🛡 Contrat de maintenance '+(ctr&&ctr.eq.id!==id?'':'<button class="btn sm d" id="eCt">'+(ctr?'Modifier':'+ Déclarer un contrat')+'</button>')+'</h2>'+
+    (ctr?'<div style="font-size:16px"><b><a href="#par/'+ctr.p.id+'">'+esc(ctr.p.nom)+'</a></b>'+(ctr.p.contact?' · '+esc(ctr.p.contact):'')+(ctr.eq.id!==id?' <span class="etiq">contrat de <a href="#eq/'+ctr.eq.id+'">'+esc(ctr.eq.nom)+'</a></span>':'')+'</div>'+
+      '<div class="s" style="margin:4px 0">'+(ctr.eq.contrat_ref?'Contrat n° '+esc(ctr.eq.contrat_ref):'')+(ctr.eq.contrat_fin?(ctr.eq.contrat_ref?' · ':'')+'<span style="'+(ctr.eq.contrat_fin<new Date().toISOString().slice(0,10)?'color:var(--rouge);font-weight:700':'')+'">fin le '+esc(ctr.eq.contrat_fin.split('-').reverse().join('/'))+'</span>':'')+'</div>'+
+      (ctr.eq.contrat_notes?'<div style="white-space:pre-wrap;margin:6px 0">'+esc(ctr.eq.contrat_notes)+'</div>':'')+
+      '<div class="actions" style="justify-content:flex-start">'+boutonsContact(ctr.p)+'<button class="btn" id="eCtP">+ Passage du prestataire</button></div>'+
+      (ctr.p.telephone?'':'<div class="vide">Pas de téléphone : ajoutez-le sur la fiche <a href="#par/'+ctr.p.id+'">'+esc(ctr.p.nom)+'</a>.</div>')+
+      '<h2 style="margin-top:14px">Historique du contrat ('+ctrBons.length+')</h2>'+(ctrBons.length?ctrBons.map(ligneBon).join(''):'<div class="vide">Aucun passage enregistré.</div>')
+    :'<div class="vide">Pas de contrat de maintenance sur cette machine.</div>')+'</div>';
   html+='<div class="carte"><h2>🔩 Pièces détachées <button class="btn sm d" id="ePc">+ Lier une pièce</button></h2>'+
     (pcs.length?pcs.map(function(x){var a=ARTID[x.l.article_id];return '<div class="ligne"><a href="#art/'+a.id+'" style="display:contents;color:var(--txt)">'+renduArt(a)+'</a>'+
       '<span class="etiq">'+(x.via==='modele'?'via modèle':'cette machine')+(x.l.repere?' · '+esc(x.l.repere):'')+(x.l.quantite&&x.l.quantite!=1?' · ×'+x.l.quantite:'')+'</span><button class="btn l sm" data-dl="'+x.l.id+'" title="Retirer le lien">✕</button></div>';}).join(''):'<div class="vide">Aucune pièce liée.'+(m?'':' Astuce : donne-lui un modèle, ses pièces serviront aussi aux machines identiques.')+'</div>')+'</div>';
@@ -930,6 +946,20 @@ VUES.eq=async function(id){
   async function poserPhotoEq(f){if(!f)return;$('ePh').textContent='⏳';try{var u=await envoyerPhoto(f);await q(sb.from('gmao_equipements').update({photo:u}).eq('id',id));e.photo=u;route();}catch(x){erreur(x);}}
   $('ePh').onclick=async function(){poserPhotoEq(await choisirPhoto());};
   accepterPhoto($('ePh').previousElementSibling,poserPhotoEq);
+  if($('eCt'))$('eCt').onclick=function(){
+    var parts=PART.slice().sort(function(a,b){return (b.sous_traitant?1:0)-(a.sous_traitant?1:0)||a.nom.localeCompare(b.nom,'fr');});
+    ouvrir('<h3>🛡 Contrat de maintenance</h3><label>Prestataire (partenaire)</label><select id="ctP"><option value="">— pas de contrat —</option>'+parts.map(function(p){return '<option value="'+p.id+'"'+(p.id===e.contrat_partenaire_id?' selected':'')+'>'+esc(p.nom)+(p.sous_traitant?' (sous-traitant)':'')+'</option>';}).join('')+'</select>'+
+      '<div class="s">Absent de la liste ? Créez-le d\'abord dans Partenaires (avec son téléphone).</div>'+
+      '<div class="grille"><div><label>N° de contrat</label><input id="ctR" value="'+esc(e.contrat_ref||'')+'"></div><div><label>Fin du contrat</label><input id="ctF" type="date" value="'+esc(e.contrat_fin||'')+'"></div></div>'+
+      '<label>Notes (ce qui est couvert, délai d\'intervention, n° d\'astreinte…)</label><textarea id="ctN">'+esc(e.contrat_notes||'')+'</textarea>'+
+      '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="ctO">Enregistrer</button></div>');
+    $('ctO').onclick=async function(){var maj={contrat_partenaire_id:$('ctP').value||null,contrat_ref:val('ctR')||null,contrat_fin:val('ctF')||null,contrat_notes:val('ctN')||null};
+      try{await q(sb.from('gmao_equipements').update(maj).eq('id',id));Object.assign(e,maj);fermer();toast('✓ Contrat enregistré');route();}catch(x){erreur(x);}};
+  };
+  if($('eCtP'))$('eCtP').onclick=async function(){
+    var t=await demander('Passage de '+ctr.p.nom+' : qu\'ont-ils fait ?','','ex. Visite annuelle, remplacement courroie…');if(!t)return;
+    try{var r=await q(sb.from('gmao_interventions').insert({titre:t.trim(),type:'Contrat',priorite:'Normale',equipement_id:id,demandeur:NOM,intervenant:ctr.p.nom}).select());aller('bon/'+r[0].id);}catch(x){erreur(x);}
+  };
   $('fOk').onclick=async function(){
     var code=val('fCode');if(!code){toast('Le code est obligatoire');return;}
     if(EQ.some(function(z){return z.id!==id&&norm(z.code)===norm(code);})){toast('Ce code est déjà pris');return;}
@@ -1464,6 +1494,7 @@ VUES.par=async function(id){
     '<label>Notes (n° client, conditions, délais…)</label><textarea id="ptNo">'+esc(x.notes||'')+'</textarea>'+
     '<div class="actions">'+(x.telephone?'<a class="btn" href="tel:'+esc(x.telephone)+'">📞 Appeler</a>':'')+(x.email?'<a class="btn" href="mailto:'+esc(x.email)+'">✉ Écrire</a>':'')+'<button class="btn r sm" id="ptX" style="margin-right:auto">Supprimer</button><button class="btn p" id="ptO">Enregistrer</button></div></div>'+
     '<div class="carte"><h2>🔩 Pièces fournies ('+arts.length+')</h2>'+(arts.length?arts.map(function(a){return '<a class="ligne" href="#art/'+a.id+'">'+renduArt(a)+'</a>';}).join(''):'<div class="vide">Aucune pièce avec ce fournisseur.</div>')+'</div>'+
+    (function(){var sc=EQ.filter(function(e){return e.contrat_partenaire_id===x.id;});return sc.length?'<div class="carte"><h2>🛡 Machines sous contrat ('+sc.length+')</h2>'+sc.map(function(e){return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+(e.contrat_fin?'<span class="etiq">fin '+esc(e.contrat_fin.split('-').reverse().join('/'))+'</span>':'')+'</a>';}).join('')+'</div>':'';})()+
     (eqs.length?'<div class="carte"><h2>🏭 Machines de cette marque ('+eqs.length+')</h2>'+eqs.map(function(e){return '<a class="ligne" href="#eq/'+e.id+'">'+renduEq(e)+'</a>';}).join('')+'</div>':'')+
     (bons.length?'<div class="carte"><h2>📋 Interventions</h2>'+bons.map(ligneBon).join('')+'</div>':'');
   $('ptO').onclick=async function(){var maj={nom:val('ptNom'),contact:val('ptC'),telephone:val('ptT'),email:val('ptM'),site:val('ptS'),code:val('ptCo'),notes:val('ptNo'),fournisseur:$('ptfournisseur').checked,constructeur:$('ptconstructeur').checked,sous_traitant:$('ptsous_traitant').checked};
@@ -1709,7 +1740,7 @@ VUES.etiquettes=async function(seul){
   async function planche(){
     var l=actifs.filter(function(e){return selEtiq[e.id];});$('eNb').textContent=l.length+' étiquette'+(l.length>1?'s':'');
     try{await chargerQR();}catch(x){$('planche').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
-    $('planche').innerHTML=l.map(function(e,i){return '<div class="etq"><div class="etq-h">⚠ PANNE ? SCANNEZ-MOI</div><div class="etq-qr" id="qr'+i+'"></div><div class="etq-n">'+esc(e.nom)+'</div><div class="etq-c">'+esc(e.code)+' · BdL maintenance</div></div>';}).join('');
+    $('planche').innerHTML=l.map(function(e,i){return '<div class="etq"><div class="etq-h">⚠ PANNE ? SCANNEZ-MOI</div><div class="etq-qr" id="qr'+i+'"></div><div class="etq-n">'+esc(e.nom)+'</div><div class="etq-c">'+esc(e.code)+' · BdL maintenance</div>'+(function(){var c=contratDe(e);return c?'<div class="etq-c" style="font-weight:700;color:#000">🛡 Sous contrat : '+esc(c.p.nom)+(c.p.telephone?' · '+esc(c.p.telephone):'')+'</div>':'';})()+'</div>';}).join('');
     l.forEach(function(e,i){new QRCode($('qr'+i),{text:urlDemande(e),width:150,height:150,correctLevel:QRCode.CorrectLevel.M});});
   }
   $('re').oninput=liste;
