@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v202 · ordre respecté</b> · sécurités v201</div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v203 · ordre respecté + tampons</b> · sécurités v201</div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2007,28 +2007,43 @@ function ajusterQuantite(key,newTotal,inp){
   renderRows(); sync();                       // met à jour le plan, sans toucher à la liste des quantités
   if(inp) inp.value=newTotal;                 // on garde le même champ (les flèches restent utilisables)
 }
-/* ORDRE RESPECTÉ (v202) : la journée présentée est LA matrice (= l'ordre de pointage). On la suit telle quelle ;
-   on ne fait que deux choses : 1) dès que la prochaine éponge ferait dépasser 8 galettes lentes d'affilée, on avance
-   le PROCHAIN drap de la liste (dans l'ordre) pour libérer un séchoir ; 2) une éponge de plus de 8 galettes est coupée
-   en tranches de 8 avec un drap entre chaque. Les lignes déjà faites restent en tête, intouchées. */
-function ordreRespecte(list,run0){
-  var ML=(CFG.maxLent==null?8:CFG.maxLent), out=[], run=run0||0, rest=list.slice(), k=0;
-  var debut=0; while(debut<rest.length && estFait(rest[debut])){ var f=rest[debut]; if(f.machine==='tunnel'&&!estLav(f)){ if(isDrapRow(f)) run=0; else run+=parseInt(f.nbTransferts)||0; } debut++; }
-  out=rest.splice(0,debut);
+/* ORDRE RESPECTÉ (v203) : la journée présentée est LA matrice (= l'ordre de pointage). On la suit ligne par ligne.
+   Dès que la prochaine éponge ferait dépasser 8 cases d'éponge d'affilée, on passe un TAMPON de draps de 4 galettes
+   (réglage « bloc de draps ») pris dans les PROCHAINS draps de la liste, dans l'ordre : s'il n'y en a pas assez
+   dans la ligne suivante, on complète avec la suivante, etc. (une ligne de draps peut être coupée). Une éponge
+   de plus de 8 cases est coupée en tranches de 8 avec un tampon entre chaque.
+   figerFaits=true (Plan, « à partir d'ici ») : les lignes faites restent en tête, intouchées. */
+function ordreRespecte(list,run0,figerFaits){
+  var ML=(CFG.maxLent==null?8:CFG.maxLent), BD=(CFG.blocDraps>0?CFG.blocDraps:4);
+  var out=[], run=run0||0, rest=list.slice(), k=0;
   function tun(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }
-  function drapSuivant(){ for(var j=0;j<rest.length;j++){ if(tun(rest[j]) && !estFait(rest[j]) && isDrapRow(rest[j])) return rest.splice(j,1)[0]; } return null; }
+  function fige(r){ return figerFaits && estFait(r); }
+  if(figerFaits){ var debut=0; while(debut<rest.length && estFait(rest[debut])){ var f=rest[debut]; if(tun(f)){ if(isDrapRow(f)) run=0; else run+=parseInt(f.nbTransferts)||0; } debut++; } out=rest.splice(0,debut); }
+  function tampon(){
+    var besoin=BD, pris=0;
+    for(var j=0;j<rest.length && besoin>0;j++){
+      var d=rest[j]; if(!tun(d)||fige(d)||!isDrapRow(d)) continue;
+      var g=parseInt(d.nbTransferts)||0; if(g<=0) continue;
+      if(g<=besoin){ out.push(d); rest.splice(j,1); j--; besoin-=g; pris+=g; }
+      else{ var src=d.src||d.id;
+        out.push(Object.assign({},d,{id:d.id+'~t'+(k++),src:src,nbTransferts:String(besoin)}));
+        rest[j]=Object.assign({},d,{id:d.id+'~t'+(k++),src:src,nbTransferts:String(g-besoin)});
+        pris+=besoin; besoin=0; }
+    }
+    if(pris>0) run=0;
+    return pris>0;
+  }
   while(rest.length){
     var r=rest.shift();
-    if(!tun(r)||estFait(r)){ out.push(r); continue; }
+    if(!tun(r)||fige(r)){ out.push(r); continue; }
     if(isDrapRow(r)){ out.push(r); run=0; continue; }
     var g=parseInt(r.nbTransferts)||0;
-    if(run>0 && run+g>ML){ var d=drapSuivant(); if(d){ out.push(d); run=0; } }
+    if(run>0 && run+g>ML) tampon();
     if(g>ML && run===0){
       var src=r.src||r.id;
-      out.push(Object.assign({},r,{id:r.id+'~r'+(k++),src:src,nbTransferts:String(ML)}));
-      var reste=Object.assign({},r,{id:r.id+'~r'+(k++),src:src,nbTransferts:String(g-ML)});
-      var d2=drapSuivant(); if(d2){ out.push(d2); run=0; } else run=ML;
-      rest.unshift(reste); continue;
+      out.push(Object.assign({},r,{id:r.id+'~r'+(k++),src:src,nbTransferts:String(ML)})); run=ML;
+      rest.unshift(Object.assign({},r,{id:r.id+'~r'+(k++),src:src,nbTransferts:String(g-ML)}));
+      continue;
     }
     out.push(r); run+=g;
   }
@@ -2049,7 +2064,7 @@ function reOptimiserDepuis(i){
   // la série lente en cours se lit dans l'ordre RÉEL de lavage (faits par heure, puis le dessus non fait)
   var reel=triFaits(rows.filter(function(r){return estFait(r) && !estLav(r) && r.machine==='tunnel';})).concat(rows.filter(function(r,idx){return idx<i && !estFait(r) && !estIgn(r) && !estLav(r);}));
   var ctxR=contexteDepuis(reel); ctxF.run=ctxR.run; ctxF.nbCli=ctxR.nbCli; ctxF.dernier=ctxR.dernier;
-  var opt={order:ordreRespecte(pool,ctxR.run)};
+  var opt={order:ordreRespecte(pool,ctxR.run,true)};
   // Pas de gain de temps -> on ne touche à rien.
   var _tun=function(l){ return l.filter(function(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }); };
   var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
@@ -2229,7 +2244,7 @@ function bOptimize(){
   var runBefore=maxLentRun(tunnelRows);
   // v202 : ORDRE RESPECTÉ — on suit la journée présentée, on n'avance que des draps pour la règle des 8.
   var _gIn=tunnelRows.reduce(function(t,r){return t+(parseInt(r.nbTransferts)||0);},0);
-  var opt={order:ordreRespecte(tunnelRows,0), orphelins:[], galIn:_gIn};
+  var opt={order:ordreRespecte(tunnelRows,0,false), orphelins:[], galIn:_gIn};
   opt.galOut=opt.order.reduce(function(t,r){return t+(parseInt(r.nbTransferts)||0);},0); opt.run=maxLentRun(opt.order); opt.bouchons=attenteRegle(opt.order);
   var _garde=false, _combles=[];
   bRows=opt.order.concat(others);
