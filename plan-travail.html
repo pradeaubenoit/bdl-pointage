@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v174</b> · sécurités v201</div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v202 · ordre respecté</b> · sécurités v201</div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -2007,6 +2007,33 @@ function ajusterQuantite(key,newTotal,inp){
   renderRows(); sync();                       // met à jour le plan, sans toucher à la liste des quantités
   if(inp) inp.value=newTotal;                 // on garde le même champ (les flèches restent utilisables)
 }
+/* ORDRE RESPECTÉ (v202) : la journée présentée est LA matrice (= l'ordre de pointage). On la suit telle quelle ;
+   on ne fait que deux choses : 1) dès que la prochaine éponge ferait dépasser 8 galettes lentes d'affilée, on avance
+   le PROCHAIN drap de la liste (dans l'ordre) pour libérer un séchoir ; 2) une éponge de plus de 8 galettes est coupée
+   en tranches de 8 avec un drap entre chaque. Les lignes déjà faites restent en tête, intouchées. */
+function ordreRespecte(list,run0){
+  var ML=(CFG.maxLent==null?8:CFG.maxLent), out=[], run=run0||0, rest=list.slice(), k=0;
+  var debut=0; while(debut<rest.length && estFait(rest[debut])){ var f=rest[debut]; if(f.machine==='tunnel'&&!estLav(f)){ if(isDrapRow(f)) run=0; else run+=parseInt(f.nbTransferts)||0; } debut++; }
+  out=rest.splice(0,debut);
+  function tun(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }
+  function drapSuivant(){ for(var j=0;j<rest.length;j++){ if(tun(rest[j]) && !estFait(rest[j]) && isDrapRow(rest[j])) return rest.splice(j,1)[0]; } return null; }
+  while(rest.length){
+    var r=rest.shift();
+    if(!tun(r)||estFait(r)){ out.push(r); continue; }
+    if(isDrapRow(r)){ out.push(r); run=0; continue; }
+    var g=parseInt(r.nbTransferts)||0;
+    if(run>0 && run+g>ML){ var d=drapSuivant(); if(d){ out.push(d); run=0; } }
+    if(g>ML && run===0){
+      var src=r.src||r.id;
+      out.push(Object.assign({},r,{id:r.id+'~r'+(k++),src:src,nbTransferts:String(ML)}));
+      var reste=Object.assign({},r,{id:r.id+'~r'+(k++),src:src,nbTransferts:String(g-ML)});
+      var d2=drapSuivant(); if(d2){ out.push(d2); run=0; } else run=ML;
+      rest.unshift(reste); continue;
+    }
+    out.push(r); run+=g;
+  }
+  return out;
+}
 function reOptimiserDepuis(i){
   var nFige=rows.filter(function(r){return estFait(r)||estLav(r);}).length;
   if(i<=0){ if(!confirm('Ré-optimiser la journée ?\nTout ce qui est déjà « fait » ou « laveuse » ('+nFige+' ligne'+(nFige>1?'s':'')+') reste FIGÉ — on ne réorganise que le reste à faire.'))return; }
@@ -2022,14 +2049,13 @@ function reOptimiserDepuis(i){
   // la série lente en cours se lit dans l'ordre RÉEL de lavage (faits par heure, puis le dessus non fait)
   var reel=triFaits(rows.filter(function(r){return estFait(r) && !estLav(r) && r.machine==='tunnel';})).concat(rows.filter(function(r,idx){return idx<i && !estFait(r) && !estIgn(r) && !estLav(r);}));
   var ctxR=contexteDepuis(reel); ctxF.run=ctxR.run; ctxF.nbCli=ctxR.nbCli; ctxF.dernier=ctxR.dernier;
-  var opt=optimiserOrdre(fusionnerMemeClient(pool),0,start,ctxF);
+  var opt={order:ordreRespecte(pool,ctxR.run)};
   // Pas de gain de temps -> on ne touche à rien.
   var _tun=function(l){ return l.filter(function(r){ return r.machine==='tunnel' && !estLav(r) && !estIgn(r); }); };
   var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
-  if(!(_cout(_tun(figes.concat(opt.order))) < _cout(_tun(figes.concat(pool))))){ alert('Ton ordre est déjà le meilleur : la ré-optimisation ne respecterait pas mieux la règle des 8 et ne ferait pas gagner de temps. Rien n\u2019a été changé.'); return; }
+  if(!(_cout(_tun(figes.concat(opt.order))) < _cout(_tun(figes.concat(pool))))){ alert('Ton ordre respecte déjà la règle des 8 : rien n\u2019a été changé.'); return; }
   // Trous de postes : on avance le linge qui arriverait seul, tard, à un poste déjà vide depuis 2 h.
-  try{ opt.order=comblerPostes(opt.order,start,tempsGalette(),_tun(figes)); }catch(e){}
-  var _cb=comblerPostes.deplaces||[];
+  var _cb=[];
   snapshotOrder(); rows=figes.concat(opt.order);
   renderRows();sync();
   if(_cb.length) setTimeout(function(){ alert('Pour que les postes n\'attendent pas, j\'ai aussi avancé : '+_cb.join(', ')+'.'); },50);
@@ -2201,17 +2227,11 @@ function bOptimize(){
   var others=bBase.filter(function(r){return r.machine!=='tunnel';});
   var ML=(CFG.maxLent==null?8:CFG.maxLent);
   var runBefore=maxLentRun(tunnelRows);
-  // On n'optimise que pour GAGNER du temps : on essaie plusieurs variantes et on garde la plus rapide.
-  // Si aucune ne bat ton ordre, ton ordre est conservé tel quel.
-  // Coût = d'abord la RÈGLE DES 8 (séries lentes trop longues), ensuite seulement l'heure de fin.
-  var _cout=function(o){ return excesRegle8(o)*1e7 + simulerTunnel(o).fin + blocageSechoir(chargesFrom(o))*60; };
-  function _variante(over){ var sv={}; for(var k in over){ sv[k]=CFG[k]; CFG[k]=over[k]; } try{ return optimiserParLot(tunnelRows,speed,start); } finally{ for(var k2 in sv) CFG[k2]=sv[k2]; } }
-  var opt=null, best=Infinity;
-  [{}, {maxClientsBloc:99}].forEach(function(v){ var o=_variante(v); if(o.galIn!==o.galOut){ if(!opt) opt=o; return; } var c=_cout(o.order); if(c<best){ best=c; opt=o; } });
-  var _garde=false;
-  if(!(best < _cout(tunnelRows))){ _garde=true; opt={order:tunnelRows.slice(), run:maxLentRun(tunnelRows), galIn:opt.galIn, galOut:opt.galIn, orphelins:[], bouchons:attenteRegle(tunnelRows)}; }
-  if(!_garde){ opt.order=comblerPostes(opt.order,start,CFG.tempsGaletteOpt); opt.run=maxLentRun(opt.order); }
-  var _combles=_garde?[]:(comblerPostes.deplaces||[]);
+  // v202 : ORDRE RESPECTÉ — on suit la journée présentée, on n'avance que des draps pour la règle des 8.
+  var _gIn=tunnelRows.reduce(function(t,r){return t+(parseInt(r.nbTransferts)||0);},0);
+  var opt={order:ordreRespecte(tunnelRows,0), orphelins:[], galIn:_gIn};
+  opt.galOut=opt.order.reduce(function(t,r){return t+(parseInt(r.nbTransferts)||0);},0); opt.run=maxLentRun(opt.order); opt.bouchons=attenteRegle(opt.order);
+  var _garde=false, _combles=[];
   bRows=opt.order.concat(others);
   bOptimized=true;
   if(opt.galIn!==opt.galOut){ alert('\u26a0 Contrôle : '+opt.galIn+' galettes en entrée, '+opt.galOut+' en sortie. '+Math.abs(opt.galIn-opt.galOut)+' galette(s) '+(opt.galOut<opt.galIn?'perdues':'en trop')+' — signalez-le, c\'est un bug.'); }
