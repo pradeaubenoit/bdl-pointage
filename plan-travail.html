@@ -213,7 +213,7 @@
       <div class="head-line">
         <div>
           <h1>Plan de travail — lavage</h1>
-          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v210 · 8 séchoirs / 4 draps · client prioritaire</b> · sécurités v201</div>
+          <div class="sub">Saisie de la journée et estimation du temps de travail · <b>moteur v212 · 8 séchoirs / 4 draps · client prioritaire</b> · sécurités v201</div>
         </div>
         <div class="head-actions">
           <div><span class="lab">Journée</span><input type="date" id="date" class="w-auto"></div>
@@ -537,6 +537,8 @@ function sortieSechoirDernier(){
     var t=r._faitAt+trav+sec; if(mx===null||t>mx) mx=t; });
   return mx;
 }
+/* Heure de fin affichée : journée terminée -> sortie séchoir du dernier lot pointé ; sinon l'estimation. */
+function finAffichee(){ if(galettesTunnelTotal()>0&&galettesRestantes()===0){ var so=sortieSechoirDernier(); if(so!=null) return so; } return heureFinReste(); }
 function publierFin(){
   try{
     if(typeof USER==='undefined'||!USER||!rows||!rows.length)return;
@@ -545,7 +547,11 @@ function publierFin(){
     // Une journée passée peut encore être clôturée le lendemain (ex. dernières lignes mises « absent » le matin).
     if(curDate!==todayISO()&&!(curDate<todayISO()&&termine))return;
     if(termine){var so=sortieSechoirDernier();fin=so!=null?so:nowSec();}
-    else fin=heureFinReste();
+    else{ // estimation, sur la même base : fin de chargement estimée + traversée + séchage du dernier lot restant
+      var trav=((+CFG.nbStockage||4)+(+CFG.nbLavage||10))*(CFG.tempsGalette>0?CFG.tempsGalette:120), dr=null;
+      rows.forEach(function(r){ if(r.machine==='tunnel'&&!r._lav&&!estFait(r)&&!estIgn(r)) dr=r; });
+      var cd=dr?codeByNum(dr.code):null, sech=(cd&&cd.sechageMin!=null)?cd.sechageMin*60:((cd&&typeOfCode(cd)==='drap')?150:2100);
+      fin=heureFinReste()+trav+sech; }
     var maint=Date.now(),l=_finEnvoi;
     if(l&&l.date===curDate){
       if(l.termine&&termine)return;
@@ -599,8 +605,8 @@ document.addEventListener('visibilitychange',garderEcranAllume);
 setTimeout(garderEcranAllume,2000);setInterval(garderEcranAllume,60000);
 /* L'heure de fin avance avec l'horloge (maintenant + reste × cadence) : on la rafraîchit chaque minute à l'écran,
    et on la renvoie au bureau dès que la page redevient visible (Safari met en veille les onglets cachés). */
-setInterval(function(){ try{ var e=document.getElementById('hFinLive'); if(e && curDate===todayISO()) e.textContent=fmtHHMM(heureFinReste()); }catch(x){} },60000);
-document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ try{ var e=document.getElementById('hFinLive'); if(e) e.textContent=fmtHHMM(heureFinReste()); }catch(x){} setTimeout(publierFin,1500); } });
+setInterval(function(){ try{ var e=document.getElementById('hFinLive'); if(e && curDate===todayISO()) e.textContent=fmtHHMM(finAffichee()); }catch(x){} },60000);
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'){ try{ var e=document.getElementById('hFinLive'); if(e) e.textContent=fmtHHMM(finAffichee()); }catch(x){} setTimeout(publierFin,1500); } });
 function heureFinReste(){
   // Tout est pointé : l'heure de fin est FIGÉE sur le dernier pointage (elle n'avance plus avec l'horloge)
   if(curDate===todayISO()&&galettesTunnelTotal()>0&&galettesRestantes()===0){ var mx=null; rows.forEach(function(r){ if(r.machine==='tunnel'&&r._faitAt!=null&&(mx===null||r._faitAt>mx))mx=r._faitAt; }); if(mx!=null) return mx; }
@@ -1846,7 +1852,7 @@ function renderResults(){
   var _gTunnel=galettesTunnelTotal();
   var _gLav=rows.reduce(function(s,r){return (r.machine!=='tunnel'||r._lav)?s+(parseInt(r.nbTransferts)||0):s;},0);
   setTimeout(publierFin,0);
-  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(heureFinReste()))+metric('Reste à laver',_gReste+' gal')+metric('Total tunnel',_gTunnel+' gal')+metric('Laveuse',_gLav+' gal')+metric('Clients',String(clients.length))+'</div>';
+  h+='<div class="metrics">'+metric('Heure de fin',fmtHHMM(finAffichee()))+metric('Reste à laver',_gReste+' gal')+metric('Total tunnel',_gTunnel+' gal')+metric('Laveuse',_gLav+' gal')+metric('Clients',String(clients.length))+'</div>';
   h+='<div class="strip">';for(var k=0;k<N;k++){var lavc=k>=CFG.nbStockage;h+='<div class="cell '+(lavc?'lav':'stock')+'"></div>';}
   h+='</div><div class="striplab"><span>'+CFG.nbStockage+' stockage</span><span>'+CFG.nbLavage+' lavage \u00b7 traversée : '+N+' positions</span></div>';
   if(sim.undef)h+='<div class="note err">Certains codes saisis n\'ont pas de taux dans Réglages — leur cadence est ignorée dans le calcul.</div>';
