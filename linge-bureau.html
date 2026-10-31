@@ -626,7 +626,7 @@ function fermer() { document.getElementById('fond').style.display = 'none'; }
 // Depuis le Plan v211, la « fin du lavage » = SORTIE SÉCHOIR du dernier lot (et non plus son chargement) : ~35 min plus tard.
 // Relevé du 30/10 : sortie séchoir 20:42, atelier fermé 21:36 -> 54 min.
 const DELAI_PLIAGE_MIN = 55;   // fin du pliage à l'atelier = sortie séchoir du dernier lot + 55 min
-const DELAI_PLIAGE_SAMEDI_MIN = 160;   // le samedi l'atelier commence plus tard : + 2 h 40
+const DELAI_PLIAGE_SAMEDI_MIN = 120;   // samedi : relevé du 31/10 -> sortie séchoir 11:00, atelier fini 13:01 -> + 2 h 00
 // Le samedi = le JOUR DU LAVAGE affiché (et non le jour où l'on regarde : un vendredi consulté le samedi reste un vendredi).
 function jourFL(){const pv=(document.getElementById('periode')||{}).value;return (typeof mode!=='undefined'&&mode==='jour'&&/^\d{4}-\d\d-\d\d$/.test(pv||''))?new Date(pv+'T12:00:00'):new Date();}
 function delaiPliage(){return jourFL().getDay()===6?DELAI_PLIAGE_SAMEDI_MIN:DELAI_PLIAGE_MIN;}
