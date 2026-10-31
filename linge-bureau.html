@@ -623,10 +623,14 @@ function fermer() { document.getElementById('fond').style.display = 'none'; }
 
 
 /* ---------- Fin de production lavage (envoyée par le Plan de travail) ---------- */
-const DELAI_PLIAGE_MIN = 75;   // fin du pliage à l'atelier = fin du lavage + 1 h 15 (moyenne relevée)
-const DELAI_PLIAGE_SAMEDI_MIN = 195;   // le samedi l'atelier commence plus tard : + 3 h 15
-function delaiPliage(){return new Date().getDay()===6?DELAI_PLIAGE_SAMEDI_MIN:DELAI_PLIAGE_MIN;}
-function txtDelai(n){return 'fin du lavage + '+Math.floor(n/60)+' h '+String(n%60).padStart(2,'0')+(new Date().getDay()===6?' (samedi)':'');}
+// Depuis le Plan v211, la « fin du lavage » = SORTIE SÉCHOIR du dernier lot (et non plus son chargement) : ~35 min plus tard.
+// Relevé du 30/10 : sortie séchoir 20:42, atelier fermé 21:36 -> 54 min.
+const DELAI_PLIAGE_MIN = 55;   // fin du pliage à l'atelier = sortie séchoir du dernier lot + 55 min
+const DELAI_PLIAGE_SAMEDI_MIN = 160;   // le samedi l'atelier commence plus tard : + 2 h 40
+// Le samedi = le JOUR DU LAVAGE affiché (et non le jour où l'on regarde : un vendredi consulté le samedi reste un vendredi).
+function jourFL(){const pv=(document.getElementById('periode')||{}).value;return (typeof mode!=='undefined'&&mode==='jour'&&/^\d{4}-\d\d-\d\d$/.test(pv||''))?new Date(pv+'T12:00:00'):new Date();}
+function delaiPliage(){return jourFL().getDay()===6?DELAI_PLIAGE_SAMEDI_MIN:DELAI_PLIAGE_MIN;}
+function txtDelai(n){return 'sortie séchoir + '+Math.floor(n/60)+' h '+String(n%60).padStart(2,'0')+(jourFL().getDay()===6?' (samedi)':'');}
 function plusMin(t,n){const m=minutesHHMM(t);if(m==null)return '—';const x=(m+n)%1440;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');}
 function minutesHHMM(t){const m=String(t||'').match(/(\d+):(\d+)/);return m?(+m[1])*60+(+m[2]):null;}
 async function chargerFinLavage(){
