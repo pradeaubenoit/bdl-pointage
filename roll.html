@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Roll — BdL</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bleu:#1f5fa8;--bleu2:#e8f0fa;--vert:#2e7d32;--vert2:#e6f4e7;--rouge:#c62828;--rouge2:#fdecec;--orange:#e67e00;--orange2:#fff3e0;--txt:#1d2329;--doux:#66717d;--ligne:#dde2e7}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#eef1f4;color:var(--txt);font-size:17px}
+header{background:#1f2a35;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+header b{font-size:18px}header button{background:transparent;border:1px solid #ffffff66;color:#fff;border-radius:8px;padding:6px 10px;font-size:14px}
+main{padding:14px 16px;max-width:560px;margin:0 auto}
+.carte{background:#fff;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px #0001}
+.num{font-size:34px;font-weight:800;letter-spacing:1px}
+.etat{display:inline-block;padding:4px 10px;border-radius:20px;font-weight:700;font-size:15px;margin-top:6px}
+.e-bdl{background:#eef0f2;color:#555}.e-pret{background:var(--bleu2);color:var(--bleu)}.e-chauffeur{background:var(--orange2);color:var(--orange)}.e-client{background:var(--vert2);color:var(--vert)}.e-retour{background:#f3e8fd;color:#6b2fa3}
+.client{font-size:22px;font-weight:700;margin-top:8px}
+.s{color:var(--doux);font-size:14px}
+button.gros{display:block;width:100%;font-size:20px;font-weight:700;padding:18px;border-radius:14px;border:0;margin:10px 0;color:#fff;background:var(--bleu)}
+button.gros.v{background:var(--vert)}button.gros.o{background:var(--orange)}button.gros.r{background:var(--rouge)}button.gros.g{background:#fff;color:var(--txt);border:2px solid var(--ligne)}
+input,select{width:100%;font-size:18px;padding:12px;border:1px solid var(--ligne);border-radius:10px;margin:6px 0 10px}
+label{font-weight:600;font-size:15px}
+.liste{max-height:55vh;overflow:auto}.liste div{padding:14px 10px;border-bottom:1px solid var(--ligne);font-size:18px}
+.ok{background:var(--vert2);border:2px solid var(--vert);color:var(--vert);text-align:center;font-size:22px;font-weight:800;padding:22px}
+.alerte{background:var(--rouge2);border:2px solid var(--rouge);color:var(--rouge);font-weight:700;padding:14px;border-radius:12px;margin:10px 0}
+.hist div{font-size:14px;padding:4px 0;border-bottom:1px dashed var(--ligne)}
+</style>
+</head>
+<body>
+<header><b>🧺 Roll BdL</b><button id="moiBtn" onclick="changerMoi()"></button></header>
+<main id="main"><div class="carte">Chargement…</div></main>
+<script>
+var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
+var LINGE_API='https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
+var sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false}});
+var $=function(i){return document.getElementById(i);};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function lire(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+function ecrire(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+var ETATS={bdl:'Vide à la BdL',pret:'Rempli — prêt à partir',chauffeur:'Dans le camion',client:'Chez le client',retour:'Repris — en retour'};
+var ROLES={chauffeur:'Chauffeur',atelier:'Atelier',laveur:'Laveur',bureau:'Bureau'};
+var numero=(new URLSearchParams(location.search).get('r')||'').trim().toUpperCase();
+var INFO=null, MOI=lire('roll_moi',null), CLIENTS=lire('roll_clients',[]);
+function majMoi(){$('moiBtn').textContent=MOI?('👤 '+MOI.nom):'👤 Qui êtes-vous ?';}
+function fmtQ(q){var d=new Date(q);return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
+var LIB={vide:'vidé au tunnel',rempli:'rempli',charge:'chargé',livre:'livré',repris:'repris'};
+
+// Liste des clients : catalogue de BdL Linge (gardé sur le téléphone pour marcher sans réseau)
+fetch(LINGE_API+'?action=catalogue').then(function(r){return r.json();}).then(function(d){
+  if(d&&d.ok&&d.catalogue){CLIENTS=d.catalogue.map(function(c){return c.client;}).filter(Boolean).sort(function(a,b){return a.localeCompare(b,'fr');});ecrire('roll_clients',CLIENTS);}
+}).catch(function(){});
+
+async function charger(){
+  majMoi();
+  if(!numero){return demanderNumero();}
+  $('main').innerHTML='<div class="carte">Chargement du roll '+esc(numero)+'…</div>';
+  try{var r=await sb.rpc('roll_info',{p_numero:numero});if(r.error)throw r.error;INFO=r.data;}
+  catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="charger()">Réessayer</button>';return;}
+  if(!INFO.ok){$('main').innerHTML='<div class="carte alerte">'+esc(INFO.error)+'</div>';return demanderNumero(true);}
+  if(!MOI)return choisirMoi();
+  afficher();
+}
+function demanderNumero(garde){
+  var h=(garde?$('main').innerHTML:'')+'<div class="carte"><label>Numéro du roll</label><input id="nNum" placeholder="ex. R-012" autocapitalize="characters"><button class="gros" onclick="var v=document.getElementById(\'nNum\').value.trim().toUpperCase();if(v){if(/^\\d+$/.test(v))v=\'R-\'+v.padStart(3,\'0\');location.search=\'?r=\'+encodeURIComponent(v);}">Ouvrir</button><div class="s">Le plus simple : scanner l\'étiquette du roll avec l\'appareil photo.</div></div>';
+  $('main').innerHTML=h;
+}
+function choisirMoi(){
+  var ps=(INFO&&INFO.personnes)||[];
+  $('main').innerHTML='<div class="carte"><b>Qui êtes-vous ?</b><div class="s">À faire une seule fois sur ce téléphone.</div><label style="display:block;margin-top:10px">Nom</label><select id="mP">'+ps.map(function(p){return '<option value="'+p.id+'">'+esc(p.nom)+' ('+(ROLES[p.role]||p.role)+')</option>';}).join('')+'</select>'+
+    '<label>Code à 4 chiffres</label><input id="mC" inputmode="numeric" maxlength="6" type="password"><button class="gros" id="mOk">Valider</button></div>';
+  $('mOk').onclick=function(){var p=ps.find(function(x){return x.id===$('mP').value;}),c=$('mC').value.trim();if(!p||!c)return;MOI={id:p.id,nom:p.nom,role:p.role,code:c};ecrire('roll_moi',MOI);majMoi();afficher();};
+}
+function changerMoi(){if(!INFO)return;if(MOI&&!confirm('Changer de personne sur ce téléphone ?'))return;MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}majMoi();choisirMoi();}
+
+function afficher(msg){
+  var I=INFO,h='';
+  if(msg)h+='<div class="carte ok">'+msg+'</div>';
+  h+='<div class="carte"><div class="num">'+esc(I.numero)+'</div><span class="etat e-'+esc(I.etat)+'">'+esc(ETATS[I.etat]||I.etat)+'</span>'+
+    (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+
+    '<div class="s" style="margin-top:6px">Dernier scan : '+(I.personne?esc(I.personne)+' · ':'')+fmtQ(I.maj_le)+'</div></div>';
+  h+='<div id="acts"></div>';
+  if(I.derniers&&I.derniers.length)h+='<div class="carte hist"><b>Derniers passages</b>'+I.derniers.map(function(d){return '<div>'+fmtQ(d.quand)+' · '+esc(LIB[d.etape]||d.etape)+(d.client?' · '+esc(d.client):'')+' · '+esc(d.personne||'')+'</div>';}).join('')+'</div>';
+  $('main').innerHTML=h;
+  actions();
+}
+function bouton(txt,cls,fn){var b=document.createElement('button');b.className='gros '+(cls||'');b.textContent=txt;b.onclick=fn;$('acts').appendChild(b);}
+function actions(){
+  var I=INFO,r=MOI.role;
+  if(r==='atelier'||r==='bureau')bouton('🧺 Rempli pour un client…','',function(){choisirClient('Rempli pour quel client ?',function(c){scan('rempli',c);});});
+  if(r==='chauffeur'||r==='bureau'){
+    bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
+    if(I.client)bouton('✅ Livré chez '+I.client,'v',function(){scan('livre',I.client);});
+    bouton(I.client?'Livré chez un autre client…':'✅ Livré chez…','g',function(){choisirClient('Livré chez quel client ?',function(c){
+      if(I.client&&c!==I.client&&!confirm('⚠ ATTENTION : ce roll contient le linge de « '+I.client+' ».\n\nVous allez le livrer chez « '+c+' ». Confirmer ?'))return;scan('livre',c);});});
+    bouton('↩ Repris chez '+(I.etat==='client'&&I.client?I.client:'un client…'),'g',function(){if(I.etat==='client'&&I.client)return scan('repris',I.client);choisirClient('Repris chez quel client ?',function(c){scan('repris',c);});});
+  }
+  if(r==='laveur'||r==='bureau')bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
+}
+function choisirClient(titre,fn){
+  var h='<div class="carte"><b>'+esc(titre)+'</b><input id="cQ" placeholder="Tapez quelques lettres…"><div class="liste" id="cL"></div><button class="gros g" onclick="afficher()">Annuler</button></div>';
+  $('acts').innerHTML=h;
+  function rendre(){var t=$('cQ').value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    var l=CLIENTS.filter(function(c){return c.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').indexOf(t)>=0;}).slice(0,80);
+    $('cL').innerHTML=(l.length?l:[]).map(function(c,i){return '<div data-c="'+esc(c)+'">'+esc(c)+'</div>';}).join('')+(t&&!l.length?'<div data-c="'+esc($('cQ').value.trim())+'">➕ '+esc($('cQ').value.trim())+'</div>':'');}
+  $('cQ').oninput=rendre;rendre();
+  $('cL').onclick=function(e){var d=e.target.closest('[data-c]');if(d)fn(d.getAttribute('data-c'));};
+}
+async function scan(etape,client){
+  $('acts').innerHTML='<div class="carte">Envoi…</div>';
+  try{
+    var r=await sb.rpc('roll_scan',{p_numero:INFO.numero,p_personne:MOI.id,p_code:MOI.code,p_etape:etape,p_client:client});
+    if(r.error)throw r.error;
+    if(!r.data.ok){if(/code/i.test(r.data.error)){alert('Code incorrect. Retapez votre code.');MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}majMoi();return choisirMoi();}throw new Error(r.data.error);}
+    var i2=await sb.rpc('roll_info',{p_numero:INFO.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
+    if(navigator.vibrate)navigator.vibrate(120);
+    afficher('✓ '+esc(INFO.numero)+' '+esc(LIB[etape]||etape)+(client?' · '+esc(client):'')+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le roll suivant.</div>');
+  }catch(e){$('acts').innerHTML='<div class="carte alerte">Non enregistré : '+esc(e.message||e)+'</div>';var b=document.createElement('button');b.className='gros';b.textContent='Réessayer';b.onclick=function(){scan(etape,client);};$('acts').appendChild(b);}
+}
+charger();
+</script>
+</body>
+</html>
