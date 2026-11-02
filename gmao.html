@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.21';
+var VERSION='v9.22';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -966,7 +966,7 @@ VUES.eq=async function(id){
         return '<div style="margin:6px 0">🗓 Visite tous les <b>'+Math.round(pv.periodicite_jours/30.4)+' mois</b> · dernière : '+(pv.dernier?fmtD(pv.dernier):'—')+' · prochaine : '+badgeEcheance(pv)+'</div>';})()+
       '<div class="actions" style="justify-content:flex-start">'+boutonsContact(ctr.p)+'<button class="btn" id="eCtP">+ Passage du prestataire</button></div>'+
       (ctr.p.telephone?'':'<div class="vide">Pas de téléphone : ajoutez-le sur la fiche <a href="#par/'+ctr.p.id+'">'+esc(ctr.p.nom)+'</a>.</div>')+
-      '<h2 style="margin-top:14px">Historique du contrat ('+ctrBons.length+')</h2>'+(ctrBons.length?ctrBons.map(function(b){var nat=/^entretien \+ d/i.test(b.titre||'')?'🗓+🔧':(b.preventif_id?'🗓 entretien':(b.suite_de?'🔧 dépannage':''));return ligneBon(b).replace('<div class="t">','<div class="t">'+(nat?'<span class="badge b-bleu">'+nat+'</span> ':''));}).join(''):'<div class="vide">Aucun passage enregistré.</div>')
+      '<h2 style="margin-top:14px">Historique du contrat ('+ctrBons.length+')</h2>'+(ctrBons.length?ctrBons.map(function(b){var nat=/^entretien \+ d/i.test(b.titre||'')?'🗓+🔧':((b.preventif_id||/^entretien/i.test(b.titre||''))?'🗓 entretien':((b.suite_de||/^dépannage/i.test(b.titre||''))?'🔧 dépannage':''));return ligneBon(b).replace('<div class="t">','<div class="t">'+(nat?'<span class="badge b-bleu">'+nat+'</span> ':''));}).join(''):'<div class="vide">Aucun passage enregistré.</div>')
     :'<div class="vide">Pas de contrat de maintenance sur cette machine.</div>')+'</div>';
   (function(){var s3=statsPannes(bons,91),s12=statsPannes(bons,365),ret=ctr?retoursDePanne(bons,ctr.p.nom):[];
     function col(t,x){return '<div><div class="etiq">'+t+'</div><div style="font-size:15px"><b>'+x.n+'</b> panne'+(x.n>1?'s':'')+(x.arretMin?' · arrêt <b>'+fmtMin(x.arretMin)+'</b>':'')+(x.tous?'<div class="etiq">≈ 1 panne tous les '+x.tous+' j</div>':'')+'</div></div>';}
@@ -1026,7 +1026,7 @@ VUES.eq=async function(id){
       html+='<div class="carte" style="margin:10px 0;padding:10px">'+
         '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:15px;margin:0"><input type="checkbox" class="pcM" data-k="'+k+'" style="width:auto"'+(k===0?' checked disabled':'')+'> <b>'+esc(m.nom)+'</b> <span class="etiq">'+esc(m.code)+' · '+esc(chemin(m))+'</span></label>'+
         '<div class="pcZ" data-k="'+k+'" style="margin-left:26px'+(k===0?'':';display:none')+'">'+
-        '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px"><input type="checkbox" class="pcE" data-k="'+k+'" style="width:auto"'+(pv&&infoPrev(pv).aFaire?' checked':'')+(pv?'':' disabled')+'> 🗓 Entretien / visite prévue'+(pv?' '+badgeEcheance(pv):' <span class="etiq">(fréquence non renseignée)</span>')+'</label>'+
+        '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px"><input type="checkbox" class="pcE" data-k="'+k+'" style="width:auto"'+(pv&&infoPrev(pv).aFaire?' checked':'')+'> 🗓 Entretien / visite prévue'+(pv?' '+badgeEcheance(pv):' <span class="etiq">(fréquence non renseignée : l\'entretien sera noté, sans calcul de la prochaine visite)</span>')+'</label>'+
         (pa.length?pa.map(function(b){return '<label style="display:flex;gap:8px;align-items:flex-start;color:var(--txt);font-size:14px;margin:4px 0"><input type="checkbox" class="pcB" data-k="'+k+'" value="'+b.id+'" style="width:auto;margin-top:3px"><span>🔧 Dépannage '+numBT(b.numero)+' · '+esc(b.titre)+' <span class="etiq">('+fmtD(b.cree_le)+')</span></span></label>';}).join(''):'<div class="etiq">🔧 Aucune panne ouverte.</div>')+
         '</div></div>';});
     html+='<label>Ce qu\'ils ont fait</label><input id="pcT" placeholder="ex. Remplacement du moteur de tension + entretien">'+
