@@ -1176,6 +1176,7 @@ function valider() {
     }));
   if (!lignes.length) return;
   ecrire(CLE_FILE, lire(CLE_FILE, []).concat(lignes));
+  demanderChariot(clientCourant.client, lignes);   // rolls : dans quel chariot part ce linge ?
   toast('Enregistré : ' + clientCourant.client + ', ' + lignes.length + ' article' + (lignes.length > 1 ? 's' : '') +
     (jourChoisi ? ' — pour ' + libelleJour(jourChoisi) : ''));
   afficherClients();
@@ -1215,6 +1216,77 @@ function majStatut() {
   s.className = n ? 'attente' : '';
   s.textContent = n ? n + ' en attente d\'envoi' : 'Tout est envoyé';
 }
+
+/* ---------- ROLLS : chaque saisie validée est rattachée à un chariot (numéro tapé au pavé) ----------
+   Le chariot passe « Rempli pour <client> » avec le détail des quantités. « Pas de chariot » = comme avant.
+   Envoi direct à la base des rolls (Supabase) ; sans réseau, gardé sur la tablette et renvoyé plus tard. */
+const ROLL_SB = 'https://wjaesphordfjzavnptpu.supabase.co', ROLL_KEY = 'sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
+function rollEsc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+const CLE_ROLL_ID = 'linge_roll_tablette', CLE_ROLL_FILE = 'linge_roll_file';
+async function rollRpc(fn, args) {
+  const r = await fetch(ROLL_SB + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { apikey: ROLL_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
+  if (!r.ok) throw new Error('Réseau ' + r.status);
+  return r.json();
+}
+function numRoll(v) { v = String(v || '').trim().toUpperCase(); if (/^\d+$/.test(v)) v = 'R-' + v.padStart(3, '0'); return v; }
+function demanderChariot(client, lignes) {
+  const contenu = lignes.map(l => l.article + ' ' + l.quantite).join(', ');
+  let f = document.getElementById('fondRoll');
+  if (!f) { f = document.createElement('div'); f.id = 'fondRoll'; f.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(f); }
+  let saisie = '';
+  const touches = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
+  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:440px">' +
+    '<div style="font-size:22px;font-weight:800">🧺 Dans quel chariot ?</div><div style="color:#555;margin:4px 0 10px">' + rollEsc(client) + ' · ' + rollEsc(contenu) + '</div>' +
+    '<div id="rollAff" style="font-size:44px;font-weight:900;text-align:center;border:2px solid #ccd;border-radius:12px;padding:8px;min-height:68px;letter-spacing:2px"></div>' +
+    '<div id="rollMsg" style="min-height:22px;color:#c62828;font-weight:700;margin:6px 0"></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + touches.map(t => '<button data-t="' + t + '" style="font-size:28px;font-weight:700;padding:16px 0;border-radius:12px;border:1px solid #ccd;background:' + (t === 'OK' ? '#2e7d32;color:#fff' : '#f4f6f8') + '">' + t + '</button>').join('') + '</div>' +
+    '<button id="rollSans" style="width:100%;margin-top:12px;font-size:18px;padding:14px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Pas de chariot pour l\'instant</button></div>';
+  f.style.display = 'flex';
+  const aff = () => { document.getElementById('rollAff').textContent = saisie ? numRoll(saisie) : ''; };
+  f.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
+    const t = b.dataset.t;
+    if (t === '⌫') saisie = saisie.slice(0, -1);
+    else if (t === 'OK') { if (saisie) { f.style.display = 'none'; rollEnvoyer({ numero: numRoll(saisie), client, contenu }); } return; }
+    else if (saisie.length < 4) saisie += t;
+    aff();
+  });
+  document.getElementById('rollSans').onclick = () => { f.style.display = 'none'; };
+}
+async function rollIdentite(numero) {
+  let id = lire(CLE_ROLL_ID, null);
+  if (id) return id;
+  const info = await rollRpc('roll_info', { p_numero: numero });
+  const ps = ((info && info.personnes) || []).filter(p => /atelier|bureau/.test(p.role || ''));
+  if (!ps.length) { toast('Aucune personne « Atelier » dans les rolls (page bureau → Personnes).', true); return null; }
+  const op = String(lire(CLE_OP, '') || '').toLowerCase();
+  let p = ps.find(x => String(x.nom).toLowerCase() === op) || (ps.length === 1 ? ps[0] : null);
+  if (!p) { const n = prompt('Rolls — qui utilise cette tablette ?\n' + ps.map((x, i) => (i + 1) + '. ' + x.nom).join('\n') + '\n\nTapez le numéro :'); p = ps[(parseInt(n) || 0) - 1]; if (!p) return null; }
+  const code = prompt('Rolls — code à 4 chiffres de « ' + p.nom + ' » (une seule fois sur cette tablette) :');
+  if (!code) return null;
+  id = { id: p.id, nom: p.nom, code: code.trim() };
+  ecrire(CLE_ROLL_ID, id);
+  return id;
+}
+async function rollEnvoyer(x) {
+  try {
+    const id = await rollIdentite(x.numero);
+    if (!id) { ecrire(CLE_ROLL_FILE, lire(CLE_ROLL_FILE, []).concat([x])); return; }
+    const r = await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: x.client, p_note: x.contenu });
+    if (!r.ok) {
+      if (/code/i.test(r.error || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} toast('Rolls : code incorrect, il sera redemandé.', true); ecrire(CLE_ROLL_FILE, lire(CLE_ROLL_FILE, []).concat([x])); return; }
+      toast('Chariot ' + x.numero + ' : ' + r.error, true); return;
+    }
+    toast('🧺 ' + x.numero + ' : rempli pour ' + x.client);
+  } catch (e) {
+    ecrire(CLE_ROLL_FILE, lire(CLE_ROLL_FILE, []).concat([x]));   // sans réseau : on réessaiera
+  }
+}
+async function rollRenvoyer() {
+  const file = lire(CLE_ROLL_FILE, []); if (!file.length || !lire(CLE_ROLL_ID, null)) return;
+  ecrire(CLE_ROLL_FILE, []);
+  for (const x of file) await rollEnvoyer(x);
+}
+setInterval(rollRenvoyer, 60 * 1000);
 
 function toast(msg, erreur) {
   const t = document.getElementById('toast');
