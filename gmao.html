@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.24';
+var VERSION='v9.25';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -340,7 +340,7 @@ function estPanne(b){return b.type==='Curatif'||!!b.machine_arretee;}
 function tB(b){return new Date(b.cree_le).getTime();}
 function statsPannes(bons,jours){var now=Date.now(),dep=now-jours*864e5;
   var l=bons.filter(function(b){return estPanne(b)&&tB(b)>=dep;});
-  var arret=l.filter(function(b){return b.machine_arretee;}).reduce(function(s,b){return s+Math.max(0,(b.fin?new Date(b.fin).getTime():now)-tB(b));},0)/60000;
+  var arret=l.reduce(function(s,b){if(+b.arret_min>0)return s+(+b.arret_min)*60000;return b.machine_arretee?s+Math.max(0,(b.fin?new Date(b.fin).getTime():now)-tB(b)):s;},0)/60000;
   return {n:l.length,arretMin:Math.round(arret),tous:l.length?Math.round(jours/l.length):null};}
 /* Retour de panne : une panne signalée moins de 30 jours après un passage du prestataire */
 function retoursDePanne(bons,nomPart){
@@ -739,7 +739,7 @@ VUES.bon=async function(id,extra){
       '<button class="btn sm" id="bSuite">🔁 Suite à donner / commander une pièce</button><button class="btn sm l" id="bEdit">✎ Modifier / confier</button><button class="btn sm l" onclick="qrTel()">📱 Sur le téléphone</button></div></div>';
   if(fini){
     html+='<div class="carte" style="background:var(--vert2)"><h2>✓ Terminé le '+fmtDH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</h2><div style="white-space:pre-wrap">'+esc(b.rapport||'')+'</div>'+
-      '<div class="stats" style="margin-top:8px"><div><span class="etiq">Temps passé</span><b>'+fmtMin(b.duree_min)+'</b></div>'+(prevu?'<div><span class="etiq">Prévu</span><b>'+fmtMin(prevu)+'</b></div>':'')+'<div><span class="etiq">Arrêt machine</span><b>'+fmtMin(b.arret_min)+'</b></div></div>'+
+      '<div class="stats" style="margin-top:8px"><div><span class="etiq">Temps passé</span><b>'+fmtMin(b.duree_min)+'</b></div>'+(prevu?'<div><span class="etiq">Prévu</span><b>'+fmtMin(prevu)+'</b></div>':'')+'<div><span class="etiq">Arrêt machine</span><b>'+fmtDuree(+b.arret_min||0)+'</b></div></div>'+
       (b.justification?'<div style="margin-top:10px;padding:8px 10px;background:#fff;border-radius:8px"><b>Justification du dépassement :</b> '+esc(b.justification)+'</div>':'')+
       (V6?(b.valide_le?'<div class="etiq" style="margin-top:8px">✔ Validé par '+esc(b.valide_par||'?')+' le '+fmtDH(b.valide_le)+'</div>':'<div class="actions"><button class="btn v" id="bVal">✔ Valider ce travail</button></div>'):'')+'</div>';
   }
@@ -999,7 +999,7 @@ VUES.eq=async function(id){
       '<h2 style="margin-top:14px">Historique du contrat ('+ctrBons.length+')</h2>'+(ctrBons.length?ctrBons.map(function(b){var nat=/^entretien \+ d/i.test(b.titre||'')?'🗓+🔧':((b.preventif_id||/^entretien/i.test(b.titre||''))?'🗓 entretien':((b.suite_de||/^dépannage/i.test(b.titre||''))?'🔧 dépannage':''));return ligneBon(b).replace('<div class="t">','<div class="t">'+(nat?'<span class="badge b-bleu">'+nat+'</span> ':'')+badgeResultat(b)+' ');}).join(''):'<div class="vide">Aucun passage enregistré.</div>')
     :'<div class="vide">Pas de contrat de maintenance sur cette machine.</div>')+'</div>';
   (function(){var s3=statsPannes(bons,91),s12=statsPannes(bons,365),ret=ctr?retoursDePanne(bons,ctr.p.nom):[];
-    function col(t,x){return '<div><div class="etiq">'+t+'</div><div style="font-size:15px"><b>'+x.n+'</b> panne'+(x.n>1?'s':'')+(x.arretMin?' · arrêt <b>'+fmtMin(x.arretMin)+'</b>':'')+(x.tous?'<div class="etiq">≈ 1 panne tous les '+x.tous+' j</div>':'')+'</div></div>';}
+    function col(t,x){return '<div><div class="etiq">'+t+'</div><div style="font-size:15px"><b>'+x.n+'</b> panne'+(x.n>1?'s':'')+(x.arretMin?' · arrêt <b>'+fmtDuree(x.arretMin)+'</b>':'')+(x.tous?'<div class="etiq">≈ 1 panne tous les '+x.tous+' j</div>':'')+'</div></div>';}
     html+='<div class="carte"><h2>📊 Fiabilité</h2><div class="grille">'+col('3 derniers mois',s3)+col('12 derniers mois',s12)+'</div>'+
       (function(){var rv=ctr?bons.filter(function(b){return b.type==='Contrat'&&b.statut==='Terminé'&&resultatPassage(b)&&resultatPassage(b)!=='ok';}):[];
         return rv.length?'<div class="alerte" style="margin-top:8px">⚠ <b>'+rv.length+' passage'+(rv.length>1?'s':'')+' du prestataire sans résolution</b> :'+rv.map(function(b){return '<div><a href="#bon/'+b.id+'">'+numBT(b.numero)+' · '+esc(b.titre)+'</a> '+badgeResultat(b)+' <span class="etiq">('+fmtD(b.fin||b.cree_le)+')</span></div>';}).join('')+'</div>':'';})()+
