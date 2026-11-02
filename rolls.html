@@ -86,16 +86,20 @@ VUES.clients=async function(){
     (cl.map(function(c){var x=g[c],old=x.chez.reduce(function(m,r){return Math.max(m,jours(r.maj_le));},0);
       return '<tr><td><b>'+esc(c)+'</b></td><td>'+x.chez.length+(x.chez.length?' <span class="s">('+x.chez.map(function(r){return r.numero;}).join(', ')+')</span>':'')+'</td><td class="'+(old>=SEUIL_J?'vieux':'')+'">'+(x.chez.length?old+' j':'—')+'</td><td>'+x.route.length+'</td></tr>';}).join('')||'<tr><td colspan="4" class="s">Aucun roll chez un client pour l\'instant.</td></tr>')+'</tbody></table></div>';
 };
+// Plusieurs postes possibles par personne : enregistrés « atelier,laveur »
+function casesRoles(pref,val){var l=String(val||'').split(',');return Object.keys(ROLES).map(function(k){return '<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" data-rl="'+pref+'" value="'+k+'"'+(l.indexOf(k)>=0?' checked':'')+'> '+ROLES[k]+'</label>';}).join('');}
+function lireRoles(pref){return [].slice.call(document.querySelectorAll('[data-rl="'+pref+'"]')).filter(function(x){return x.checked;}).map(function(x){return x.value;}).join(',');}
 VUES.personnes=async function(){
-  $('main').innerHTML='<h1>Personnes qui scannent</h1><div class="carte"><table><thead><tr><th>Nom</th><th>Rôle</th><th>Code</th><th>Actif</th><th></th></tr></thead><tbody>'+
-    PERS.map(function(p){return '<tr><td><input value="'+esc(p.nom)+'" data-n="'+p.id+'"></td><td><select data-ro="'+p.id+'">'+Object.keys(ROLES).map(function(k){return '<option value="'+k+'"'+(k===p.role?' selected':'')+'>'+ROLES[k]+'</option>';}).join('')+'</select></td><td><input value="'+esc(p.code)+'" data-c="'+p.id+'" style="width:90px" inputmode="numeric"></td><td><input type="checkbox" data-a="'+p.id+'"'+(p.actif?' checked':'')+'></td><td><button class="btn" data-s="'+p.id+'">Enregistrer</button></td></tr>';}).join('')+
-    '</tbody></table><h2 style="margin-top:16px">Ajouter</h2><input id="pN" placeholder="Nom"> <select id="pR">'+Object.keys(ROLES).map(function(k){return '<option value="'+k+'">'+ROLES[k]+'</option>';}).join('')+'</select> <input id="pC" placeholder="Code 4 chiffres" style="width:140px" inputmode="numeric"> <button class="btn p" id="pOk">Ajouter</button>'+
+  $('main').innerHTML='<h1>Personnes qui scannent</h1><div class="carte"><table><thead><tr><th>Nom</th><th>Postes</th><th>Code</th><th>Actif</th><th></th></tr></thead><tbody>'+
+    PERS.map(function(p){return '<tr><td><input value="'+esc(p.nom)+'" data-n="'+p.id+'"></td><td>'+casesRoles('ro'+p.id,p.role)+'</td><td><input value="'+esc(p.code)+'" data-c="'+p.id+'" style="width:90px" inputmode="numeric"></td><td><input type="checkbox" data-a="'+p.id+'"'+(p.actif?' checked':'')+'></td><td><button class="btn" data-s="'+p.id+'">Enregistrer</button></td></tr>';}).join('')+
+    '</tbody></table><h2 style="margin-top:16px">Ajouter</h2><input id="pN" placeholder="Nom"> <span style="display:inline-block;vertical-align:middle">'+casesRoles('pR','')+'</span> <input id="pC" placeholder="Code 4 chiffres" style="width:140px" inputmode="numeric"> <button class="btn p" id="pOk">Ajouter</button>'+
     '<div class="s" style="margin-top:8px">Le code sert à la personne pour s\'identifier sur son téléphone la première fois. Rôle : Atelier → « Rempli pour… » ; Chauffeur → Chargé / Livré / Repris ; Laveur → Vidé au tunnel ; Bureau → tout.</div></div>';
   $('pOk').onclick=async function(){var n=$('pN').value.trim(),c=$('pC').value.trim();if(!n||!/^\d{4,6}$/.test(c)){alert('Nom et code de 4 chiffres obligatoires');return;}
-    try{await q(sb.from('rolls_personnes').insert({nom:n,role:$('pR').value,code:c}));route();}catch(e){alert(e.message);}};
+    var ro=lireRoles('pR');if(!ro){alert('Cochez au moins un poste');return;}
+    try{await q(sb.from('rolls_personnes').insert({nom:n,role:ro,code:c}));route();}catch(e){alert(e.message);}};
   document.querySelectorAll('[data-s]').forEach(function(b){b.onclick=async function(){var id=b.dataset.s,c=document.querySelector('[data-c="'+id+'"]').value.trim();
     if(!/^\d{4,6}$/.test(c)){alert('Code : 4 chiffres');return;}
-    try{await q(sb.from('rolls_personnes').update({nom:document.querySelector('[data-n="'+id+'"]').value.trim(),role:document.querySelector('[data-ro="'+id+'"]').value,code:c,actif:document.querySelector('[data-a="'+id+'"]').checked}).eq('id',id));b.textContent='✓';}catch(e){alert(e.message);}};});
+    try{await q(sb.from('rolls_personnes').update({nom:document.querySelector('[data-n="'+id+'"]').value.trim(),role:lireRoles('ro'+id)||'chauffeur',code:c,actif:document.querySelector('[data-a="'+id+'"]').checked}).eq('id',id));b.textContent='✓';}catch(e){alert(e.message);}};});
 };
 function chargerQR(){return new Promise(function(ok,ko){if(window.QRCode)return ok();var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc);});}
 VUES.etiquettes=async function(){
