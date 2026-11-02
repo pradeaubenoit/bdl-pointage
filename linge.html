@@ -446,6 +446,11 @@ function afficherClients() {
   nouveau.textContent = '+ Nouveau client';
   nouveau.onclick = nouveauClient;
   zone.appendChild(nouveau);
+  const chariot = document.createElement('button');
+  chariot.className = 'tuile ajout';
+  chariot.textContent = '🧺 Chariot sans saisie';
+  chariot.onclick = chariotSansSaisie;
+  zone.appendChild(chariot);
   filtrerTuiles();
 }
 
@@ -1231,16 +1236,17 @@ async function rollRpc(fn, args) {
 function numRoll(v) { v = String(v || '').trim().toUpperCase(); if (/^\d+$/.test(v)) v = 'R-' + v.padStart(3, '0'); return v; }
 function demanderChariot(client, lignes) {
   const contenu = lignes.map(l => l.article + ' ' + l.quantite).join(', ');
+  const sousTitre = contenu || 'sans quantités (suivi du chariot seulement)';
   let f = document.getElementById('fondRoll');
   if (!f) { f = document.createElement('div'); f.id = 'fondRoll'; f.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(f); }
   let saisie = '';
   const touches = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:440px">' +
-    '<div style="font-size:22px;font-weight:800">🧺 Dans quel chariot ?</div><div style="color:#555;margin:4px 0 10px">' + rollEsc(client) + ' · ' + rollEsc(contenu) + '</div>' +
+    '<div style="font-size:22px;font-weight:800">🧺 Dans quel chariot ?</div><div style="color:#555;margin:4px 0 10px">' + rollEsc(client) + ' · ' + rollEsc(sousTitre) + '</div>' +
     '<div id="rollAff" style="font-size:44px;font-weight:900;text-align:center;border:2px solid #ccd;border-radius:12px;padding:8px;min-height:68px;letter-spacing:2px"></div>' +
     '<div id="rollMsg" style="min-height:22px;color:#c62828;font-weight:700;margin:6px 0"></div>' +
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + touches.map(t => '<button data-t="' + t + '" style="font-size:28px;font-weight:700;padding:16px 0;border-radius:12px;border:1px solid #ccd;background:' + (t === 'OK' ? '#2e7d32;color:#fff' : '#f4f6f8') + '">' + t + '</button>').join('') + '</div>' +
-    '<button id="rollSans" style="width:100%;margin-top:12px;font-size:18px;padding:14px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Pas de chariot pour l\'instant</button></div>';
+    '<button id="rollSans" style="width:100%;margin-top:12px;font-size:18px;padding:14px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">' + (lignes.length ? 'Pas de chariot pour l\'instant' : 'Annuler') + '</button></div>';
   f.style.display = 'flex';
   const aff = () => { document.getElementById('rollAff').textContent = saisie ? numRoll(saisie) : ''; };
   f.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
@@ -1251,6 +1257,26 @@ function demanderChariot(client, lignes) {
     aff();
   });
   document.getElementById('rollSans').onclick = () => { f.style.display = 'none'; };
+}
+// Clients qu'on ne compte pas (ex. hôpitaux) : on suit seulement leurs chariots, sans saisir de quantités.
+function chariotSansSaisie() {
+  let f = document.getElementById('fondRoll');
+  if (!f) { f = document.createElement('div'); f.id = 'fondRoll'; f.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(f); }
+  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column">' +
+    '<div style="font-size:22px;font-weight:800">🧺 Chariot sans saisie — quel client ?</div>' +
+    '<input id="csQ" placeholder="Tapez quelques lettres…" style="font-size:20px;padding:12px;margin:10px 0;border:1px solid #ccd;border-radius:10px">' +
+    '<div id="csL" style="overflow:auto;flex:1"></div>' +
+    '<button id="csX" style="margin-top:10px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Annuler</button></div>';
+  f.style.display = 'flex';
+  const noms = catalogue.map(c => c.client).filter(Boolean).sort((a, b) => a.localeCompare(b, 'fr'));
+  const rendre = () => {
+    const t = sansAccent(document.getElementById('csQ').value);
+    document.getElementById('csL').innerHTML = noms.filter(n => sansAccent(n).indexOf(t) >= 0).slice(0, 80)
+      .map(n => '<div data-cs="' + rollEsc(n) + '" style="padding:14px 10px;border-bottom:1px solid #e3e6ea;font-size:20px;cursor:pointer">' + rollEsc(n) + '</div>').join('') || '<div style="color:#777;padding:10px">Aucun client.</div>';
+  };
+  document.getElementById('csQ').oninput = rendre; rendre();
+  document.getElementById('csL').onclick = e => { const d = e.target.closest('[data-cs]'); if (d) demanderChariot(d.getAttribute('data-cs'), []); };
+  document.getElementById('csX').onclick = () => { f.style.display = 'none'; };
 }
 async function rollIdentite(numero) {
   let id = lire(CLE_ROLL_ID, null);
