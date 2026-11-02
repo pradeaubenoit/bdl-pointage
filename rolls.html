@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rolls — BdL</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bleu:#1f5fa8;--bleu2:#e8f0fa;--vert:#2e7d32;--vert2:#e6f4e7;--rouge:#c62828;--rouge2:#fdecec;--orange:#e67e00;--orange2:#fff3e0;--txt:#1d2329;--doux:#66717d;--ligne:#dde2e7}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#eef1f4;color:var(--txt)}
+header{background:#1f2a35;color:#fff;padding:12px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header b{font-size:19px;margin-right:10px}header a{color:#cfd8e0;text-decoration:none;padding:6px 10px;border-radius:8px}header a.on{background:#fff;color:#1f2a35;font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:18px}
+.carte{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px #0001}
+h1{font-size:24px;margin:4px 0 14px}h2{font-size:17px;margin:0 0 10px}
+.tuiles{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.tuile{flex:1;min-width:140px;background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 1px 3px #0001;cursor:pointer}
+.tuile b{font-size:28px;display:block}.tuile span{color:var(--doux);font-size:13px}
+table{width:100%;border-collapse:collapse}td,th{padding:8px 6px;border-bottom:1px solid var(--ligne);text-align:left;font-size:14px}th{color:var(--doux);font-weight:600}
+.etat{padding:3px 9px;border-radius:20px;font-weight:600;font-size:12px}
+.e-bdl{background:#eef0f2;color:#555}.e-pret{background:var(--bleu2);color:var(--bleu)}.e-chauffeur{background:var(--orange2);color:var(--orange)}.e-client{background:var(--vert2);color:var(--vert)}.e-retour{background:#f3e8fd;color:#6b2fa3}
+.vieux{color:var(--rouge);font-weight:700}
+input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);border-radius:8px}
+.btn{font-size:14px;padding:8px 14px;border-radius:8px;border:1px solid var(--ligne);background:#fff;cursor:pointer}.btn.p{background:var(--bleu);color:#fff;border-color:var(--bleu)}
+.s{color:var(--doux);font-size:13px}
+#login{max-width:360px;margin:60px auto}#login input{width:100%;margin:6px 0 12px}
+.planche{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.etq{border:2px solid #000;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}
+.etq .n{font-size:64px;font-weight:900;line-height:1}.etq .t{font-size:11px;font-weight:700}.etq canvas,.etq img{margin:6px auto}
+@media print{header,.noprint{display:none!important}body{background:#fff}main{padding:0}.carte{box-shadow:none;padding:0}}
+</style>
+</head>
+<body>
+<header class="noprint"><b>🧺 Rolls BdL</b><a href="#liste" id="n-liste">Rolls</a><a href="#clients" id="n-clients">Par client</a><a href="#personnes" id="n-personnes">Personnes</a><a href="#etiquettes" id="n-etiquettes">Étiquettes QR</a></header>
+<div id="login" class="carte" style="display:none"><h2>Connexion</h2><div class="s">Même compte que la GMAO.</div><input id="lE" type="email" placeholder="E-mail"><input id="lP" type="password" placeholder="Mot de passe"><button class="btn p" id="lOk">Se connecter</button><div id="lErr" class="s" style="color:var(--rouge)"></div></div>
+<main id="main"></main>
+<script>
+var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
+var sb=supabase.createClient(SB_URL,SB_KEY);
+var $=function(i){return document.getElementById(i);};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+async function q(p){var r=await p;if(r.error)throw r.error;return r.data;}
+var ETATS={bdl:'Vide à la BdL',pret:'Rempli, prêt',chauffeur:'Dans le camion',client:'Chez le client',retour:'En retour'};
+var ROLES={chauffeur:'Chauffeur',atelier:'Atelier',laveur:'Laveur',bureau:'Bureau'};
+var ROLLS=[],PERS=[],SEUIL_J=10;
+function jours(d){return Math.floor((Date.now()-new Date(d).getTime())/864e5);}
+function fmtQ(q){var d=new Date(q);return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
+function urlRoll(n){return location.href.split('#')[0].replace(/[^\/]*$/,'')+'roll.html?r='+encodeURIComponent(n);}
+async function charger(){ROLLS=await q(sb.from('rolls').select('*').eq('actif',true).order('numero'));PERS=await q(sb.from('rolls_personnes').select('*').order('nom'));}
+var VUES={};
+async function route(){var v=(location.hash||'#liste').slice(1).split('/')[0];document.querySelectorAll('header a').forEach(function(a){a.classList.toggle('on',a.id==='n-'+v);});
+  try{await charger();await (VUES[v]||VUES.liste)();}catch(e){$('main').innerHTML='<div class="carte" style="color:var(--rouge)">Erreur : '+esc(e.message||e)+'</div>';}}
+window.addEventListener('hashchange',route);
+
+var filtre='';
+VUES.liste=async function(){
+  var n={};ROLLS.forEach(function(r){n[r.etat]=(n[r.etat]||0)+1;});
+  var vieux=ROLLS.filter(function(r){return (r.etat==='client'||r.etat==='retour')&&jours(r.maj_le)>=SEUIL_J;});
+  var h='<h1>Rolls ('+ROLLS.length+')</h1><div class="tuiles">'+['bdl','pret','chauffeur','client','retour'].map(function(e){return '<div class="tuile" data-f="'+e+'"><b>'+(n[e]||0)+'</b><span>'+ETATS[e]+'</span></div>';}).join('')+
+    '<div class="tuile" data-f="vieux" style="'+(vieux.length?'border:2px solid var(--rouge)':'')+'"><b style="color:'+(vieux.length?'var(--rouge)':'inherit')+'">'+vieux.length+'</b><span>chez un client depuis '+SEUIL_J+' j ou plus</span></div></div>';
+  h+='<div class="carte"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><input id="rq" placeholder="Chercher un roll ou un client…" style="flex:1">'+(filtre?'<button class="btn" id="rTout">Tout afficher</button>':'')+'</div><table><thead><tr><th>Roll</th><th>État</th><th>Client</th><th>Dernier scan</th><th>Par</th></tr></thead><tbody id="rT"></tbody></table></div>'+
+    '<div class="carte noprint"><h2>Ajouter des rolls</h2><input id="aN" type="number" min="1" max="200" value="10" style="width:90px"> <button class="btn p" id="aOk">Créer les suivants</button> <span class="s">Numéros à la suite du dernier (R-021, R-022…).</span></div>';
+  $('main').innerHTML=h;
+  function rendre(){var t=($('rq').value||'').toLowerCase();
+    var l=ROLLS.filter(function(r){if(filtre==='vieux')return vieux.indexOf(r)>=0;if(filtre&&r.etat!==filtre)return false;return !t||(r.numero+' '+(r.client||'')).toLowerCase().indexOf(t)>=0;});
+    $('rT').innerHTML=l.map(function(r){var j=jours(r.maj_le),v=(r.etat==='client'||r.etat==='retour')&&j>=SEUIL_J;
+      return '<tr style="cursor:pointer" data-r="'+r.id+'"><td><b>'+esc(r.numero)+'</b></td><td><span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></td><td>'+esc(r.client||'—')+'</td><td class="'+(v?'vieux':'')+'">'+fmtQ(r.maj_le)+' <span class="s">('+j+' j)</span></td><td>'+esc(r.personne||'')+'</td></tr>';}).join('')||'<tr><td colspan="5" class="s">Aucun roll.</td></tr>';}
+  $('rq').oninput=rendre;rendre();
+  document.querySelectorAll('[data-f]').forEach(function(x){x.onclick=function(){filtre=filtre===x.dataset.f?'':x.dataset.f;VUES.liste();};});
+  if($('rTout'))$('rTout').onclick=function(){filtre='';VUES.liste();};
+  $('rT').onclick=function(e){var tr=e.target.closest('[data-r]');if(tr)historique(tr.dataset.r);};
+  $('aOk').onclick=async function(){var k=parseInt($('aN').value)||0;if(k<1)return;
+    var max=ROLLS.reduce(function(m,r){var x=parseInt(String(r.numero).replace(/\D/g,''))||0;return Math.max(m,x);},0);
+    var l=[];for(var i=1;i<=k;i++)l.push({numero:'R-'+String(max+i).padStart(3,'0')});
+    try{await q(sb.from('rolls').insert(l));route();}catch(e){alert(e.message);}};
+};
+async function historique(id){
+  var r=ROLLS.find(function(x){return x.id===id;});var s=await q(sb.from('rolls_scans').select('*').eq('roll_id',id).order('quand',{ascending:false}).limit(100));
+  var L={vide:'Vidé au tunnel',rempli:'Rempli',charge:'Chargé',livre:'Livré',repris:'Repris'};
+  $('main').innerHTML='<div class="noprint"><a href="#liste" onclick="route();return false">← Rolls</a></div><h1>'+esc(r.numero)+' <span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></h1>'+
+    '<div class="carte"><table><thead><tr><th>Quand</th><th>Étape</th><th>Client</th><th>Par</th></tr></thead><tbody>'+(s.map(function(x){return '<tr><td>'+fmtQ(x.quand)+'</td><td>'+esc(L[x.etape]||x.etape)+'</td><td>'+esc(x.client||'')+'</td><td>'+esc(x.personne||'')+'</td></tr>';}).join('')||'<tr><td colspan="4" class="s">Jamais scanné.</td></tr>')+'</tbody></table></div>';
+}
+VUES.clients=async function(){
+  var g={};ROLLS.forEach(function(r){if(!r.client||!(r.etat==='client'||r.etat==='pret'||r.etat==='chauffeur'))return;var x=g[r.client]=g[r.client]||{chez:[],route:[]};(r.etat==='client'?x.chez:x.route).push(r);});
+  var cl=Object.keys(g).sort(function(a,b){return g[b].chez.length-g[a].chez.length||a.localeCompare(b,'fr');});
+  $('main').innerHTML='<h1>Rolls par client</h1><div class="carte"><table><thead><tr><th>Client</th><th>Chez le client</th><th>Le plus ancien</th><th>En route vers lui</th></tr></thead><tbody>'+
+    (cl.map(function(c){var x=g[c],old=x.chez.reduce(function(m,r){return Math.max(m,jours(r.maj_le));},0);
+      return '<tr><td><b>'+esc(c)+'</b></td><td>'+x.chez.length+(x.chez.length?' <span class="s">('+x.chez.map(function(r){return r.numero;}).join(', ')+')</span>':'')+'</td><td class="'+(old>=SEUIL_J?'vieux':'')+'">'+(x.chez.length?old+' j':'—')+'</td><td>'+x.route.length+'</td></tr>';}).join('')||'<tr><td colspan="4" class="s">Aucun roll chez un client pour l\'instant.</td></tr>')+'</tbody></table></div>';
+};
+VUES.personnes=async function(){
+  $('main').innerHTML='<h1>Personnes qui scannent</h1><div class="carte"><table><thead><tr><th>Nom</th><th>Rôle</th><th>Code</th><th>Actif</th><th></th></tr></thead><tbody>'+
+    PERS.map(function(p){return '<tr><td><input value="'+esc(p.nom)+'" data-n="'+p.id+'"></td><td><select data-ro="'+p.id+'">'+Object.keys(ROLES).map(function(k){return '<option value="'+k+'"'+(k===p.role?' selected':'')+'>'+ROLES[k]+'</option>';}).join('')+'</select></td><td><input value="'+esc(p.code)+'" data-c="'+p.id+'" style="width:90px" inputmode="numeric"></td><td><input type="checkbox" data-a="'+p.id+'"'+(p.actif?' checked':'')+'></td><td><button class="btn" data-s="'+p.id+'">Enregistrer</button></td></tr>';}).join('')+
+    '</tbody></table><h2 style="margin-top:16px">Ajouter</h2><input id="pN" placeholder="Nom"> <select id="pR">'+Object.keys(ROLES).map(function(k){return '<option value="'+k+'">'+ROLES[k]+'</option>';}).join('')+'</select> <input id="pC" placeholder="Code 4 chiffres" style="width:140px" inputmode="numeric"> <button class="btn p" id="pOk">Ajouter</button>'+
+    '<div class="s" style="margin-top:8px">Le code sert à la personne pour s\'identifier sur son téléphone la première fois. Rôle : Atelier → « Rempli pour… » ; Chauffeur → Chargé / Livré / Repris ; Laveur → Vidé au tunnel ; Bureau → tout.</div></div>';
+  $('pOk').onclick=async function(){var n=$('pN').value.trim(),c=$('pC').value.trim();if(!n||!/^\d{4,6}$/.test(c)){alert('Nom et code de 4 chiffres obligatoires');return;}
+    try{await q(sb.from('rolls_personnes').insert({nom:n,role:$('pR').value,code:c}));route();}catch(e){alert(e.message);}};
+  document.querySelectorAll('[data-s]').forEach(function(b){b.onclick=async function(){var id=b.dataset.s,c=document.querySelector('[data-c="'+id+'"]').value.trim();
+    if(!/^\d{4,6}$/.test(c)){alert('Code : 4 chiffres');return;}
+    try{await q(sb.from('rolls_personnes').update({nom:document.querySelector('[data-n="'+id+'"]').value.trim(),role:document.querySelector('[data-ro="'+id+'"]').value,code:c,actif:document.querySelector('[data-a="'+id+'"]').checked}).eq('id',id));b.textContent='✓';}catch(e){alert(e.message);}};});
+};
+function chargerQR(){return new Promise(function(ok,ko){if(window.QRCode)return ok();var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc);});}
+VUES.etiquettes=async function(){
+  $('main').innerHTML='<div class="carte noprint"><h1 style="margin-top:0">Étiquettes QR</h1>Du <input id="eD" value="R-001" style="width:100px"> au <input id="eF" value="'+esc((ROLLS[ROLLS.length-1]||{}).numero||'R-020')+'" style="width:100px"> <button class="btn" id="eV">Afficher</button> <button class="btn p" onclick="window.print()">🖨 Imprimer</button>'+
+    '<div class="s" style="margin-top:6px">Imprimez sur autocollant <b>polyester / vinyle</b> (résiste à l\'eau), ou plastifiez avant de fixer sur le chariot. Une étiquette de chaque côté du chariot facilite le scan.</div></div><div class="planche" id="pl"></div>';
+  async function voir(){var a=parseInt($('eD').value.replace(/\D/g,''))||0,b=parseInt($('eF').value.replace(/\D/g,''))||0;
+    var l=ROLLS.filter(function(r){var x=parseInt(String(r.numero).replace(/\D/g,''))||0;return x>=a&&x<=b;});
+    try{await chargerQR();}catch(e){$('pl').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
+    $('pl').innerHTML=l.map(function(r,i){return '<div class="etq"><div class="t">BLANCHISSERIE DU LIMOUSIN</div><div id="q'+i+'"></div><div class="n">'+esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero))+'</div><div class="t">Scannez à chaque étape</div></div>';}).join('');
+    l.forEach(function(r,i){new QRCode($('q'+i),{text:urlRoll(r.numero),width:140,height:140,correctLevel:QRCode.CorrectLevel.H});});}
+  $('eV').onclick=voir;voir();
+};
+async function demarrer(){$('login').style.display='none';route();}
+$('lOk').onclick=async function(){var r=await sb.auth.signInWithPassword({email:$('lE').value.trim(),password:$('lP').value});if(r.error){$('lErr').textContent=r.error.message;return;}demarrer();};
+(async function(){var s=await sb.auth.getSession();if(s.data&&s.data.session)demarrer();else $('login').style.display='block';})();
+</script>
+</body>
+</html>
