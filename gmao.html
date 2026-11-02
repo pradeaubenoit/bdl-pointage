@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.22';
+var VERSION='v9.23';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -349,6 +349,9 @@ function retoursDePanne(bons,nomPart){
     var p=pass.filter(function(x){var tp=new Date(x.fin||x.cree_le).getTime();return tp<t&&t-tp<=30*864e5;}).sort(function(a,c){return tB(c)-tB(a);})[0];
     if(p)r.push({panne:b,passage:p,jours:Math.round((t-new Date(p.fin||p.cree_le).getTime())/864e5)});});
   return r;}
+/* v9.23 - Résultat d'un passage de prestataire, écrit en tête du compte rendu : « ✓ Résolu », « ⚠ RÉSERVE », « ✗ NON RÉSOLU » */
+function resultatPassage(b){var r=String((b&&b.rapport)||'');if(/^\s*✗|^\s*non r[ée]solu/i.test(r))return 'non';if(/^\s*⚠|^\s*r[ée]serve/i.test(r))return 'reserve';if(/^\s*✓/.test(r))return 'ok';return '';}
+function badgeResultat(b){var r=resultatPassage(b);return r==='non'?'<span class="badge b-rouge">✗ non résolu</span>':r==='reserve'?'<span class="badge b-orange">⚠ réserve</span>':r==='ok'?'<span class="badge b-vert">✓ résolu</span>':'';}
 function badgeContrat(e){var c=contratDe(e);return c?'<span class="badge b-bleu" title="Machine sous contrat de maintenance">🛡 Sous contrat · '+esc(c.p.nom)+'</span>':'';}
 function boutonsContact(p){return (p.telephone?'<a class="btn p" href="tel:'+esc(p.telephone.replace(/\s/g,''))+'">📞 Appeler '+esc(p.telephone)+'</a>':'')+(p.email?'<a class="btn" href="mailto:'+esc(p.email)+'">✉ Écrire</a>':'');}
 function badgeEtat(e){if(!e)return'';var c={'En service':'b-vert','Dégradé':'b-orange','En réparation':'b-orange','Hors service':'b-rouge'}[e]||'';return '<span class="badge '+c+'">'+esc(e)+'</span>';}
@@ -870,6 +873,7 @@ function terminerBon(b,minutes,resteACocher){
   ouvrir('<h3>■ Terminer '+numBT(b.numero)+'</h3><label>Ce qui a été fait (compte rendu)</label><textarea id="tbR" placeholder="Cause trouvée, réparation faite, à surveiller…">'+esc(b.rapport||'')+'</textarea>'+
     '<div class="grille"><div><label>Temps passé (minutes)</label><input id="tbD" inputmode="numeric" value="'+(minutes||b.duree_min||'')+'"><div class="etiq">chronomètre, pauses déduites'+(prevu?' · prévu '+fmtMin(prevu):'')+'</div></div><div><label>Durée d\'arrêt machine (minutes)</label><input id="tbA" inputmode="numeric" value="'+(aAuto||'')+'"></div></div>'+
     '<div id="tbJz" style="display:none"><label style="color:var(--rouge)">Pourquoi plus long que prévu ? (obligatoire)</label><textarea id="tbJ" placeholder="ex. vis grippées, pièce manquante, machine plus encrassée que d\'habitude…">'+esc(b.justification||'')+'</textarea></div>'+
+    (b.type==='Contrat'?'<label>Résultat de l\'intervention du prestataire</label><select id="tbRes"><option value="ok">✓ Résolu : la cause est trouvée et réparée</option><option value="reserve"'+(resultatPassage(b)==='reserve'?' selected':'')+'>⚠ Sous réserve : amélioré, mais la cause n\'est pas trouvée</option><option value="non"'+(resultatPassage(b)==='non'?' selected':'')+'>✗ Non résolu : le problème persiste</option></select><div class="etiq">Gardé dans l\'historique du contrat : c\'est votre trace si le problème revient.</div>':'')+
     '<label>Fait par</label><input id="tbI" value="'+esc(b.intervenant||NOM)+'">'+
     '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn v" id="tbO">Terminer le bon</button></div>');
   function verif(){$('tbJz').style.display=(V6&&prevu&&(nb(val('tbD'))||0)>prevu)?'':'none';}
@@ -877,13 +881,15 @@ function terminerBon(b,minutes,resteACocher){
   $('tbO').onclick=async function(){
     var d=nb(val('tbD')),trop=V6&&prevu&&(d||0)>prevu;
     if(trop&&!val('tbJ')){toast('Explique le dépassement de temps');$('tbJ').focus();return;}
-    var maj={statut:'Terminé',fin:new Date().toISOString(),rapport:val('tbR'),duree_min:d,arret_min:nb(val('tbA')),intervenant:val('tbI'),machine_arretee:false};
+    var rap=val('tbR');
+    if($('tbRes')){var pref={ok:'✓ Résolu — ',reserve:'⚠ RÉSERVE — ',non:'✗ NON RÉSOLU — '}[$('tbRes').value];rap=pref+rap.replace(/^\s*(✓ Résolu|⚠ RÉSERVE|✗ NON RÉSOLU)\s*—\s*/i,'');}
+    var maj={statut:'Terminé',fin:new Date().toISOString(),rapport:rap,duree_min:d,arret_min:nb(val('tbA')),intervenant:val('tbI'),machine_arretee:false};
     if(V6)maj.justification=trop?val('tbJ'):null;
     try{
       await q(sb.from('gmao_interventions').update(maj).eq('id',b.id));
       if(b.preventif_id){var p=PREV.find(function(x){return x.id===b.preventif_id;}),majp={dernier:auj()};if(p&&p.mesure_id&&DERN[p.mesure_id])majp.dernier_valeur=+DERN[p.mesure_id].valeur;await q(sb.from('gmao_preventifs').update(majp).eq('id',b.preventif_id));if(p)Object.assign(p,majp);}
       HIST=null;
-      await logSys(b.id,'■ '+val('tbI')+' : bon terminé ('+fmtMin(d)+')');
+      await logSys(b.id,'■ '+val('tbI')+' : bon terminé ('+fmtMin(d)+')'+($('tbRes')&&$('tbRes').value!=='ok'?' — '+($('tbRes').value==='reserve'?'⚠ sous réserve':'✗ non résolu'):''));
       fermer();route();
     }catch(x){erreur(x);}
   };
@@ -966,11 +972,13 @@ VUES.eq=async function(id){
         return '<div style="margin:6px 0">🗓 Visite tous les <b>'+Math.round(pv.periodicite_jours/30.4)+' mois</b> · dernière : '+(pv.dernier?fmtD(pv.dernier):'—')+' · prochaine : '+badgeEcheance(pv)+'</div>';})()+
       '<div class="actions" style="justify-content:flex-start">'+boutonsContact(ctr.p)+'<button class="btn" id="eCtP">+ Passage du prestataire</button></div>'+
       (ctr.p.telephone?'':'<div class="vide">Pas de téléphone : ajoutez-le sur la fiche <a href="#par/'+ctr.p.id+'">'+esc(ctr.p.nom)+'</a>.</div>')+
-      '<h2 style="margin-top:14px">Historique du contrat ('+ctrBons.length+')</h2>'+(ctrBons.length?ctrBons.map(function(b){var nat=/^entretien \+ d/i.test(b.titre||'')?'🗓+🔧':((b.preventif_id||/^entretien/i.test(b.titre||''))?'🗓 entretien':((b.suite_de||/^dépannage/i.test(b.titre||''))?'🔧 dépannage':''));return ligneBon(b).replace('<div class="t">','<div class="t">'+(nat?'<span class="badge b-bleu">'+nat+'</span> ':''));}).join(''):'<div class="vide">Aucun passage enregistré.</div>')
+      '<h2 style="margin-top:14px">Historique du contrat ('+ctrBons.length+')</h2>'+(ctrBons.length?ctrBons.map(function(b){var nat=/^entretien \+ d/i.test(b.titre||'')?'🗓+🔧':((b.preventif_id||/^entretien/i.test(b.titre||''))?'🗓 entretien':((b.suite_de||/^dépannage/i.test(b.titre||''))?'🔧 dépannage':''));return ligneBon(b).replace('<div class="t">','<div class="t">'+(nat?'<span class="badge b-bleu">'+nat+'</span> ':'')+badgeResultat(b)+' ');}).join(''):'<div class="vide">Aucun passage enregistré.</div>')
     :'<div class="vide">Pas de contrat de maintenance sur cette machine.</div>')+'</div>';
   (function(){var s3=statsPannes(bons,91),s12=statsPannes(bons,365),ret=ctr?retoursDePanne(bons,ctr.p.nom):[];
     function col(t,x){return '<div><div class="etiq">'+t+'</div><div style="font-size:15px"><b>'+x.n+'</b> panne'+(x.n>1?'s':'')+(x.arretMin?' · arrêt <b>'+fmtMin(x.arretMin)+'</b>':'')+(x.tous?'<div class="etiq">≈ 1 panne tous les '+x.tous+' j</div>':'')+'</div></div>';}
     html+='<div class="carte"><h2>📊 Fiabilité</h2><div class="grille">'+col('3 derniers mois',s3)+col('12 derniers mois',s12)+'</div>'+
+      (function(){var rv=ctr?bons.filter(function(b){return b.type==='Contrat'&&b.statut==='Terminé'&&resultatPassage(b)&&resultatPassage(b)!=='ok';}):[];
+        return rv.length?'<div class="alerte" style="margin-top:8px">⚠ <b>'+rv.length+' passage'+(rv.length>1?'s':'')+' du prestataire sans résolution</b> :'+rv.map(function(b){return '<div><a href="#bon/'+b.id+'">'+numBT(b.numero)+' · '+esc(b.titre)+'</a> '+badgeResultat(b)+' <span class="etiq">('+fmtD(b.fin||b.cree_le)+')</span></div>';}).join('')+'</div>':'';})()+
       (ret.length?'<div class="alerte" style="margin-top:8px">↩ <b>'+ret.length+' retour'+(ret.length>1?'s':'')+' de panne</b> moins de 30 jours après un passage du prestataire :'+ret.map(function(x){return '<div><a href="#bon/'+x.panne.id+'">'+numBT(x.panne.numero)+' · '+esc(x.panne.titre)+'</a> <span class="etiq">('+fmtD(x.panne.cree_le)+', '+x.jours+' j après <a href="#bon/'+x.passage.id+'">'+numBT(x.passage.numero)+'</a>)</span></div>';}).join('')+'</div>':'')+
       '<div class="etiq" style="margin-top:6px">Panne = bon « Curatif » ou machine arrêtée, sur cette machine et ses sous-ensembles. Arrêt = de la demande à la fin du bon.</div></div>';})();
   html+='<div class="carte"><h2>🔩 Pièces détachées <button class="btn sm d" id="ePc">+ Lier une pièce</button></h2>'+
