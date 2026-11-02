@@ -59,6 +59,8 @@ async function charger(){
   try{var r=await sb.rpc('roll_info',{p_numero:numero});if(r.error)throw r.error;INFO=r.data;}
   catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="charger()">Réessayer</button>';return;}
   if(!INFO.ok){$('main').innerHTML='<div class="carte alerte">'+esc(INFO.error)+'</div>';return demanderNumero(true);}
+  // Postes mis à jour depuis le bureau : on les relit à chaque scan (et on redemande si la personne a été désactivée).
+  if(MOI){var me=(INFO.personnes||[]).find(function(p){return p.id===MOI.id;});if(!me){MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}}else{MOI.role=me.role;MOI.nom=me.nom;ecrire('roll_moi',MOI);majMoi();}}
   if(!MOI)return choisirMoi();
   afficher();
 }
@@ -68,7 +70,7 @@ function demanderNumero(garde){
 }
 function choisirMoi(){
   var ps=(INFO&&INFO.personnes)||[];
-  $('main').innerHTML='<div class="carte"><b>Qui êtes-vous ?</b><div class="s">À faire une seule fois sur ce téléphone.</div><label style="display:block;margin-top:10px">Nom</label><select id="mP">'+ps.map(function(p){return '<option value="'+p.id+'">'+esc(p.nom)+' ('+(ROLES[p.role]||p.role)+')</option>';}).join('')+'</select>'+
+  $('main').innerHTML='<div class="carte"><b>Qui êtes-vous ?</b><div class="s">À faire une seule fois sur ce téléphone.</div><label style="display:block;margin-top:10px">Nom</label><select id="mP">'+ps.map(function(p){return '<option value="'+p.id+'">'+esc(p.nom)+' ('+esc(libRoles(p.role))+')</option>';}).join('')+'</select>'+
     '<label>Code à 4 chiffres</label><input id="mC" inputmode="numeric" maxlength="6" type="password"><button class="gros" id="mOk">Valider</button></div>';
   $('mOk').onclick=function(){var p=ps.find(function(x){return x.id===$('mP').value;}),c=$('mC').value.trim();if(!p||!c)return;MOI={id:p.id,nom:p.nom,role:p.role,code:c};ecrire('roll_moi',MOI);majMoi();afficher();};
 }
@@ -86,17 +88,20 @@ function afficher(msg){
   actions();
 }
 function bouton(txt,cls,fn){var b=document.createElement('button');b.className='gros '+(cls||'');b.textContent=txt;b.onclick=fn;$('acts').appendChild(b);}
+// Une personne peut avoir plusieurs postes (ex. « atelier,laveur ») ; Bureau = tous les boutons.
+function aRole(x){var l=String(MOI.role||'').split(',');return l.indexOf(x)>=0||l.indexOf('bureau')>=0;}
+function libRoles(r){return String(r||'').split(',').map(function(x){return ROLES[x]||x;}).join(' + ');}
 function actions(){
-  var I=INFO,r=MOI.role;
-  if(r==='atelier'||r==='bureau')bouton('🧺 Rempli pour un client…','',function(){choisirClient('Rempli pour quel client ?',function(c){scan('rempli',c);});});
-  if(r==='chauffeur'||r==='bureau'){
+  var I=INFO;
+  if(aRole('atelier'))bouton('🧺 Rempli pour un client…','',function(){choisirClient('Rempli pour quel client ?',function(c){scan('rempli',c);});});
+  if(aRole('chauffeur')){
     bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
     if(I.client)bouton('✅ Livré chez '+I.client,'v',function(){scan('livre',I.client);});
     bouton(I.client?'Livré chez un autre client…':'✅ Livré chez…','g',function(){choisirClient('Livré chez quel client ?',function(c){
       if(I.client&&c!==I.client&&!confirm('⚠ ATTENTION : ce roll contient le linge de « '+I.client+' ».\n\nVous allez le livrer chez « '+c+' ». Confirmer ?'))return;scan('livre',c);});});
     bouton('↩ Repris chez '+(I.etat==='client'&&I.client?I.client:'un client…'),'g',function(){if(I.etat==='client'&&I.client)return scan('repris',I.client);choisirClient('Repris chez quel client ?',function(c){scan('repris',c);});});
   }
-  if(r==='laveur'||r==='bureau')bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
+  if(aRole('laveur'))bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
 }
 function choisirClient(titre,fn){
   var h='<div class="carte"><b>'+esc(titre)+'</b><input id="cQ" placeholder="Tapez quelques lettres…"><div class="liste" id="cL"></div><button class="gros g" onclick="afficher()">Annuler</button></div>';
