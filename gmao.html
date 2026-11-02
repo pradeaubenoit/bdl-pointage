@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.23';
+var VERSION='v9.24';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -770,7 +770,7 @@ VUES.bon=async function(id,extra){
   if($('bAtt'))$('bAtt').onclick=async function(){var t=tempsPasse(msgs).min;await changer('Attente pièce','⏸ '+NOM+' : attente pièce ('+fmtMin(t)+' au total)',{duree_min:t});if(!cmds.length)suiteADonner(b,true);};
   if($('bPieceAtt'))$('bPieceAtt').onclick=function(){suiteADonner(b,true);};
   if($('bRouv'))$('bRouv').onclick=function(){changer((+b.duree_min||0)>0?'En pause':'Demandé','↺ '+NOM+' rouvre le bon',V6?{valide_le:null,valide_par:null}:{});};
-  if($('bFin'))$('bFin').onclick=function(){terminerBon(b,tempsPasse(msgs).min,items.length-nbFait);};
+  if($('bFin'))$('bFin').onclick=function(){terminerBon(b,tempsPasse(msgs).min,items.length-nbFait,msgs);};
   if($('bVal'))$('bVal').onclick=async function(){try{await q(sb.from('gmao_interventions').update({valide_par:NOM,valide_le:new Date().toISOString()}).eq('id',id));await logSys(id,'✔ '+NOM+' valide le travail');if(b.preventif_id)await chargerTout();route();}catch(x){erreur(x);}};
   document.querySelectorAll('[data-ck]').forEach(function(d){d.onclick=async function(){
     var i=+d.dataset.ck,lignes=String(b.description||'').split('\n'),it=L[i],nv=!it.fait;
@@ -867,23 +867,47 @@ function editerBon(b){
       fermer();route();}catch(x){erreur(x);}};
   $('ebX').onclick=async function(){if(!confirm('Supprimer définitivement ce bon ? (Les pièces sorties restent sorties du stock.)'))return;try{await q(sb.from('gmao_interventions').delete().eq('id',b.id));fermer();aller('bons');}catch(x){erreur(x);}};
 }
-function terminerBon(b,minutes,resteACocher){
+/* « 10 jours », « 2h30 », « 1 j 4 h », « 45 » (= minutes) → minutes */
+function dureeMin(v){
+  var t=String(v==null?'':v).toLowerCase().replace(',','.').trim();if(!t)return null;
+  if(/^\d+(\.\d+)?$/.test(t))return Math.round(+t);
+  t=t.replace(/(\d)\s*h\s*(\d+)(?!\s*(?:[jhm\d.]))/g,'$1h $2min');
+  var m,tot=0,ok=false,re=/(\d+(?:\.\d+)?)\s*(jours?|j|heures?|h|minutes?|mn|min)?/g;
+  while((m=re.exec(t))){ok=true;var n=+m[1],u=m[2]||'min';
+    if(/^j/.test(u))tot+=n*1440;else if(/^h/.test(u))tot+=n*60;else tot+=n;}
+  return ok?Math.round(tot):null;
+}
+function fmtDuree(m){if(m==null)return '';if(m<1440)return fmtMin(m);var j=Math.floor(m/1440),r=m%1440;return j+' j'+(r?' '+fmtMin(r):'');}
+/* première heure écrite dans les échanges (« arrivé à 13:00 », « 13h08 ») */
+function heureDebutEchanges(msgs){
+  var r=null;(msgs||[]).filter(function(m){return m.auteur!=='•';}).forEach(function(m){
+    var x=String(m.texte||'').match(/\b([01]?\d|2[0-3])\s*[h:]\s*([0-5]\d)\b/);if(!x||r)return;
+    var d=new Date(m.cree_le);d.setHours(+x[1],+x[2],0,0);r=d;});
+  return r;
+}
+function hhmm(d){return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+function terminerBon(b,minutes,resteACocher,msgs){
   if(resteACocher>0&&!confirm('Il reste '+resteACocher+' point'+(resteACocher>1?'s':'')+' non coché'+(resteACocher>1?'s':'')+'.\n\nTerminer quand même ? (Sinon : « Annuler » puis « ⏸ Pause » pour reprendre plus tard.)'))return;
-  var prevu=+b.temps_prevu_min||0, aAuto=(!b.arret_min&&b.machine_arretee)?minutesDepuis(b.cree_le):b.arret_min;
+  var hDeb=minutes?null:heureDebutEchanges(msgs), prevu=+b.temps_prevu_min||0, aAuto=(!b.arret_min&&b.machine_arretee)?minutesDepuis(b.cree_le):b.arret_min;
   ouvrir('<h3>■ Terminer '+numBT(b.numero)+'</h3><label>Ce qui a été fait (compte rendu)</label><textarea id="tbR" placeholder="Cause trouvée, réparation faite, à surveiller…">'+esc(b.rapport||'')+'</textarea>'+
-    '<div class="grille"><div><label>Temps passé (minutes)</label><input id="tbD" inputmode="numeric" value="'+(minutes||b.duree_min||'')+'"><div class="etiq">chronomètre, pauses déduites'+(prevu?' · prévu '+fmtMin(prevu):'')+'</div></div><div><label>Durée d\'arrêt machine (minutes)</label><input id="tbA" inputmode="numeric" value="'+(aAuto||'')+'"></div></div>'+
+    (!minutes?'<div class="grille"><div><label>Heure de début</label><input id="tbHd" type="time" value="'+(hDeb?hhmm(hDeb):'')+'"><div class="etiq">'+(hDeb?'lue dans les échanges ('+fmtD(hDeb.toISOString())+')':'chronomètre pas lancé : indique l\'heure d\'arrivée')+'</div></div><div><label>Heure de fin</label><input id="tbHf" type="time" value="'+hhmm(new Date())+'"></div></div>':'')+
+    '<div class="grille"><div><label>Temps passé</label><input id="tbD" value="'+(minutes||b.duree_min||'')+'"><div class="etiq" id="tbDi"></div></div><div><label>Durée d\'arrêt machine</label><input id="tbA" value="'+(aAuto||'')+'"><div class="etiq" id="tbAi"></div></div></div>'+
+    '<div class="etiq">Tu peux écrire « 45 » (minutes), « 2h30 » ou « 10 jours ».</div>'+
     '<div id="tbJz" style="display:none"><label style="color:var(--rouge)">Pourquoi plus long que prévu ? (obligatoire)</label><textarea id="tbJ" placeholder="ex. vis grippées, pièce manquante, machine plus encrassée que d\'habitude…">'+esc(b.justification||'')+'</textarea></div>'+
     (b.type==='Contrat'?'<label>Résultat de l\'intervention du prestataire</label><select id="tbRes"><option value="ok">✓ Résolu : la cause est trouvée et réparée</option><option value="reserve"'+(resultatPassage(b)==='reserve'?' selected':'')+'>⚠ Sous réserve : amélioré, mais la cause n\'est pas trouvée</option><option value="non"'+(resultatPassage(b)==='non'?' selected':'')+'>✗ Non résolu : le problème persiste</option></select><div class="etiq">Gardé dans l\'historique du contrat : c\'est votre trace si le problème revient.</div>':'')+
     '<label>Fait par</label><input id="tbI" value="'+esc(b.intervenant||NOM)+'">'+
     '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn v" id="tbO">Terminer le bon</button></div>');
-  function verif(){$('tbJz').style.display=(V6&&prevu&&(nb(val('tbD'))||0)>prevu)?'':'none';}
-  $('tbD').oninput=verif;verif();
+  function info(id,src,base){var m=dureeMin(val(src));$(id).innerHTML=val(src)?(m==null?'<span style="color:var(--rouge)">pas compris</span>':'= '+fmtDuree(m)+(base?' · '+base:'')):(base||'');}
+  function verif(){info('tbDi','tbD',minutes?'chronomètre, pauses déduites':'');if(prevu)$('tbDi').innerHTML+=' · prévu '+fmtMin(prevu);info('tbAi','tbA','');$('tbJz').style.display=(V6&&prevu&&(dureeMin(val('tbD'))||0)>prevu)?'':'none';}
+  function calc(){if(!$('tbHd')||!val('tbHd')||!val('tbHf'))return;var a=val('tbHd').split(':'),z=val('tbHf').split(':'),d0=hDeb?new Date(hDeb):new Date(),d1=new Date();d0.setHours(+a[0],+a[1],0,0);d1.setHours(+z[0],+z[1],0,0);var m=Math.round((d1-d0)/60000);if(m>0){$('tbD').value=m;verif();}}
+  if($('tbHd')){$('tbHd').oninput=calc;$('tbHf').oninput=calc;calc();}
+  $('tbD').oninput=verif;$('tbA').oninput=verif;verif();
   $('tbO').onclick=async function(){
-    var d=nb(val('tbD')),trop=V6&&prevu&&(d||0)>prevu;
+    var d=dureeMin(val('tbD')),ar=dureeMin(val('tbA'));if(val('tbD')&&d==null){toast('Temps passé pas compris');return;}if(val('tbA')&&ar==null){toast('Durée d\'arrêt pas comprise');return;}var trop=V6&&prevu&&(d||0)>prevu;
     if(trop&&!val('tbJ')){toast('Explique le dépassement de temps');$('tbJ').focus();return;}
     var rap=val('tbR');
     if($('tbRes')){var pref={ok:'✓ Résolu — ',reserve:'⚠ RÉSERVE — ',non:'✗ NON RÉSOLU — '}[$('tbRes').value];rap=pref+rap.replace(/^\s*(✓ Résolu|⚠ RÉSERVE|✗ NON RÉSOLU)\s*—\s*/i,'');}
-    var maj={statut:'Terminé',fin:new Date().toISOString(),rapport:rap,duree_min:d,arret_min:nb(val('tbA')),intervenant:val('tbI'),machine_arretee:false};
+    var maj={statut:'Terminé',fin:new Date().toISOString(),rapport:rap,duree_min:d,arret_min:ar,intervenant:val('tbI'),machine_arretee:false};
     if(V6)maj.justification=trop?val('tbJ'):null;
     try{
       await q(sb.from('gmao_interventions').update(maj).eq('id',b.id));
