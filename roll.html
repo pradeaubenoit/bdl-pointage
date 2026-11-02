@@ -80,10 +80,10 @@ function afficher(msg){
   var I=INFO,h='';
   if(msg)h+='<div class="carte ok">'+msg+'</div>';
   h+='<div class="carte"><div class="num">'+esc(I.numero)+'</div><span class="etat e-'+esc(I.etat)+'">'+esc(ETATS[I.etat]||I.etat)+'</span>'+
-    (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+
+    (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+(function(){var r=(I.derniers||[]).find(function(d){return d.etape==='rempli';});return r&&r.note&&I.etat!=='bdl'?'<div style="margin-top:6px;font-size:16px;color:var(--bleu);font-weight:600">📦 '+esc(r.note)+'</div>':'';})()+
     '<div class="s" style="margin-top:6px">Dernier scan : '+(I.personne?esc(I.personne)+' · ':'')+fmtQ(I.maj_le)+'</div></div>';
   h+='<div id="acts"></div>';
-  if(I.derniers&&I.derniers.length)h+='<div class="carte hist"><b>Derniers passages</b>'+I.derniers.map(function(d){return '<div>'+fmtQ(d.quand)+' · '+esc(LIB[d.etape]||d.etape)+(d.client?' · '+esc(d.client):'')+' · '+esc(d.personne||'')+'</div>';}).join('')+'</div>';
+  if(I.derniers&&I.derniers.length)h+='<div class="carte hist"><b>Derniers passages</b>'+I.derniers.map(function(d){return '<div>'+fmtQ(d.quand)+' · '+esc(LIB[d.etape]||d.etape)+(d.client?' · '+esc(d.client):'')+' · '+esc(d.personne||'')+(d.note?'<div style="color:var(--bleu);font-weight:600">📦 '+esc(d.note)+'</div>':'')+'</div>';}).join('')+'</div>';
   $('main').innerHTML=h;
   actions();
 }
