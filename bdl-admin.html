@@ -9586,11 +9586,13 @@ else document.addEventListener('DOMContentLoaded', lancer);
     window._dernierPtj = resp;
     // Fin du train de repassage (= départ du référent partie haute) envoyée au tableur du linge :
     // le bureau s'en sert pour l'historique et pour apprendre à estimer l'heure de fin les jours suivants.
-    if (dH && resp.date) {
-      const cle = 'bdl_repfin_envoye_' + resp.date;
+    // + fin du pliage à l'atelier (= départ du référent partie basse, ou fin générale s'il est absent)
+    const fH = dH || (absentJ(H) ? fin : ''), fB = dB || (absentJ(B) ? fin : '');
+    if ((fH || fB) && resp.date) {
+      const cle = 'bdl_repfin_envoye_' + resp.date, val = (fH || '') + '|' + (fB || '');
       let deja = null; try { deja = localStorage.getItem(cle); } catch (e) {}
-      if (deja !== dH) fetch(LINGE_API, { method: 'POST', body: JSON.stringify({ action: 'finLavage', date: resp.date, repFin: dH }) })
-        .then(() => { try { localStorage.setItem(cle, dH); } catch (e) {} }).catch(() => {});
+      if (deja !== val) fetch(LINGE_API, { method: 'POST', body: JSON.stringify({ action: 'finLavage', date: resp.date, repFin: fH || '', pliFin: fB || '' }) })
+        .then(() => { try { localStorage.setItem(cle, val); } catch (e) {} }).catch(() => {});
     }
   }
   window.choisirReferentsFin = function () {
