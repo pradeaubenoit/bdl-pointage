@@ -193,7 +193,12 @@ function choisirClient(titre,fn){
     var l=tousClients().filter(function(c){return c.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').indexOf(t)>=0;}).slice(0,80);
     $('cL').innerHTML=(l.length?l:[]).map(function(c,i){return '<div data-c="'+esc(c)+'">'+esc(c)+'</div>';}).join('')+(t&&!l.length?'<div data-c="'+esc($('cQ').value.trim())+'">➕ '+esc($('cQ').value.trim())+'</div>':'');}
   $('cQ').oninput=rendre;rendre();
-  $('cL').onclick=function(e){var d=e.target.closest('[data-c]');if(d)fn(d.getAttribute('data-c'));};
+  $('cL').onclick=async function(e){var d=e.target.closest('[data-c]');if(!d)return;var c=d.getAttribute('data-c');
+    if(tousClients().some(function(x){return nrm(x)===nrm(c);}))return fn(c);
+    if(!confirm('Créer le client « '+c+' » ?\n\nVérifiez qu\'il n\'existe pas déjà sous un autre nom.'))return;
+    try{var r=await sb.rpc('roll_client_ajouter',{p_personne:MOI.id,p_code:MOI.code,p_nom:c});if(r.error||!r.data||!r.data.ok)throw new Error((r.data&&r.data.error)||(r.error&&r.error.message)||'refusé');
+      c=r.data.nom;if(EXTRA.indexOf(c)<0){EXTRA.push(c);ecrire('roll_clients_extra',EXTRA);}}catch(x){alert('Création impossible : '+(x.message||x));return;}
+    fn(c);};
 }
 // Étape déjà faite ? (deux personnes qui scannent le même chariot) : on prévient avant d'enregistrer
 var ETAT_DE={vide:'bdl',rempli:'pret',charge:'chauffeur',livre:'client',repris:'retour',rentre:'sale'};
