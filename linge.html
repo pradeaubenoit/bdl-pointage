@@ -1252,11 +1252,28 @@ function demanderChariot(client, lignes) {
   f.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
     const t = b.dataset.t;
     if (t === '⌫') saisie = saisie.slice(0, -1);
-    else if (t === 'OK') { if (saisie) { f.style.display = 'none'; rollEnvoyer({ numero: numRoll(saisie), client, contenu }); } return; }
+    else if (t === 'OK') { if (saisie) verifierPuisEnvoyer(numRoll(saisie)); return; }
     else if (saisie.length < 4) saisie += t;
     aff();
   });
   document.getElementById('rollSans').onclick = () => { f.style.display = 'none'; };
+  // Déjà fait ? (une autre personne a déjà scanné ce chariot) : jamais de chariot compté deux fois
+  async function verifierPuisEnvoyer(numero) {
+    const msg = document.getElementById('rollMsg');
+    msg.style.color = '#555'; msg.textContent = 'Vérification…';
+    let info = null;
+    try { info = await rollRpc('roll_info', { p_numero: numero }); } catch (e) { info = null; }   // pas de réseau : on envoie (file d'attente)
+    if (info && info.ok === false) { msg.style.color = '#c62828'; msg.textContent = info.error || 'Chariot inconnu'; return; }
+    if (info && info.ok && info.etat === 'pret' && info.client) {
+      const qui = (info.personne || 'quelqu\'un') + ' à ' + new Date(info.maj_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const meme = sansAccent(info.client) === sansAccent(client);
+      if (meme && !contenu) { msg.style.color = '#2e7d32'; msg.textContent = '✓ Déjà fait : ' + numero + ' est déjà rempli pour ' + info.client + ' (' + qui + '). Rien à refaire.'; setTimeout(() => { f.style.display = 'none'; }, 2500); return; }
+      if (meme && !confirm('✓ ' + numero + ' est déjà rempli pour « ' + info.client + ' » (' + qui + ').\n\nAjouter ce linge dans le MÊME chariot ?\n(Ça ne compte pas un chariot de plus.)')) return;
+      if (!meme && !confirm('⚠ ' + numero + ' est déjà rempli pour « ' + info.client + ' » (' + qui + ').\n\nLe changer pour « ' + client + ' » ?')) return;
+    }
+    f.style.display = 'none';
+    rollEnvoyer({ numero, client, contenu });
+  }
 }
 // Clients qu'on ne compte pas (ex. hôpitaux) : on suit seulement leurs chariots, sans saisir de quantités.
 function chariotSansSaisie() {
