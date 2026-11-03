@@ -77,7 +77,20 @@ async function historique(id){
   var r=ROLLS.find(function(x){return x.id===id;});var s=await q(sb.from('rolls_scans').select('*').eq('roll_id',id).order('quand',{ascending:false}).limit(100));
   var L={vide:'Vidé au tunnel',rempli:'Rempli',charge:'Chargé',livre:'Livré',repris:'Repris'};
   $('main').innerHTML='<div class="noprint"><a href="#liste" onclick="route();return false">← Rolls</a></div><h1>'+esc(r.numero)+' <span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></h1>'+
-    '<div class="carte"><table><thead><tr><th>Quand</th><th>Étape</th><th>Client</th><th>Par</th></tr></thead><tbody>'+(s.map(function(x){return '<tr><td>'+fmtQ(x.quand)+'</td><td>'+esc(L[x.etape]||x.etape)+'</td><td>'+esc(x.client||'')+'</td><td>'+esc(x.personne||'')+'</td></tr>';}).join('')||'<tr><td colspan="4" class="s">Jamais scanné.</td></tr>')+'</tbody></table></div>';
+    '<div class="carte"><table><thead><tr><th>Quand</th><th>Étape</th><th>Client</th><th>Par</th><th>Contenu</th><th class="noprint"></th></tr></thead><tbody>'+(s.map(function(x){return '<tr><td>'+fmtQ(x.quand)+'</td><td>'+esc(L[x.etape]||x.etape)+'</td><td>'+esc(x.client||'')+'</td><td>'+esc(x.personne||'')+'</td><td class="s">'+esc(x.note||'')+'</td><td class="noprint"><button class="btn" style="padding:2px 10px" title="Supprimer ce scan (erreur)" data-sup="'+x.id+'">✕</button></td></tr>';}).join('')||'<tr><td colspan="6" class="s">Jamais scanné.</td></tr>')+'</tbody></table>'+
+    '<div class="s" style="margin-top:8px">✕ = scan fait par erreur (mauvais client, mauvais roll). Le roll reprend l\'état du scan précédent.</div></div>';
+  var EV={vide:'bdl',rempli:'pret',charge:'chauffeur',livre:'client',repris:'retour'};
+  document.querySelectorAll('[data-sup]').forEach(function(bt){bt.onclick=async function(){
+    var x=s.find(function(y){return y.id===bt.dataset.sup;});
+    if(!confirm('Supprimer le scan « '+(L[x.etape]||x.etape)+(x.client?' — '+x.client:'')+' » du '+fmtQ(x.quand)+' ?'))return;
+    try{
+      await q(sb.from('rolls_scans').delete().eq('id',x.id));
+      var reste=await q(sb.from('rolls_scans').select('*').eq('roll_id',id).order('quand',{ascending:false}).limit(1));
+      var d=reste[0],maj=d?{etat:EV[d.etape]||'bdl',client:d.etape==='vide'?null:d.client,personne:d.personne,maj_le:d.quand}:{etat:'bdl',client:null,personne:null,maj_le:new Date().toISOString()};
+      await q(sb.from('rolls').update(maj).eq('id',id));
+      Object.assign(r,maj);historique(id);
+    }catch(e){alert('Suppression impossible : '+(e.message||e));}
+  };});
 }
 VUES.clients=async function(){
   var g={};ROLLS.forEach(function(r){if(!r.client||!(r.etat==='client'||r.etat==='pret'||r.etat==='chauffeur'))return;var x=g[r.client]=g[r.client]||{chez:[],route:[]};(r.etat==='client'?x.chez:x.route).push(r);});
