@@ -26,7 +26,14 @@ input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);borde
 .planche{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .etq{border:2px solid #000;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}
 .etq .n{font-size:64px;font-weight:900;line-height:1}.etq .t{font-size:11px;font-weight:700}.etq canvas,.etq img{margin:6px auto}
-@media print{header,.noprint{display:none!important}body{background:#fff}main{padding:0}.carte{box-shadow:none;padding:0}}
+.page{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+@page{size:A4;margin:10mm}
+@media print{header,.noprint{display:none!important}body{background:#fff}main{padding:0;max-width:none}.carte{box-shadow:none;padding:0}
+  .planche{display:block}
+  .page{grid-template-columns:repeat(3,60mm);grid-auto-rows:63mm;gap:4mm;justify-content:center;margin:0;break-after:page;page-break-after:always}
+  .page:last-child{break-after:auto;page-break-after:auto}
+  .etq{box-sizing:border-box;height:63mm;overflow:hidden;padding:2mm;break-inside:avoid;page-break-inside:avoid;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .etq .n{font-size:54px}}
 </style>
 </head>
 <body>
@@ -121,8 +128,10 @@ VUES.etiquettes=async function(){
   async function voir(){var a=parseInt($('eD').value.replace(/\D/g,''))||0,b=parseInt($('eF').value.replace(/\D/g,''))||0;
     var l=ROLLS.filter(function(r){var x=parseInt(String(r.numero).replace(/\D/g,''))||0;return x>=a&&x<=b;});
     try{await chargerQR();}catch(e){$('pl').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
-    $('pl').innerHTML=l.map(function(r,i){return '<div class="etq"><div class="t">BLANCHISSERIE DU LIMOUSIN</div><div id="q'+i+'"></div><div class="n">'+esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero))+'</div><div class="t">Scannez à chaque étape</div></div>';}).join('');
-    l.forEach(function(r,i){new QRCode($('q'+i),{text:urlRoll(r.numero),width:140,height:140,correctLevel:QRCode.CorrectLevel.H});});}
+    // 12 étiquettes par page A4 (3 × 4) : aucune n'est coupée en bas de page
+    var h='';for(var k=0;k<l.length;k+=12)h+='<div class="page">'+l.slice(k,k+12).map(function(r,j){var i=k+j;return '<div class="etq"><div class="t">BLANCHISSERIE DU LIMOUSIN</div><div id="q'+i+'"></div><div class="n">'+esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero))+'</div><div class="t">Scannez à chaque étape</div></div>';}).join('')+'</div>';
+    $('pl').innerHTML=h;
+    l.forEach(function(r,i){new QRCode($('q'+i),{text:urlRoll(r.numero),width:125,height:125,correctLevel:QRCode.CorrectLevel.H});});}
   $('eV').onclick=voir;voir();
 };
 async function demarrer(){$('login').style.display='none';route();}
