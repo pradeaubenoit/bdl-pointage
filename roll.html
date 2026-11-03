@@ -26,7 +26,12 @@ label{font-weight:600;font-size:15px}
 .ok{background:var(--vert2);border:2px solid var(--vert);color:var(--vert);text-align:center;font-size:22px;font-weight:800;padding:22px}
 .alerte{background:var(--rouge2);border:2px solid var(--rouge);color:var(--rouge);font-weight:700;padding:14px;border-radius:12px;margin:10px 0}
 .hist div{font-size:14px;padding:4px 0;border-bottom:1px dashed var(--ligne)}
-#bScan{position:fixed;left:16px;right:16px;bottom:max(16px,env(safe-area-inset-bottom));z-index:50;box-shadow:0 4px 14px #0004;background:#1f2a35;margin:0}
+#barre{position:fixed;left:16px;right:16px;bottom:max(16px,env(safe-area-inset-bottom));z-index:50;display:flex;gap:10px}
+#barre button{margin:0;box-shadow:0 4px 14px #0004;background:#1f2a35}#barre #bNum{flex:0 0 38%;background:#fff;color:var(--txt);border:2px solid #1f2a35}
+#numFond{position:fixed;inset:0;background:#0009;z-index:100;display:none;align-items:flex-end;justify-content:center}
+#numFond .boite{background:#fff;border-radius:18px 18px 0 0;padding:16px;width:100%;max-width:560px}
+#numAff{font-size:40px;font-weight:800;text-align:center;letter-spacing:2px;min-height:52px}
+.pave{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.pave button{font-size:28px;font-weight:700;padding:16px 0;border-radius:12px;border:1px solid var(--ligne);background:#f4f6f8}
 main{padding-bottom:110px}
 #scanFond{position:fixed;inset:0;background:#000;z-index:100;display:none;flex-direction:column}
 #lecteur{flex:1;width:100%}#lecteur video{object-fit:cover}
@@ -36,7 +41,8 @@ main{padding-bottom:110px}
 <body>
 <header><b>🧺 Roll BdL</b><button id="moiBtn" onclick="changerMoi()"></button></header>
 <main id="main"><div class="carte">Chargement…</div></main>
-<button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner un chariot ou un client</button>
+<div id="barre"><button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner</button><button class="gros" id="bNum" onclick="ouvrirNumero()">⌨ N° chariot</button></div>
+<div id="numFond"><div class="boite"><div class="s" style="text-align:center">Numéro écrit sur le chariot</div><div id="numAff">R-</div><div class="pave" id="pave"></div><div style="display:flex;gap:10px;margin-top:10px"><button class="gros g" style="margin:0" onclick="fermerNumero()">Annuler</button><button class="gros v" style="margin:0" onclick="validerNumero()">Ouvrir</button></div></div></div>
 <div id="scanFond"><div class="bar">Visez le code-barres ou le QR code</div><div id="lecteur"></div><div class="bar"><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button></div></div>
 <script>
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
@@ -67,6 +73,10 @@ var LIB={vide:'vidé au tunnel',rempli:'rempli',charge:'chargé',livre:'livré',
 fetch(LINGE_API+'?action=catalogue').then(function(r){return r.json();}).then(function(d){
   if(d&&d.ok&&d.catalogue){CLIENTS=d.catalogue.map(function(c){return c.client;}).filter(Boolean).sort(function(a,b){return a.localeCompare(b,'fr');});ecrire('roll_clients',CLIENTS);}
 }).catch(function(){});
+// + clients sans saisie (hôpitaux…) créés au bureau
+var EXTRA=lire('roll_clients_extra',[]);
+function tousClients(){return Array.from(new Set(CLIENTS.concat(EXTRA))).sort(function(a,b){return a.localeCompare(b,'fr');});}
+sb.rpc('roll_clients').then(function(r){if(!r.error&&Array.isArray(r.data)){EXTRA=r.data;ecrire('roll_clients_extra',EXTRA);}}).catch(function(){});
 
 async function charger(){
   majMoi();
@@ -175,7 +185,7 @@ function choisirClient(titre,fn){
   var h='<div class="carte"><b>'+esc(titre)+'</b><input id="cQ" placeholder="Tapez quelques lettres…"><div class="liste" id="cL"></div><button class="gros g" onclick="afficher()">Annuler</button></div>';
   $('acts').innerHTML=h;
   function rendre(){var t=$('cQ').value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-    var l=CLIENTS.filter(function(c){return c.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').indexOf(t)>=0;}).slice(0,80);
+    var l=tousClients().filter(function(c){return c.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').indexOf(t)>=0;}).slice(0,80);
     $('cL').innerHTML=(l.length?l:[]).map(function(c,i){return '<div data-c="'+esc(c)+'">'+esc(c)+'</div>';}).join('')+(t&&!l.length?'<div data-c="'+esc($('cQ').value.trim())+'">➕ '+esc($('cQ').value.trim())+'</div>':'');}
   $('cQ').oninput=rendre;rendre();
   $('cL').onclick=function(e){var d=e.target.closest('[data-c]');if(d)fn(d.getAttribute('data-c'));};
@@ -237,6 +247,14 @@ async function ouvrirScanner(){
   }catch(e){fermerScanner();alert('Caméra impossible : '+(e.message||e)+'\n\nAutorisez la caméra pour ce site dans Safari (aA → Réglages du site web).');}
 }
 async function fermerScanner(){$('scanFond').style.display='none';if(LECTEUR){try{await LECTEUR.stop();}catch(e){}try{LECTEUR.clear();}catch(e){}LECTEUR=null;}}
+/* ---------- Saisie du numéro au clavier (étiquette illisible, pas de caméra…) ---------- */
+var NUMS='';
+function ouvrirNumero(){NUMS='';majNum();$('numFond').style.display='flex';
+  $('pave').innerHTML=['1','2','3','4','5','6','7','8','9','⌫','0','C'].map(function(k){return '<button data-k="'+k+'">'+k+'</button>';}).join('');
+  $('pave').onclick=function(e){var b=e.target.closest('[data-k]');if(!b)return;var k=b.dataset.k;if(k==='⌫')NUMS=NUMS.slice(0,-1);else if(k==='C')NUMS='';else if(NUMS.length<4)NUMS+=k;majNum();};}
+function majNum(){$('numAff').textContent='R-'+(NUMS?NUMS.padStart(3,'0'):'');}
+function fermerNumero(){$('numFond').style.display='none';}
+function validerNumero(){if(!NUMS)return;fermerNumero();traiterCode('R-'+NUMS);}
 function traiterCode(t){
   t=String(t||'').trim();
   var mc=t.match(/[?&]c=([^&#]+)/),mr=t.match(/[?&]r=([^&#]+)/),nu=t.match(/^R-?(\d{1,4})$/i);
