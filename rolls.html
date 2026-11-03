@@ -27,13 +27,18 @@ input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);borde
 .etq{border:2px solid #000;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}
 .etq .n{font-size:64px;font-weight:900;line-height:1}.etq .t{font-size:11px;font-weight:700}.etq canvas,.etq img{margin:6px auto}
 .page{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.page.tube{grid-template-columns:repeat(2,1fr)}
+.bande{border:1.5px dashed #000;display:flex;align-items:center;justify-content:space-around;padding:2px 4px;height:96px;box-sizing:border-box}
+.bande .n{font-size:24px;font-weight:900;letter-spacing:-1px}
 @page{size:A4;margin:10mm}
 @media print{header,.noprint{display:none!important}body{background:#fff}main{padding:0;max-width:none}.carte{box-shadow:none;padding:0}
   .planche{display:block}
   .page{grid-template-columns:repeat(3,60mm);grid-auto-rows:63mm;gap:4mm;justify-content:center;margin:0;break-after:page;page-break-after:always}
   .page:last-child{break-after:auto;page-break-after:auto}
   .etq{box-sizing:border-box;height:63mm;overflow:hidden;padding:2mm;break-inside:avoid;page-break-inside:avoid;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .etq .n{font-size:54px}}
+  .etq .n{font-size:54px}
+  .page.tube{grid-template-columns:repeat(2,92mm);grid-auto-rows:26mm;gap:1.5mm 4mm}
+  .bande{height:26mm;break-inside:avoid;page-break-inside:avoid}}
 </style>
 </head>
 <body>
@@ -137,6 +142,7 @@ VUES.etiquettes=async function(){
     (aCol?(jamais.length?'<div style="background:var(--bleu2);padding:8px 10px;border-radius:8px;margin-bottom:10px">🆕 Jamais imprimées : <b>'+esc(jamais[0].numero)+'</b> à <b>'+esc(jamais[jamais.length-1].numero)+'</b> ('+jamais.length+')</div>'
       :'<div class="s" style="margin-bottom:10px">Toutes les étiquettes ont déjà été imprimées. Pour de nouveaux chariots : onglet Rolls → « Ajouter des rolls ».</div>'):'')+
     'Du <input id="eD" value="'+esc(d0)+'" style="width:100px"> au <input id="eF" value="'+esc(f0)+'" style="width:100px"> <button class="btn" id="eV">Afficher</button> <button class="btn p" id="eP">🖨 Imprimer</button>'+
+    '<div style="margin-top:8px">Format : <label><input type="radio" name="eFmt" value="plaque" checked> Plaque 6 × 6 cm</label> &nbsp; <label><input type="radio" name="eFmt" value="tube"> Tube (bande de 9 × 2,6 cm à enrouler, 3 QR : toujours un face à vous)</label></div>'+
     '<div class="s" style="margin-top:6px">Étiquette abîmée : mettez le même numéro dans « Du » et « au » (ex. R-007 au R-007) et imprimez. Même numéro = même chariot, son historique est gardé.</div>'+
     '<div id="eW" style="margin-top:8px"></div>'+
     '<div class="s" style="margin-top:6px">Imprimez sur autocollant <b>polyester / vinyle</b> (résiste à l\'eau), ou plastifiez avant de fixer sur le chariot. Une étiquette de chaque côté du chariot facilite le scan.</div></div><div class="planche" id="pl"></div>';
@@ -147,10 +153,16 @@ VUES.etiquettes=async function(){
     $('eW').innerHTML=deja.length?'<div style="background:var(--orange2);color:var(--orange);padding:8px 10px;border-radius:8px">⚠ '+deja.length+' de ces étiquettes ont déjà été imprimées ('+deja.slice(0,6).map(function(r){return esc(r.numero);}).join(', ')+(deja.length>6?'…':'')+'). Ne réimprimez que pour remplacer une étiquette abîmée, et jetez l\'ancienne.</div>':'';
     try{await chargerQR();}catch(e){$('pl').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
     // 12 étiquettes par page A4 (3 × 4) : aucune n'est coupée en bas de page
+    var tube=(document.querySelector('[name=eFmt]:checked')||{}).value==='tube';
+    if(tube){var hb='';for(var k2=0;k2<l.length;k2+=20)hb+='<div class="page tube">'+l.slice(k2,k2+20).map(function(r,j){var i=k2+j,nn=esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero));
+        return '<div class="bande"><div id="qa'+i+'"></div><div class="n">'+nn+'</div><div id="qb'+i+'"></div><div class="n">'+nn+'</div><div id="qc'+i+'"></div></div>';}).join('')+'</div>';
+      $('pl').innerHTML=hb;
+      l.forEach(function(r,i){['qa','qb','qc'].forEach(function(z){new QRCode($(z+i),{text:urlRoll(r.numero),width:76,height:76,correctLevel:QRCode.CorrectLevel.M});});});
+      return;}
     var h='';for(var k=0;k<l.length;k+=12)h+='<div class="page">'+l.slice(k,k+12).map(function(r,j){var i=k+j;return '<div class="etq"><div class="t">BLANCHISSERIE DU LIMOUSIN</div><div id="q'+i+'"></div><div class="n">'+esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero))+'</div><div class="t">Scannez à chaque étape</div></div>';}).join('')+'</div>';
     $('pl').innerHTML=h;
     l.forEach(function(r,i){new QRCode($('q'+i),{text:urlRoll(r.numero),width:125,height:125,correctLevel:QRCode.CorrectLevel.H});});}
-  $('eV').onclick=voir;voir();
+  $('eV').onclick=voir;document.querySelectorAll('[name=eFmt]').forEach(function(x){x.onchange=voir;});voir();
   $('eP').onclick=async function(){
     var deja=l.filter(function(r){return r.etiquette_le;});
     if(deja.length&&!confirm(deja.length+' étiquette(s) déjà imprimée(s) dans cette sélection. Réimprimer quand même ? (Uniquement pour remplacer une étiquette abîmée.)'))return;
