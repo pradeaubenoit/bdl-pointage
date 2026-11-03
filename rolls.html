@@ -142,7 +142,7 @@ VUES.etiquettes=async function(){
     (aCol?(jamais.length?'<div style="background:var(--bleu2);padding:8px 10px;border-radius:8px;margin-bottom:10px">🆕 Jamais imprimées : <b>'+esc(jamais[0].numero)+'</b> à <b>'+esc(jamais[jamais.length-1].numero)+'</b> ('+jamais.length+')</div>'
       :'<div class="s" style="margin-bottom:10px">Toutes les étiquettes ont déjà été imprimées. Pour de nouveaux chariots : onglet Rolls → « Ajouter des rolls ».</div>'):'')+
     'Du <input id="eD" value="'+esc(d0)+'" style="width:100px"> au <input id="eF" value="'+esc(f0)+'" style="width:100px"> <button class="btn" id="eV">Afficher</button> <button class="btn p" id="eP">🖨 Imprimer</button>'+
-    '<div style="margin-top:8px">Format : <label><input type="radio" name="eFmt" value="plaque" checked> Plaque 6 × 6 cm</label> &nbsp; <label><input type="radio" name="eFmt" value="tube"> Tube (bande de 9 × 2,6 cm à enrouler, 3 QR : toujours un face à vous)</label></div>'+
+    '<div style="margin-top:8px">Format : <label><input type="radio" name="eFmt" value="plaque" checked> Plaque 6 × 6 cm</label> &nbsp; <label><input type="radio" name="eFmt" value="tube"> Tube QR (bande à enrouler, 3 QR)</label> &nbsp; <label><input type="radio" name="eFmt" value="barre"> <b>Code-barres tube</b> (à coller dans la longueur du tube, lu par le bouton 📷 Scanner de l\'appli)</label></div>'+
     '<div class="s" style="margin-top:6px">Étiquette abîmée : mettez le même numéro dans « Du » et « au » (ex. R-007 au R-007) et imprimez. Même numéro = même chariot, son historique est gardé.</div>'+
     '<div id="eW" style="margin-top:8px"></div>'+
     '<div class="s" style="margin-top:6px">Imprimez sur autocollant <b>polyester / vinyle</b> (résiste à l\'eau), ou plastifiez avant de fixer sur le chariot. Une étiquette de chaque côté du chariot facilite le scan.</div></div><div class="planche" id="pl"></div>';
@@ -153,7 +153,14 @@ VUES.etiquettes=async function(){
     $('eW').innerHTML=deja.length?'<div style="background:var(--orange2);color:var(--orange);padding:8px 10px;border-radius:8px">⚠ '+deja.length+' de ces étiquettes ont déjà été imprimées ('+deja.slice(0,6).map(function(r){return esc(r.numero);}).join(', ')+(deja.length>6?'…':'')+'). Ne réimprimez que pour remplacer une étiquette abîmée, et jetez l\'ancienne.</div>':'';
     try{await chargerQR();}catch(e){$('pl').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
     // 12 étiquettes par page A4 (3 × 4) : aucune n'est coupée en bas de page
-    var tube=(document.querySelector('[name=eFmt]:checked')||{}).value==='tube';
+    var fmt=(document.querySelector('[name=eFmt]:checked')||{}).value,tube=fmt==='tube';
+    if(fmt==='barre'){
+      if(!window.JsBarcode){try{await new Promise(function(ok,ko){var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js';sc.onload=ok;sc.onerror=function(){var s2=document.createElement('script');s2.src='https://unpkg.com/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';s2.onload=ok;s2.onerror=ko;document.head.appendChild(s2);};document.head.appendChild(sc);});}catch(e){$('pl').innerHTML='<div class="carte">Code-barres indisponible (réseau).</div>';return;}}
+      var hc='';for(var k3=0;k3<l.length;k3+=20)hc+='<div class="page tube">'+l.slice(k3,k3+20).map(function(r,j){var i=k3+j;
+          return '<div class="bande" style="justify-content:center;gap:6px"><div class="n" style="font-size:30px">'+esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero))+'</div><svg id="bc'+i+'"></svg></div>';}).join('')+'</div>';
+      $('pl').innerHTML=hc;
+      l.forEach(function(r,i){JsBarcode('#bc'+i,String(r.numero).toUpperCase(),{format:'CODE128',width:2,height:56,displayValue:true,fontSize:12,margin:6,textMargin:0});});
+      return;}
     if(tube){var hb='';for(var k2=0;k2<l.length;k2+=20)hb+='<div class="page tube">'+l.slice(k2,k2+20).map(function(r,j){var i=k2+j,nn=esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero));
         return '<div class="bande"><div id="qa'+i+'"></div><div class="n">'+nn+'</div><div id="qb'+i+'"></div><div class="n">'+nn+'</div><div id="qc'+i+'"></div></div>';}).join('')+'</div>';
       $('pl').innerHTML=hb;
