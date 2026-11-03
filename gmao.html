@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.25';
+var VERSION='v9.26';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -736,7 +736,7 @@ VUES.bon=async function(id,extra){
     '<div class="actions" style="justify-content:flex-start">'+
       (!fini&&b.statut!=='Attente pièce'?'<button class="btn sm" id="bAtt">⏳ Attente pièce</button>':'')+
       (fini?'<button class="btn sm" id="bRouv">↺ Rouvrir</button>':'')+
-      '<button class="btn sm" id="bSuite">🔁 Suite à donner / commander une pièce</button><button class="btn sm l" id="bEdit">✎ Modifier / confier</button><button class="btn sm l" onclick="qrTel()">📱 Sur le téléphone</button></div></div>';
+      '<button class="btn sm" id="bMail">✉ Écrire au prestataire</button><button class="btn sm" id="bRepM">📥 Ajouter leur réponse</button><button class="btn sm" id="bSuite">🔁 Suite à donner / commander une pièce</button><button class="btn sm l" id="bEdit">✎ Modifier / confier</button><button class="btn sm l" onclick="qrTel()">📱 Sur le téléphone</button></div></div>';
   if(fini){
     html+='<div class="carte" style="background:var(--vert2)"><h2>✓ Terminé le '+fmtDH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</h2><div style="white-space:pre-wrap">'+esc(b.rapport||'')+'</div>'+
       '<div class="stats" style="margin-top:8px"><div><span class="etiq">Temps passé</span><b>'+fmtMin(b.duree_min)+'</b></div>'+(prevu?'<div><span class="etiq">Prévu</span><b>'+fmtMin(prevu)+'</b></div>':'')+'<div><span class="etiq">Arrêt machine</span><b>'+fmtDuree(+b.arret_min||0)+'</b></div></div>'+
@@ -779,6 +779,8 @@ VUES.bon=async function(id,extra){
   };});
   $('bEdit').onclick=function(){editerBon(b);};
   $('bSuite').onclick=function(){suiteADonner(b);};
+  $('bMail').onclick=function(){mailPrestataire(b,e);};
+  $('bRepM').onclick=function(){reponsePrestataire(b,e);};
   if($('bChMach'))$('bChMach').onclick=async function(){var x=await choisirEq();if(!x)return;await q(sb.from('gmao_interventions').update({equipement_id:x.id}).eq('id',id));route();};
   var photoMsg=null;
   $('mPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;$('mPh').textContent='⏳';try{photoMsg=await envoyerPhoto(f);$('mPh').textContent='✅';}catch(x){$('mPh').textContent='📷';erreur(x);}};
@@ -810,6 +812,49 @@ VUES.bon=async function(id,extra){
     }catch(x){erreur(x);}
   };
 };
+/* v9.26 - Mail au prestataire depuis le bon : part de la messagerie de l'utilisateur, copie gardée dans les Échanges */
+function prestaDefaut(b,e){var c=contratDe(e);if(c)return c.p;var n=norm(b.intervenant||'');return PART.find(function(x){return n&&norm(x.nom)===n;})||null;}
+function optsPresta(sel){return PART.slice().sort(function(a,c){return a.nom.localeCompare(c.nom,'fr');}).map(function(x){return '<option value="'+x.id+'"'+(sel&&sel.id===x.id?' selected':'')+'>'+esc(x.nom)+(x.email?'':' (pas d\'e-mail)')+'</option>';}).join('');}
+function mailPrestataire(b,e){
+  var p=prestaDefaut(b,e),obj='['+numBT(b.numero)+'] '+(e?e.nom+(e.code?' ('+e.code+')':'')+' — ':'')+b.titre;
+  ouvrir('<h3>✉ Écrire au prestataire — '+numBT(b.numero)+'</h3>'+
+    '<label>Prestataire</label><select id="mlP"><option value="">—</option>'+optsPresta(p)+'</select>'+
+    '<label>Adresse e-mail</label><input id="mlA" type="email" value="'+esc(p&&p.email||'')+'"><div class="etiq" id="mlAi"></div>'+
+    '<label>Objet</label><input id="mlO" value="'+esc(obj)+'">'+
+    '<label>Message</label><textarea id="mlT" style="min-height:220px">Bonjour,\n\n\n\nCordialement,\n\n'+esc(NOM)+'</textarea>'+
+    '<div class="etiq">Le mail s\'ouvre dans votre messagerie (Mail, Outlook…) et part de votre adresse. Une copie est gardée dans les Échanges du bon.</div>'+
+    '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="mlOk">✉ Ouvrir dans ma messagerie</button></div>');
+  function maj(){var x=PART.find(function(y){return y.id===$('mlP').value;});if(x&&x.email)$('mlA').value=x.email;
+    $('mlAi').textContent=x&&!x.email?'Pas d\'adresse dans la fiche : tapez-la, elle sera enregistrée dans la fiche '+x.nom+'.':'';}
+  $('mlP').onchange=maj;maj();
+  $('mlOk').onclick=async function(){
+    var a=val('mlA').trim(),o=val('mlO'),t=$('mlT').value,x=PART.find(function(y){return y.id===$('mlP').value;});
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a)){toast('Adresse e-mail à vérifier');$('mlA').focus();return;}
+    if(!t.trim()){toast('Le message est vide');return;}
+    try{
+      if(x&&!x.email){await q(sb.from('gmao_partenaires').update({email:a}).eq('id',x.id));x.email=a;}
+      await q(sb.from('gmao_messages').insert({intervention_id:b.id,auteur:NOM,texte:'✉ Mail envoyé à '+(x?x.nom+' ':'')+'<'+a+'>\nObjet : '+o+'\n\n'+t}));
+    }catch(er){erreur(er);return;}
+    location.href='mailto:'+encodeURIComponent(a)+'?subject='+encodeURIComponent(o)+'&body='+encodeURIComponent(t);
+    fermer();setTimeout(route,800);
+  };
+}
+function reponsePrestataire(b,e){
+  var p=prestaDefaut(b,e),photo=null;
+  ouvrir('<h3>📥 Réponse du prestataire — '+numBT(b.numero)+'</h3>'+
+    '<label>De</label><select id="rpP"><option value="">—</option>'+optsPresta(p)+'</select>'+
+    '<label>Reçue le</label><input id="rpD" type="datetime-local" value="'+(function(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16);})()+'">'+
+    '<label>Texte de leur mail (copier-coller)</label><textarea id="rpT" style="min-height:200px" placeholder="Collez ici leur réponse…"></textarea>'+
+    '<div class="actions" style="justify-content:flex-start"><button class="btn" id="rpPh">📷 Joindre une capture</button></div>'+
+    '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="rpOk">Ranger dans le dossier</button></div>');
+  $('rpPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;this.textContent='⏳';try{photo=await envoyerPhoto(f);this.textContent='✅ capture jointe';}catch(x){this.textContent='📷 Joindre une capture';erreur(x);}};
+  $('rpOk').onclick=async function(){
+    var t=$('rpT').value.trim(),x=PART.find(function(y){return y.id===$('rpP').value;}),d=val('rpD');
+    if(!t&&!photo){toast('Collez le texte ou joignez une capture');return;}
+    var quand=d?new Date(d):new Date();
+    try{await q(sb.from('gmao_messages').insert({intervention_id:b.id,auteur:x?x.nom:'Prestataire',texte:'✉ Réponse reçue le '+fmtDH(quand.toISOString())+'\n\n'+t,photo:photo}));fermer();route();}catch(er){erreur(er);}
+  };
+}
 async function logSys(id,t){try{await q(sb.from('gmao_messages').insert({intervention_id:id,auteur:'•',texte:t}));}catch(e){}}
 
 async function nouveauBon(extra){
