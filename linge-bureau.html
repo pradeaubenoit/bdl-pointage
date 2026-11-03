@@ -651,15 +651,18 @@ async function chargerFinLavage(){
     const evol=heures.map(h=>{const r=parH[h],m=minutesHHMM(r.fin);let cls='',fl='';
       if(prec!=null&&m!=null){const dm=m-prec;if(dm>=5){cls='plus';fl=' ▲ +'+dm+' min';}else if(dm<=-5){cls='moins';fl=' ▼ '+dm+' min';}}
       prec=m;return '<span class="'+cls+'">'+(+h)+' h →<b>'+r.fin+'</b>'+fl+'</span>';}).join('');
+    // délai appris des journées passées (même type, médiane) ; sinon délai fixe 55 min / 2 h
+    const appris=d.pliage&&d.pliage.delai!=null, dPli=appris?d.pliage.delai:delaiPliage();
+    const txtPli=appris?'sortie séchoir + '+(dPli>=60?Math.floor(dPli/60)+' h '+String(dPli%60).padStart(2,'0'):dPli+' min')+' · d\'après '+d.pliage.jours+' jours':txtDelai(dPli);
     const maintenant=new Date(),mn=maintenant.getHours()*60+maintenant.getMinutes(),age=mn-minutesHHMM(der.le);
     if(der.termine){
       box.className='fin-lavage fini';
       box.innerHTML='<div class="fl-deux"><div><div class="fl-titre">🧺 Lavage '+(estAuj?'du jour':'du '+jF.slice(8,10)+'/'+jF.slice(5,7))+'</div><div class="fl-ligne"><span class="fl-heure">✓ Terminé à '+der.fin+'</span><span class="fl-info">'+der.total+' galettes lavées</span></div></div>'+
-        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,delaiPliage())+'</div><div class="fl-info">'+txtDelai(delaiPliage())+'</div></div></div><div class="fl-evol">'+evol+'</div>';
+        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,dPli)+'</div><div class="fl-info">'+txtPli+'</div></div></div><div class="fl-evol">'+evol+'</div>';
     }else{
       box.className='fin-lavage';
       box.innerHTML='<div class="fl-deux"><div><div class="fl-titre">🧺 '+(estAuj?'Fin du lavage prévue aujourd\'hui':'Lavage du '+jF.slice(8,10)+'/'+jF.slice(5,7)+' : dernière estimation (fin non pointée)')+'</div><div class="fl-ligne"><span class="fl-heure">'+der.fin+'</span><span class="fl-info">reste <b>'+der.reste+'</b> galette'+(der.reste>1?'s':'')+' sur '+der.total+' · mis à jour à '+der.le+(estAuj&&age>30?' <span style="color:#c62828">(il y a '+age+' min — le Plan de travail est peut-être fermé)</span>':'')+'</span></div></div>'+
-        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,delaiPliage())+'</div><div class="fl-info">'+txtDelai(delaiPliage())+'</div></div></div><div class="fl-evol">'+evol+'</div>';
+        '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,dPli)+'</div><div class="fl-info">'+txtPli+'</div></div></div><div class="fl-evol">'+evol+'</div>';
     }
     // Fin du pliage réelle (départ du référent partie basse, envoyé par BdL Admin) : remplace l'estimation
     if(d.pliage&&d.pliage.fin){const pz=box.querySelector('.fl-pliage');
