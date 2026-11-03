@@ -661,6 +661,9 @@ async function chargerFinLavage(){
       box.innerHTML='<div class="fl-deux"><div><div class="fl-titre">🧺 '+(estAuj?'Fin du lavage prévue aujourd\'hui':'Lavage du '+jF.slice(8,10)+'/'+jF.slice(5,7)+' : dernière estimation (fin non pointée)')+'</div><div class="fl-ligne"><span class="fl-heure">'+der.fin+'</span><span class="fl-info">reste <b>'+der.reste+'</b> galette'+(der.reste>1?'s':'')+' sur '+der.total+' · mis à jour à '+der.le+(estAuj&&age>30?' <span style="color:#c62828">(il y a '+age+' min — le Plan de travail est peut-être fermé)</span>':'')+'</span></div></div>'+
         '<div class="fl-pliage"><div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p">≈ '+plusMin(der.fin,delaiPliage())+'</div><div class="fl-info">'+txtDelai(delaiPliage())+'</div></div></div><div class="fl-evol">'+evol+'</div>';
     }
+    // Fin du pliage réelle (départ du référent partie basse, envoyé par BdL Admin) : remplace l'estimation
+    if(d.pliage&&d.pliage.fin){const pz=box.querySelector('.fl-pliage');
+      if(pz)pz.innerHTML='<div class="fl-titre">👕 Fin du pliage à l\'atelier</div><div class="fl-heure p" style="color:#15803d">✓ '+d.pliage.fin+'</div><div class="fl-info">partie basse terminée</div>';}
     // 3ᵉ case : fin du TRAIN DE REPASSAGE (partie haute) — réelle si le référent est parti, sinon estimée d'après les jours précédents
     const rp=d.repassage, zone=box.querySelector('.fl-deux');
     if(rp&&zone){
