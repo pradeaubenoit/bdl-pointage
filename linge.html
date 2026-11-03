@@ -1293,11 +1293,31 @@ function chariotSansSaisie() {
   rollRpc('roll_clients', {}).then(l => { if (Array.isArray(l)) { ecrire('linge_roll_clients', l); fusion(l); rendre(); } }).catch(() => {});
   const rendre = () => {
     const t = sansAccent(document.getElementById('csQ').value);
+    const brut = document.getElementById('csQ').value.trim().replace(/\s+/g, ' ');
+    const exact = noms.some(n => sansAccent(n) === t);
     document.getElementById('csL').innerHTML = noms.filter(n => sansAccent(n).indexOf(t) >= 0).slice(0, 80)
-      .map(n => '<div data-cs="' + rollEsc(n) + '" style="padding:14px 10px;border-bottom:1px solid #e3e6ea;font-size:20px;cursor:pointer">' + rollEsc(n) + '</div>').join('') || '<div style="color:#777;padding:10px">Aucun client.</div>';
+      .map(n => '<div data-cs="' + rollEsc(n) + '" style="padding:14px 10px;border-bottom:1px solid #e3e6ea;font-size:20px;cursor:pointer">' + rollEsc(n) + '</div>').join('') +
+      (brut.length >= 2 && !exact ? '<div data-csnew="' + rollEsc(brut) + '" style="padding:14px 10px;font-size:20px;cursor:pointer;color:#1f5fa8;font-weight:700">➕ Créer le client « ' + rollEsc(brut) + ' »</div>' : '') ||
+      '<div style="color:#777;padding:10px">Tapez le nom du client.</div>';
   };
   document.getElementById('csQ').oninput = rendre; rendre();
-  document.getElementById('csL').onclick = e => { const d = e.target.closest('[data-cs]'); if (d) demanderChariot(d.getAttribute('data-cs'), []); };
+  document.getElementById('csL').onclick = async e => {
+    const nv = e.target.closest('[data-csnew]');
+    if (nv) {
+      const nom = nv.getAttribute('data-csnew');
+      if (!confirm('Créer le client « ' + nom + ' » ?\n\nVérifiez qu\'il n\'existe pas déjà sous un autre nom dans la liste (ex. « Le Mont » / « Hôpital du Mont »).')) return;
+      const id = await rollIdentite('R-001'); if (!id) return;
+      try {
+        const r = await rollRpc('roll_client_ajouter', { p_personne: id.id, p_code: id.code, p_nom: nom });
+        if (!r || !r.ok) { toast((r && r.error) || 'Création refusée', true); return; }
+        const l = lire('linge_roll_clients', []); if (l.indexOf(r.nom) < 0) { l.push(r.nom); ecrire('linge_roll_clients', l); }
+        fusion([r.nom]); toast(r.existait ? 'Existait déjà : ' + r.nom : 'Client créé : ' + r.nom);
+        demanderChariot(r.nom, []);
+      } catch (x) { toast('Création impossible sans réseau.', true); }
+      return;
+    }
+    const d = e.target.closest('[data-cs]'); if (d) demanderChariot(d.getAttribute('data-cs'), []);
+  };
   document.getElementById('csX').onclick = () => { f.style.display = 'none'; };
 }
 async function rollIdentite(numero) {
