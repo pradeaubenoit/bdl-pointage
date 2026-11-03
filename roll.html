@@ -124,10 +124,11 @@ function afficher(msg){
   h+='<div class="carte"><div class="num">'+esc(I.numero)+'</div><span class="etat e-'+esc(I.etat)+'">'+esc(ETATS[I.etat]||I.etat)+'</span>'+
     (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+(function(){var r=(I.derniers||[]).find(function(d){return d.etape==='rempli';});return r&&r.note&&I.etat!=='bdl'?'<div style="margin-top:6px;font-size:16px;color:var(--bleu);font-weight:600">📦 '+esc(r.note)+'</div>':'';})()+
     '<div class="s" style="margin-top:6px">Dernier scan : '+(I.personne?esc(I.personne)+' · ':'')+fmtQ(I.maj_le)+'</div></div>';
-  h+='<div id="acts"></div>';
+  h+='<div id="chg"></div><div id="acts"></div>';
   if(I.derniers&&I.derniers.length)h+='<div class="carte hist"><b>Derniers passages</b>'+I.derniers.map(function(d){return '<div>'+fmtQ(d.quand)+' · '+esc(LIB[d.etape]||d.etape)+(d.client?' · '+esc(d.client):'')+' · '+esc(d.personne||'')+(d.note?'<div style="color:var(--bleu);font-weight:600">📦 '+esc(d.note)+'</div>':'')+'</div>';}).join('')+'</div>';
   $('main').innerHTML=h;
   actions();
+  if(MOI&&aRole('chauffeur')&&!ARRET&&I.client&&(I.etat==='pret'||I.etat==='chauffeur'))infoChargement(I.client).then(function(x){if($('chg'))$('chg').innerHTML=x;});
 }
 function bouton(txt,cls,fn){var b=document.createElement('button');b.className='gros '+(cls||'');b.textContent=txt;b.onclick=fn;$('acts').appendChild(b);}
 // Une personne peut avoir plusieurs postes (ex. « atelier,laveur ») ; Bureau = tous les boutons.
@@ -135,7 +136,9 @@ function aRole(x){var l=String(MOI.role||'').split(',');return l.indexOf(x)>=0||
 function libRoles(r){return String(r||'').split(',').map(function(x){return ROLES[x]||x;}).join(' + ');}
 function actions(){
   var I=INFO;
-  if(aRole('atelier'))bouton('🧺 Rempli pour un client…','',function(){choisirClient('Rempli pour quel client ?',function(c){scan('rempli',c);});});
+  var rempliApres=aRole('chauffeur')&&I.etat==='pret';
+  var bRempli=function(){bouton(I.etat==='pret'?'🧺 Changer le client (atelier)…':'🧺 Rempli pour un client…',I.etat==='pret'?'g':'',function(){choisirClient('Rempli pour quel client ?',function(c){scan('rempli',c);});});};
+  if(aRole('atelier')&&!rempliApres)bRempli();
   if(aRole('chauffeur')&&ARRET){
     var pourAutre=I.client&&nrm(I.client)!==nrm(ARRET.client)&&(I.etat==='pret'||I.etat==='chauffeur');
     if(pourAutre){
@@ -158,6 +161,7 @@ function actions(){
     if(I.etat==='retour'||I.etat==='client')bouton('🏭 Déchargé à la BdL (linge sale)','o',function(){scan('rentre',null);});
     bouton('↩ Repris chez '+(I.etat==='client'&&I.client?I.client:'un client…'),'g',function(){if(I.etat==='client'&&I.client)return scan('repris',I.client);choisirClient('Repris chez quel client ?',function(c){scan('repris',c);});});
   }
+  if(aRole('atelier')&&rempliApres)bRempli();
   if(aRole('laveur'))bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
 }
 function choisirClient(titre,fn){
@@ -169,7 +173,21 @@ function choisirClient(titre,fn){
   $('cQ').oninput=rendre;rendre();
   $('cL').onclick=function(e){var d=e.target.closest('[data-c]');if(d)fn(d.getAttribute('data-c'));};
 }
+// Étape déjà faite ? (deux personnes qui scannent le même chariot) : on prévient avant d'enregistrer
+var ETAT_DE={vide:'bdl',rempli:'pret',charge:'chauffeur',livre:'client',repris:'retour',rentre:'sale'};
+function hm(q){var d=new Date(q);return d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
+function dejaFait(etape,client){
+  var I=INFO;if(!I||ETAT_DE[etape]!==I.etat)return true;
+  var qui=(I.personne||'quelqu\'un')+' à '+hm(I.maj_le)+(new Date(I.maj_le).toDateString()!==new Date().toDateString()?' le '+new Date(I.maj_le).toLocaleDateString('fr-FR'):'');
+  var moi=MOI&&I.personne===MOI.nom;
+  if(etape==='rempli'&&client&&nrm(client)!==nrm(I.client))return confirm('⚠ Ce chariot est déjà marqué « rempli » pour « '+I.client+' » ('+qui+').\n\nLe changer pour « '+client+' » ?');
+  if(etape==='livre'&&client&&nrm(client)!==nrm(I.client))return true;
+  if(etape==='charge'&&!moi)return confirm('⚠ DÉJÀ FAIT : ce chariot est déjà chargé dans le camion de '+qui+'.\n\nLe passer dans votre camion ?');
+  alert('✓ DÉJÀ FAIT : ce chariot est déjà « '+(LIB[etape]||etape)+' »'+(I.client&&etape!=='vide'?' ('+I.client+')':'')+' par '+qui+'.\n\nRien à faire.');
+  return false;
+}
 async function scan(etape,client){
+  if(!dejaFait(etape,client))return;
   $('acts').innerHTML='<div class="carte">Envoi…</div>';
   try{
     var r=await sb.rpc('roll_scan',{p_numero:INFO.numero,p_personne:MOI.id,p_code:MOI.code,p_etape:etape,p_client:client});
@@ -178,9 +196,19 @@ async function scan(etape,client){
     var i2=await sb.rpc('roll_info',{p_numero:INFO.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
     if(navigator.vibrate)navigator.vibrate(120);
     if(ARRET&&(etape==='livre'||etape==='repris')){numero='';history.replaceState(null,'',location.pathname);return chargerArret('✓ '+esc(INFO.numero)+' '+esc(LIB[etape])+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le chariot suivant.</div>');}
-    if(etape==='charge'){try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!cm.error&&cm.data&&cm.data.ok)return afficher('✓ '+esc(INFO.numero)+' chargé'+resumeCamion(cm.data));}catch(x){}}
+    if(etape==='charge'){try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!cm.error&&cm.data&&cm.data.ok){var ic=INFO.client?await infoChargement(INFO.client,true):'';return afficher('✓ '+esc(INFO.numero)+' chargé'+ic+resumeCamion(cm.data));}}catch(x){}}
     afficher('✓ '+esc(INFO.numero)+' '+esc(LIB[etape]||etape)+(client?' · '+esc(client):'')+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le roll suivant.</div>');
   }catch(e){$('acts').innerHTML='<div class="carte alerte">Non enregistré : '+esc(e.message||e)+'</div>';var b=document.createElement('button');b.className='gros';b.textContent='Réessayer';b.onclick=function(){scan(etape,client);};$('acts').appendChild(b);}
+}
+// Chargement d'un client : « Hôpital du Mont : 3 / 8 chargés » … « 8 / 8 — chargement complet »
+async function infoChargement(client,apres){
+  try{var r=await sb.rpc('roll_client',{p_client:client});if(r.error||!r.data||!r.data.ok)return '';
+    var L=r.data.a_decharger,ch=L.filter(function(x){return x.etat==='chauffeur';}),re=L.filter(function(x){return x.etat==='pret';});
+    var tot=ch.length+re.length;if(!tot)return '';
+    if(!re.length)return '<div style="margin-top:10px;font-size:22px;font-weight:800;color:var(--vert);text-align:center">✓ '+esc(client)+' : '+ch.length+' / '+tot+'<br>CHARGEMENT COMPLET</div>';
+    return '<div style="margin-top:10px;font-size:20px;font-weight:800;color:var(--orange);text-align:'+(apres?'center':'left')+'">'+(apres?'':'<div class="carte" style="margin:0">')+'🚚 '+esc(client)+' : '+ch.length+' / '+tot+' chargé'+(ch.length>1?'s':'')+
+      '<div style="font-size:15px;font-weight:600;color:var(--txt)">Reste à charger : '+re.map(function(x){return esc(x.numero);}).join(', ')+'</div>'+(apres?'':'</div>')+'</div>';
+  }catch(e){return '';}
 }
 function resumeCamion(d){
   var g={};d.camion.forEach(function(x){var c=x.client||'sans client';g[c]=(g[c]||0)+1;});
