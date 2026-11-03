@@ -23,7 +23,7 @@ input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);borde
 .btn{font-size:14px;padding:8px 14px;border-radius:8px;border:1px solid var(--ligne);background:#fff;cursor:pointer}.btn.p{background:var(--bleu);color:#fff;border-color:var(--bleu)}
 .s{color:var(--doux);font-size:13px}
 #login{max-width:360px;margin:60px auto}#login input{width:100%;margin:6px 0 12px}
-.planche{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.planche{display:block}
 .etq{border:2px solid #000;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}
 .etq .n{font-size:64px;font-weight:900;line-height:1}.etq .t{font-size:11px;font-weight:700}.etq canvas,.etq img{margin:6px auto}
 .page{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
@@ -37,7 +37,7 @@ input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);borde
 </style>
 </head>
 <body>
-<header class="noprint"><b>🧺 Rolls BdL</b><a href="#liste" id="n-liste">Rolls</a><a href="#clients" id="n-clients">Par client</a><a href="#personnes" id="n-personnes">Personnes</a><a href="#etiquettes" id="n-etiquettes">Étiquettes QR</a></header>
+<header class="noprint"><b>🧺 Rolls BdL</b><a href="#liste" id="n-liste">Rolls</a><a href="#clients" id="n-clients">Par client</a><a href="#personnes" id="n-personnes">Personnes</a><a href="#etiquettes" id="n-etiquettes">Étiquettes QR</a><a href="#qrclients" id="n-qrclients">QR clients</a><a href="#tournees" id="n-tournees">Tournées</a></header>
 <div id="login" class="carte" style="display:none"><h2>Connexion</h2><div class="s">Même compte que la GMAO.</div><input id="lE" type="email" placeholder="E-mail"><input id="lP" type="password" placeholder="Mot de passe"><button class="btn p" id="lOk">Se connecter</button><div id="lErr" class="s" style="color:var(--rouge)"></div></div>
 <main id="main"></main>
 <script>
@@ -46,11 +46,13 @@ var sb=supabase.createClient(SB_URL,SB_KEY);
 var $=function(i){return document.getElementById(i);};
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 async function q(p){var r=await p;if(r.error)throw r.error;return r.data;}
-var ETATS={bdl:'Vide à la BdL',pret:'Rempli, prêt',chauffeur:'Dans le camion',client:'Chez le client',retour:'En retour'};
+var ETATS={bdl:'Vide à la BdL',pret:'Rempli, prêt',chauffeur:'Dans le camion',client:'Chez le client',retour:'En retour',sale:'Sale, à la BdL'};
 var ROLES={chauffeur:'Chauffeur',atelier:'Atelier',laveur:'Laveur',bureau:'Bureau'};
 var ROLLS=[],PERS=[],SEUIL_J=10;
 function jours(d){return Math.floor((Date.now()-new Date(d).getTime())/864e5);}
 function fmtQ(q){var d=new Date(q);return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
+var LINGE_API='https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
+function urlClient(c){return location.href.split('#')[0].replace(/[^\/]*$/,'')+'roll.html?c='+encodeURIComponent(c);}
 function urlRoll(n){return location.href.split('#')[0].replace(/[^\/]*$/,'')+'roll.html?r='+encodeURIComponent(n);}
 async function charger(){ROLLS=await q(sb.from('rolls').select('*').eq('actif',true).order('numero'));PERS=await q(sb.from('rolls_personnes').select('*').order('nom'));}
 var VUES={};
@@ -62,8 +64,13 @@ var filtre='';
 VUES.liste=async function(){
   var n={};ROLLS.forEach(function(r){n[r.etat]=(n[r.etat]||0)+1;});
   var vieux=ROLLS.filter(function(r){return (r.etat==='client'||r.etat==='retour')&&jours(r.maj_le)>=SEUIL_J;});
-  var h='<h1>Rolls ('+ROLLS.length+')</h1><div class="tuiles">'+['bdl','pret','chauffeur','client','retour'].map(function(e){return '<div class="tuile" data-f="'+e+'"><b>'+(n[e]||0)+'</b><span>'+ETATS[e]+'</span></div>';}).join('')+
+  var h='<h1>Rolls ('+ROLLS.length+')</h1><div class="tuiles">'+['bdl','pret','chauffeur','client','retour','sale'].map(function(e){return '<div class="tuile" data-f="'+e+'"><b>'+(n[e]||0)+'</b><span>'+ETATS[e]+'</span></div>';}).join('')+
     '<div class="tuile" data-f="vieux" style="'+(vieux.length?'border:2px solid var(--rouge)':'')+'"><b style="color:'+(vieux.length?'var(--rouge)':'inherit')+'">'+vieux.length+'</b><span>chez un client depuis '+SEUIL_J+' j ou plus</span></div></div>';
+  var heures=function(d){return (Date.now()-new Date(d).getTime())/36e5;};
+  var quai=ROLLS.filter(function(r){return r.etat==='pret'&&heures(r.maj_le)>=24;}),camion=ROLLS.filter(function(r){return r.etat==='chauffeur'&&heures(r.maj_le)>=12;});
+  if(quai.length||camion.length)h+='<div class="carte" style="border-left:4px solid var(--rouge)"><h2 style="margin:0 0 6px">⚠ Alertes</h2>'+
+    (camion.length?'<div>🚚 <b>'+camion.length+' chariot'+(camion.length>1?'s':'')+' encore dans un camion depuis plus de 12 h</b> (déchargement incomplet ?) : '+camion.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?')+' ('+esc(r.personne||'')+')';}).join(' · ')+'</div>':'')+
+    (quai.length?'<div style="margin-top:4px">🧺 <b>'+quai.length+' chariot'+(quai.length>1?'s':'')+' prêt'+(quai.length>1?'s':'')+' depuis plus de 24 h, pas chargé'+(quai.length>1?'s':'')+'</b> : '+quai.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?');}).join(' · ')+'</div>':'')+'</div>';
   h+='<div class="carte"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><input id="rq" placeholder="Chercher un roll ou un client…" style="flex:1">'+(filtre?'<button class="btn" id="rTout">Tout afficher</button>':'')+'</div><table><thead><tr><th>Roll</th><th>État</th><th>Client</th><th>Dernier scan</th><th>Par</th></tr></thead><tbody id="rT"></tbody></table></div>'+
     '<div class="carte noprint"><h2>Ajouter des rolls</h2><input id="aN" type="number" min="1" max="200" value="10" style="width:90px"> <button class="btn p" id="aOk">Créer les suivants</button> <span class="s">Numéros à la suite du dernier (R-021, R-022…).</span></div>';
   $('main').innerHTML=h;
@@ -82,7 +89,7 @@ VUES.liste=async function(){
 };
 async function historique(id){
   var r=ROLLS.find(function(x){return x.id===id;});var s=await q(sb.from('rolls_scans').select('*').eq('roll_id',id).order('quand',{ascending:false}).limit(100));
-  var L={vide:'Vidé au tunnel',rempli:'Rempli',charge:'Chargé',livre:'Livré',repris:'Repris'};
+  var L={vide:'Vidé au tunnel',rempli:'Rempli',charge:'Chargé',livre:'Livré',repris:'Repris',rentre:'Déchargé à la BdL'};
   $('main').innerHTML='<div class="noprint"><a href="#liste" onclick="route();return false">← Rolls</a></div><h1>'+esc(r.numero)+' <span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></h1>'+
     '<div class="carte"><table><thead><tr><th>Quand</th><th>Étape</th><th>Client</th><th>Par</th><th>Contenu</th><th class="noprint"></th></tr></thead><tbody>'+(s.map(function(x){return '<tr><td>'+fmtQ(x.quand)+'</td><td>'+esc(L[x.etape]||x.etape)+'</td><td>'+esc(x.client||'')+'</td><td>'+esc(x.personne||'')+'</td><td class="s">'+esc(x.note||'')+'</td><td class="noprint"><button class="btn" style="padding:2px 10px" title="Supprimer ce scan (erreur)" data-sup="'+x.id+'">✕</button></td></tr>';}).join('')||'<tr><td colspan="6" class="s">Jamais scanné.</td></tr>')+'</tbody></table>'+
     '<div class="s" style="margin-top:8px">✕ = scan fait par erreur (mauvais client, mauvais roll). Le roll reprend l\'état du scan précédent.</div></div>';
@@ -123,16 +130,87 @@ VUES.personnes=async function(){
 };
 function chargerQR(){return new Promise(function(ok,ko){if(window.QRCode)return ok();var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc);});}
 VUES.etiquettes=async function(){
-  $('main').innerHTML='<div class="carte noprint"><h1 style="margin-top:0">Étiquettes QR</h1>Du <input id="eD" value="R-001" style="width:100px"> au <input id="eF" value="'+esc((ROLLS[ROLLS.length-1]||{}).numero||'R-020')+'" style="width:100px"> <button class="btn" id="eV">Afficher</button> <button class="btn p" onclick="window.print()">🖨 Imprimer</button>'+
+  var aCol=ROLLS.length&&('etiquette_le' in ROLLS[0]);
+  var jamais=aCol?ROLLS.filter(function(r){return !r.etiquette_le;}):[];
+  var d0=jamais.length?jamais[0].numero:'R-001', f0=jamais.length?jamais[jamais.length-1].numero:((ROLLS[ROLLS.length-1]||{}).numero||'R-020');
+  $('main').innerHTML='<div class="carte noprint"><h1 style="margin-top:0">Étiquettes QR</h1>'+
+    (aCol?(jamais.length?'<div style="background:var(--bleu2);padding:8px 10px;border-radius:8px;margin-bottom:10px">🆕 Jamais imprimées : <b>'+esc(jamais[0].numero)+'</b> à <b>'+esc(jamais[jamais.length-1].numero)+'</b> ('+jamais.length+')</div>'
+      :'<div class="s" style="margin-bottom:10px">Toutes les étiquettes ont déjà été imprimées. Pour de nouveaux chariots : onglet Rolls → « Ajouter des rolls ».</div>'):'')+
+    'Du <input id="eD" value="'+esc(d0)+'" style="width:100px"> au <input id="eF" value="'+esc(f0)+'" style="width:100px"> <button class="btn" id="eV">Afficher</button> <button class="btn p" id="eP">🖨 Imprimer</button>'+
+    '<div class="s" style="margin-top:6px">Étiquette abîmée : mettez le même numéro dans « Du » et « au » (ex. R-007 au R-007) et imprimez. Même numéro = même chariot, son historique est gardé.</div>'+
+    '<div id="eW" style="margin-top:8px"></div>'+
     '<div class="s" style="margin-top:6px">Imprimez sur autocollant <b>polyester / vinyle</b> (résiste à l\'eau), ou plastifiez avant de fixer sur le chariot. Une étiquette de chaque côté du chariot facilite le scan.</div></div><div class="planche" id="pl"></div>';
+  var l=[];
   async function voir(){var a=parseInt($('eD').value.replace(/\D/g,''))||0,b=parseInt($('eF').value.replace(/\D/g,''))||0;
-    var l=ROLLS.filter(function(r){var x=parseInt(String(r.numero).replace(/\D/g,''))||0;return x>=a&&x<=b;});
+    l=ROLLS.filter(function(r){var x=parseInt(String(r.numero).replace(/\D/g,''))||0;return x>=a&&x<=b;});
+    var deja=l.filter(function(r){return r.etiquette_le;});
+    $('eW').innerHTML=deja.length?'<div style="background:var(--orange2);color:var(--orange);padding:8px 10px;border-radius:8px">⚠ '+deja.length+' de ces étiquettes ont déjà été imprimées ('+deja.slice(0,6).map(function(r){return esc(r.numero);}).join(', ')+(deja.length>6?'…':'')+'). Ne réimprimez que pour remplacer une étiquette abîmée, et jetez l\'ancienne.</div>':'';
     try{await chargerQR();}catch(e){$('pl').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
     // 12 étiquettes par page A4 (3 × 4) : aucune n'est coupée en bas de page
     var h='';for(var k=0;k<l.length;k+=12)h+='<div class="page">'+l.slice(k,k+12).map(function(r,j){var i=k+j;return '<div class="etq"><div class="t">BLANCHISSERIE DU LIMOUSIN</div><div id="q'+i+'"></div><div class="n">'+esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero))+'</div><div class="t">Scannez à chaque étape</div></div>';}).join('')+'</div>';
     $('pl').innerHTML=h;
     l.forEach(function(r,i){new QRCode($('q'+i),{text:urlRoll(r.numero),width:125,height:125,correctLevel:QRCode.CorrectLevel.H});});}
   $('eV').onclick=voir;voir();
+  $('eP').onclick=async function(){
+    var deja=l.filter(function(r){return r.etiquette_le;});
+    if(deja.length&&!confirm(deja.length+' étiquette(s) déjà imprimée(s) dans cette sélection. Réimprimer quand même ? (Uniquement pour remplacer une étiquette abîmée.)'))return;
+    window.print();
+    if(aCol){var nv=l.filter(function(r){return !r.etiquette_le;}).map(function(r){return r.id;});
+      if(nv.length&&confirm('Les '+nv.length+' étiquette(s) sont-elles bien sorties de l\'imprimante ?\n(OK = les marquer « imprimées » pour ne jamais les refaire en double)')){
+        try{var t=new Date().toISOString();await q(sb.from('rolls').update({etiquette_le:t}).in('id',nv));l.forEach(function(r){if(!r.etiquette_le)r.etiquette_le=t;});VUES.etiquettes();}catch(e){alert('Marquage impossible : '+(e.message||e));}}}
+  };
+};
+VUES.qrclients=async function(){
+  $('main').innerHTML='<div class="carte noprint"><h1 style="margin-top:0">QR clients</h1>Un QR par client, à coller là où le chauffeur dépose le linge. Le chauffeur le scanne en arrivant : son téléphone lui dit combien de chariots décharger et refuse un chariot destiné à un autre client.'+
+    '<div style="margin:10px 0"><input id="qcF" placeholder="Filtrer…" style="width:220px"> <button class="btn" id="qcT">Tout cocher</button> <button class="btn" id="qcR">Tout décocher</button> <button class="btn p" id="qcP">🖨 Imprimer les cochés</button></div><div id="qcL" class="s">Chargement de la liste des clients…</div></div><div class="planche" id="qcPl"></div>';
+  var noms=[];
+  try{var d=await (await fetch(LINGE_API+'?action=catalogue')).json();noms=(d.catalogue||[]).map(function(c){return c.client;}).filter(Boolean).sort(function(a,b){return a.localeCompare(b,'fr');});}
+  catch(e){$('qcL').textContent='Liste des clients indisponible (réseau).';return;}
+  var coche={};
+  function liste(){var t=($('qcF').value||'').toLowerCase();
+    $('qcL').innerHTML=noms.filter(function(n){return !t||n.toLowerCase().indexOf(t)>=0;}).map(function(n){return '<label style="display:inline-block;width:240px;padding:3px 0;color:var(--txt)"><input type="checkbox" data-qc="'+esc(n)+'"'+(coche[n]?' checked':'')+'> '+esc(n)+'</label>';}).join('');
+    document.querySelectorAll('[data-qc]').forEach(function(x){x.onchange=function(){coche[x.getAttribute('data-qc')]=x.checked;planche();};});}
+  async function planche(){var l=noms.filter(function(n){return coche[n];});
+    try{await chargerQR();}catch(e){$('qcPl').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
+    var h='';for(var k=0;k<l.length;k+=12)h+='<div class="page">'+l.slice(k,k+12).map(function(n,j){return '<div class="etq"><div class="t">BLANCHISSERIE DU LIMOUSIN · DÉPÔT DU LINGE</div><div id="qc'+(k+j)+'"></div><div style="font-size:'+(n.length>18?18:24)+'px;font-weight:900;line-height:1.1">'+esc(n)+'</div><div class="t">Chauffeur : scannez en arrivant</div></div>';}).join('')+'</div>';
+    $('qcPl').innerHTML=h;l.forEach(function(n,i){new QRCode($('qc'+i),{text:urlClient(n),width:125,height:125,correctLevel:QRCode.CorrectLevel.H});});}
+  $('qcF').oninput=liste;
+  $('qcT').onclick=function(){noms.forEach(function(n){coche[n]=true;});liste();planche();};
+  $('qcR').onclick=function(){coche={};liste();planche();};
+  $('qcP').onclick=function(){if(!noms.some(function(n){return coche[n];})){alert('Cochez au moins un client');return;}window.print();};
+  liste();
+};
+/* ---------- TOURNÉES : horaires du chauffeur, déduits de ses scans ---------- */
+var jourT=null;
+VUES.tournees=async function(){
+  var p2=function(n){return String(n).padStart(2,'0');},d=new Date();
+  var j=jourT||(d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()));
+  var deb=new Date(j+'T00:00:00'),fin=new Date(deb.getTime()+864e5);
+  var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id').in('etape',['charge','livre','repris','rentre','arrivee','depart']).gte('quand',deb.toISOString()).lt('quand',fin.toISOString()).order('quand'));
+  var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
+  var hm=function(t){var x=new Date(t);return p2(x.getHours())+':'+p2(x.getMinutes());};
+  var dur=function(ms){var m=Math.round(ms/6e4);return m<60?m+' min':Math.floor(m/60)+' h '+p2(m%60);};
+  var parCh={};sc.forEach(function(s){(parCh[s.personne||'?']=parCh[s.personne||'?']||[]).push(s);});
+  var h='<h1>Tournées</h1><div class="carte noprint">Journée <input type="date" id="tJ" value="'+j+'"> <span class="s">Horaires déduits des scans du chauffeur : arrivée (QR client), chariots, départ (« Terminer ce client »).</span></div>';
+  if(!sc.length)h+='<div class="carte s">Aucun scan de chauffeur ce jour-là.</div>';
+  Object.keys(parCh).sort().forEach(function(ch){
+    var L=parCh[ch],seg=[];
+    L.forEach(function(s){var lieu=(s.etape==='charge')?'BdL — chargement':(s.etape==='rentre'?'BdL — déchargement linge sale':(s.client||'?'));
+      var g=seg[seg.length-1];if(!g||g.lieu!==lieu||s.etape==='arrivee'&&g.dep){g={lieu:lieu,bdl:s.etape==='charge'||s.etape==='rentre',a:s.quand,b:s.quand,liv:[],rep:[],ch:[],re:[]};seg.push(g);}
+      g.b=s.quand;if(s.etape==='arrivee'){g.arr=s.quand;return;}if(s.etape==='depart'){g.dep=s.quand;return;}var n=num[s.roll_id]||'?';({charge:g.ch,livre:g.liv,repris:g.rep,rentre:g.re})[s.etape].push(n);});
+    var amp=new Date(L[L.length-1].quand)-new Date(L[0].quand),place=0,route=0;
+    var rows=seg.map(function(g,i){var t=new Date(g.b)-new Date(g.a);place+=t;var tr=i?new Date(g.a)-new Date(seg[i-1].b):0;route+=tr;
+      var quoi=[g.ch.length?g.ch.length+' chargé'+(g.ch.length>1?'s':''):'',g.liv.length?g.liv.length+' déposé'+(g.liv.length>1?'s':''):'',g.rep.length?g.rep.length+' repris':'',g.re.length?g.re.length+' déchargé'+(g.re.length>1?'s':''):''].filter(Boolean).join(' · ');
+      return (i?'<tr><td></td><td class="s" colspan="5">🚚 trajet '+dur(tr)+'</td></tr>':'')+
+        '<tr><td><b>'+esc(g.lieu)+'</b>'+(g.arr?'<div class="s">arrivé '+hm(g.arr)+(g.dep?' · reparti '+hm(g.dep):'')+'</div>':'')+'</td><td>'+hm(g.a)+'</td><td>'+hm(g.b)+'</td><td>'+dur(t)+'</td><td>'+quoi+'</td><td class="s">'+esc(g.ch.concat(g.liv,g.rep,g.re).join(', '))+'</td></tr>';}).join('');
+    var termine=seg.length&&seg[seg.length-1].lieu==='BdL — déchargement linge sale';
+    h+='<div class="carte"><h2 style="margin-top:0">🚚 '+esc(ch)+'</h2>'+
+      '<div style="font-size:18px;margin-bottom:8px">Amplitude : <b>'+hm(L[0].quand)+' → '+hm(L[L.length-1].quand)+' = '+dur(amp)+'</b>'+(termine?'':' <span style="color:var(--orange)">(tournée pas terminée : rien de déchargé à la BdL après le dernier client)</span>')+
+      '<br><span class="s">Sur place : '+dur(place)+' · en route : '+dur(route)+'</span></div>'+
+      '<table><thead><tr><th>Où</th><th>Début</th><th>Fin</th><th>Sur place</th><th>Chariots</th><th>N°</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  });
+  $('main').innerHTML=h;
+  $('tJ').onchange=function(){jourT=this.value;VUES.tournees();};
 };
 async function demarrer(){$('login').style.display='none';route();}
 $('lOk').onclick=async function(){var r=await sb.auth.signInWithPassword({email:$('lE').value.trim(),password:$('lP').value});if(r.error){$('lErr').textContent=r.error.message;return;}demarrer();};
