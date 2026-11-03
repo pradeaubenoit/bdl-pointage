@@ -707,16 +707,31 @@ async function envoyerMessage() {
   document.getElementById('mbTexte').value = '';
   chargerMessagesB();
 }
+let d0 = null;
 async function chargerMessagesB() {
   try {
     const rep = await fetch(API_URL + '?action=messages&tous=1');
     const d = await rep.json(); if (!d.ok) return;
-    messagesB = d.messages || [];
+    messagesB = d.messages || []; d0 = d;
   } catch (e) { return; }
   const aLire = messagesB.filter(m => m.etat === 'corrigé' || m.etat === 'répondu').length;
   document.getElementById('btnMsg').innerHTML = '✉ Atelier' + (aLire ? '<span class="pastille">' + aLire + '</span>' : '');
   const z = document.getElementById('mbListe'); if (!z) return;
-  z.innerHTML = messagesB.length ? '<div style="padding:4px 20px;color:#6B7A86;font-size:13px">Messages envoyés</div>' : '';
+  z.innerHTML = messagesB.length ? '<div style="padding:4px 20px;color:#6B7A86;font-size:13px;display:flex;justify-content:space-between;align-items:center">Messages envoyés' +
+    (aLire ? '<button class="btn" id="mbToutArch" style="margin:0">🗄 Tout archiver (' + aLire + ' traité' + (aLire > 1 ? 's' : '') + ')</button>' : '') + '</div>' : '';
+  if (d0 && d0.stats) {
+    const st = d0.stats, a = st.auj.al, fl = a < st.moy7 ? ' <b style="color:#15803d">▼</b>' : (a > st.moy7 ? ' <b style="color:#c62828">▲</b>' : '');
+    z.insertAdjacentHTML('afterbegin', '<div style="margin:4px 20px 8px;padding:8px 10px;background:#F4F7F9;border-radius:8px;font-size:13px">⚠ Alarmes de pointage : aujourd\'hui <b>' + a + '</b>' + fl +
+      ' · hier <b>' + st.hier.al + '</b> · moyenne 7 jours <b>' + String(st.moy7).replace('.', ',') + '</b><br><span style="color:#6B7A86">Messages traités des jours passés : comptés puis effacés chaque nuit.</span></div>');
+  }
+  const ta = document.getElementById('mbToutArch');
+  if (ta) ta.onclick = async () => {
+    const l = messagesB.filter(m => m.etat === 'corrigé' || m.etat === 'répondu');
+    if (!confirm('Archiver les ' + l.length + ' messages traités ? (Les messages pas encore traités restent.)')) return;
+    ta.disabled = true; ta.textContent = 'Archivage…';
+    for (const m of l) { try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'messageClore', id: m.id }) }); } catch (e) {} }
+    chargerMessagesB();
+  };
   messagesB.forEach(m => {
     const d = document.createElement('div'); d.className = 'mb';
     const lib = { nouveau: '⏳ pas encore traité', 'corrigé': '✓ corrigé', 'répondu': '💬 réponse' }[m.etat] || m.etat;
