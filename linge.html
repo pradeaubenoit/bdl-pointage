@@ -1268,7 +1268,12 @@ function chariotSansSaisie() {
     '<div id="csL" style="overflow:auto;flex:1"></div>' +
     '<button id="csX" style="margin-top:10px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Annuler</button></div>';
   f.style.display = 'flex';
-  const noms = catalogue.map(c => c.client).filter(Boolean).sort((a, b) => a.localeCompare(b, 'fr'));
+  let noms = catalogue.map(c => c.client).filter(Boolean).sort((a, b) => a.localeCompare(b, 'fr'));
+  // + clients sans saisie (hôpitaux…) créés au bureau, page Rolls → QR clients
+  const extra = lire('linge_roll_clients', []);
+  const fusion = l => { noms = Array.from(new Set(noms.concat(l))).sort((a, b) => a.localeCompare(b, 'fr')); };
+  fusion(extra);
+  rollRpc('roll_clients', {}).then(l => { if (Array.isArray(l)) { ecrire('linge_roll_clients', l); fusion(l); rendre(); } }).catch(() => {});
   const rendre = () => {
     const t = sansAccent(document.getElementById('csQ').value);
     document.getElementById('csL').innerHTML = noms.filter(n => sansAccent(n).indexOf(t) >= 0).slice(0, 80)
