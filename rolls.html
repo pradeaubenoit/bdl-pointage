@@ -153,6 +153,7 @@ VUES.etiquettes=async function(){
     $('eW').innerHTML=deja.length?'<div style="background:var(--orange2);color:var(--orange);padding:8px 10px;border-radius:8px">⚠ '+deja.length+' de ces étiquettes ont déjà été imprimées ('+deja.slice(0,6).map(function(r){return esc(r.numero);}).join(', ')+(deja.length>6?'…':'')+'). Ne réimprimez que pour remplacer une étiquette abîmée, et jetez l\'ancienne.</div>':'';
     try{await chargerQR();}catch(e){$('pl').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
     // 12 étiquettes par page A4 (3 × 4) : aucune n'est coupée en bas de page
+    if(!l.length){$('pl').innerHTML='<div class="carte" style="color:var(--rouge)">Aucun roll entre '+esc($('eD').value)+' et '+esc($('eF').value)+'. Ces numéros n\'existent pas encore : onglet <b>Rolls</b> → « Ajouter des rolls » pour les créer (il y en a '+ROLLS.length+' aujourd\'hui, jusqu\'à '+esc((ROLLS[ROLLS.length-1]||{}).numero||'—')+').</div>';return;}
     var fmt=(document.querySelector('[name=eFmt]:checked')||{}).value,tube=fmt==='tube';
     if(fmt==='barre'){
       if(!window.JsBarcode){try{await new Promise(function(ok,ko){var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js';sc.onload=ok;sc.onerror=function(){var s2=document.createElement('script');s2.src='https://unpkg.com/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';s2.onload=ok;s2.onerror=ko;document.head.appendChild(s2);};document.head.appendChild(sc);});}catch(e){$('pl').innerHTML='<div class="carte">Code-barres indisponible (réseau).</div>';return;}}
@@ -182,12 +183,18 @@ VUES.etiquettes=async function(){
 VUES.qrclients=async function(){
   $('main').innerHTML='<div class="carte noprint"><h1 style="margin-top:0">QR clients</h1>Un QR par client, à coller là où le chauffeur dépose le linge. Le chauffeur le scanne en arrivant : son téléphone lui dit combien de chariots décharger et refuse un chariot destiné à un autre client.'+
     '<div style="margin:10px 0"><input id="qcF" placeholder="Filtrer…" style="width:220px"> <button class="btn" id="qcT">Tout cocher</button> <button class="btn" id="qcR">Tout décocher</button> <button class="btn p" id="qcP">🖨 Imprimer les cochés</button></div><div id="qcL" class="s">Chargement de la liste des clients…</div></div><div class="planche" id="qcPl"></div>';
-  var noms=[];
-  try{var d=await (await fetch(LINGE_API+'?action=catalogue')).json();noms=(d.catalogue||[]).map(function(c){return c.client;}).filter(Boolean).sort(function(a,b){return a.localeCompare(b,'fr');});}
+  var noms=[],sans=[];
+  try{var d=await (await fetch(LINGE_API+'?action=catalogue')).json();noms=(d.catalogue||[]).map(function(c){return c.client;}).filter(Boolean);}
   catch(e){$('qcL').textContent='Liste des clients indisponible (réseau).';return;}
+  try{sans=(await q(sb.from('rolls_clients').select('nom'))).map(function(x){return x.nom;});}catch(e){}
+  noms=Array.from(new Set(noms.concat(sans))).sort(function(a,b){return a.localeCompare(b,'fr');});
+  $('qcL').insertAdjacentHTML('beforebegin','<div style="margin:0 0 10px;padding:8px 10px;background:var(--bleu2);border-radius:8px">Client <b>sans saisie de quantités</b> (hôpitaux…) absent de la liste : <input id="qcN" placeholder="ex. Hôpital du Mont" style="width:220px"> <button class="btn p" id="qcA">+ Ajouter</button><div class="s">Il apparaîtra aussi sur la tablette (🧺 Chariot sans saisie) et sur le téléphone du chauffeur. Écrivez le nom une fois pour toutes, toujours le même.</div></div>');
+  $('qcA').onclick=async function(){var n=$('qcN').value.trim().replace(/\s+/g,' ');if(!n)return;
+    if(noms.some(function(x){return x.toLowerCase()===n.toLowerCase();})){alert('« '+n+' » existe déjà.');return;}
+    try{await q(sb.from('rolls_clients').insert({nom:n}));VUES.qrclients();}catch(e){alert('Ajout impossible : '+(e.message||e)+'\n(rolls-installation-6.sql passé dans Supabase ?)');}};
   var coche={};
   function liste(){var t=($('qcF').value||'').toLowerCase();
-    $('qcL').innerHTML=noms.filter(function(n){return !t||n.toLowerCase().indexOf(t)>=0;}).map(function(n){return '<label style="display:inline-block;width:240px;padding:3px 0;color:var(--txt)"><input type="checkbox" data-qc="'+esc(n)+'"'+(coche[n]?' checked':'')+'> '+esc(n)+'</label>';}).join('');
+    $('qcL').innerHTML=noms.filter(function(n){return !t||n.toLowerCase().indexOf(t)>=0;}).map(function(n){return '<label style="display:inline-block;width:240px;padding:3px 0;color:var(--txt)"><input type="checkbox" data-qc="'+esc(n)+'"'+(coche[n]?' checked':'')+'> '+esc(n)+(sans.indexOf(n)>=0?' <span class="s">(sans saisie)</span>':'')+'</label>';}).join('');
     document.querySelectorAll('[data-qc]').forEach(function(x){x.onchange=function(){coche[x.getAttribute('data-qc')]=x.checked;planche();};});}
   async function planche(){var l=noms.filter(function(n){return coche[n];});
     try{await chargerQR();}catch(e){$('qcPl').innerHTML='<div class="carte">QR indisponible (réseau).</div>';return;}
