@@ -15,7 +15,7 @@ main{padding:14px 16px;max-width:560px;margin:0 auto}
 .carte{background:#fff;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px #0001}
 .num{font-size:34px;font-weight:800;letter-spacing:1px}
 .etat{display:inline-block;padding:4px 10px;border-radius:20px;font-weight:700;font-size:15px;margin-top:6px}
-.e-bdl{background:#eef0f2;color:#555}.e-pret{background:var(--bleu2);color:var(--bleu)}.e-chauffeur{background:var(--orange2);color:var(--orange)}.e-client{background:var(--vert2);color:var(--vert)}.e-retour{background:#f3e8fd;color:#6b2fa3}
+.e-bdl{background:#eef0f2;color:#555}.e-pret{background:var(--bleu2);color:var(--bleu)}.e-chauffeur{background:var(--orange2);color:var(--orange)}.e-client{background:var(--vert2);color:var(--vert)}.e-retour{background:#f3e8fd;color:#6b2fa3}.e-sale{background:#fdf2e3;color:#8a5a00}
 .client{font-size:22px;font-weight:700;margin-top:8px}
 .s{color:var(--doux);font-size:14px}
 button.gros{display:block;width:100%;font-size:20px;font-weight:700;padding:18px;border-radius:14px;border:0;margin:10px 0;color:#fff;background:var(--bleu)}
@@ -39,13 +39,22 @@ var $=function(i){return document.getElementById(i);};
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function lire(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
 function ecrire(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
-var ETATS={bdl:'Vide à la BdL',pret:'Rempli — prêt à partir',chauffeur:'Dans le camion',client:'Chez le client',retour:'Repris — en retour'};
+var ETATS={bdl:'Vide à la BdL',pret:'Rempli — prêt à partir',chauffeur:'Dans le camion',client:'Chez le client',retour:'Repris — en retour',sale:'Sale — déchargé à la BdL'};
 var ROLES={chauffeur:'Chauffeur',atelier:'Atelier',laveur:'Laveur',bureau:'Bureau'};
-var numero=(new URLSearchParams(location.search).get('r')||'').trim().toUpperCase();
+var PRM=new URLSearchParams(location.search);
+var numero=(PRM.get('r')||'').trim().toUpperCase();
+// Arrêt chez un client : posé en scannant le QR du client (roll.html?c=Nom), gardé 4 h sur le téléphone
+var ARRET=lire('roll_arret',null);
+var NOUVEL_ARRET=false;
+if(PRM.get('c')){var cNv=PRM.get('c').trim();NOUVEL_ARRET=!ARRET||ARRET.client!==cNv||Date.now()-ARRET.t>4*3600e3;ARRET={client:cNv,t:Date.now()};ecrire('roll_arret',ARRET);}
+// Arrivée / départ enregistrés (heure réelle) ; gardés sur le téléphone si pas de réseau
+function noterArret(etape,client){if(!MOI)return;sb.rpc('roll_arret',{p_personne:MOI.id,p_code:MOI.code,p_client:client,p_etape:etape}).catch(function(){});}
+if(ARRET&&Date.now()-ARRET.t>4*3600e3){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}}
+function nrm(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();}
 var INFO=null, MOI=lire('roll_moi',null), CLIENTS=lire('roll_clients',[]);
 function majMoi(){$('moiBtn').textContent=MOI?('👤 '+MOI.nom):'👤 Qui êtes-vous ?';}
 function fmtQ(q){var d=new Date(q);return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
-var LIB={vide:'vidé au tunnel',rempli:'rempli',charge:'chargé',livre:'livré',repris:'repris'};
+var LIB={vide:'vidé au tunnel',rempli:'rempli',charge:'chargé',livre:'livré',repris:'repris',rentre:'déchargé à la BdL (linge sale)'};
 
 // Liste des clients : catalogue de BdL Linge (gardé sur le téléphone pour marcher sans réseau)
 fetch(LINGE_API+'?action=catalogue').then(function(r){return r.json();}).then(function(d){
@@ -54,6 +63,7 @@ fetch(LINGE_API+'?action=catalogue').then(function(r){return r.json();}).then(fu
 
 async function charger(){
   majMoi();
+  if(!numero&&ARRET)return chargerArret();
   if(!numero){return demanderNumero();}
   $('main').innerHTML='<div class="carte">Chargement du roll '+esc(numero)+'…</div>';
   try{var r=await sb.rpc('roll_info',{p_numero:numero});if(r.error)throw r.error;INFO=r.data;}
@@ -64,20 +74,52 @@ async function charger(){
   if(!MOI)return choisirMoi();
   afficher();
 }
+/* ---------- Chez un client (QR du client) ---------- */
+var ARR=null;
+async function chargerArret(msg){
+  $('main').innerHTML='<div class="carte">Chez '+esc(ARRET.client)+'…</div>';
+  try{var r=await sb.rpc('roll_client',{p_client:ARRET.client});if(r.error)throw r.error;ARR=r.data;}
+  catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="chargerArret()">Réessayer</button>';return;}
+  if(!ARR.ok){$('main').innerHTML='<div class="carte alerte">'+esc(ARR.error)+'</div>';return;}
+  INFO={personnes:ARR.personnes};
+  if(MOI){var me=(ARR.personnes||[]).find(function(p){return p.id===MOI.id;});if(!me){MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}}else{MOI.role=me.role;MOI.nom=me.nom;ecrire('roll_moi',MOI);majMoi();}}
+  if(!MOI)return choisirMoi(function(){chargerArret();});
+  if(NOUVEL_ARRET&&aRole('chauffeur')){NOUVEL_ARRET=false;noterArret('arrivee',ARRET.client);}
+  afficherArret(msg);
+}
+function afficherArret(msg){
+  var A=ARR,cam=A.a_decharger.filter(function(x){return x.etat==='chauffeur';}),quai=A.a_decharger.filter(function(x){return x.etat==='pret';});
+  var fait=A.livres_auj.length,tot=fait+cam.length,h='';
+  if(msg)h+='<div class="carte ok">'+msg+'</div>';
+  h+='<div class="carte"><div class="s">📍 Vous êtes chez</div><div class="num" style="font-size:28px">'+esc(A.client)+'</div>'+
+    '<div style="font-size:22px;font-weight:800;margin-top:10px;color:'+(cam.length?'var(--orange)':'var(--vert)')+'">'+(tot?'Déchargés : '+fait+' / '+tot:'Rien à décharger')+'</div>'+
+    (cam.length?'<div style="margin-top:8px"><b>Encore dans le camion pour ce client :</b>'+cam.map(function(x){return '<div style="font-size:18px;padding:4px 0">🧺 '+esc(x.numero)+(x.note?' <span style="color:var(--bleu)">📦 '+esc(x.note)+'</span>':'')+'</div>';}).join('')+'</div>':'')+
+    (quai.length?'<div class="alerte">⚠ '+quai.length+' chariot'+(quai.length>1?'s':'')+' prêt'+(quai.length>1?'s':'')+' pour ce client mais pas chargé'+(quai.length>1?'s':'')+' (resté'+(quai.length>1?'s':'')+' à la BdL) : '+quai.map(function(x){return esc(x.numero);}).join(', ')+'</div>':'')+
+    '<div class="s" style="margin-top:10px">Chariots chez ce client : <b>'+A.chez.length+'</b>'+(A.chez.length?' ('+A.chez.map(function(x){return esc(x.numero);}).join(', ')+')':'')+'</div>'+
+    '<div style="margin-top:12px;font-weight:600">➡ Scannez chaque chariot que vous déposez ou reprenez.</div></div>'+
+    '<button class="gros g" onclick="chargerArret()">🔄 Actualiser</button><button class="gros r" id="fArr">🏁 Terminer ce client</button>';
+  $('main').innerHTML=h;
+  $('fArr').onclick=function(){
+    if(cam.length&&!confirm('⚠ DÉCHARGEMENT INCOMPLET\n\nEncore dans le camion pour '+A.client+' : '+cam.map(function(x){return x.numero;}).join(', ')+'\n\nTerminer quand même ?'))return;
+    noterArret('depart',A.client);ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}
+    $('main').innerHTML='<div class="carte ok">✓ '+esc(A.client)+' terminé.<div class="s" style="margin-top:6px;color:var(--vert)">Au client suivant, scannez son QR code.</div></div>';
+  };
+}
 function demanderNumero(garde){
   var h=(garde?$('main').innerHTML:'')+'<div class="carte"><label>Numéro du roll</label><input id="nNum" placeholder="ex. R-012" autocapitalize="characters"><button class="gros" onclick="var v=document.getElementById(\'nNum\').value.trim().toUpperCase();if(v){if(/^\\d+$/.test(v))v=\'R-\'+v.padStart(3,\'0\');location.search=\'?r=\'+encodeURIComponent(v);}">Ouvrir</button><div class="s">Le plus simple : scanner l\'étiquette du roll avec l\'appareil photo.</div></div>';
   $('main').innerHTML=h;
 }
-function choisirMoi(){
+function choisirMoi(suite){
   var ps=(INFO&&INFO.personnes)||[];
   $('main').innerHTML='<div class="carte"><b>Qui êtes-vous ?</b><div class="s">À faire une seule fois sur ce téléphone.</div><label style="display:block;margin-top:10px">Nom</label><select id="mP">'+ps.map(function(p){return '<option value="'+p.id+'">'+esc(p.nom)+' ('+esc(libRoles(p.role))+')</option>';}).join('')+'</select>'+
     '<label>Code à 4 chiffres</label><input id="mC" inputmode="numeric" maxlength="6" type="password"><button class="gros" id="mOk">Valider</button></div>';
-  $('mOk').onclick=function(){var p=ps.find(function(x){return x.id===$('mP').value;}),c=$('mC').value.trim();if(!p||!c)return;MOI={id:p.id,nom:p.nom,role:p.role,code:c};ecrire('roll_moi',MOI);majMoi();afficher();};
+  $('mOk').onclick=function(){var p=ps.find(function(x){return x.id===$('mP').value;}),c=$('mC').value.trim();if(!p||!c)return;MOI={id:p.id,nom:p.nom,role:p.role,code:c};ecrire('roll_moi',MOI);majMoi();if(suite)suite();else afficher();};
 }
 function changerMoi(){if(!INFO)return;if(MOI&&!confirm('Changer de personne sur ce téléphone ?'))return;MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}majMoi();choisirMoi();}
 
 function afficher(msg){
   var I=INFO,h='';
+  if(ARRET&&aRole('chauffeur'))h+='<div class="carte" style="background:#1f2a35;color:#fff;padding:10px 16px">📍 Chez <b>'+esc(ARRET.client)+'</b> · <a href="?" style="color:#9cc3ff" onclick="location.search=\'\';return false">voir le déchargement</a></div>';
   if(msg)h+='<div class="carte ok">'+msg+'</div>';
   h+='<div class="carte"><div class="num">'+esc(I.numero)+'</div><span class="etat e-'+esc(I.etat)+'">'+esc(ETATS[I.etat]||I.etat)+'</span>'+
     (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+(function(){var r=(I.derniers||[]).find(function(d){return d.etape==='rempli';});return r&&r.note&&I.etat!=='bdl'?'<div style="margin-top:6px;font-size:16px;color:var(--bleu);font-weight:600">📦 '+esc(r.note)+'</div>':'';})()+
@@ -94,11 +136,26 @@ function libRoles(r){return String(r||'').split(',').map(function(x){return ROLE
 function actions(){
   var I=INFO;
   if(aRole('atelier'))bouton('🧺 Rempli pour un client…','',function(){choisirClient('Rempli pour quel client ?',function(c){scan('rempli',c);});});
-  if(aRole('chauffeur')){
+  if(aRole('chauffeur')&&ARRET){
+    var pourAutre=I.client&&nrm(I.client)!==nrm(ARRET.client)&&(I.etat==='pret'||I.etat==='chauffeur');
+    if(pourAutre){
+      $('acts').insertAdjacentHTML('beforeend','<div class="alerte" style="font-size:20px;text-align:center">✗ STOP<br>Ce chariot est pour<br><span style="font-size:26px">« '+esc(I.client)+' »</span><br>Remettez-le dans le camion.</div>');
+      if(navigator.vibrate)navigator.vibrate([300,150,300]);
+      if(aRole('bureau'))bouton('Forcer : livré chez '+ARRET.client+' (bureau)','g',function(){if(confirm('Ce roll contient le linge de « '+I.client+' ». Le livrer quand même chez « '+ARRET.client+' » ?'))scan('livre',ARRET.client);});
+    }else if(I.etat==='client'&&nrm(I.client)===nrm(ARRET.client)){
+      bouton('↩ Reprendre ce chariot (vide)','o',function(){scan('repris',ARRET.client);});
+    }else{
+      bouton('✅ Déposer chez '+ARRET.client,'v',function(){scan('livre',ARRET.client);});
+    }
+    bouton('📍 Retour au déchargement de '+ARRET.client,'g',function(){location.search='';});
+    bouton('Je ne suis plus chez ce client','g',function(){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}afficher();});
+  }else if(aRole('chauffeur')){
     bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
     if(I.client)bouton('✅ Livré chez '+I.client,'v',function(){scan('livre',I.client);});
-    bouton(I.client?'Livré chez un autre client…':'✅ Livré chez…','g',function(){choisirClient('Livré chez quel client ?',function(c){
-      if(I.client&&c!==I.client&&!confirm('⚠ ATTENTION : ce roll contient le linge de « '+I.client+' ».\n\nVous allez le livrer chez « '+c+' ». Confirmer ?'))return;scan('livre',c);});});
+    // Chariot destiné à un client : on ne peut pas le livrer ailleurs (sauf le bureau)
+    if(!I.client||aRole('bureau'))bouton(I.client?'Livré chez un autre client… (bureau)':'✅ Livré chez…','g',function(){choisirClient('Livré chez quel client ?',function(c){
+      if(I.client&&nrm(c)!==nrm(I.client)&&!confirm('⚠ ATTENTION : ce roll contient le linge de « '+I.client+' ».\n\nVous allez le livrer chez « '+c+' ». Confirmer ?'))return;scan('livre',c);});});
+    if(I.etat==='retour'||I.etat==='client')bouton('🏭 Déchargé à la BdL (linge sale)','o',function(){scan('rentre',null);});
     bouton('↩ Repris chez '+(I.etat==='client'&&I.client?I.client:'un client…'),'g',function(){if(I.etat==='client'&&I.client)return scan('repris',I.client);choisirClient('Repris chez quel client ?',function(c){scan('repris',c);});});
   }
   if(aRole('laveur'))bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
@@ -120,8 +177,16 @@ async function scan(etape,client){
     if(!r.data.ok){if(/code/i.test(r.data.error)){alert('Code incorrect. Retapez votre code.');MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}majMoi();return choisirMoi();}throw new Error(r.data.error);}
     var i2=await sb.rpc('roll_info',{p_numero:INFO.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
     if(navigator.vibrate)navigator.vibrate(120);
+    if(ARRET&&(etape==='livre'||etape==='repris')){numero='';history.replaceState(null,'',location.pathname);return chargerArret('✓ '+esc(INFO.numero)+' '+esc(LIB[etape])+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le chariot suivant.</div>');}
+    if(etape==='charge'){try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!cm.error&&cm.data&&cm.data.ok)return afficher('✓ '+esc(INFO.numero)+' chargé'+resumeCamion(cm.data));}catch(x){}}
     afficher('✓ '+esc(INFO.numero)+' '+esc(LIB[etape]||etape)+(client?' · '+esc(client):'')+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le roll suivant.</div>');
   }catch(e){$('acts').innerHTML='<div class="carte alerte">Non enregistré : '+esc(e.message||e)+'</div>';var b=document.createElement('button');b.className='gros';b.textContent='Réessayer';b.onclick=function(){scan(etape,client);};$('acts').appendChild(b);}
+}
+function resumeCamion(d){
+  var g={};d.camion.forEach(function(x){var c=x.client||'sans client';g[c]=(g[c]||0)+1;});
+  var q={};d.a_quai.forEach(function(x){var c=x.client||'?';(q[c]=q[c]||[]).push(x.numero);});
+  return '<div style="font-size:16px;color:var(--txt);font-weight:600;margin-top:10px;text-align:left">🚚 Mon camion : '+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+'<br>'+Object.keys(g).sort().map(function(c){return esc(c)+' : '+g[c];}).join(' · ')+'</div>'+
+    (d.a_quai.length?'<div style="font-size:15px;color:var(--rouge);font-weight:700;margin-top:8px;text-align:left">⚠ Prêts, pas encore chargés : '+Object.keys(q).sort().map(function(c){return esc(c)+' ('+q[c].join(', ')+')';}).join(' · ')+'</div>':'');
 }
 charger();
 </script>
