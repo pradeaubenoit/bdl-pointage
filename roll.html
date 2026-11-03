@@ -26,11 +26,18 @@ label{font-weight:600;font-size:15px}
 .ok{background:var(--vert2);border:2px solid var(--vert);color:var(--vert);text-align:center;font-size:22px;font-weight:800;padding:22px}
 .alerte{background:var(--rouge2);border:2px solid var(--rouge);color:var(--rouge);font-weight:700;padding:14px;border-radius:12px;margin:10px 0}
 .hist div{font-size:14px;padding:4px 0;border-bottom:1px dashed var(--ligne)}
+#bScan{position:fixed;left:16px;right:16px;bottom:max(16px,env(safe-area-inset-bottom));z-index:50;box-shadow:0 4px 14px #0004;background:#1f2a35;margin:0}
+main{padding-bottom:110px}
+#scanFond{position:fixed;inset:0;background:#000;z-index:100;display:none;flex-direction:column}
+#lecteur{flex:1;width:100%}#lecteur video{object-fit:cover}
+#scanFond .bar{padding:12px 16px;color:#fff;text-align:center;font-size:16px}
 </style>
 </head>
 <body>
 <header><b>🧺 Roll BdL</b><button id="moiBtn" onclick="changerMoi()"></button></header>
 <main id="main"><div class="carte">Chargement…</div></main>
+<button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner un chariot ou un client</button>
+<div id="scanFond"><div class="bar">Visez le code-barres ou le QR code</div><div id="lecteur"></div><div class="bar"><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button></div></div>
 <script>
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var LINGE_API='https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
@@ -215,6 +222,29 @@ function resumeCamion(d){
   var q={};d.a_quai.forEach(function(x){var c=x.client||'?';(q[c]=q[c]||[]).push(x.numero);});
   return '<div style="font-size:16px;color:var(--txt);font-weight:600;margin-top:10px;text-align:left">🚚 Mon camion : '+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+'<br>'+Object.keys(g).sort().map(function(c){return esc(c)+' : '+g[c];}).join(' · ')+'</div>'+
     (d.a_quai.length?'<div style="font-size:15px;color:var(--rouge);font-weight:700;margin-top:8px;text-align:left">⚠ Prêts, pas encore chargés : '+Object.keys(q).sort().map(function(c){return esc(c)+' ('+q[c].join(', ')+')';}).join(' · ')+'</div>':'');
+}
+/* ---------- Scanner dans l'appli : codes-barres (tubes) et QR codes ---------- */
+var LECTEUR=null;
+function chargerScript(srcs){return new Promise(function(ok,ko){(function essai(i){if(i>=srcs.length)return ko(new Error('Lecteur indisponible (réseau)'));var sc=document.createElement('script');sc.src=srcs[i];sc.onload=ok;sc.onerror=function(){essai(i+1);};document.head.appendChild(sc);})(0);});}
+async function ouvrirScanner(){
+  $('scanFond').style.display='flex';
+  try{
+    if(!window.Html5Qrcode)await chargerScript(['https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js','https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js']);
+    var F=Html5QrcodeSupportedFormats;
+    LECTEUR=new Html5Qrcode('lecteur',{formatsToSupport:[F.QR_CODE,F.CODE_128],verbose:false});
+    await LECTEUR.start({facingMode:'environment'},{fps:12,qrbox:function(w,h){return {width:Math.floor(w*0.85),height:Math.floor(Math.min(h*0.45,w*0.6))};}},function(t){
+      if(navigator.vibrate)navigator.vibrate(80);fermerScanner().then(function(){traiterCode(t);});},function(){});
+  }catch(e){fermerScanner();alert('Caméra impossible : '+(e.message||e)+'\n\nAutorisez la caméra pour ce site dans Safari (aA → Réglages du site web).');}
+}
+async function fermerScanner(){$('scanFond').style.display='none';if(LECTEUR){try{await LECTEUR.stop();}catch(e){}try{LECTEUR.clear();}catch(e){}LECTEUR=null;}}
+function traiterCode(t){
+  t=String(t||'').trim();
+  var mc=t.match(/[?&]c=([^&#]+)/),mr=t.match(/[?&]r=([^&#]+)/),nu=t.match(/^R-?(\d{1,4})$/i);
+  if(mc){var c=decodeURIComponent(mc[1].replace(/\+/g,' ')).trim();NOUVEL_ARRET=!ARRET||ARRET.client!==c||Date.now()-ARRET.t>4*3600e3;ARRET={client:c,t:Date.now()};ecrire('roll_arret',ARRET);
+    numero='';history.replaceState(null,'','?c='+encodeURIComponent(c));return charger();}
+  var n=mr?decodeURIComponent(mr[1]).trim().toUpperCase():(nu?'R-'+nu[1].padStart(3,'0'):'');
+  if(!n){alert('Code non reconnu : '+t);return;}
+  numero=n;history.replaceState(null,'','?r='+encodeURIComponent(n));charger();
 }
 charger();
 </script>
