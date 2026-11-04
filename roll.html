@@ -43,7 +43,7 @@ main{padding-bottom:110px}
 <main id="main"><div class="carte">Chargement…</div></main>
 <div id="barre"><button class="gros" id="bOu" onclick="jeSuisChez()" style="display:none">📍 Où ?</button><button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner</button><button class="gros" id="bNum" onclick="ouvrirNumero()">⌨ N°</button></div>
 <div id="numFond"><div class="boite"><div class="s" style="text-align:center">Numéro écrit sur le chariot</div><div id="numAff">R-</div><div class="pave" id="pave"></div><div style="display:flex;gap:10px;margin-top:10px"><button class="gros g" style="margin:0" onclick="fermerNumero()">Annuler</button><button class="gros v" style="margin:0" onclick="validerNumero()">Ouvrir</button></div></div></div>
-<div id="scanFond"><div class="bar">Visez le code-barres ou le QR code</div><div id="lecteur"></div><div class="bar"><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button></div></div>
+<div id="scanFond"><div class="bar">Approchez le code-barres dans le cadre — dans n'importe quel sens</div><div id="lecteur"></div><div class="bar"><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button></div></div>
 <script>
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var LINGE_API='https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
@@ -245,18 +245,37 @@ function resumeCamion(d){
 }
 /* ---------- Scanner dans l'appli : codes-barres (tubes) et QR codes ---------- */
 var LECTEUR=null;
+/* Lecteur maison (ZXing) : lit les codes-barres dans les DEUX sens (collés dans la longueur d'un tube) + les QR */
+var ZX=null,FLUX=null,BOUCLE=null;
 function chargerScript(srcs){return new Promise(function(ok,ko){(function essai(i){if(i>=srcs.length)return ko(new Error('Lecteur indisponible (réseau)'));var sc=document.createElement('script');sc.src=srcs[i];sc.onload=ok;sc.onerror=function(){essai(i+1);};document.head.appendChild(sc);})(0);});}
 async function ouvrirScanner(){
   $('scanFond').style.display='flex';
   try{
-    if(!window.Html5Qrcode)await chargerScript(['https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js','https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js']);
-    var F=Html5QrcodeSupportedFormats;
-    LECTEUR=new Html5Qrcode('lecteur',{formatsToSupport:[F.QR_CODE,F.CODE_128],verbose:false});
-    await LECTEUR.start({facingMode:'environment'},{fps:12,qrbox:function(w,h){return {width:Math.floor(w*0.85),height:Math.floor(Math.min(h*0.45,w*0.6))};}},function(t){
-      if(navigator.vibrate)navigator.vibrate(80);fermerScanner().then(function(){traiterCode(t);});},function(){});
+    if(!window.ZXing)await chargerScript(['https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js','https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js']);
+    if(!ZX){ZX=new ZXing.MultiFormatReader();var h=new Map();h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.QR_CODE]);h.set(ZXing.DecodeHintType.TRY_HARDER,true);ZX.setHints(h);}
+    FLUX=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
+    var v=document.createElement('video');v.setAttribute('playsinline','');v.muted=true;v.autoplay=true;v.srcObject=FLUX;v.style.cssText='width:100%;height:100%;object-fit:cover';
+    $('lecteur').innerHTML='';$('lecteur').appendChild(v);
+    $('lecteur').insertAdjacentHTML('beforeend','<div style="position:absolute;left:12%;right:12%;top:22%;bottom:22%;border:3px solid #fff8;border-radius:14px;pointer-events:none"></div>');
+    $('lecteur').style.position='relative';
+    await v.play();
+    var c=document.createElement('canvas'),x=c.getContext('2d',{willReadFrequently:true}),tour=0;
+    BOUCLE=setInterval(function(){
+      if(!v.videoWidth)return;
+      // zone centrale de l'image, réduite à ~900 px (rapide), une fois droite, une fois tournée d'un quart de tour
+      // 4 essais en alternance : image droite / tournée d'un quart de tour, zone large / zone centrale agrandie (petits codes)
+      var m=tour++%4,rot=m%2===1,zoom=m>=2;
+      var W=v.videoWidth,H=v.videoHeight,cw=W*(zoom?0.45:0.8),ch=H*(zoom?0.5:0.7),sx=(W-cw)/2,sy=(H-ch)/2,k=Math.min(zoom?2:1,900/Math.max(cw,ch));
+      c.width=Math.round((rot?ch:cw)*k);c.height=Math.round((rot?cw:ch)*k);
+      x.save();if(rot){x.translate(c.width,0);x.rotate(Math.PI/2);}
+      x.drawImage(v,sx,sy,cw,ch,0,0,Math.round(cw*k),Math.round(ch*k));x.restore();
+      try{var src=new ZXing.HTMLCanvasElementLuminanceSource(c),bm=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(src));
+        var r=ZX.decodeWithState(bm);if(r&&r.getText()){var t=r.getText();if(navigator.vibrate)navigator.vibrate(80);fermerScanner().then(function(){traiterCode(t);});}
+      }catch(e){}
+    },120);
   }catch(e){fermerScanner();alert('Caméra impossible : '+(e.message||e)+'\n\nAutorisez la caméra pour ce site dans Safari (aA → Réglages du site web).');}
 }
-async function fermerScanner(){$('scanFond').style.display='none';if(LECTEUR){try{await LECTEUR.stop();}catch(e){}try{LECTEUR.clear();}catch(e){}LECTEUR=null;}}
+async function fermerScanner(){$('scanFond').style.display='none';if(BOUCLE){clearInterval(BOUCLE);BOUCLE=null;}if(FLUX){FLUX.getTracks().forEach(function(t){t.stop();});FLUX=null;}$('lecteur').innerHTML='';}
 /* ---------- Saisie du numéro au clavier (étiquette illisible, pas de caméra…) ---------- */
 var NUMS='';
 function ouvrirNumero(){NUMS='';majNum();$('numFond').style.display='flex';
