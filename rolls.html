@@ -212,35 +212,72 @@ VUES.qrclients=async function(){
 };
 /* ---------- TOURNÉES : horaires du chauffeur, déduits de ses scans ---------- */
 var jourT=null;
+var chT=null;   // chauffeur affiché (null = tous)
 VUES.tournees=async function(){
   var p2=function(n){return String(n).padStart(2,'0');},d=new Date();
-  var j=jourT||(d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()));
+  var auj=d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+  var j=jourT||auj;
   var deb=new Date(j+'T00:00:00'),fin=new Date(deb.getTime()+864e5);
   var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').in('etape',['charge','livre','repris','rentre','arrivee','depart']).gte('quand',deb.toISOString()).lt('quand',fin.toISOString()).order('quand'));
   var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
   var hm=function(t){var x=new Date(t);return p2(x.getHours())+':'+p2(x.getMinutes());};
   var dur=function(ms){var m=Math.round(ms/6e4);return m<60?m+' min':Math.floor(m/60)+' h '+p2(m%60);};
   var parCh={};sc.forEach(function(s){(parCh[s.personne||'?']=parCh[s.personne||'?']||[]).push(s);});
-  var h='<h1>Tournées</h1><div class="carte noprint">Journée <input type="date" id="tJ" value="'+j+'"> <span class="s">Horaires déduits des scans du chauffeur : arrivée (QR client), chariots, départ (« Terminer ce client »).</span></div>';
-  if(!sc.length)h+='<div class="carte s">Aucun scan de chauffeur ce jour-là.</div>';
-  Object.keys(parCh).sort().forEach(function(ch){
-    var L=parCh[ch],seg=[];
+  var chauffeurs=PERS.filter(function(x){return x.actif!==false&&/chauffeur/.test(x.role||'');}).map(function(x){return x.nom;});
+  Object.keys(parCh).forEach(function(c){if(chauffeurs.indexOf(c)<0)chauffeurs.push(c);});chauffeurs.sort(function(a,b){return a.localeCompare(b,'fr');});
+  if(chT&&chauffeurs.indexOf(chT)<0)chT=null;
+  var h='<h1>Tournées</h1><div class="carte noprint">Journée <input type="date" id="tJ" value="'+j+'"> &nbsp; '+
+    '<span class="puces">'+['<button class="btn'+(chT?'':' p')+'" data-ch="">Tous</button>'].concat(chauffeurs.map(function(c){return '<button class="btn'+(chT===c?' p':'')+'" data-ch="'+esc(c)+'">🚚 '+esc(c)+(parCh[c]?'':' <span class="s">(rien)</span>')+'</button>';})).join(' ')+'</span>'+
+    ' <button class="btn" onclick="window.print()">🖨 Imprimer</button><div class="s" style="margin-top:6px">Horaires déduits des scans du chauffeur : arrivée (QR client ou liste), chariots, départ (« Terminer ce client »).</div></div>';
+  var liste=(chT?[chT]:Object.keys(parCh).sort());
+  if(!liste.some(function(c){return parCh[c];}))h+='<div class="carte s">Aucun scan de chauffeur ce jour-là'+(chT?' pour '+esc(chT):'')+'.</div>';
+  liste.forEach(function(ch){
+    var L=parCh[ch];if(!L)return;
+    var seg=[];
     L.forEach(function(s){var lieu=(s.etape==='charge')?'BdL — chargement':(s.etape==='rentre'?'BdL — déchargement linge sale':(s.client||'?'));
       var g=seg[seg.length-1];if(!g||g.lieu!==lieu||s.etape==='arrivee'&&g.dep){g={lieu:lieu,bdl:s.etape==='charge'||s.etape==='rentre',a:s.quand,b:s.quand,liv:[],rep:[],ch:[],re:[]};seg.push(g);}
       g.b=s.quand;if(s.etape==='arrivee'){g.arr=s.quand;g.sansQR=!!s.note;return;}if(s.etape==='depart'){g.dep=s.quand;return;}var n=num[s.roll_id]||'?';({charge:g.ch,livre:g.liv,repris:g.rep,rentre:g.re})[s.etape].push(n);});
-    var amp=new Date(L[L.length-1].quand)-new Date(L[0].quand),place=0,route=0;
-    var rows=seg.map(function(g,i){var t=new Date(g.b)-new Date(g.a);place+=t;var tr=i?new Date(g.a)-new Date(seg[i-1].b):0;route+=tr;
+    // Chargement du soir = chargements faits après la dernière livraison / reprise / déchargement de la journée (le camion repart de chez le chauffeur)
+    var dernierTerrain=-1;seg.forEach(function(g,i){if(!(g.lieu==='BdL — chargement'))dernierTerrain=i;});
+    var soir=seg.filter(function(g,i){return i>dernierTerrain&&g.lieu==='BdL — chargement'&&dernierTerrain>=0;});
+    var finTournee=soir.length?seg[dernierTerrain].b:L[L.length-1].quand;
+    var amp=new Date(finTournee)-new Date(L[0].quand),place=0,route=0;
+    var rows=seg.map(function(g,i){var estSoir=soir.indexOf(g)>=0;var t=new Date(g.b)-new Date(g.a);if(!estSoir)place+=t;var tr=i?new Date(g.a)-new Date(seg[i-1].b):0;if(!estSoir)route+=tr;
       var quoi=[g.ch.length?g.ch.length+' chargé'+(g.ch.length>1?'s':''):'',g.liv.length?g.liv.length+' déposé'+(g.liv.length>1?'s':''):'',g.rep.length?g.rep.length+' repris':'',g.re.length?g.re.length+' déchargé'+(g.re.length>1?'s':''):''].filter(Boolean).join(' · ');
-      return (i?'<tr><td></td><td class="s" colspan="5">🚚 trajet '+dur(tr)+'</td></tr>':'')+
-        '<tr><td><b>'+esc(g.lieu)+'</b>'+(g.arr?'<div class="s">arrivé '+hm(g.arr)+(g.dep?' · reparti '+hm(g.dep):'')+(g.sansQR?' <b style="color:var(--orange)">· choisi dans la liste, sans QR</b>':'')+'</div>':'')+'</td><td>'+hm(g.a)+'</td><td>'+hm(g.b)+'</td><td>'+dur(t)+'</td><td>'+quoi+'</td><td class="s">'+esc(g.ch.concat(g.liv,g.rep,g.re).join(', '))+'</td></tr>';}).join('');
-    var termine=seg.length&&seg[seg.length-1].lieu==='BdL — déchargement linge sale';
-    h+='<div class="carte"><h2 style="margin-top:0">🚚 '+esc(ch)+'</h2>'+
-      '<div style="font-size:18px;margin-bottom:8px">Amplitude : <b>'+hm(L[0].quand)+' → '+hm(L[L.length-1].quand)+' = '+dur(amp)+'</b>'+(termine?'':' <span style="color:var(--orange)">(tournée pas terminée : rien de déchargé à la BdL après le dernier client)</span>')+
-      '<br><span class="s">Sur place : '+dur(place)+' · en route : '+dur(route)+'</span></div>'+
-      '<table><thead><tr><th>Où</th><th>Début</th><th>Fin</th><th>Sur place</th><th>Chariots</th><th>N°</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      return (i?'<tr><td></td><td class="s" colspan="5">'+(estSoir&&soir[0]===g?'⏸ fin de tournée — '+dur(tr)+' plus tard :':'🚚 trajet '+dur(tr))+'</td></tr>':'')+
+        '<tr'+(estSoir?' style="background:#f3e8fd"':'')+'><td><b>'+esc(g.lieu)+(estSoir?' 🌙 pour demain':'')+'</b>'+(g.arr?'<div class="s">arrivé '+hm(g.arr)+(g.dep?' · reparti '+hm(g.dep):'')+(g.sansQR?' <b style="color:var(--orange)">· choisi dans la liste, sans QR</b>':'')+'</div>':'')+'</td><td>'+hm(g.a)+'</td><td>'+hm(g.b)+'</td><td>'+dur(t)+'</td><td>'+quoi+'</td><td class="s">'+esc(g.ch.concat(g.liv,g.rep,g.re).join(', '))+'</td></tr>';}).join('');
+    // BILAN
+    var liv={},rep={},nre=0,nsoir=0,sansQR=0,soirC={};
+    seg.forEach(function(g){if(g.liv.length)liv[g.lieu]=(liv[g.lieu]||0)+g.liv.length;if(g.rep.length)rep[g.lieu]=(rep[g.lieu]||0)+g.rep.length;nre+=g.re.length;if(g.sansQR)sansQR++;});
+    soir.forEach(function(g){nsoir+=g.ch.length;});
+    var clientSoir={};L.forEach(function(s){if(s.etape==='charge'){soir.forEach(function(g){if(new Date(s.quand)>=new Date(g.a)&&new Date(s.quand)<=new Date(g.b))clientSoir[s.client||'?']=(clientSoir[s.client||'?']||0)+1;});}});
+    var camion=j===auj?ROLLS.filter(function(r){return r.etat==='chauffeur'&&r.personne===ch;}):null;
+    var camG={};(camion||[]).forEach(function(r){camG[r.client||'?']=(camG[r.client||'?']||0)+1;});
+    var nLiv=Object.keys(liv).reduce(function(a,k){return a+liv[k];},0),nRep=Object.keys(rep).reduce(function(a,k){return a+rep[k];},0);
+    var fin=soir.length?'🌙 Fin de journée par le <b>chargement pour demain</b> ('+nsoir+' chariot'+(nsoir>1?'s':'')+') : le camion repart de chez le chauffeur.':
+      (seg.length&&seg[seg.length-1].lieu==='BdL — déchargement linge sale'?'Fin de journée : déchargement du linge sale à la BdL.':'<span style="color:var(--orange)">Fin de journée hors BdL (dernier scan chez un client ou en cours).</span>');
+    var ligne=function(o){var k=Object.keys(o).sort(function(a,b){return a.localeCompare(b,'fr');});return k.length?k.map(function(c){return esc(c)+' <b>'+o[c]+'</b>';}).join(' · '):'—';};
+    h+='<div class="carte"><h2 style="margin-top:0">🚚 '+esc(ch)+' <span class="s" style="font-weight:400">· '+j.slice(8,10)+'/'+j.slice(5,7)+'/'+j.slice(0,4)+'</span></h2>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">'+
+        '<div class="tuile"><b>'+hm(L[0].quand)+' → '+hm(finTournee)+'</b><span>tournée : '+dur(amp)+(soir.length?' + chargement du soir '+hm(soir[0].a)+' → '+hm(soir[soir.length-1].b):'')+'</span></div>'+
+        '<div class="tuile"><b>'+dur(place)+'</b><span>sur place · en route '+dur(route)+'</span></div>'+
+        '<div class="tuile"><b>'+nLiv+'</b><span>chariots déposés chez '+Object.keys(liv).length+' client'+(Object.keys(liv).length>1?'s':'')+'</span></div>'+
+        '<div class="tuile"><b>'+nRep+'</b><span>chariots repris</span></div>'+
+        '<div class="tuile"><b>'+nre+'</b><span>déchargés linge sale à la BdL</span></div>'+
+        (soir.length?'<div class="tuile" style="border:2px solid #6b2fa3"><b>'+nsoir+'</b><span>🌙 chargés pour demain</span></div>':'')+
+      '</div>'+
+      '<div style="margin-bottom:6px"><b>Livré :</b> '+ligne(liv)+'</div>'+
+      '<div style="margin-bottom:6px"><b>Repris :</b> '+ligne(rep)+'</div>'+
+      (soir.length?'<div style="margin-bottom:6px"><b>🌙 Chargé pour demain :</b> '+ligne(clientSoir)+'</div>':'')+
+      (camion?'<div style="margin-bottom:6px"><b>Dans son camion maintenant :</b> '+(camion.length?camion.length+' chariot'+(camion.length>1?'s':'')+' — '+ligne(camG):'vide')+'</div>':'')+
+      (sansQR?'<div style="margin-bottom:6px;color:var(--orange)">⚠ '+sansQR+' arrivée'+(sansQR>1?'s':'')+' choisie'+(sansQR>1?'s':'')+' dans la liste, sans QR client.</div>':'')+
+      '<div style="margin-bottom:10px">'+fin+'</div>'+
+      '<details'+(chT?' open':'')+'><summary style="cursor:pointer;font-weight:700">📋 Déroulé de la journée, dans l\'ordre ('+seg.length+' étapes)</summary>'+
+      '<table style="margin-top:8px"><thead><tr><th>Où</th><th>Début</th><th>Fin</th><th>Sur place</th><th>Chariots</th><th>N°</th></tr></thead><tbody>'+rows+'</tbody></table></details></div>';
   });
   $('main').innerHTML=h;
   $('tJ').onchange=function(){jourT=this.value;VUES.tournees();};
+  document.querySelectorAll('[data-ch]').forEach(function(b){b.onclick=function(){chT=b.dataset.ch||null;VUES.tournees();};});
 };
 async function demarrer(){$('login').style.display='none';route();}
 $('lOk').onclick=async function(){var r=await sb.auth.signInWithPassword({email:$('lE').value.trim(),password:$('lP').value});if(r.error){$('lErr').textContent=r.error.message;return;}demarrer();};
