@@ -238,19 +238,20 @@ VUES.tournees=async function(){
       var g=seg[seg.length-1];if(!g||g.lieu!==lieu||s.etape==='arrivee'&&g.dep){g={lieu:lieu,bdl:s.etape==='charge'||s.etape==='rentre',a:s.quand,b:s.quand,liv:[],rep:[],ch:[],re:[]};seg.push(g);}
       g.b=s.quand;if(s.etape==='arrivee'){g.arr=s.quand;g.sansQR=!!s.note;return;}if(s.etape==='depart'){g.dep=s.quand;return;}var n=num[s.roll_id]||'?';({charge:g.ch,livre:g.liv,repris:g.rep,rentre:g.re})[s.etape].push(n);});
     // Chargement du soir = chargements faits après la dernière livraison / reprise / déchargement de la journée (le camion repart de chez le chauffeur)
-    var dernierTerrain=-1;seg.forEach(function(g,i){if(!(g.lieu==='BdL — chargement'))dernierTerrain=i;});
+    var dernierTerrain=-1;seg.forEach(function(g,i){if(g.liv.length||g.rep.length||g.re.length)dernierTerrain=i;});   // dernière vraie action (dépôt, reprise, déchargement) ; un arrêt sans chariot ne compte pas
     var soir=seg.filter(function(g,i){return i>dernierTerrain&&g.lieu==='BdL — chargement'&&dernierTerrain>=0;});
+    var premierSoir=soir.length?seg.indexOf(soir[0]):-1;
     var finTournee=soir.length?seg[dernierTerrain].b:L[L.length-1].quand;
     var amp=new Date(finTournee)-new Date(L[0].quand),place=0,route=0;
-    var rows=seg.map(function(g,i){var estSoir=soir.indexOf(g)>=0;var t=new Date(g.b)-new Date(g.a);if(!estSoir)place+=t;var tr=i?new Date(g.a)-new Date(seg[i-1].b):0;if(!estSoir)route+=tr;
+    var rows=seg.map(function(g,i){var apres=soir.length&&i>dernierTerrain,estSoir=soir.indexOf(g)>=0;var t=new Date(g.b)-new Date(g.a);if(!apres)place+=t;var tr=i?new Date(g.a)-new Date(seg[i-1].b):0;if(!apres)route+=tr;
       var quoi=[g.ch.length?g.ch.length+' chargé'+(g.ch.length>1?'s':''):'',g.liv.length?g.liv.length+' déposé'+(g.liv.length>1?'s':''):'',g.rep.length?g.rep.length+' repris':'',g.re.length?g.re.length+' déchargé'+(g.re.length>1?'s':''):''].filter(Boolean).join(' · ');
-      return (i?'<tr><td></td><td class="s" colspan="5">'+(estSoir&&soir[0]===g?'⏸ fin de tournée — '+dur(tr)+' plus tard :':'🚚 trajet '+dur(tr))+'</td></tr>':'')+
-        '<tr'+(estSoir?' style="background:#f3e8fd"':'')+'><td><b>'+esc(g.lieu)+(estSoir?' 🌙 pour demain':'')+'</b>'+(g.arr?'<div class="s">arrivé '+hm(g.arr)+(g.dep?' · reparti '+hm(g.dep):'')+(g.sansQR?' <b style="color:var(--orange)">· choisi dans la liste, sans QR</b>':'')+'</div>':'')+'</td><td>'+hm(g.a)+'</td><td>'+hm(g.b)+'</td><td>'+dur(t)+'</td><td>'+quoi+'</td><td class="s">'+esc(g.ch.concat(g.liv,g.rep,g.re).join(', '))+'</td></tr>';}).join('');
+      return (i?'<tr><td></td><td class="s" colspan="5">'+(apres&&i===dernierTerrain+1?'⏸ fin de tournée — '+dur(tr)+' plus tard :':'🚚 trajet '+dur(tr))+'</td></tr>':'')+
+        '<tr'+(apres?' style="background:#f3e8fd"':'')+'><td><b>'+esc(g.lieu)+(estSoir?' 🌙 pour demain':'')+'</b>'+(g.arr?'<div class="s">arrivé '+hm(g.arr)+(g.dep?' · reparti '+hm(g.dep):'')+(g.sansQR?' <b style="color:var(--orange)">· choisi dans la liste, sans QR</b>':'')+'</div>':'')+'</td><td>'+hm(g.a)+'</td><td>'+hm(g.b)+'</td><td>'+dur(t)+'</td><td>'+quoi+'</td><td class="s">'+esc(g.ch.concat(g.liv,g.rep,g.re).join(', '))+'</td></tr>';}).join('');
     // BILAN
     var liv={},rep={},nre=0,nsoir=0,sansQR=0,soirC={};
     seg.forEach(function(g){if(g.liv.length)liv[g.lieu]=(liv[g.lieu]||0)+g.liv.length;if(g.rep.length)rep[g.lieu]=(rep[g.lieu]||0)+g.rep.length;nre+=g.re.length;if(g.sansQR)sansQR++;});
     soir.forEach(function(g){nsoir+=g.ch.length;});
-    var clientSoir={};L.forEach(function(s){if(s.etape==='charge'){soir.forEach(function(g){if(new Date(s.quand)>=new Date(g.a)&&new Date(s.quand)<=new Date(g.b))clientSoir[s.client||'?']=(clientSoir[s.client||'?']||0)+1;});}});
+    var clientSoir={};L.forEach(function(s){if(s.etape==='charge'){soir.forEach(function(g){if(new Date(s.quand)>=new Date(g.a)&&new Date(s.quand)<=new Date(g.b))clientSoir[s.client||'vides']=(clientSoir[s.client||'vides']||0)+1;});}});
     var camion=j===auj?ROLLS.filter(function(r){return r.etat==='chauffeur'&&r.personne===ch;}):null;
     var camG={};(camion||[]).forEach(function(r){camG[r.client||'?']=(camG[r.client||'?']||0)+1;});
     var nLiv=Object.keys(liv).reduce(function(a,k){return a+liv[k];},0),nRep=Object.keys(rep).reduce(function(a,k){return a+rep[k];},0);
