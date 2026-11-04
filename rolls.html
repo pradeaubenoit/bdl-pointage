@@ -27,7 +27,7 @@ input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);borde
 .etq{border:2px solid #000;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}
 .etq .n{font-size:64px;font-weight:900;line-height:1}.etq .t{font-size:11px;font-weight:700}.etq canvas,.etq img{margin:6px auto}
 .page{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
-.page.tube{grid-template-columns:repeat(2,1fr)}
+.page.tube{grid-template-columns:repeat(2,1fr)}.page.bc3{grid-template-columns:repeat(3,1fr)}
 .bande{border:1.5px dashed #000;display:flex;align-items:center;justify-content:space-around;padding:2px 4px;height:96px;box-sizing:border-box}
 .bande .n{font-size:24px;font-weight:900;letter-spacing:-1px}
 @page{size:A4;margin:10mm}
@@ -38,7 +38,8 @@ input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);borde
   .etq{box-sizing:border-box;height:63mm;overflow:hidden;padding:2mm;break-inside:avoid;page-break-inside:avoid;display:flex;flex-direction:column;align-items:center;justify-content:center}
   .etq .n{font-size:54px}
   .page.tube{grid-template-columns:repeat(2,92mm);grid-auto-rows:26mm;gap:1.5mm 4mm}
-  .bande{height:26mm;break-inside:avoid;page-break-inside:avoid}}
+  .bande{height:26mm;break-inside:avoid;page-break-inside:avoid}
+  .page.bc3{grid-template-columns:repeat(3,60mm);grid-auto-rows:var(--bch,20mm);gap:2mm 3mm}.page.bc3 .bande{height:var(--bch,20mm)}}
 </style>
 </head>
 <body>
@@ -142,6 +143,7 @@ VUES.etiquettes=async function(){
     (aCol?(jamais.length?'<div style="background:var(--bleu2);padding:8px 10px;border-radius:8px;margin-bottom:10px">🆕 Jamais imprimées : <b>'+esc(jamais[0].numero)+'</b> à <b>'+esc(jamais[jamais.length-1].numero)+'</b> ('+jamais.length+')</div>'
       :'<div class="s" style="margin-bottom:10px">Toutes les étiquettes ont déjà été imprimées. Pour de nouveaux chariots : onglet Rolls → « Ajouter des rolls ».</div>'):'')+
     'Du <input id="eD" value="'+esc(d0)+'" style="width:100px"> au <input id="eF" value="'+esc(f0)+'" style="width:100px"> <button class="btn" id="eV">Afficher</button> <button class="btn p" id="eP">🖨 Imprimer</button>'+
+    '<div style="margin-top:8px">Taille du code-barres : <label><input type="radio" name="eTaille" value="petit" checked> Petit (≈ 4,5 × 1,6 cm)</label> &nbsp; <label><input type="radio" name="eTaille" value="moyen"> Moyen (≈ 6 × 2 cm)</label> &nbsp; <label><input type="radio" name="eTaille" value="grand"> Grand (≈ 8 × 2,6 cm)</label></div>'+
     '<div style="margin-top:8px">Format : <label><input type="radio" name="eFmt" value="plaque" checked> Plaque 6 × 6 cm</label> &nbsp; <label><input type="radio" name="eFmt" value="tube"> Tube QR (bande à enrouler, 3 QR)</label> &nbsp; <label><input type="radio" name="eFmt" value="barre"> <b>Code-barres tube</b> (à coller dans la longueur du tube, lu par le bouton 📷 Scanner de l\'appli)</label></div>'+
     '<div class="s" style="margin-top:6px">Étiquette abîmée : mettez le même numéro dans « Du » et « au » (ex. R-007 au R-007) et imprimez. Même numéro = même chariot, son historique est gardé.</div>'+
     '<div id="eW" style="margin-top:8px"></div>'+
@@ -157,10 +159,12 @@ VUES.etiquettes=async function(){
     var fmt=(document.querySelector('[name=eFmt]:checked')||{}).value,tube=fmt==='tube';
     if(fmt==='barre'){
       if(!window.JsBarcode){try{await new Promise(function(ok,ko){var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js';sc.onload=ok;sc.onerror=function(){var s2=document.createElement('script');s2.src='https://unpkg.com/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';s2.onload=ok;s2.onerror=ko;document.head.appendChild(s2);};document.head.appendChild(sc);});}catch(e){$('pl').innerHTML='<div class="carte">Code-barres indisponible (réseau).</div>';return;}}
-      var hc='';for(var k3=0;k3<l.length;k3+=20)hc+='<div class="page tube">'+l.slice(k3,k3+20).map(function(r,j){var i=k3+j;
-          return '<div class="bande" style="justify-content:center;gap:6px"><div class="n" style="font-size:30px">'+esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero))+'</div><svg id="bc'+i+'"></svg></div>';}).join('')+'</div>';
+      var tl=(document.querySelector('[name=eTaille]:checked')||{}).value||'petit';
+      var T={petit:{w:1.2,h:34,f:9,n:20,par:39,cls:'bc3',bch:'18mm'},moyen:{w:1.5,h:44,f:10,n:24,par:33,cls:'bc3',bch:'21mm'},grand:{w:2,h:56,f:12,n:30,par:20,cls:'tube',bch:'26mm'}}[tl];
+      var hc='';for(var k3=0;k3<l.length;k3+=T.par)hc+='<div class="page '+T.cls+'" style="--bch:'+T.bch+'">'+l.slice(k3,k3+T.par).map(function(r,j){var i=k3+j;
+          return '<div class="bande" style="justify-content:center;gap:4px;height:auto"><div class="n" style="font-size:'+T.n+'px">'+esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero))+'</div><svg id="bc'+i+'"></svg></div>';}).join('')+'</div>';
       $('pl').innerHTML=hc;
-      l.forEach(function(r,i){JsBarcode('#bc'+i,String(r.numero).toUpperCase(),{format:'CODE128',width:2,height:56,displayValue:true,fontSize:12,margin:6,textMargin:0});});
+      l.forEach(function(r,i){JsBarcode('#bc'+i,String(r.numero).toUpperCase(),{format:'CODE128',width:T.w,height:T.h,displayValue:true,fontSize:T.f,margin:4,textMargin:0});});
       return;}
     if(tube){var hb='';for(var k2=0;k2<l.length;k2+=20)hb+='<div class="page tube">'+l.slice(k2,k2+20).map(function(r,j){var i=k2+j,nn=esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero));
         return '<div class="bande"><div id="qa'+i+'"></div><div class="n">'+nn+'</div><div id="qb'+i+'"></div><div class="n">'+nn+'</div><div id="qc'+i+'"></div></div>';}).join('')+'</div>';
@@ -170,7 +174,7 @@ VUES.etiquettes=async function(){
     var h='';for(var k=0;k<l.length;k+=12)h+='<div class="page">'+l.slice(k,k+12).map(function(r,j){var i=k+j;return '<div class="etq"><div class="t">BLANCHISSERIE DU LIMOUSIN</div><div id="q'+i+'"></div><div class="n">'+esc(String(parseInt(String(r.numero).replace(/\D/g,''))||r.numero))+'</div><div class="t">Scannez à chaque étape</div></div>';}).join('')+'</div>';
     $('pl').innerHTML=h;
     l.forEach(function(r,i){new QRCode($('q'+i),{text:urlRoll(r.numero),width:125,height:125,correctLevel:QRCode.CorrectLevel.H});});}
-  $('eV').onclick=voir;document.querySelectorAll('[name=eFmt]').forEach(function(x){x.onchange=voir;});voir();
+  $('eV').onclick=voir;document.querySelectorAll('[name=eFmt],[name=eTaille]').forEach(function(x){x.onchange=voir;});voir();
   $('eP').onclick=async function(){
     var deja=l.filter(function(r){return r.etiquette_le;});
     if(deja.length&&!confirm(deja.length+' étiquette(s) déjà imprimée(s) dans cette sélection. Réimprimer quand même ? (Uniquement pour remplacer une étiquette abîmée.)'))return;
@@ -212,7 +216,7 @@ VUES.tournees=async function(){
   var p2=function(n){return String(n).padStart(2,'0');},d=new Date();
   var j=jourT||(d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()));
   var deb=new Date(j+'T00:00:00'),fin=new Date(deb.getTime()+864e5);
-  var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id').in('etape',['charge','livre','repris','rentre','arrivee','depart']).gte('quand',deb.toISOString()).lt('quand',fin.toISOString()).order('quand'));
+  var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').in('etape',['charge','livre','repris','rentre','arrivee','depart']).gte('quand',deb.toISOString()).lt('quand',fin.toISOString()).order('quand'));
   var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
   var hm=function(t){var x=new Date(t);return p2(x.getHours())+':'+p2(x.getMinutes());};
   var dur=function(ms){var m=Math.round(ms/6e4);return m<60?m+' min':Math.floor(m/60)+' h '+p2(m%60);};
@@ -223,12 +227,12 @@ VUES.tournees=async function(){
     var L=parCh[ch],seg=[];
     L.forEach(function(s){var lieu=(s.etape==='charge')?'BdL — chargement':(s.etape==='rentre'?'BdL — déchargement linge sale':(s.client||'?'));
       var g=seg[seg.length-1];if(!g||g.lieu!==lieu||s.etape==='arrivee'&&g.dep){g={lieu:lieu,bdl:s.etape==='charge'||s.etape==='rentre',a:s.quand,b:s.quand,liv:[],rep:[],ch:[],re:[]};seg.push(g);}
-      g.b=s.quand;if(s.etape==='arrivee'){g.arr=s.quand;return;}if(s.etape==='depart'){g.dep=s.quand;return;}var n=num[s.roll_id]||'?';({charge:g.ch,livre:g.liv,repris:g.rep,rentre:g.re})[s.etape].push(n);});
+      g.b=s.quand;if(s.etape==='arrivee'){g.arr=s.quand;g.sansQR=!!s.note;return;}if(s.etape==='depart'){g.dep=s.quand;return;}var n=num[s.roll_id]||'?';({charge:g.ch,livre:g.liv,repris:g.rep,rentre:g.re})[s.etape].push(n);});
     var amp=new Date(L[L.length-1].quand)-new Date(L[0].quand),place=0,route=0;
     var rows=seg.map(function(g,i){var t=new Date(g.b)-new Date(g.a);place+=t;var tr=i?new Date(g.a)-new Date(seg[i-1].b):0;route+=tr;
       var quoi=[g.ch.length?g.ch.length+' chargé'+(g.ch.length>1?'s':''):'',g.liv.length?g.liv.length+' déposé'+(g.liv.length>1?'s':''):'',g.rep.length?g.rep.length+' repris':'',g.re.length?g.re.length+' déchargé'+(g.re.length>1?'s':''):''].filter(Boolean).join(' · ');
       return (i?'<tr><td></td><td class="s" colspan="5">🚚 trajet '+dur(tr)+'</td></tr>':'')+
-        '<tr><td><b>'+esc(g.lieu)+'</b>'+(g.arr?'<div class="s">arrivé '+hm(g.arr)+(g.dep?' · reparti '+hm(g.dep):'')+'</div>':'')+'</td><td>'+hm(g.a)+'</td><td>'+hm(g.b)+'</td><td>'+dur(t)+'</td><td>'+quoi+'</td><td class="s">'+esc(g.ch.concat(g.liv,g.rep,g.re).join(', '))+'</td></tr>';}).join('');
+        '<tr><td><b>'+esc(g.lieu)+'</b>'+(g.arr?'<div class="s">arrivé '+hm(g.arr)+(g.dep?' · reparti '+hm(g.dep):'')+(g.sansQR?' <b style="color:var(--orange)">· choisi dans la liste, sans QR</b>':'')+'</div>':'')+'</td><td>'+hm(g.a)+'</td><td>'+hm(g.b)+'</td><td>'+dur(t)+'</td><td>'+quoi+'</td><td class="s">'+esc(g.ch.concat(g.liv,g.rep,g.re).join(', '))+'</td></tr>';}).join('');
     var termine=seg.length&&seg[seg.length-1].lieu==='BdL — déchargement linge sale';
     h+='<div class="carte"><h2 style="margin-top:0">🚚 '+esc(ch)+'</h2>'+
       '<div style="font-size:18px;margin-bottom:8px">Amplitude : <b>'+hm(L[0].quand)+' → '+hm(L[L.length-1].quand)+' = '+dur(amp)+'</b>'+(termine?'':' <span style="color:var(--orange)">(tournée pas terminée : rien de déchargé à la BdL après le dernier client)</span>')+
