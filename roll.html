@@ -280,12 +280,19 @@ async function ecranChargement(msg,d){
       (cl.length?'<div class="carte liste" id="chL" style="max-height:none">'+cl.map(function(c){var x=g[c],tot=x.ch.length+x.q.length,fini=!x.q.length;
         var fv=estFav(c),et=x.vide?'<b style="color:var(--rouge)">rien de prêt</b>':'<b style="color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+'</b>';
         return '<div data-c="'+esc(c)+'" data-n="'+esc(nrm(c))+'" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span data-fav="'+esc(c)+'" style="font-size:24px;padding:0 4px">'+(fv?'⭐':'☆')+'</span><span style="flex:1">'+(x.vide?'⚠ ':fini?'✅ ':'🧺 ')+esc(c)+'</span>'+et+'</div>';}).join('')+'</div>':'')+
+      '<button class="gros g" id="chAddFav">⭐ Ajouter un client à mes clients…</button>'+
       '<div class="s" style="margin:-6px 4px 10px">☆ = ajouter à <b>mes clients</b> : ils restent en haut de la liste, même quand rien n\'est prêt (pour ne pas en oublier).</div>';
   }
   h+='<button class="gros g" id="chFin">Terminer le chargement</button>';
   $('main').innerHTML=h;
   if($('chQ')){$('chQ').oninput=function(){var t=nrm(this.value);document.querySelectorAll('#chL [data-c]').forEach(function(x){x.style.display=!t||x.dataset.n.indexOf(t)>=0?'flex':'none';});};}
   if($('chL'))$('chL').onclick=function(e){var fv=e.target.closest('[data-fav]');if(fv){basculerFav(fv.getAttribute('data-fav'));return ecranChargement(null,d);}var t=e.target.closest('[data-c]');if(t){CHG=t.getAttribute('data-c');ecranChargement(null,d);}};
+  if($('chAddFav'))$('chAddFav').onclick=function(){
+    var z=$('main');z.innerHTML='<div class="carte"><b>⭐ Ajouter à mes clients</b><div class="s">Touchez un client : il restera en haut de votre liste de chargement.</div><input id="fQ" placeholder="Tapez quelques lettres…"><div class="liste" id="fL"></div><button class="gros g" id="fX">Terminé</button></div>';
+    function rendre(){var t=nrm($('fQ').value);$('fL').innerHTML=tousClients().filter(function(c){return !t||nrm(c).indexOf(t)>=0;}).slice(0,80).map(function(c){return '<div data-c="'+esc(c)+'">'+(estFav(c)?'⭐ ':'☆ ')+esc(c)+'</div>';}).join('');}
+    $('fQ').oninput=rendre;rendre();
+    $('fL').onclick=function(e){var t=e.target.closest('[data-c]');if(t){basculerFav(t.getAttribute('data-c'));rendre();}};
+    $('fX').onclick=function(){ecranChargement(null,d);};};
   if($('chRet'))$('chRet').onclick=function(){CHG='';ecranChargement(null,d);};
   $('chFin').onclick=function(){CHG=null;var reste=d.a_quai.length;$('main').innerHTML='<div class="carte ok">🚚 Camion : '+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+'</div>'+(reste?'<div class="carte alerte">⚠ '+reste+' chariot'+(reste>1?'s':'')+' prêt'+(reste>1?'s':'')+' restent à quai.</div>':'');};
 }
