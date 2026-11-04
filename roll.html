@@ -27,7 +27,7 @@ label{font-weight:600;font-size:15px}
 .alerte{background:var(--rouge2);border:2px solid var(--rouge);color:var(--rouge);font-weight:700;padding:14px;border-radius:12px;margin:10px 0}
 .hist div{font-size:14px;padding:4px 0;border-bottom:1px dashed var(--ligne)}
 #barre{position:fixed;left:16px;right:16px;bottom:max(16px,env(safe-area-inset-bottom));z-index:50;display:flex;gap:10px}
-#barre button{margin:0;box-shadow:0 4px 14px #0004;background:#1f2a35}#barre #bNum{flex:0 0 22%;background:#fff;color:var(--txt);border:2px solid #1f2a35}#barre #bOu{flex:0 0 34%;background:var(--vert);font-size:17px;padding:18px 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#barre button{margin:0;box-shadow:0 4px 14px #0004;background:#1f2a35}#barre #bNum{flex:0 0 22%;background:#fff;color:var(--txt);border:2px solid #1f2a35}#barre #bChg{flex:0 0 15%;background:var(--orange);font-size:22px;padding:18px 0}#barre #bOu{flex:0 0 30%;background:var(--vert);font-size:17px;padding:18px 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #numFond{position:fixed;inset:0;background:#0009;z-index:100;display:none;align-items:flex-end;justify-content:center}
 #numFond .boite{background:#fff;border-radius:18px 18px 0 0;padding:16px;width:100%;max-width:560px}
 #numAff{font-size:40px;font-weight:800;text-align:center;letter-spacing:2px;min-height:52px}
@@ -41,7 +41,7 @@ main{padding-bottom:110px}
 <body>
 <header><b>🧺 Roll BdL</b><button id="moiBtn" onclick="changerMoi()"></button></header>
 <main id="main"><div class="carte">Chargement…</div></main>
-<div id="barre"><button class="gros" id="bOu" onclick="jeSuisChez()" style="display:none">📍 Où ?</button><button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner</button><button class="gros" id="bNum" onclick="ouvrirNumero()">⌨ N°</button></div>
+<div id="barre"><button class="gros" id="bChg" onclick="ecranChargement()" style="display:none">🚚</button><button class="gros" id="bOu" onclick="jeSuisChez()" style="display:none">📍 Où ?</button><button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner</button><button class="gros" id="bNum" onclick="ouvrirNumero()">⌨ N°</button></div>
 <div id="numFond"><div class="boite"><div class="s" style="text-align:center">Numéro écrit sur le chariot</div><div id="numAff">R-</div><div class="pave" id="pave"></div><div style="display:flex;gap:10px;margin-top:10px"><button class="gros g" style="margin:0" onclick="fermerNumero()">Annuler</button><button class="gros v" style="margin:0" onclick="validerNumero()">Ouvrir</button></div></div></div>
 <div id="scanFond"><div class="bar">Approchez le code-barres dans le cadre — dans n'importe quel sens</div><div id="lecteur"></div><div class="bar"><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button></div></div>
 <script>
@@ -66,7 +66,7 @@ function noterArret(etape,client){if(!MOI)return;var a={p_personne:MOI.id,p_code
 if(ARRET&&Date.now()-ARRET.t>4*3600e3){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}}
 function nrm(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();}
 var INFO=null, MOI=lire('roll_moi',null), CLIENTS=lire('roll_clients',[]);
-function majMoi(){$('moiBtn').textContent=MOI?('👤 '+MOI.nom):'👤 Qui êtes-vous ?';var b=$('bOu');if(b){var ch=MOI&&String(MOI.role||'').split(',').some(function(x){return x==='chauffeur'||x==='bureau';});b.style.display=ch?'':'none';b.textContent=ARRET?'📍 '+ARRET.client:'📍 Où suis-je ?';}}
+function majMoi(){$('moiBtn').textContent=MOI?('👤 '+MOI.nom):'👤 Qui êtes-vous ?';var b=$('bOu');if(b){var ch=MOI&&String(MOI.role||'').split(',').some(function(x){return x==='chauffeur'||x==='bureau';});b.style.display=ch?'':'none';b.textContent=ARRET?'📍 '+ARRET.client:'📍 Où suis-je ?';var c2=$('bChg');if(c2)c2.style.display=ch?'':'none';}}
 function fmtQ(q){var d=new Date(q);return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
 var LIB={vide:'vidé au tunnel',rempli:'rempli',charge:'chargé',livre:'livré',repris:'repris',rentre:'déchargé à la BdL (linge sale)'};
 
@@ -144,6 +144,8 @@ function afficher(msg){
   h+='<div class="carte"><div class="num">'+esc(I.numero)+'</div><span class="etat e-'+esc(I.etat)+'">'+esc(ETATS[I.etat]||I.etat)+'</span>'+
     (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+(function(){var r=(I.derniers||[]).find(function(d){return d.etape==='rempli';});return r&&r.note&&I.etat!=='bdl'?'<div style="margin-top:6px;font-size:16px;color:var(--bleu);font-weight:600">📦 '+esc(r.note)+'</div>':'';})()+
     '<div class="s" style="margin-top:6px">Dernier scan : '+(I.personne?esc(I.personne)+' · ':'')+fmtQ(I.maj_le)+'</div></div>';
+  if(CHG&&I.client&&nrm(I.client)!==nrm(CHG)&&I.etat==='pret')h+='<div class="carte alerte" style="text-align:center">⚠ Ce chariot est pour « '+esc(I.client)+' »,<br>pas pour « '+esc(CHG)+' » que vous chargez.</div>';
+  if(CHG!==null&&MOI&&aRole('chauffeur'))h+='<button class="gros g" onclick="ecranChargement()">🚚 Retour au chargement'+(CHG?' de '+esc(CHG):'')+'</button>';
   h+='<div id="chg"></div><div id="acts"></div>';
   if(I.derniers&&I.derniers.length)h+='<div class="carte hist"><b>Derniers passages</b>'+I.derniers.map(function(d){return '<div>'+fmtQ(d.quand)+' · '+esc(LIB[d.etape]||d.etape)+(d.client?' · '+esc(d.client):'')+' · '+esc(d.personne||'')+(d.note?'<div style="color:var(--bleu);font-weight:600">📦 '+esc(d.note)+'</div>':'')+'</div>';}).join('')+'</div>';
   $('main').innerHTML=h;
@@ -230,7 +232,8 @@ async function scan(etape,client){
     var i2=await sb.rpc('roll_info',{p_numero:INFO.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
     if(navigator.vibrate)navigator.vibrate(120);
     if(ARRET&&(etape==='livre'||etape==='repris')){numero='';history.replaceState(null,'',location.pathname);return chargerArret('✓ '+esc(INFO.numero)+' '+esc(LIB[etape])+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le chariot suivant.</div>');}
-    if(etape==='charge'){try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!cm.error&&cm.data&&cm.data.ok){var ic=INFO.client?await infoChargement(INFO.client,true):'';return afficher('✓ '+esc(INFO.numero)+' chargé'+ic+resumeCamion(cm.data));}}catch(x){}}
+    if(etape==='charge'){try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!cm.error&&cm.data&&cm.data.ok&&CHG){numero='';history.replaceState(null,'','?');return ecranChargement('✓ '+esc(INFO.numero)+' chargé ('+esc(INFO.client||'')+')',cm.data);}
+      if(!cm.error&&cm.data&&cm.data.ok){var ic=INFO.client?await infoChargement(INFO.client,true):'';return afficher('✓ '+esc(INFO.numero)+' chargé'+ic+resumeCamion(cm.data));}}catch(x){}}
     afficher('✓ '+esc(INFO.numero)+' '+esc(LIB[etape]||etape)+(client?' · '+esc(client):'')+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le roll suivant.</div>');
   }catch(e){$('acts').innerHTML='<div class="carte alerte">Non enregistré : '+esc(e.message||e)+'</div>';var b=document.createElement('button');b.className='gros';b.textContent='Réessayer';b.onclick=function(){scan(etape,client);};$('acts').appendChild(b);}
 }
@@ -243,6 +246,40 @@ async function infoChargement(client,apres){
     return '<div style="margin-top:10px;font-size:20px;font-weight:800;color:var(--orange);text-align:'+(apres?'center':'left')+'">'+(apres?'':'<div class="carte" style="margin:0">')+'🚚 '+esc(client)+' : '+ch.length+' / '+tot+' chargé'+(ch.length>1?'s':'')+
       '<div style="font-size:15px;font-weight:600;color:var(--txt)">Reste à charger : '+re.map(function(x){return esc(x.numero);}).join(', ')+'</div>'+(apres?'':'</div>')+'</div>';
   }catch(e){return '';}
+}
+/* ---------- Écran CHARGEMENT au quai : clients prêts, nombre de chariots, ce qui reste ---------- */
+var CHG=null;   // client choisi (ou '' = vue d'ensemble) tant que l'écran chargement est actif
+async function ecranChargement(msg,d){
+  if(!MOI)return;
+  if(ARRET){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}}
+  if(CHG===null)CHG='';
+  if(!d){$('main').innerHTML='<div class="carte">Chargement de la liste…</div>';
+    try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(r.error)throw r.error;d=r.data;if(!d.ok)throw new Error(d.error);}
+    catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="ecranChargement()">Réessayer</button>';return;}}
+  majMoi();
+  var g={};function a(x,k){var c=x.client||'(sans client)';(g[c]=g[c]||{ch:[],q:[]})[k].push(x.numero);}
+  d.camion.forEach(function(x){a(x,'ch');});d.a_quai.forEach(function(x){a(x,'q');});
+  var cl=Object.keys(g).sort(function(x,y){return (g[x].q.length?0:1)-(g[y].q.length?0:1)||x.localeCompare(y,'fr');});
+  var h=msg?'<div class="carte ok">'+msg+'</div>':'';
+  if(CHG&&g[CHG]){var x=g[CHG],tot=x.ch.length+x.q.length,fini=!x.q.length;
+    h+='<div class="carte"><div class="s">🚚 Chargement pour</div><div class="num" style="font-size:28px">'+esc(CHG)+'</div>'+
+      '<div style="font-size:24px;font-weight:800;margin-top:8px;color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+(fini?' — CHARGEMENT COMPLET ✓':' chargés')+'</div>'+
+      (x.q.length?'<div style="margin-top:10px"><b>Reste à charger :</b>'+x.q.map(function(n){return '<div style="font-size:20px;padding:4px 0">🧺 '+esc(n)+'</div>';}).join('')+'</div>':'')+
+      (x.ch.length?'<div class="s" style="margin-top:8px">Déjà dans le camion : '+x.ch.map(esc).join(', ')+'</div>':'')+
+      '<div style="margin-top:12px;font-weight:600">➡ Scannez chaque chariot (📷 ou ⌨), puis « Chargé ».</div></div>'+
+      '<button class="gros g" id="chRet">← Tous les clients</button>';
+  }else{
+    CHG='';
+    var tq=d.a_quai.length;
+    h+='<div class="carte"><b>🚚 Chargement au quai</b><div class="s">'+(tq?tq+' chariot'+(tq>1?'s':'')+' prêt'+(tq>1?'s':'')+' à charger. Touchez un client pour voir ses chariots.':'Rien à charger pour l\'instant.')+'</div></div>'+
+      (cl.length?'<div class="carte liste" id="chL" style="max-height:none">'+cl.map(function(c){var x=g[c],tot=x.ch.length+x.q.length,fini=!x.q.length;
+        return '<div data-c="'+esc(c)+'" style="display:flex;justify-content:space-between;align-items:center"><span>'+(fini?'✅ ':'🧺 ')+esc(c)+'</span><b style="color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+'</b></div>';}).join('')+'</div>':'');
+  }
+  h+='<button class="gros g" id="chFin">Terminer le chargement</button>';
+  $('main').innerHTML=h;
+  if($('chL'))$('chL').onclick=function(e){var t=e.target.closest('[data-c]');if(t){CHG=t.getAttribute('data-c');ecranChargement(null,d);}};
+  if($('chRet'))$('chRet').onclick=function(){CHG='';ecranChargement(null,d);};
+  $('chFin').onclick=function(){CHG=null;var reste=d.a_quai.length;$('main').innerHTML='<div class="carte ok">🚚 Camion : '+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+'</div>'+(reste?'<div class="carte alerte">⚠ '+reste+' chariot'+(reste>1?'s':'')+' prêt'+(reste>1?'s':'')+' restent à quai.</div>':'');};
 }
 function resumeCamion(d){
   var g={};d.camion.forEach(function(x){var c=x.client||'sans client';g[c]=(g[c]||0)+1;});
