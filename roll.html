@@ -176,7 +176,7 @@ function actions(){
       if(aRole('bureau'))bouton('Forcer : livré chez '+ARRET.client+' (bureau)','g',function(){if(confirm('Ce roll contient le linge de « '+I.client+' ». Le livrer quand même chez « '+ARRET.client+' » ?'))scan('livre',ARRET.client);});
     }else if(I.etat==='client'&&nrm(I.client)===nrm(ARRET.client)){
       bouton('↩ Reprendre ce chariot (vide)','o',function(){scan('repris',ARRET.client);});
-    }else if(I.etat==='retour'||I.etat==='bdl'||I.etat==='sale'){
+    }else if(I.etat==='retour'||I.etat==='bdl'||I.etat==='sale'||!I.client){
       bouton('✅ Déposer VIDE chez '+ARRET.client,'v',function(){scan('livre',ARRET.client,'chariot vide déposé'+(I.client&&nrm(I.client)!==nrm(ARRET.client)?' (repris chez '+I.client+')':''));});
     }else{
       bouton('✅ Déposer chez '+ARRET.client,'v',function(){scan('livre',ARRET.client);});
@@ -184,7 +184,8 @@ function actions(){
     bouton('📍 Retour au déchargement de '+ARRET.client,'g',function(){location.search='';});
     bouton('Je ne suis plus chez ce client','g',function(){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}afficher();});
   }else if(aRole('chauffeur')){
-    bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
+    if(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur'))bouton('🚚 Charger VIDE (on verra où le déposer)','o',function(){scan('charge',null,'chariot vide');});
+    else bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
     if(I.etat==='retour'||I.etat==='client')bouton('🏭 Déchargé à la BdL (linge sale)','o',function(){scan('rentre',null);});
     if(I.etat==='retour'||I.etat==='client'||I.etat==='sale')bouton('📦 Chariot VIDE — rangé au dépôt BdL','g',function(){if(confirm(I.numero+' : chariot vide, rangé au dépôt ?\n(Il redevient libre, sans client.)'))scan('vide',null,'rangé vide au dépôt');});
     // Livrer / reprendre : d'abord dire OÙ il est (bouton 📍), ensuite scanner ses chariots
@@ -264,7 +265,7 @@ async function ecranChargement(msg,d){
     try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(r.error)throw r.error;d=r.data;if(!d.ok)throw new Error(d.error);}
     catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="ecranChargement()">Réessayer</button>';return;}}
   majMoi();
-  var g={};function a(x,k){var c=x.client||'(sans client)';(g[c]=g[c]||{ch:[],q:[]})[k].push(x.numero);}
+  var g={};function a(x,k){var c=x.client||'🧺 Chariots vides';(g[c]=g[c]||{ch:[],q:[]})[k].push(x.numero);}
   d.camion.forEach(function(x){a(x,'ch');});d.a_quai.forEach(function(x){a(x,'q');});
   favs().forEach(function(c){if(!Object.keys(g).some(function(k){return nrm(k)===nrm(c);}))g[c]={ch:[],q:[],vide:true};});
   var cl=Object.keys(g).sort(function(x,y){return (estFav(x)?0:1)-(estFav(y)?0:1)||(g[x].q.length?0:1)-(g[y].q.length?0:1)||x.localeCompare(y,'fr');});
