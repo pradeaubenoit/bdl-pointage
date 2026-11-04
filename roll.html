@@ -157,7 +157,14 @@ function libRoles(r){return String(r||'').split(',').map(function(x){return ROLE
 function actions(){
   var I=INFO;
   var rempliApres=aRole('chauffeur')&&I.etat==='pret';
-  var bRempli=function(){bouton(I.etat==='pret'?'🧺 Changer le client (atelier)…':'🧺 Rempli pour un client…',I.etat==='pret'?'g':'',function(){choisirClient('Rempli pour quel client ?',function(c){scan('rempli',c);});});};
+  var bRempli=function(){
+    if(I.etat==='pret'&&I.client){
+      $('acts').insertAdjacentHTML('beforeend','<div class="carte" style="background:var(--vert2);border:2px solid var(--vert);color:var(--vert);font-weight:700;text-align:center;font-size:18px">✓ Chariot déjà enregistré pour<br><span style="font-size:22px">« '+esc(I.client)+' »</span><div style="font-weight:400;font-size:14px;margin-top:4px">par '+esc(I.personne||'?')+' à '+hm(I.maj_le)+'</div></div>');
+      bouton('Voulez-vous changer le client ?','g',function(){choisirClient('Nouveau client pour '+I.numero+' (au lieu de « '+I.client+' »)',function(c){
+        if(nrm(c)===nrm(I.client)){afficher('✓ Déjà pour « '+esc(c)+' » : rien à changer.');return;}
+        if(confirm('Changer '+I.numero+' : « '+I.client+' » → « '+c+' » ?'))scan('rempli',c);});});
+      return;}
+    bouton('🧺 Rempli pour un client…','',function(){choisirClient('Rempli pour quel client ?',function(c){scan('rempli',c);});});};
   if(aRole('atelier')&&!rempliApres)bRempli();
   if(aRole('chauffeur')&&ARRET){
     var pourAutre=I.client&&nrm(I.client)!==nrm(ARRET.client)&&(I.etat==='pret'||I.etat==='chauffeur');
@@ -207,7 +214,7 @@ function dejaFait(etape,client){
   var I=INFO;if(!I||ETAT_DE[etape]!==I.etat)return true;
   var qui=(I.personne||'quelqu\'un')+' à '+hm(I.maj_le)+(new Date(I.maj_le).toDateString()!==new Date().toDateString()?' le '+new Date(I.maj_le).toLocaleDateString('fr-FR'):'');
   var moi=MOI&&I.personne===MOI.nom;
-  if(etape==='rempli'&&client&&nrm(client)!==nrm(I.client))return confirm('⚠ Ce chariot est déjà marqué « rempli » pour « '+I.client+' » ('+qui+').\n\nLe changer pour « '+client+' » ?');
+  if(etape==='rempli'&&client&&nrm(client)!==nrm(I.client))return true||confirm('⚠ Ce chariot est déjà marqué « rempli » pour « '+I.client+' » ('+qui+').\n\nLe changer pour « '+client+' » ?');
   if(etape==='livre'&&client&&nrm(client)!==nrm(I.client))return true;
   if(etape==='charge'&&!moi)return confirm('⚠ DÉJÀ FAIT : ce chariot est déjà chargé dans le camion de '+qui+'.\n\nLe passer dans votre camion ?');
   alert('✓ DÉJÀ FAIT : ce chariot est déjà « '+(LIB[etape]||etape)+' »'+(I.client&&etape!=='vide'?' ('+I.client+')':'')+' par '+qui+'.\n\nRien à faire.');
