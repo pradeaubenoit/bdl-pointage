@@ -253,7 +253,7 @@ VUES.tournees=async function(){
     soir.forEach(function(g){nsoir+=g.ch.length;});
     var clientSoir={};L.forEach(function(s){if(s.etape==='charge'){soir.forEach(function(g){if(new Date(s.quand)>=new Date(g.a)&&new Date(s.quand)<=new Date(g.b))clientSoir[s.client||'vides']=(clientSoir[s.client||'vides']||0)+1;});}});
     var camion=j===auj?ROLLS.filter(function(r){return r.etat==='chauffeur'&&r.personne===ch;}):null;
-    var camG={};(camion||[]).forEach(function(r){camG[r.client||'?']=(camG[r.client||'?']||0)+1;});
+    var camG={};(camion||[]).forEach(function(r){camG[r.client||'vides']=(camG[r.client||'vides']||0)+1;});
     var nLiv=Object.keys(liv).reduce(function(a,k){return a+liv[k];},0),nRep=Object.keys(rep).reduce(function(a,k){return a+rep[k];},0);
     var fin=soir.length?'🌙 Fin de journée par le <b>chargement pour demain</b> ('+nsoir+' chariot'+(nsoir>1?'s':'')+') : le camion repart de chez le chauffeur.':
       (seg.length&&seg[seg.length-1].lieu==='BdL — déchargement linge sale'?'Fin de journée : déchargement du linge sale à la BdL.':'<span style="color:var(--orange)">Fin de journée hors BdL (dernier scan chez un client ou en cours).</span>');
@@ -261,7 +261,7 @@ VUES.tournees=async function(){
     h+='<div class="carte"><h2 style="margin-top:0">🚚 '+esc(ch)+' <span class="s" style="font-weight:400">· '+j.slice(8,10)+'/'+j.slice(5,7)+'/'+j.slice(0,4)+'</span></h2>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">'+
         '<div class="tuile"><b>'+hm(L[0].quand)+' → '+hm(finTournee)+'</b><span>tournée : '+dur(amp)+(soir.length?' + chargement du soir '+hm(soir[0].a)+' → '+hm(soir[soir.length-1].b):'')+'</span></div>'+
-        '<div class="tuile"><b>'+dur(place)+'</b><span>sur place · en route '+dur(route)+'</span></div>'+
+        '<div class="tuile"><b>'+dur(place)+'</b><span>entre 1er et dernier scan de chaque arrêt · le reste ('+dur(route)+') = route + temps non scanné</span></div>'+
         '<div class="tuile"><b>'+nLiv+'</b><span>chariots déposés chez '+Object.keys(liv).length+' client'+(Object.keys(liv).length>1?'s':'')+'</span></div>'+
         '<div class="tuile"><b>'+nRep+'</b><span>chariots repris</span></div>'+
         '<div class="tuile"><b>'+nre+'</b><span>déchargés linge sale à la BdL</span></div>'+
@@ -274,7 +274,7 @@ VUES.tournees=async function(){
       (sansQR?'<div style="margin-bottom:6px;color:var(--orange)">⚠ '+sansQR+' arrivée'+(sansQR>1?'s':'')+' choisie'+(sansQR>1?'s':'')+' dans la liste, sans QR client.</div>':'')+
       '<div style="margin-bottom:10px">'+fin+'</div>'+
       '<details'+(chT?' open':'')+'><summary style="cursor:pointer;font-weight:700">📋 Déroulé de la journée, dans l\'ordre ('+seg.length+' étapes)</summary>'+
-      '<table style="margin-top:8px"><thead><tr><th>Où</th><th>Début</th><th>Fin</th><th>Sur place</th><th>Chariots</th><th>N°</th></tr></thead><tbody>'+rows+'</tbody></table></details></div>';
+      '<table style="margin-top:8px"><thead><tr><th>Où</th><th>Début</th><th>Fin</th><th>Durée scannée</th><th>Chariots</th><th>N°</th></tr></thead><tbody>'+rows+'</tbody></table></details></div>';
   });
   $('main').innerHTML=h;
   $('tJ').onchange=function(){jourT=this.value;VUES.tournees();};
