@@ -276,6 +276,8 @@ async function ecranChargement(msg,d){
   }else{
     CHG='';
     var tq=d.a_quai.length;
+    var mesC=cl.filter(function(c){return estFav(c)&&!g[c].vide;});
+    if(mesC.length&&mesC.every(function(c){return !g[c].q.length;}))h+='<div class="carte ok">✓ Tous vos clients sont chargés'+(cl.some(function(c){return estFav(c)&&g[c].vide;})?'<div class="s" style="color:var(--orange)">sauf ceux sans chariot prêt (⚠)</div>':'')+'</div>';
     h+='<div class="carte"><b>🚚 Chargement au quai</b><div class="s">'+(tq?tq+' chariot'+(tq>1?'s':'')+' prêt'+(tq>1?'s':'')+' à charger. Touchez un client pour voir ses chariots.':'Rien à charger pour l\'instant.')+'</div>'+(cl.length>3?'<input id="chQ" placeholder="🔎 Chercher un client…" autocomplete="off" style="margin-top:10px">':'')+'</div>'+
       (cl.length?'<div class="carte liste" id="chL" style="max-height:none">'+cl.map(function(c){var x=g[c],tot=x.ch.length+x.q.length,fini=!x.q.length;
         var fv=estFav(c),et=x.vide?'<b style="color:var(--rouge)">rien de prêt</b>':'<b style="color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+'</b>';
@@ -294,7 +296,32 @@ async function ecranChargement(msg,d){
     $('fL').onclick=function(e){var t=e.target.closest('[data-c]');if(t){basculerFav(t.getAttribute('data-c'));rendre();}};
     $('fX').onclick=function(){ecranChargement(null,d);};};
   if($('chRet'))$('chRet').onclick=function(){CHG='';ecranChargement(null,d);};
-  $('chFin').onclick=function(){CHG=null;var reste=d.a_quai.length;$('main').innerHTML='<div class="carte ok">🚚 Camion : '+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+'</div>'+(reste?'<div class="carte alerte">⚠ '+reste+' chariot'+(reste>1?'s':'')+' prêt'+(reste>1?'s':'')+' restent à quai.</div>':'');};
+  $('chFin').onclick=function(){
+    // Mes clients pas (entièrement) chargés : on demande si c'est normal, sinon on prévient l'atelier
+    var pb=cl.filter(function(c){return estFav(c)&&(g[c].vide||g[c].q.length);});
+    var autres=cl.filter(function(c){return !estFav(c)&&g[c].q.length;});
+    var rep={};
+    function fin(){CHG=null;
+      var nonOk=pb.filter(function(c){return rep[c]==='non';});
+      $('main').innerHTML='<div class="carte ok">🏁 Chargement terminé<div style="font-size:18px;margin-top:6px">🚚 '+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+' dans le camion</div></div>'+
+        (nonOk.length?'<div class="carte alerte">📨 Atelier prévenu pour : '+nonOk.map(esc).join(', ')+'</div>':'')+
+        (autres.length?'<div class="carte s">Prêts pour d\'autres chauffeurs : '+autres.map(function(c){return esc(c)+' ('+g[c].q.length+')';}).join(' · ')+'</div>':'');}
+    function prevenir(c){var x=g[c],t='🚚 '+MOI.nom+' part sans '+(x.vide?'aucun chariot':'tous les chariots')+' pour « '+c+' »'+(x.q.length?' — restent à quai : '+x.q.join(', '):' — rien de prêt')+'. Est-ce normal ?';
+      fetch(LINGE_API,{method:'POST',body:JSON.stringify({action:'messageEnvoyer',de:'🚚 '+MOI.nom,client:c,journee:new Date().toISOString().slice(0,10),texte:t})}).catch(function(){});}
+    function suivant(){
+      var c=pb.find(function(x){return !rep[x];});if(!c)return fin();var x=g[c];
+      $('main').innerHTML='<div class="carte"><div class="s">Vérification avant de partir</div><div class="num" style="font-size:26px">'+esc(c)+'</div>'+
+        '<div class="alerte" style="font-size:18px">'+(x.vide?'Aucun chariot prêt pour ce client.':(x.ch.length+' / '+(x.ch.length+x.q.length)+' chargés — restent à quai : '+x.q.map(esc).join(', ')))+'</div>'+
+        '<div style="font-size:18px;font-weight:700;margin:10px 0">Est-ce normal ?</div>'+
+        '<button class="gros v" id="rOk">✓ Oui, normal (pas de livraison aujourd\'hui)</button>'+
+        '<button class="gros r" id="rNon">✗ Non → prévenir l\'atelier</button>'+
+        (x.vide?'':'<button class="gros g" id="rRet">← Retourner charger</button>')+'</div>';
+      $('rOk').onclick=function(){rep[c]='ok';suivant();};
+      $('rNon').onclick=function(){rep[c]='non';prevenir(c);suivant();};
+      if($('rRet'))$('rRet').onclick=function(){CHG=c;ecranChargement(null,d);};
+    }
+    suivant();
+  };
 }
 function resumeCamion(d){
   var g={};d.camion.forEach(function(x){var c=x.client||'sans client';g[c]=(g[c]||0)+1;});
