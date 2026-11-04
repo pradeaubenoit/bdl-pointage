@@ -248,7 +248,11 @@ async function infoChargement(client,apres){
   }catch(e){return '';}
 }
 /* ---------- Écran CHARGEMENT au quai : clients prêts, nombre de chariots, ce qui reste ---------- */
-var CHG=null;   // client choisi (ou '' = vue d'ensemble) tant que l'écran chargement est actif
+var CHG=null;
+// Mes clients (favoris du chauffeur), gardés sur son téléphone
+function favs(){return MOI?lire('roll_fav_'+MOI.id,[]):[];}
+function estFav(c){return favs().some(function(x){return nrm(x)===nrm(c);});}
+function basculerFav(c){var f=favs(),i=f.findIndex(function(x){return nrm(x)===nrm(c);});if(i>=0)f.splice(i,1);else f.push(c);ecrire('roll_fav_'+MOI.id,f);}   // client choisi (ou '' = vue d'ensemble) tant que l'écran chargement est actif
 async function ecranChargement(msg,d){
   if(!MOI)return;
   if(ARRET){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}}
@@ -259,9 +263,10 @@ async function ecranChargement(msg,d){
   majMoi();
   var g={};function a(x,k){var c=x.client||'(sans client)';(g[c]=g[c]||{ch:[],q:[]})[k].push(x.numero);}
   d.camion.forEach(function(x){a(x,'ch');});d.a_quai.forEach(function(x){a(x,'q');});
-  var cl=Object.keys(g).sort(function(x,y){return (g[x].q.length?0:1)-(g[y].q.length?0:1)||x.localeCompare(y,'fr');});
+  favs().forEach(function(c){if(!Object.keys(g).some(function(k){return nrm(k)===nrm(c);}))g[c]={ch:[],q:[],vide:true};});
+  var cl=Object.keys(g).sort(function(x,y){return (estFav(x)?0:1)-(estFav(y)?0:1)||(g[x].q.length?0:1)-(g[y].q.length?0:1)||x.localeCompare(y,'fr');});
   var h=msg?'<div class="carte ok">'+msg+'</div>':'';
-  if(CHG&&g[CHG]){var x=g[CHG],tot=x.ch.length+x.q.length,fini=!x.q.length;
+  if(CHG&&g[CHG]&&!g[CHG].vide){var x=g[CHG],tot=x.ch.length+x.q.length,fini=!x.q.length;
     h+='<div class="carte"><div class="s">🚚 Chargement pour</div><div class="num" style="font-size:28px">'+esc(CHG)+'</div>'+
       '<div style="font-size:24px;font-weight:800;margin-top:8px;color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+(fini?' — CHARGEMENT COMPLET ✓':' chargés')+'</div>'+
       (x.q.length?'<div style="margin-top:10px"><b>Reste à charger :</b>'+x.q.map(function(n){return '<div style="font-size:20px;padding:4px 0">🧺 '+esc(n)+'</div>';}).join('')+'</div>':'')+
@@ -271,13 +276,16 @@ async function ecranChargement(msg,d){
   }else{
     CHG='';
     var tq=d.a_quai.length;
-    h+='<div class="carte"><b>🚚 Chargement au quai</b><div class="s">'+(tq?tq+' chariot'+(tq>1?'s':'')+' prêt'+(tq>1?'s':'')+' à charger. Touchez un client pour voir ses chariots.':'Rien à charger pour l\'instant.')+'</div></div>'+
+    h+='<div class="carte"><b>🚚 Chargement au quai</b><div class="s">'+(tq?tq+' chariot'+(tq>1?'s':'')+' prêt'+(tq>1?'s':'')+' à charger. Touchez un client pour voir ses chariots.':'Rien à charger pour l\'instant.')+'</div>'+(cl.length>3?'<input id="chQ" placeholder="🔎 Chercher un client…" autocomplete="off" style="margin-top:10px">':'')+'</div>'+
       (cl.length?'<div class="carte liste" id="chL" style="max-height:none">'+cl.map(function(c){var x=g[c],tot=x.ch.length+x.q.length,fini=!x.q.length;
-        return '<div data-c="'+esc(c)+'" style="display:flex;justify-content:space-between;align-items:center"><span>'+(fini?'✅ ':'🧺 ')+esc(c)+'</span><b style="color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+'</b></div>';}).join('')+'</div>':'');
+        var fv=estFav(c),et=x.vide?'<b style="color:var(--rouge)">rien de prêt</b>':'<b style="color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+'</b>';
+        return '<div data-c="'+esc(c)+'" data-n="'+esc(nrm(c))+'" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span data-fav="'+esc(c)+'" style="font-size:24px;padding:0 4px">'+(fv?'⭐':'☆')+'</span><span style="flex:1">'+(x.vide?'⚠ ':fini?'✅ ':'🧺 ')+esc(c)+'</span>'+et+'</div>';}).join('')+'</div>':'')+
+      '<div class="s" style="margin:-6px 4px 10px">☆ = ajouter à <b>mes clients</b> : ils restent en haut de la liste, même quand rien n\'est prêt (pour ne pas en oublier).</div>';
   }
   h+='<button class="gros g" id="chFin">Terminer le chargement</button>';
   $('main').innerHTML=h;
-  if($('chL'))$('chL').onclick=function(e){var t=e.target.closest('[data-c]');if(t){CHG=t.getAttribute('data-c');ecranChargement(null,d);}};
+  if($('chQ')){$('chQ').oninput=function(){var t=nrm(this.value);document.querySelectorAll('#chL [data-c]').forEach(function(x){x.style.display=!t||x.dataset.n.indexOf(t)>=0?'flex':'none';});};}
+  if($('chL'))$('chL').onclick=function(e){var fv=e.target.closest('[data-fav]');if(fv){basculerFav(fv.getAttribute('data-fav'));return ecranChargement(null,d);}var t=e.target.closest('[data-c]');if(t){CHG=t.getAttribute('data-c');ecranChargement(null,d);}};
   if($('chRet'))$('chRet').onclick=function(){CHG='';ecranChargement(null,d);};
   $('chFin').onclick=function(){CHG=null;var reste=d.a_quai.length;$('main').innerHTML='<div class="carte ok">🚚 Camion : '+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+'</div>'+(reste?'<div class="carte alerte">⚠ '+reste+' chariot'+(reste>1?'s':'')+' prêt'+(reste>1?'s':'')+' restent à quai.</div>':'');};
 }
@@ -336,6 +344,7 @@ async function jeSuisChez(suite){
   var z=$('acts')||$('main');
   z.innerHTML='<div class="carte"><b>📍 Chez quel client êtes-vous ?</b><div class="s">Si le QR du client est là, scannez-le plutôt (📷) : c\'est la preuve que vous êtes sur place.</div>'+
     (dans.length?'<div style="margin-top:10px;font-weight:700">Dans votre camion :</div><div class="liste" id="jsC">'+dans.map(function(c){return '<div data-c="'+esc(c)+'">🚚 '+esc(c)+' <span class="s">('+g[c]+' chariot'+(g[c]>1?'s':'')+')</span></div>';}).join('')+'</div>':'')+
+    (favs().length?'<div style="margin-top:10px;font-weight:700">⭐ Mes clients :</div><div class="liste">'+favs().slice().sort(function(a,b){return a.localeCompare(b,'fr');}).map(function(c){return '<div data-c="'+esc(c)+'">⭐ '+esc(c)+'</div>';}).join('')+'</div>':'')+
     '<div style="margin-top:10px;font-weight:700">Tous les clients :</div><input id="jsQ" placeholder="Tapez quelques lettres…"><div class="liste" id="jsL"></div><button class="gros g" onclick="afficherOuAccueil()">Annuler</button></div>';
   function choisir(c){var nv=!ARRET||nrm(ARRET.client)!==nrm(c);ARRET={client:c,t:Date.now(),src:'liste'};ecrire('roll_arret',ARRET);
     if(suite){if(nv)noterArret('arrivee',c);NOUVEL_ARRET=false;return suite(c);}
