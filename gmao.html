@@ -54,7 +54,7 @@ h1.titre{font-size:20px;margin:4px 0 12px}
 .ligne .s{font-size:12.5px;color:var(--doux);overflow:hidden;text-overflow:ellipsis}
 .badge{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--gris2);color:#444;white-space:nowrap}
 .b-rouge{background:var(--rouge2);color:var(--rouge)}.b-vert{background:var(--vert2);color:var(--vert)}
-.b-orange{background:var(--orange2);color:var(--orange)}.b-bleu{background:var(--bleu2);color:var(--bleu)}
+.b-orange{background:var(--orange2);color:var(--orange)}.b-bleu{background:var(--bleu2);color:var(--bleu)}.b-plan{background:#f3e8fd;color:#6b2fa3}
 .pt{display:inline-block;width:9px;height:9px;border-radius:50%;background:#bbb;flex:none}
 .pt.Critique{background:var(--rouge)}.pt.Haute{background:var(--orange)}.pt.Normale{background:#4a90d9}.pt.Basse{background:#9bb}
 .grille{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.27';
+var VERSION='v9.28';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -443,7 +443,9 @@ function deEmploye(b){return !!b.demandeur&&!memePers(b.demandeur,NOM)&&!PERS.so
 function ligneBon(b){
   var e=EQID[b.equipement_id];
   return '<a class="ligne" href="#bon/'+b.id+'"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+
-    esc(e?chemin(e):'— sans machine —')+' · '+esc(b.type)+' · '+fmtDH(b.cree_le)+(b.intervenant?' · '+esc(b.intervenant):'')+(deEmploye(b)?' · <b style="color:var(--bleu)">📱 demandé par '+esc(b.demandeur)+'</b>':'')+'</div></div>'+badgePrio(b.priorite,b.machine_arretee&&b.statut!=='Terminé')+badgeStatut(b.statut)+'</a>';
+    esc(e?chemin(e):'— sans machine —')+' · '+esc(b.type)+' · '+fmtDH(b.cree_le)+(b.intervenant?' · '+esc(b.intervenant):'')+(deEmploye(b)?' · <b style="color:var(--bleu)">📱 demandé par '+esc(b.demandeur)+'</b>':'')+(b.prevu_le&&b.statut!=='Terminé'&&b.assigne_a?' · 👷 '+esc(b.assigne_a):'')+'</div></div>'+badgePrio(b.priorite,b.machine_arretee&&b.statut!=='Terminé')+
+    // v9.28 - un bon « Demandé » qui a un jour prévu s'affiche « 📅 Planifié le … » (en retard : orange)
+    (b.statut==='Demandé'&&b.prevu_le?'<span class="badge '+(b.prevu_le<auj()?'b-orange':'b-plan')+'">📅 '+(b.prevu_le<auj()?'Prévu le ':'Planifié ')+fmtD(b.prevu_le)+'</span>':badgeStatut(b.statut))+'</a>';
 }
 function periodeTxt(p){
   if(p.mesure_id){var m=MESID[p.mesure_id];return 'toutes les '+fmtN(+p.periodicite_valeur||0)+' '+esc(m?(m.unite||''):'')+' ('+esc(m?m.nom:'compteur ?')+') · fait à '+(p.dernier_valeur==null?'—':fmtN(+p.dernier_valeur));}
