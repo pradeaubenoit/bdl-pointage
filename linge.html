@@ -1424,6 +1424,13 @@ function chariotVide() {
 function contenuDuJour(c) {
   return c.articles.map(a => { const q = entreesJour(c.client, a, null).reduce((t, e) => t + (Number(e.q) || 0), 0); return q ? a + ' ' + q : ''; }).filter(Boolean).join(', ');
 }
+// Linge du jour MOINS ce qui est déjà rangé dans les chariots de ce client (prêts ou dans un camion) :
+// avec deux ateliers sur le même client, chacun ne reçoit que SA part.
+function soustraireContenu(total, autres) {
+  const enlev = {};
+  autres.forEach(txt => String(txt || '').split(',').forEach(m => { const x = m.trim().match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/); if (x) { const k = sansAccent(x[1]); enlev[k] = (enlev[k] || 0) + Number(x[2].replace(',', '.')); } }));
+  return String(total || '').split(',').map(m => { const x = m.trim().match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/); if (!x) return ''; const r = Number(x[2].replace(',', '.')) - (enlev[sansAccent(x[1])] || 0); return r > 0 ? x[1] + ' ' + r : ''; }).filter(Boolean).join(', ');
+}
 async function idBureau() {
   let info; try { info = await rollRpc('roll_info', { p_numero: 'R-001' }); } catch (e) { toast('Pas de réseau.', true); return null; }
   const ps = ((info && info.personnes) || []).filter(p => /bureau/.test(p.role || ''));
@@ -1439,17 +1446,21 @@ async function chariotsClient(c) {
   if (!f) { f = document.createElement('div'); f.id = 'fondRoll'; f.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(f); }
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px">Recherche des chariots…</div>'; f.style.display = 'flex';
   let l = [];
-  try { const r = await rollRpc('roll_client', { p_client: c.client }); l = ((r && r.a_decharger) || []).filter(x => x.etat === 'pret'); }
+  let tous = [];
+  try { const r = await rollRpc('roll_client', { p_client: c.client }); tous = (r && r.a_decharger) || []; l = tous.filter(x => x.etat === 'pret'); }
   catch (e) { f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px">Pas de réseau.<button id="ccX" style="width:100%;margin-top:12px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Fermer</button></div>'; document.getElementById('ccX').onclick = () => { f.style.display = 'none'; }; return; }
-  const duJour = contenuDuJour(c);
+  const saisiJour = contenuDuJour(c);
+  const duJour = soustraireContenu(saisiJour, tous.map(x => x.note));   // pas encore dans un chariot
   const bt = 'width:100%;margin-top:8px;font-size:17px;padding:12px;border-radius:12px;font-weight:700;';
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
     '<div style="font-size:22px;font-weight:800">🧺 Chariots prêts — ' + rollEsc(c.client) + '</div>' +
     (l.length ? l.map((x, i) => '<div style="border:1px solid #dde2e7;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + '</div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'sans contenu') + '</div>' +
       '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° (code Bureau)</button></div>').join('')
       : '<div style="color:#666;margin-top:10px">Aucun chariot « prêt » pour ce client.</div>') +
-    (duJour ? '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #dde2e7"><div style="font-weight:700">Linge saisi aujourd\'hui :</div><div style="color:#555">' + rollEsc(duJour) + '</div>' +
-      '<button id="ccJ" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">Mettre le linge du jour dans le chariot n°… (code Bureau)</button></div>' : '') +
+    (saisiJour ? '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #dde2e7"><div style="font-weight:700">Linge saisi aujourd\'hui (tous ateliers) :</div><div style="color:#555">' + rollEsc(saisiJour) + '</div>' +
+      '<div style="font-weight:700;margin-top:6px">Pas encore dans un chariot :</div><div style="color:' + (duJour ? '#b3261e' : '#2e7d32') + ';font-weight:600">' + rollEsc(duJour || '✓ tout est rangé dans un chariot') + '</div></div>' : '') +
+    (duJour ? '<div>' +
+      '<button id="ccJ" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">Mettre ce reste dans le chariot n°… (code Bureau)</button></div>' : '') +
     '<button id="ccX" style="' + bt + 'border:2px solid #999;background:#fff">Fermer</button></div>';
   document.getElementById('ccX').onclick = () => { f.style.display = 'none'; };
   f.querySelectorAll('[data-chg]').forEach(b => b.onclick = () => { const x = l[+b.dataset.chg]; deplacerLinge(c, x.numero, x.note || '', 'Nouveau numéro pour le linge de ' + x.numero + ' :'); });
