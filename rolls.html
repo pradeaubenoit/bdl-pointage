@@ -275,12 +275,64 @@ VUES.tournees=async function(){
       (sansQR?'<div style="margin-bottom:6px;color:var(--orange)">⚠ '+sansQR+' arrivée'+(sansQR>1?'s':'')+' choisie'+(sansQR>1?'s':'')+' dans la liste, sans QR client.</div>':'')+
       '<div style="margin-bottom:10px">'+fin+'</div>'+
       '<details'+(chT?' open':'')+'><summary style="cursor:pointer;font-weight:700">📋 Déroulé de la journée, dans l\'ordre ('+seg.length+' étapes)</summary>'+
-      '<table style="margin-top:8px"><thead><tr><th>Où</th><th>Début</th><th>Fin</th><th>Durée scannée</th><th>Chariots</th><th>N°</th></tr></thead><tbody>'+rows+'</tbody></table></details></div>';
+      '<table style="margin-top:8px"><thead><tr><th>Où</th><th>Début</th><th>Fin</th><th>Durée scannée</th><th>Chariots</th><th>N°</th></tr></thead><tbody>'+rows+'</tbody></table></details>'+
+      '<details class="plan" data-pch="'+esc(ch)+'" data-pwd="'+new Date(j+'T12:00:00').getDay()+'" style="margin-top:10px"><summary style="cursor:pointer;font-weight:700">🗺 Plans de tournée de '+esc(ch)+' (pour un remplaçant)</summary><div class="planC" style="margin-top:8px"></div></details></div>';
   });
   $('main').innerHTML=h;
   $('tJ').onchange=function(){jourT=this.value;VUES.tournees();};
+  document.querySelectorAll('details.plan').forEach(function(dt){dt.addEventListener('toggle',function(){if(dt.open&&!dt.dataset.fait){dt.dataset.fait=1;planTournee(dt,dt.dataset.pch,+dt.dataset.pwd);}});});
   document.querySelectorAll('[data-ch]').forEach(function(b){b.onclick=function(){chT=b.dataset.ch||null;VUES.tournees();};});
 };
+/* ---------- PLAN DE TOURNÉE : ordre habituel des arrêts d'un chauffeur pour un jour de la semaine,
+   calculé sur ses 4 derniers jours identiques (scans des 10 dernières semaines). Pour briefer un remplaçant. ---------- */
+var JOURS_S=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+async function planTournee(dt,ch,wd){
+  var box=dt.querySelector('.planC');
+  box.innerHTML='<div class="s">Calcul à partir de ses tournées passées…</div>';
+  var p2=function(n){return String(n).padStart(2,'0');};
+  var depuis=new Date(Date.now()-70*864e5);
+  var sc;
+  try{sc=await q(sb.from('rolls_scans').select('quand,etape,client,roll_id,note').eq('personne',ch).in('etape',['charge','livre','repris','rentre','arrivee']).gte('quand',depuis.toISOString()).order('quand').limit(10000));}
+  catch(e){box.innerHTML='<div style="color:var(--rouge)">Erreur : '+esc(e.message||e)+'</div>';return;}
+  sc=sc.filter(function(s){return !/^regroupement/.test(s.note||'');});
+  var cleJ=function(t){var d=new Date(t);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());};
+  var parJour={};sc.forEach(function(s){var k=cleJ(s.quand);(parJour[k]=parJour[k]||[]).push(s);});
+  var dispo={};Object.keys(parJour).forEach(function(k){var w=new Date(k+'T12:00:00').getDay();if(parJour[k].some(function(s){return s.etape==='livre'||s.etape==='repris'||s.etape==='arrivee';}))dispo[w]=(dispo[w]||0)+1;});
+  function rendre(w){
+    var jours=Object.keys(parJour).filter(function(k){return new Date(k+'T12:00:00').getDay()===w&&parJour[k].some(function(s){return s.etape==='livre'||s.etape==='repris'||s.etape==='arrivee';});}).sort().slice(-4);
+    var puces=[1,2,3,4,5,6,0].filter(function(x){return x!==0||dispo[0];}).map(function(x){return '<button class="btn'+(x===w?' p':'')+'" data-pw="'+x+'" style="padding:4px 10px">'+JOURS_S[x].slice(0,3)+(dispo[x]?'':' <span class="s">(—)</span>')+'</button>';}).join(' ');
+    var h='<div class="noprint" style="margin-bottom:8px">'+puces+'</div>';
+    if(!jours.length){box.innerHTML=h+'<div class="s">Aucune tournée de '+esc(ch)+' un '+JOURS_S[w]+' dans les 10 dernières semaines.</div>';brancher();return;}
+    var C={},debs=[],fins=[];
+    jours.forEach(function(k){
+      var L=parJour[k],ordre=[],vu={};
+      var mn=function(t){var d=new Date(t);return d.getHours()*60+d.getMinutes();};
+      var c0=L.find(function(s){return s.etape==='charge';});if(c0)debs.push(mn(c0.quand));
+      var dern=null;
+      L.forEach(function(s){if(s.etape!=='livre'&&s.etape!=='repris'&&s.etape!=='arrivee')return;var c=s.client||'?';dern=s;
+        if(!vu[c]){vu[c]={t:mn(s.quand),liv:0,rep:0};ordre.push(c);}
+        if(s.etape==='livre')vu[c].liv++;if(s.etape==='repris')vu[c].rep++;});
+      var rt=L.filter(function(s){return s.etape==='rentre';}).pop();if(rt&&(!dern||new Date(rt.quand)>new Date(dern.quand)))fins.push(mn(rt.quand));else if(dern)fins.push(mn(dern.quand));
+      ordre.forEach(function(c,i){var x=C[c]=C[c]||{n:0,pos:0,t:0,liv:0,rep:0};x.n++;x.pos+=i;x.t+=vu[c].t;x.liv+=vu[c].liv;x.rep+=vu[c].rep;});
+    });
+    var hm2=function(m){m=Math.round(m);return p2(Math.floor(m/60))+':'+p2(m%60);};
+    var moy=function(a){return a.length?a.reduce(function(x,y){return x+y;},0)/a.length:null;};
+    var quai={};ROLLS.forEach(function(r){if(r.etat==='pret'&&r.client)quai[nrm2(r.client)]=(quai[nrm2(r.client)]||0)+1;});
+    var cl=Object.keys(C).sort(function(a,b){return C[a].pos/C[a].n-C[b].pos/C[b].n||C[a].t/C[a].n-C[b].t/C[b].n;});
+    var arr=function(v){var r=Math.round(v*2)/2;return r?String(r).replace('.',','):'0';};
+    h+='<div style="font-weight:700;margin-bottom:4px">🗺 Tournée du '+JOURS_S[w]+' — '+esc(ch)+'</div>'+
+      '<div class="s" style="margin-bottom:8px">D\'après '+jours.length+' '+JOURS_S[w]+(jours.length>1?'s':'')+' : '+jours.map(function(k){return k.slice(8,10)+'/'+k.slice(5,7);}).join(', ')+(jours.length<3?' · <b style="color:var(--orange)">encore peu de données, plan approximatif</b>':'')+'</div>'+
+      '<table><thead><tr><th>#</th><th>Client</th><th>Arrivée ≈</th><th>Déposer ≈</th><th>Reprendre ≈</th><th>Fréquence</th><th>Au quai maintenant</th></tr></thead><tbody>'+
+      '<tr><td></td><td><b>BdL — chargement</b></td><td>'+(debs.length?hm2(moy(debs)):'—')+'</td><td colspan="4" class="s"></td></tr>'+
+      cl.map(function(c,i){var x=C[c],qq=quai[nrm2(c)]||0;return '<tr><td>'+(i+1)+'</td><td><b>'+esc(c)+'</b></td><td>'+hm2(x.t/x.n)+'</td><td>'+arr(x.liv/x.n)+'</td><td>'+arr(x.rep/x.n)+'</td><td'+(x.n<jours.length?' style="color:var(--orange)"':'')+'>'+x.n+' / '+jours.length+(x.n<jours.length?' (pas toujours)':'')+'</td><td>'+(qq?'<b>'+qq+' prêt'+(qq>1?'s':'')+'</b>':'<span class="s">—</span>')+'</td></tr>';}).join('')+
+      '<tr><td></td><td><b>Retour BdL</b> (déchargement du linge sale)</td><td>'+(fins.length?hm2(moy(fins)):'—')+'</td><td colspan="4"></td></tr></tbody></table>'+
+      '<div class="s" style="margin-top:6px">Ordre et heures = moyenne de ses tournées. « Au quai maintenant » = chariots remplis qui attendent à la BdL pour ce client.</div>';
+    box.innerHTML=h;brancher();
+  }
+  function brancher(){box.querySelectorAll('[data-pw]').forEach(function(b){b.onclick=function(){rendre(+b.dataset.pw);};});}
+  rendre(wd);
+}
+function nrm2(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();}
 async function demarrer(){$('login').style.display='none';route();}
 $('lOk').onclick=async function(){var r=await sb.auth.signInWithPassword({email:$('lE').value.trim(),password:$('lP').value});if(r.error){$('lErr').textContent=r.error.message;return;}demarrer();};
 (async function(){var s=await sb.auth.getSession();if(s.data&&s.data.session)demarrer();else $('login').style.display='block';})();
