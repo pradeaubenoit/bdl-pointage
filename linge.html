@@ -1386,7 +1386,7 @@ function chariotVide() {
   function etape2() {
     pave('➡ Linge mis dans quel chariot ?',
       '<b>' + rollEsc(source.numero) + '</b> · ' + rollEsc(source.client || '') + (source.note ? '<br>📦 ' + rollEsc(source.note) : '') + '<br>Tapez le numéro du chariot qui reçoit ce linge : il affichera le total des deux.',
-      'Pas mis dans un autre chariot : juste le vider', () => vider(null, null), async cible => {
+      'Pas mis dans un autre chariot : juste le vider', async cible => {
         if (cible === source.numero) { msg('C\'est le même chariot.'); return; }
         msg('Vérification…', null);
         const info = await lireRoll(cible); if (!info) return;
@@ -1396,7 +1396,7 @@ function chariotVide() {
         const total = info.etat === 'pret' ? fusionContenu(noteDeRoll(info), source.note) : (source.note || '');
         if (!confirm('Regrouper ' + source.numero + ' dans ' + cible + ' ?\n\n' + cible + ' (' + (source.client || '') + ') contiendra :\n' + (total || '—') + '\n\n' + source.numero + ' redevient vide et libre.')) return;
         vider(cible, total);
-      });
+      }, () => vider(null, null));
   }
   async function vider(cible, total) {
     const id = await rollIdentite(source.numero); if (!id) return;
