@@ -219,6 +219,7 @@ VUES.tournees=async function(){
   var j=jourT||auj;
   var deb=new Date(j+'T00:00:00'),fin=new Date(deb.getTime()+864e5);
   var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').in('etape',['charge','livre','repris','rentre','arrivee','depart']).gte('quand',deb.toISOString()).lt('quand',fin.toISOString()).order('quand'));
+  sc=sc.filter(function(s){return !/^regroupement/.test(s.note||'');});   // regroupement de chariots dans le camion : pas une étape de tournée
   var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
   var hm=function(t){var x=new Date(t);return p2(x.getHours())+':'+p2(x.getMinutes());};
   var dur=function(ms){var m=Math.round(ms/6e4);return m<60?m+' min':Math.floor(m/60)+' h '+p2(m%60);};
