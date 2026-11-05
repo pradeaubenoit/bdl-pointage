@@ -1325,45 +1325,90 @@ function chariotSansSaisie() {
   };
   document.getElementById('csX').onclick = () => { f.style.display = 'none'; };
 }
-// Deux chariots regroupés en un : celui qu'on a vidé redevient « Vide à la BdL ».
-// Les quantités saisies ne bougent pas. Refusé si le chariot est déjà parti (camion, client).
+// Deux chariots regroupés en un : on dit lequel a été vidé, puis dans quel chariot le linge est parti.
+// Le chariot de destination reçoit le contenu des deux (quantités additionnées) ; celui vidé redevient « Vide à la BdL ».
+// Les quantités saisies pour la facturation ne changent pas. Refusé si un chariot est déjà parti (camion, client).
+function fusionContenu(a, b) {
+  const tot = {}, ordre = [];
+  [a, b].forEach(txt => String(txt || '').split(',').forEach(m => {
+    m = m.trim(); if (!m) return;
+    const x = m.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/);
+    const nom = x ? x[1] : m, q = x ? Number(x[2].replace(',', '.')) : null;
+    const k = sansAccent(nom);
+    if (!(k in tot)) { tot[k] = { nom: nom, q: null }; ordre.push(k); }
+    if (q != null) tot[k].q = (tot[k].q || 0) + q;
+  }));
+  return ordre.map(k => tot[k].nom + (tot[k].q != null ? ' ' + tot[k].q : '')).join(', ');
+}
 function chariotVide() {
   let f = document.getElementById('fondRoll');
   if (!f) { f = document.createElement('div'); f.id = 'fondRoll'; f.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(f); }
-  let saisie = '';
   const touches = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
-  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:440px">' +
-    '<div style="font-size:22px;font-weight:800">↩ Quel chariot a été vidé ?</div><div style="color:#555;margin:4px 0 10px">Le linge a été mis dans un autre chariot. Les quantités saisies ne changent pas.</div>' +
-    '<div id="rvAff" style="font-size:44px;font-weight:900;text-align:center;border:2px solid #ccd;border-radius:12px;padding:8px;min-height:68px;letter-spacing:2px"></div>' +
-    '<div id="rvMsg" style="min-height:22px;color:#c62828;font-weight:700;margin:6px 0"></div>' +
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + touches.map(t => '<button data-t="' + t + '" style="font-size:28px;font-weight:700;padding:16px 0;border-radius:12px;border:1px solid #ccd;background:' + (t === 'OK' ? '#2e7d32;color:#fff' : '#f4f6f8') + '">' + t + '</button>').join('') + '</div>' +
-    '<button id="rvX" style="width:100%;margin-top:12px;font-size:18px;padding:14px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Annuler</button></div>';
-  f.style.display = 'flex';
-  const aff = () => { document.getElementById('rvAff').textContent = saisie ? numRoll(saisie) : ''; };
-  f.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
-    const t = b.dataset.t;
-    if (t === '⌫') saisie = saisie.slice(0, -1);
-    else if (t === 'OK') { if (saisie) valider(numRoll(saisie)); return; }
-    else if (saisie.length < 4) saisie += t;
-    aff();
+  let source = null;   // fiche du chariot vidé
+  function pave(titre, aide, bouton, surOk, surBouton) {
+    let saisie = '';
+    f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:440px">' +
+      '<div style="font-size:22px;font-weight:800">' + titre + '</div><div style="color:#555;margin:4px 0 10px">' + aide + '</div>' +
+      '<div id="rvAff" style="font-size:44px;font-weight:900;text-align:center;border:2px solid #ccd;border-radius:12px;padding:8px;min-height:68px;letter-spacing:2px"></div>' +
+      '<div id="rvMsg" style="min-height:22px;color:#c62828;font-weight:700;margin:6px 0"></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + touches.map(t => '<button data-t="' + t + '" style="font-size:28px;font-weight:700;padding:16px 0;border-radius:12px;border:1px solid #ccd;background:' + (t === 'OK' ? '#2e7d32;color:#fff' : '#f4f6f8') + '">' + t + '</button>').join('') + '</div>' +
+      (bouton ? '<button id="rvB" style="width:100%;margin-top:12px;font-size:17px;padding:12px;border-radius:12px;border:2px solid #1f5fa8;color:#1f5fa8;background:#fff;font-weight:700">' + bouton + '</button>' : '') +
+      '<button id="rvX" style="width:100%;margin-top:8px;font-size:18px;padding:14px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Annuler</button></div>';
+    f.style.display = 'flex';
+    const aff = () => { document.getElementById('rvAff').textContent = saisie ? numRoll(saisie) : ''; };
+    f.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
+      const t = b.dataset.t;
+      if (t === '⌫') saisie = saisie.slice(0, -1);
+      else if (t === 'OK') { if (saisie) surOk(numRoll(saisie)); return; }
+      else if (saisie.length < 4) saisie += t;
+      aff();
+    });
+    if (bouton) document.getElementById('rvB').onclick = surBouton;
+    document.getElementById('rvX').onclick = () => { f.style.display = 'none'; };
+  }
+  const msg = (t, ok) => { const m = document.getElementById('rvMsg'); m.style.color = ok ? '#2e7d32' : (ok === null ? '#555' : '#c62828'); m.textContent = t; };
+  async function lireRoll(numero) {
+    try { return await rollRpc('roll_info', { p_numero: numero }); } catch (e) { msg('Pas de réseau : réessayez quand le voyant est vert.'); return null; }
+  }
+  // 1. Le chariot vidé
+  pave('↩ Quel chariot a été vidé ?', 'Tapez son numéro.', null, async numero => {
+    msg('Vérification…', null);
+    const info = await lireRoll(numero); if (!info) return;
+    if (info.ok === false) { msg(info.error || 'Chariot inconnu'); return; }
+    if (info.etat === 'bdl') { msg('✓ ' + numero + ' est déjà vide. Rien à faire.', true); return; }
+    if (info.etat !== 'pret') { msg(numero + ' n\'est pas « rempli » (déjà chargé ou livré) : voir avec le bureau.'); return; }
+    source = Object.assign({ numero: numero }, info);
+    etape2();
   });
-  document.getElementById('rvX').onclick = () => { f.style.display = 'none'; };
-  async function valider(numero) {
-    const msg = document.getElementById('rvMsg');
-    msg.style.color = '#555'; msg.textContent = 'Vérification…';
-    let info;
-    try { info = await rollRpc('roll_info', { p_numero: numero }); } catch (e) { msg.style.color = '#c62828'; msg.textContent = 'Pas de réseau : réessayez quand le voyant est vert.'; return; }
-    if (!info || info.ok === false) { msg.style.color = '#c62828'; msg.textContent = (info && info.error) || 'Chariot inconnu'; return; }
-    if (info.etat === 'bdl') { msg.style.color = '#2e7d32'; msg.textContent = '✓ ' + numero + ' est déjà vide. Rien à faire.'; return; }
-    if (info.etat !== 'pret') { msg.style.color = '#c62828'; msg.textContent = numero + ' n\'est pas « rempli » (déjà chargé ou livré) : voir avec le bureau.'; return; }
-    if (!confirm(numero + (info.client ? ' (' + info.client + ')' : '') + ' : chariot VIDÉ, linge mis dans un autre chariot ?\n\nIl redevient libre, sans client.')) return;
-    const id = await rollIdentite(numero); if (!id) return;
+  // 2. Le chariot qui reçoit le linge
+  function etape2() {
+    pave('➡ Linge mis dans quel chariot ?',
+      '<b>' + rollEsc(source.numero) + '</b> · ' + rollEsc(source.client || '') + (source.note ? '<br>📦 ' + rollEsc(source.note) : '') + '<br>Tapez le numéro du chariot qui reçoit ce linge : il affichera le total des deux.',
+      'Pas mis dans un autre chariot : juste le vider', () => vider(null, null), async cible => {
+        if (cible === source.numero) { msg('C\'est le même chariot.'); return; }
+        msg('Vérification…', null);
+        const info = await lireRoll(cible); if (!info) return;
+        if (info.ok === false) { msg(info.error || 'Chariot inconnu'); return; }
+        if (info.etat !== 'pret' && info.etat !== 'bdl') { msg(cible + ' n\'est plus à l\'atelier (chargé ou livré) : voir avec le bureau.'); return; }
+        if (info.etat === 'pret' && info.client && source.client && sansAccent(info.client) !== sansAccent(source.client)) { msg(cible + ' est rempli pour « ' + info.client + ' », pas pour « ' + source.client + ' ».'); return; }
+        const total = info.etat === 'pret' ? fusionContenu(info.note, source.note) : (source.note || '');
+        if (!confirm('Regrouper ' + source.numero + ' dans ' + cible + ' ?\n\n' + cible + ' (' + (source.client || '') + ') contiendra :\n' + (total || '—') + '\n\n' + source.numero + ' redevient vide et libre.')) return;
+        vider(cible, total);
+      });
+  }
+  async function vider(cible, total) {
+    const id = await rollIdentite(source.numero); if (!id) return;
+    msg('Enregistrement…', null);
     try {
-      const r = await rollRpc('roll_scan', { p_numero: numero, p_personne: id.id, p_code: id.code, p_etape: 'vide', p_client: null, p_note: 'vidé à l\'atelier : linge regroupé dans un autre chariot' });
-      if (!r || !r.ok) { msg.style.color = '#c62828'; msg.textContent = (r && r.error) || 'Refusé'; return; }
+      if (cible) {
+        const r1 = await rollRpc('roll_scan', { p_numero: cible, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: source.client, p_note: total });
+        if (!r1 || !r1.ok) { msg((r1 && r1.error) || 'Refusé pour ' + cible); return; }
+      }
+      const r = await rollRpc('roll_scan', { p_numero: source.numero, p_personne: id.id, p_code: id.code, p_etape: 'vide', p_client: null, p_note: cible ? 'vidé à l\'atelier : linge regroupé dans ' + cible : 'vidé à l\'atelier' });
+      if (!r || !r.ok) { msg((r && r.error) || 'Refusé'); return; }
       f.style.display = 'none';
-      toast('↩ ' + numero + ' : vide, libre pour un autre client');
-    } catch (e) { msg.style.color = '#c62828'; msg.textContent = 'Pas de réseau : réessayez quand le voyant est vert.'; }
+      toast(cible ? '↩ ' + source.numero + ' regroupé dans ' + cible + ' : ' + total : '↩ ' + source.numero + ' : vide, libre');
+    } catch (e) { msg('Pas de réseau : réessayez quand le voyant est vert.'); }
   }
 }
 async function rollIdentite(numero) {
