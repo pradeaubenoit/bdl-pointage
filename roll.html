@@ -196,8 +196,37 @@ function actions(){
       bouton('Repris chez… (bureau, correction)','g',function(){choisirClient('Repris chez quel client ?',function(c){scan('repris',c);});});
     }
   }
+  if(aRole('chauffeur')&&I.etat==='chauffeur'&&I.client)bouton('↩ Regrouper dans un autre chariot','g',regrouperCamion);
   if(aRole('atelier')&&rempliApres)bRempli();
   if(aRole('laveur'))bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
+}
+function contenuDe(info){if(!info)return '';if(info.note)return info.note;var r=(info.derniers||[]).find(function(d){return d.etape==='rempli';});return (r&&r.note)||'';}
+function fusionContenu(a,b){var tot={},ordre=[];[a,b].forEach(function(txt){String(txt||'').split(',').forEach(function(m){m=m.trim();if(!m)return;var x=m.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/);var nom=x?x[1]:m,q=x?Number(x[2].replace(',','.')):null,k=nrm(nom);if(!(k in tot)){tot[k]={nom:nom,q:null};ordre.push(k);}if(q!=null)tot[k].q=(tot[k].q||0)+q;});});return ordre.map(function(k){return tot[k].nom+(tot[k].q!=null?' '+tot[k].q:'');}).join(', ');}
+/* Regroupement dans le camion : le linge propre de INFO passe dans un autre chariot du même client ; INFO reste dans le camion, VIDE et sans client.
+   Étapes enregistrées avec la note « regroupement » (ignorées dans les Tournées). */
+async function regrouperCamion(){
+  var I=INFO;$('acts').innerHTML='<div class="carte">Recherche dans votre camion…</div>';
+  var cam=[];try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!r.error&&r.data&&r.data.ok)cam=r.data.camion;}catch(e){}
+  var l=cam.filter(function(x){return x.numero!==I.numero&&x.client&&nrm(x.client)===nrm(I.client);});
+  $('acts').innerHTML='<div class="carte"><b>↩ Mettre le linge de '+esc(I.numero)+' dans quel chariot ?</b><div class="s">Chariots « '+esc(I.client)+' » dans votre camion.</div>'+
+    (l.length?'<div class="liste" id="rgL">'+l.map(function(x){return '<div data-n="'+esc(x.numero)+'">🧺 '+esc(x.numero)+(x.note?' <span class="s">📦 '+esc(x.note)+'</span>':'')+'</div>';}).join('')+'</div>':'<div class="alerte" style="margin-top:8px">Aucun autre chariot « '+esc(I.client)+' » dans votre camion.</div>')+
+    '<button class="gros g" onclick="afficher()">Annuler</button></div>';
+  if(!l.length)return;
+  $('rgL').onclick=async function(e){var d=e.target.closest('[data-n]');if(!d)return;var cible=d.getAttribute('data-n');
+    var it=null;try{var x=await sb.rpc('roll_info',{p_numero:cible});if(!x.error&&x.data&&x.data.ok)it=x.data;}catch(e){}
+    if(!it){alert('Pas de réseau : réessayez.');return;}
+    var total=fusionContenu(contenuDe(it),contenuDe(I));
+    if(!confirm('Regrouper '+I.numero+' dans '+cible+' ?\n\n'+cible+' ('+I.client+') contiendra :\n'+(total||'—')+'\n\n'+I.numero+' reste dans votre camion, VIDE et sans client.'))return;
+    $('acts').innerHTML='<div class="carte">Enregistrement…</div>';
+    var base={p_personne:MOI.id,p_code:MOI.code};
+    var pas=[[cible,'rempli',I.client,total],[cible,'charge',null,'regroupement : linge de '+I.numero+' ajouté'],[I.numero,'vide',null,'regroupement : linge mis dans '+cible],[I.numero,'charge',null,'regroupement : chariot vide']];
+    try{for(var k=0;k<pas.length;k++){var p=pas[k];var rr=await sb.rpc('roll_scan',Object.assign({p_numero:p[0],p_etape:p[1],p_client:p[2],p_note:p[3]},base));
+        if(rr.error)throw rr.error;if(!rr.data.ok)throw new Error(rr.data.error+' ('+p[0]+')');}
+      var i2=await sb.rpc('roll_info',{p_numero:I.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
+      if(navigator.vibrate)navigator.vibrate(120);
+      afficher('✓ Linge de '+esc(I.numero)+' regroupé dans '+esc(cible)+'<div class="s" style="margin-top:6px">'+esc(cible)+' : '+esc(total)+'<br>'+esc(I.numero)+' : vide dans votre camion.</div>');
+    }catch(err){afficher('<span style="color:var(--rouge)">Regroupement interrompu : '+esc(err.message||err)+'. Prévenez le bureau.</span>');}
+  };
 }
 function choisirClient(titre,fn){
   var h='<div class="carte"><b>'+esc(titre)+'</b><input id="cQ" placeholder="Tapez quelques lettres…"><div class="liste" id="cL"></div><button class="gros g" onclick="afficher()">Annuler</button></div>';
