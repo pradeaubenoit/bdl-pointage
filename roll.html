@@ -134,7 +134,15 @@ function choisirMoi(suite){
     '<label>Code à 4 chiffres</label><input id="mC" inputmode="numeric" maxlength="6" type="password"><button class="gros" id="mOk">Valider</button></div>';
   $('mOk').onclick=function(){var p=ps.find(function(x){return x.id===$('mP').value;}),c=$('mC').value.trim();if(!p||!c)return;MOI={id:p.id,nom:p.nom,role:p.role,code:c};ecrire('roll_moi',MOI);majMoi();if(suite)suite();else afficher();};
 }
-function changerMoi(){if(!INFO)return;if(MOI&&!confirm('Changer de personne sur ce téléphone ?'))return;MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}majMoi();choisirMoi();}
+// « Qui êtes-vous ? » marche aussi depuis l'écran d'accueil (QR de la feuille de route, sans chariot ouvert)
+function changerMoi(){if(MOI&&!confirm('Changer de personne sur ce téléphone ?\n(Actuellement : '+MOI.nom+')'))return;MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}majMoi();
+  if(INFO&&INFO.numero)return choisirMoi();
+  $('main').innerHTML='<div class="carte">Chargement de la liste…</div>';
+  sb.rpc('roll_info',{p_numero:'R-001'}).then(function(r){
+    if(r.error||!r.data||!r.data.personnes){$('main').innerHTML='<div class="carte alerte">Pas de réseau : réessayez.</div>';return;}
+    var garde=INFO;INFO={personnes:r.data.personnes};
+    choisirMoi(function(){INFO=garde;afficherOuAccueil();});
+  },function(){$('main').innerHTML='<div class="carte alerte">Pas de réseau : réessayez.</div>';});}
 
 function afficher(msg){
   majMoi();
