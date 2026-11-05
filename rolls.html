@@ -303,30 +303,40 @@ async function planTournee(dt,ch,wd){
     var puces=[1,2,3,4,5,6,0].filter(function(x){return x!==0||dispo[0];}).map(function(x){return '<button class="btn'+(x===w?' p':'')+'" data-pw="'+x+'" style="padding:4px 10px">'+JOURS_S[x].slice(0,3)+(dispo[x]?'':' <span class="s">(—)</span>')+'</button>';}).join(' ');
     var h='<div class="noprint" style="margin-bottom:8px">'+puces+'</div>';
     if(!jours.length){box.innerHTML=h+'<div class="s">Aucune tournée de '+esc(ch)+' un '+JOURS_S[w]+' dans les 10 dernières semaines.</div>';brancher();return;}
-    var C={},debs=[],fins=[];
+    // Chaque jour = la suite réelle des arrêts, BdL comprise (rechargement en milieu de tournée, déchargement du linge sale).
+    // Le chargement fait le soir APRÈS la tournée prépare le lendemain : il est compté pour le jour suivant (« chargé la veille au soir »).
+    var mn=function(t){var d=new Date(t);return d.getHours()*60+d.getMinutes();};
+    var terrain=function(s){return s.etape==='livre'||s.etape==='repris'||s.etape==='rentre';};
+    function decoupe(k){var L=parJour[k]||[],dt=-1;L.forEach(function(s,i){if(terrain(s))dt=i;});
+      return {jour:dt<0?[]:L.slice(0,dt+1),soir:dt<0?[]:L.slice(dt+1).filter(function(s){return s.etape==='charge';})};}
+    var veille=function(k){var d=new Date(k+'T12:00:00');d.setDate(d.getDate()-1);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());};
+    var C={},soirs=[],nSoir=0;
     jours.forEach(function(k){
-      var L=parJour[k],ordre=[],vu={};
-      var mn=function(t){var d=new Date(t);return d.getHours()*60+d.getMinutes();};
-      var c0=L.find(function(s){return s.etape==='charge';});if(c0)debs.push(mn(c0.quand));
-      var dern=null;
-      L.forEach(function(s){if(s.etape!=='livre'&&s.etape!=='repris'&&s.etape!=='arrivee')return;var c=s.client||'?';dern=s;
-        if(!vu[c]){vu[c]={t:mn(s.quand),liv:0,rep:0};ordre.push(c);}
-        if(s.etape==='livre')vu[c].liv++;if(s.etape==='repris')vu[c].rep++;});
-      var rt=L.filter(function(s){return s.etape==='rentre';}).pop();if(rt&&(!dern||new Date(rt.quand)>new Date(dern.quand)))fins.push(mn(rt.quand));else if(dern)fins.push(mn(dern.quand));
-      ordre.forEach(function(c,i){var x=C[c]=C[c]||{n:0,pos:0,t:0,liv:0,rep:0};x.n++;x.pos+=i;x.t+=vu[c].t;x.liv+=vu[c].liv;x.rep+=vu[c].rep;});
+      var J=decoupe(k).jour,V=decoupe(veille(k)).soir,arrets=[],nBdl=0;
+      if(V.length&&!(J.length&&J[0].etape==='charge')){nSoir++;soirs.push(mn(V[0].quand));}
+      J.forEach(function(s){
+        var bdl=s.etape==='charge'||s.etape==='rentre',lieu=bdl?(s.etape==='charge'?'BdL — chargement':'BdL — déchargement du linge sale'):(s.client||'?');
+        var g=arrets[arrets.length-1];
+        if(!g||g.lieu!==lieu){g={lieu:lieu,bdl:bdl,t:mn(s.quand),liv:0,rep:0,ch:0};if(bdl){nBdl++;g.cle=lieu+'#'+nBdl;}else g.cle=lieu;arrets.push(g);}
+        if(s.etape==='livre')g.liv++;if(s.etape==='repris')g.rep++;if(s.etape==='charge')g.ch++;});
+      arrets.forEach(function(g,i){var x=C[g.cle]=C[g.cle]||{lieu:g.lieu,bdl:g.bdl,n:0,pos:0,t:0,liv:0,rep:0,ch:0};x.n++;x.pos+=i/Math.max(1,arrets.length-1);x.t+=g.t;x.liv+=g.liv;x.rep+=g.rep;x.ch+=g.ch;});
     });
     var hm2=function(m){m=Math.round(m);return p2(Math.floor(m/60))+':'+p2(m%60);};
     var moy=function(a){return a.length?a.reduce(function(x,y){return x+y;},0)/a.length:null;};
     var quai={};ROLLS.forEach(function(r){if(r.etat==='pret'&&r.client)quai[nrm2(r.client)]=(quai[nrm2(r.client)]||0)+1;});
-    var cl=Object.keys(C).sort(function(a,b){return C[a].pos/C[a].n-C[b].pos/C[b].n||C[a].t/C[a].n-C[b].t/C[b].n;});
+    var cl=Object.keys(C).sort(function(a,b){return C[a].t/C[a].n-C[b].t/C[b].n;});   // ordre = heure de passage moyenne
     var arr=function(v){var r=Math.round(v*2)/2;return r?String(r).replace('.',','):'0';};
+    var num=0;
     h+='<div style="font-weight:700;margin-bottom:4px">🗺 Tournée du '+JOURS_S[w]+' — '+esc(ch)+'</div>'+
       '<div class="s" style="margin-bottom:8px">D\'après '+jours.length+' '+JOURS_S[w]+(jours.length>1?'s':'')+' : '+jours.map(function(k){return k.slice(8,10)+'/'+k.slice(5,7);}).join(', ')+(jours.length<3?' · <b style="color:var(--orange)">encore peu de données, plan approximatif</b>':'')+'</div>'+
-      '<table><thead><tr><th>#</th><th>Client</th><th>Arrivée ≈</th><th>Déposer ≈</th><th>Reprendre ≈</th><th>Fréquence</th><th>Au quai maintenant</th></tr></thead><tbody>'+
-      '<tr><td></td><td><b>BdL — chargement</b></td><td>'+(debs.length?hm2(moy(debs)):'—')+'</td><td colspan="4" class="s"></td></tr>'+
-      cl.map(function(c,i){var x=C[c],qq=quai[nrm2(c)]||0;return '<tr><td>'+(i+1)+'</td><td><b>'+esc(c)+'</b></td><td>'+hm2(x.t/x.n)+'</td><td>'+arr(x.liv/x.n)+'</td><td>'+arr(x.rep/x.n)+'</td><td'+(x.n<jours.length?' style="color:var(--orange)"':'')+'>'+x.n+' / '+jours.length+(x.n<jours.length?' (pas toujours)':'')+'</td><td>'+(qq?'<b>'+qq+' prêt'+(qq>1?'s':'')+'</b>':'<span class="s">—</span>')+'</td></tr>';}).join('')+
-      '<tr><td></td><td><b>Retour BdL</b> (déchargement du linge sale)</td><td>'+(fins.length?hm2(moy(fins)):'—')+'</td><td colspan="4"></td></tr></tbody></table>'+
-      '<div class="s" style="margin-top:6px">Ordre et heures = moyenne de ses tournées. « Au quai maintenant » = chariots remplis qui attendent à la BdL pour ce client.</div>';
+      '<table><thead><tr><th>#</th><th>Où</th><th>Heure ≈</th><th>Déposer ≈</th><th>Reprendre ≈</th><th>Fréquence</th><th>Au quai maintenant</th></tr></thead><tbody>'+
+      (nSoir?'<tr style="background:#f3e8fd"><td></td><td><b>🌙 Camion chargé la veille au soir</b> <span class="s">(il part de chez lui)</span></td><td>la veille '+hm2(moy(soirs))+'</td><td colspan="4" class="s">'+nSoir+' / '+jours.length+'</td></tr>':'')+
+      cl.map(function(c){var x=C[c];
+        if(x.bdl)return '<tr style="background:#eef0f2"><td></td><td><b>'+esc(x.lieu)+'</b>'+(x.ch?' <span class="s">('+arr(x.ch/x.n)+' chariot'+(x.ch/x.n>1?'s':'')+' chargé'+(x.ch/x.n>1?'s':'')+')</span>':'')+'</td><td>'+hm2(x.t/x.n)+'</td><td colspan="3"></td><td'+(x.n<jours.length?' style="color:var(--orange)"':'')+'>'+(x.n<jours.length?x.n+' / '+jours.length:'')+'</td></tr>';
+        var qq=quai[nrm2(x.lieu)]||0;num++;
+        return '<tr><td>'+num+'</td><td><b>'+esc(x.lieu)+'</b></td><td>'+hm2(x.t/x.n)+'</td><td>'+arr(x.liv/x.n)+'</td><td>'+arr(x.rep/x.n)+'</td><td'+(x.n<jours.length?' style="color:var(--orange)"':'')+'>'+x.n+' / '+jours.length+(x.n<jours.length?' (pas toujours)':'')+'</td><td>'+(qq?'<b>'+qq+' prêt'+(qq>1?'s':'')+'</b>':'<span class="s">—</span>')+'</td></tr>';}).join('')+
+      '</tbody></table>'+
+      '<div class="s" style="margin-top:6px">Ordre et heures = moyenne de ses tournées. Lignes grises = passages à la BdL. « Au quai maintenant » = chariots remplis qui attendent à la BdL pour ce client.</div>';
     box.innerHTML=h;brancher();
   }
   function brancher(){box.querySelectorAll('[data-pw]').forEach(function(b){b.onclick=function(){rendre(+b.dataset.pw);};});}
