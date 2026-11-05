@@ -519,12 +519,17 @@ function afficherArticles(c, garder, filtre) {
     if (lecture && !dejaSaisi(c.client, a)) return;
     zone.appendChild(ligne);
   });
-  if (lecture) { chargerJour(); return; }
+  const bCh = document.createElement('button');
+  bCh.className = 'ajout-article';
+  bCh.textContent = '🧺 Chariots de ce client';
+  bCh.onclick = () => chariotsClient(c);
+  if (lecture) { zone.appendChild(bCh); chargerJour(); return; }
   const ajout = document.createElement('button');
   ajout.className = 'ajout-article';
   ajout.textContent = '+ Ajouter un article';
   ajout.onclick = nouvelArticle;
   zone.appendChild(ajout);
+  zone.appendChild(bCh);
   majBouton();  chargerJour();
 }
 
@@ -1412,6 +1417,71 @@ function chariotVide() {
       toast(cible ? '↩ ' + source.numero + ' regroupé dans ' + cible + ' : ' + total : '↩ ' + source.numero + ' : vide, libre');
     } catch (e) { msg('Pas de réseau : réessayez quand le voyant est vert.'); }
   }
+}
+/* ---------- CHARIOTS D'UN CLIENT : corriger le n° de chariot d'une saisie (code d'une personne « Bureau ») ----------
+   Le linge passe sur le bon chariot (quantités additionnées s'il y en a déjà) ; l'ancien redevient libre.
+   Les quantités saisies pour la facturation ne changent pas. */
+function contenuDuJour(c) {
+  return c.articles.map(a => { const q = entreesJour(c.client, a, null).reduce((t, e) => t + (Number(e.q) || 0), 0); return q ? a + ' ' + q : ''; }).filter(Boolean).join(', ');
+}
+async function idBureau() {
+  let info; try { info = await rollRpc('roll_info', { p_numero: 'R-001' }); } catch (e) { toast('Pas de réseau.', true); return null; }
+  const ps = ((info && info.personnes) || []).filter(p => /bureau/.test(p.role || ''));
+  if (!ps.length) { toast('Aucune personne « Bureau » dans Rolls → Personnes.', true); return null; }
+  let p = ps.length === 1 ? ps[0] : null;
+  if (!p) { const n = prompt('Qui corrige ?\n' + ps.map((x, i) => (i + 1) + '. ' + x.nom).join('\n') + '\n\nTapez le numéro :'); p = ps[(parseInt(n) || 0) - 1]; if (!p) return null; }
+  const code = prompt('Code de « ' + p.nom + ' » (Bureau) :');
+  if (!code || !code.trim()) return null;
+  return { id: p.id, nom: p.nom, code: code.trim() };
+}
+async function chariotsClient(c) {
+  let f = document.getElementById('fondRoll');
+  if (!f) { f = document.createElement('div'); f.id = 'fondRoll'; f.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(f); }
+  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px">Recherche des chariots…</div>'; f.style.display = 'flex';
+  let l = [];
+  try { const r = await rollRpc('roll_client', { p_client: c.client }); l = ((r && r.a_decharger) || []).filter(x => x.etat === 'pret'); }
+  catch (e) { f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px">Pas de réseau.<button id="ccX" style="width:100%;margin-top:12px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Fermer</button></div>'; document.getElementById('ccX').onclick = () => { f.style.display = 'none'; }; return; }
+  const duJour = contenuDuJour(c);
+  const bt = 'width:100%;margin-top:8px;font-size:17px;padding:12px;border-radius:12px;font-weight:700;';
+  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
+    '<div style="font-size:22px;font-weight:800">🧺 Chariots prêts — ' + rollEsc(c.client) + '</div>' +
+    (l.length ? l.map((x, i) => '<div style="border:1px solid #dde2e7;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + '</div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'sans contenu') + '</div>' +
+      '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° (code Bureau)</button></div>').join('')
+      : '<div style="color:#666;margin-top:10px">Aucun chariot « prêt » pour ce client.</div>') +
+    (duJour ? '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #dde2e7"><div style="font-weight:700">Linge saisi aujourd\'hui :</div><div style="color:#555">' + rollEsc(duJour) + '</div>' +
+      '<button id="ccJ" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">Mettre le linge du jour dans le chariot n°… (code Bureau)</button></div>' : '') +
+    '<button id="ccX" style="' + bt + 'border:2px solid #999;background:#fff">Fermer</button></div>';
+  document.getElementById('ccX').onclick = () => { f.style.display = 'none'; };
+  f.querySelectorAll('[data-chg]').forEach(b => b.onclick = () => { const x = l[+b.dataset.chg]; deplacerLinge(c, x.numero, x.note || '', 'Nouveau numéro pour le linge de ' + x.numero + ' :'); });
+  if (document.getElementById('ccJ')) document.getElementById('ccJ').onclick = () => deplacerLinge(c, null, duJour, 'Numéro du chariot où est ce linge :');
+}
+async function deplacerLinge(c, ancien, contenu, question) {
+  const v = prompt(question); if (!v || !v.trim()) return;
+  const cible = numRoll(v);
+  if (cible === ancien) { toast('C\'est le même chariot.', true); return; }
+  let info; try { info = await rollRpc('roll_info', { p_numero: cible }); } catch (e) { toast('Pas de réseau.', true); return; }
+  if (!info || info.ok === false) { toast((info && info.error) || 'Chariot inconnu', true); return; }
+  if (info.etat !== 'pret' && info.etat !== 'bdl') { toast(cible + ' n\'est plus à l\'atelier (chargé ou livré).', true); return; }
+  if (info.etat === 'pret' && info.client && sansAccent(info.client) !== sansAccent(c.client)) { toast(cible + ' est rempli pour « ' + info.client + ' ».', true); return; }
+  // linge du jour : s'il est déjà sur ce chariot, on ne l'additionne pas une 2ᵉ fois
+  const deja = info.etat === 'pret' ? noteDeRoll(info) : '';
+  let total = fusionContenu(deja, contenu);
+  if (!ancien && deja) {
+    const ch = prompt(cible + ' contient déjà : ' + deja + '\n\n1 = REMPLACER par le linge du jour (' + contenu + ')\n2 = AJOUTER le linge du jour à ce contenu\n\nTapez 1 ou 2 :');
+    if (ch === '1') total = contenu; else if (ch !== '2') return;
+  }
+  if (!confirm((ancien ? 'Déplacer le linge de ' + ancien + ' vers ' + cible : 'Mettre ce linge dans ' + cible) + ' ?\n\n' + cible + ' (' + c.client + ') contiendra :\n' + (total || '—') + (ancien ? '\n\n' + ancien + ' redevient vide et libre.' : ''))) return;
+  const id = await idBureau(); if (!id) return;
+  try {
+    const r1 = await rollRpc('roll_scan', { p_numero: cible, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
+    if (!r1 || !r1.ok) { toast((r1 && r1.error) || 'Refusé', true); return; }
+    if (ancien) {
+      const r2 = await rollRpc('roll_scan', { p_numero: ancien, p_personne: id.id, p_code: id.code, p_etape: 'vide', p_client: null, p_note: 'n° corrigé : linge déplacé dans ' + cible });
+      if (!r2 || !r2.ok) { toast(ancien + ' : ' + ((r2 && r2.error) || 'refusé'), true); return; }
+    }
+    toast('🧺 ' + cible + ' : ' + total);
+    chariotsClient(c);
+  } catch (e) { toast('Pas de réseau : réessayez.', true); }
 }
 async function rollIdentite(numero) {
   let id = lire(CLE_ROLL_ID, null);
