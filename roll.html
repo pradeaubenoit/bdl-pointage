@@ -197,6 +197,12 @@ function actions(){
     }
   }
   if(aRole('chauffeur')&&I.etat==='chauffeur'&&I.client)bouton('↩ Regrouper dans un autre chariot','g',regrouperCamion);
+  // Chargé par erreur : le chariot redescend au quai (rempli, même client, même contenu) ; vide : il retourne au dépôt
+  if(aRole('chauffeur')&&I.etat==='chauffeur')bouton('⬇ Chargé par erreur : redescendre au quai','g',function(){
+    if(I.client){if(!confirm(I.numero+' ('+I.client+') : chargé par erreur ?\n\nIl redescend au quai, « Rempli, prêt » pour '+I.client+', avec son contenu.'))return;
+      var c=contenuDe(I);scan('rempli',I.client,c||null);}
+    else{if(!confirm(I.numero+' : chariot vide chargé par erreur ?\n\nIl retourne au dépôt, libre.'))return;scan('vide',null,'redescendu du camion (chargé par erreur)');}
+  });
   if(aRole('atelier')&&rempliApres)bRempli();
   if(aRole('laveur'))bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
 }
