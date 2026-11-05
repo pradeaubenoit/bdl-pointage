@@ -1328,6 +1328,8 @@ function chariotSansSaisie() {
 // Deux chariots regroupés en un : on dit lequel a été vidé, puis dans quel chariot le linge est parti.
 // Le chariot de destination reçoit le contenu des deux (quantités additionnées) ; celui vidé redevient « Vide à la BdL ».
 // Les quantités saisies pour la facturation ne changent pas. Refusé si un chariot est déjà parti (camion, client).
+// Contenu d'un chariot = note de son dernier « rempli »
+function noteDeRoll(info) { if (!info) return ''; if (info.note) return info.note; const r = (info.derniers || []).find(d => d.etape === 'rempli'); return (r && r.note) || ''; }
 function fusionContenu(a, b) {
   const tot = {}, ordre = [];
   [a, b].forEach(txt => String(txt || '').split(',').forEach(m => {
@@ -1377,7 +1379,7 @@ function chariotVide() {
     if (info.ok === false) { msg(info.error || 'Chariot inconnu'); return; }
     if (info.etat === 'bdl') { msg('✓ ' + numero + ' est déjà vide. Rien à faire.', true); return; }
     if (info.etat !== 'pret') { msg(numero + ' n\'est pas « rempli » (déjà chargé ou livré) : voir avec le bureau.'); return; }
-    source = Object.assign({ numero: numero }, info);
+    source = Object.assign({ numero: numero }, info); source.note = noteDeRoll(info);
     etape2();
   });
   // 2. Le chariot qui reçoit le linge
@@ -1391,7 +1393,7 @@ function chariotVide() {
         if (info.ok === false) { msg(info.error || 'Chariot inconnu'); return; }
         if (info.etat !== 'pret' && info.etat !== 'bdl') { msg(cible + ' n\'est plus à l\'atelier (chargé ou livré) : voir avec le bureau.'); return; }
         if (info.etat === 'pret' && info.client && source.client && sansAccent(info.client) !== sansAccent(source.client)) { msg(cible + ' est rempli pour « ' + info.client + ' », pas pour « ' + source.client + ' ».'); return; }
-        const total = info.etat === 'pret' ? fusionContenu(info.note, source.note) : (source.note || '');
+        const total = info.etat === 'pret' ? fusionContenu(noteDeRoll(info), source.note) : (source.note || '');
         if (!confirm('Regrouper ' + source.numero + ' dans ' + cible + ' ?\n\n' + cible + ' (' + (source.client || '') + ') contiendra :\n' + (total || '—') + '\n\n' + source.numero + ' redevient vide et libre.')) return;
         vider(cible, total);
       });
