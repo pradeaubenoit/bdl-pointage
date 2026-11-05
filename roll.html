@@ -423,7 +423,7 @@ async function jeSuisChez(suite){
   var g={};cam.forEach(function(x){if(x.client)g[x.client]=(g[x.client]||0)+1;});
   var dans=Object.keys(g).sort(function(a,b){return a.localeCompare(b,'fr');});
   var z=$('acts')||$('main');
-  z.innerHTML='<div class="carte"><b>📍 Chez quel client êtes-vous ?</b><div class="s">Si le QR du client est là, scannez-le plutôt (📷) : c\'est la preuve que vous êtes sur place.</div>'+
+  z.innerHTML='<div class="carte"><div data-bdl style="background:#1f2a35;color:#fff;border-radius:12px;padding:14px;font-size:19px;font-weight:800;text-align:center;cursor:pointer;margin-bottom:12px">🏭 Je suis à la Blanchisserie (chargement)</div><b>📍 Chez quel client êtes-vous ?</b><div class="s">Si le QR du client est là, scannez-le plutôt (📷) : c\'est la preuve que vous êtes sur place.</div>'+
     (dans.length?'<div style="margin-top:10px;font-weight:700">Dans votre camion :</div><div class="liste" id="jsC">'+dans.map(function(c){return '<div data-c="'+esc(c)+'">🚚 '+esc(c)+' <span class="s">('+g[c]+' chariot'+(g[c]>1?'s':'')+')</span></div>';}).join('')+'</div>':'')+
     (favs().length?'<div style="margin-top:10px;font-weight:700">⭐ Mes clients :</div><div class="liste">'+favs().slice().sort(function(a,b){return a.localeCompare(b,'fr');}).map(function(c){return '<div data-c="'+esc(c)+'">⭐ '+esc(c)+'</div>';}).join('')+'</div>':'')+
     '<div style="margin-top:10px;font-weight:700">Tous les clients :</div><input id="jsQ" placeholder="Tapez quelques lettres…"><div class="liste" id="jsL"></div><button class="gros g" onclick="afficherOuAccueil()">Annuler</button></div>';
@@ -432,7 +432,9 @@ async function jeSuisChez(suite){
     NOUVEL_ARRET=true;numero='';history.replaceState(null,'','?');chargerArret();}
   function rendre(){var t=nrm($('jsQ').value);$('jsL').innerHTML=tousClients().filter(function(c){return !t||nrm(c).indexOf(t)>=0;}).slice(0,80).map(function(c){return '<div data-c="'+esc(c)+'">'+esc(c)+'</div>';}).join('');}
   $('jsQ').oninput=rendre;rendre();
-  z.onclick=function(e){var d=e.target.closest('[data-c]');if(d)choisir(d.getAttribute('data-c'));};
+  z.onclick=function(e){
+    if(e.target.closest('[data-bdl]')){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(x){}majMoi();return ecranChargement();}   // à la BdL : écran de chargement
+    var d=e.target.closest('[data-c]');if(d)choisir(d.getAttribute('data-c'));};
 }
 function afficherOuAccueil(){if(INFO&&INFO.numero)afficher();else demanderNumero();}
 function traiterCode(t){
