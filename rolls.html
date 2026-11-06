@@ -84,7 +84,11 @@ VUES.liste=async function(){
     var l=ROLLS.filter(function(r){if(!t){if(filtre==='vieux')return vieux.indexOf(r)>=0;if(filtre&&r.etat!==filtre)return false;return true;}return (r.numero+' '+(r.client||'')).toLowerCase().indexOf(t)>=0;});   // une recherche cherche dans TOUS les chariots, même si une tuile est sélectionnée
     // Recherche : résumé par état (ex. « BB : 3 chez le client · 1 dans le camion »)
     var n2={};l.forEach(function(r){n2[r.etat]=(n2[r.etat]||0)+1;});
-    $('rRes').innerHTML=t&&l.length?'<div style="background:var(--bleu2);border-radius:8px;padding:8px 12px;font-size:15px"><b>« '+esc($('rq').value.trim())+' » : '+l.length+' chariot'+(l.length>1?'s':'')+'</b> — '+['client','chauffeur','pret','retour','sale','bdl'].filter(function(e){return n2[e];}).map(function(e){return '<b>'+n2[e]+'</b> '+esc(ETATS[e]).toLowerCase();}).join(' · ')+'</div>':'';
+    // Régularisation : chariots prêts ou dans un camion pour ce client → « livré sans scan » en un clic
+    var aLivrer={};l.forEach(function(r){if((r.etat==='pret'||r.etat==='chauffeur')&&r.client)(aLivrer[r.client]=aLivrer[r.client]||[]).push(r);});
+    var boutonsLiv=t?Object.keys(aLivrer).map(function(c){var n=aLivrer[c].length;return '<button class="btn p" data-liv="'+esc(c)+'" style="margin:6px 6px 0 0">🚚 Livré chez '+esc(c)+' sans scan ('+n+' chariot'+(n>1?'s':'')+')</button>';}).join(''):'';
+    $('rRes').innerHTML=t&&l.length?'<div style="background:var(--bleu2);border-radius:8px;padding:8px 12px;font-size:15px"><b>« '+esc($('rq').value.trim())+' » : '+l.length+' chariot'+(l.length>1?'s':'')+'</b> — '+['client','chauffeur','pret','retour','sale','bdl'].filter(function(e){return n2[e];}).map(function(e){return '<b>'+n2[e]+'</b> '+esc(ETATS[e]).toLowerCase();}).join(' · ')+(boutonsLiv?'<div class="noprint">'+boutonsLiv+'</div>':'')+'</div>':'';
+    document.querySelectorAll('[data-liv]').forEach(function(b){b.onclick=function(){livrerSansScan(b.getAttribute('data-liv'),aLivrer[b.getAttribute('data-liv')]);};});
     $('rT').innerHTML=l.map(function(r){var j=jours(r.maj_le),v=(r.etat==='client'||r.etat==='retour')&&j>=SEUIL_J;
       return '<tr style="cursor:pointer" data-r="'+r.id+'"><td><b>'+esc(r.numero)+'</b></td><td><span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></td><td>'+esc(r.client||'—')+'</td><td class="'+(v?'vieux':'')+'">'+fmtQ(r.maj_le)+' <span class="s">('+j+' j)</span></td><td>'+esc(r.personne||'')+'</td></tr>';}).join('')||'<tr><td colspan="5" class="s">Aucun roll.</td></tr>';}
   $('rq').oninput=rendre;rendre();
@@ -96,6 +100,18 @@ VUES.liste=async function(){
     var l=[];for(var i=1;i<=k;i++)l.push({numero:'R-'+String(max+i).padStart(3,'0')});
     try{await q(sb.from('rolls').insert(l));route();}catch(e){alert(e.message);}};
 };
+// Le linge est parti sans scan (chauffeur absent…) : le bureau déclare les chariots livrés chez le client.
+async function livrerSansScan(client,liste){
+  if(!liste||!liste.length)return;
+  if(!confirm('Livré chez « '+client+' » sans scan ?\n\n'+liste.map(function(r){return r.numero+' ('+(ETATS[r.etat]||r.etat).toLowerCase()+')';}).join('\n')+'\n\nCes '+liste.length+' chariot(s) passent « Chez le client ».'))return;
+  var qui='Bureau',quand=new Date().toISOString();
+  try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(e){}
+  try{
+    await q(sb.from('rolls_scans').insert(liste.map(function(r){return {roll_id:r.id,etape:'livre',client:client,personne:qui,quand:quand,note:'régularisé par le bureau : livré sans scan'};})));
+    await q(sb.from('rolls').update({etat:'client',client:client,personne:qui,maj_le:quand}).in('id',liste.map(function(r){return r.id;})));
+    alert('✓ '+liste.length+' chariot(s) livré(s) chez « '+client+' ».');route();
+  }catch(e){alert('Régularisation impossible : '+(e.message||e));}
+}
 async function historique(id){
   var r=ROLLS.find(function(x){return x.id===id;});var s=await q(sb.from('rolls_scans').select('*').eq('roll_id',id).order('quand',{ascending:false}).limit(100));
   var L={vide:'Vidé au tunnel',rempli:'Rempli',charge:'Chargé',livre:'Livré',repris:'Repris',rentre:'Déchargé à la BdL'};
@@ -222,7 +238,7 @@ VUES.tournees=async function(){
   var j=jourT||auj;
   var deb=new Date(j+'T00:00:00'),fin=new Date(deb.getTime()+864e5);
   var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').in('etape',['charge','livre','repris','rentre','arrivee','depart']).gte('quand',deb.toISOString()).lt('quand',fin.toISOString()).order('quand'));
-  sc=sc.filter(function(s){return !/^regroupement/.test(s.note||'');});   // regroupement de chariots dans le camion : pas une étape de tournée
+  sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau)/.test(s.note||'');});   // regroupement de chariots dans le camion : pas une étape de tournée
   var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
   var hm=function(t){var x=new Date(t);return p2(x.getHours())+':'+p2(x.getMinutes());};
   var dur=function(ms){var m=Math.round(ms/6e4);return m<60?m+' min':Math.floor(m/60)+' h '+p2(m%60);};
