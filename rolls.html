@@ -257,12 +257,15 @@ VUES.tournees=async function(){
     L.forEach(function(s){var lieu=(s.etape==='charge')?'BdL — chargement':(s.etape==='rentre'?'BdL — déchargement linge sale':(s.client||'?'));
       var g=seg[seg.length-1];if(!g||g.lieu!==lieu||s.etape==='arrivee'&&g.dep){g={lieu:lieu,bdl:s.etape==='charge'||s.etape==='rentre',a:s.quand,b:s.quand,liv:[],rep:[],ch:[],re:[]};seg.push(g);}
       g.b=s.quand;if(s.etape==='arrivee'){g.arr=s.quand;g.sansQR=!!s.note;return;}if(s.etape==='depart'){g.dep=s.quand;return;}var n=num[s.roll_id]||'?';({charge:g.ch,livre:g.liv,repris:g.rep,rentre:g.re})[s.etape].push(n);});
+    // Arrêt chez un client sans aucun chariot, juste avant un passage à la BdL : fausse manip (« Où suis-je ? » à la BdL) → ignoré
+    seg=seg.filter(function(g,i){return g.bdl||g.liv.length||g.rep.length||!(seg[i+1]&&seg[i+1].bdl);});
+    if(!seg.length)return;
     // Chargement du soir = chargements faits après la dernière livraison / reprise / déchargement de la journée (le camion repart de chez le chauffeur)
     var dernierTerrain=-1;seg.forEach(function(g,i){if(g.liv.length||g.rep.length||g.re.length)dernierTerrain=i;});   // dernière vraie action (dépôt, reprise, déchargement) ; un arrêt sans chariot ne compte pas
     var soir=seg.filter(function(g,i){return i>dernierTerrain&&g.lieu==='BdL — chargement'&&dernierTerrain>=0;});
     var premierSoir=soir.length?seg.indexOf(soir[0]):-1;
     var finTournee=soir.length?seg[dernierTerrain].b:L[L.length-1].quand;
-    var amp=new Date(finTournee)-new Date(L[0].quand),place=0,route=0;
+    var amp=new Date(finTournee)-new Date(seg[0].a),place=0,route=0;
     var rows=seg.map(function(g,i){var apres=soir.length&&i>dernierTerrain,estSoir=soir.indexOf(g)>=0;var t=new Date(g.b)-new Date(g.a);if(!apres)place+=t;var tr=i?new Date(g.a)-new Date(seg[i-1].b):0;if(!apres)route+=tr;
       var quoi=[g.ch.length?g.ch.length+' chargé'+(g.ch.length>1?'s':''):'',g.liv.length?g.liv.length+' déposé'+(g.liv.length>1?'s':''):'',g.rep.length?g.rep.length+' repris':'',g.re.length?g.re.length+' déchargé'+(g.re.length>1?'s':''):''].filter(Boolean).join(' · ');
       return (i?'<tr><td></td><td class="s" colspan="5">'+(apres&&i===dernierTerrain+1?'⏸ fin de tournée — '+dur(tr)+' plus tard :':'🚚 trajet '+dur(tr))+'</td></tr>':'')+
@@ -280,7 +283,7 @@ VUES.tournees=async function(){
     var ligne=function(o){var k=Object.keys(o).sort(function(a,b){return a.localeCompare(b,'fr');});return k.length?k.map(function(c){return esc(c)+' <b>'+o[c]+'</b>';}).join(' · '):'—';};
     h+='<div class="carte"><h2 style="margin-top:0">🚚 '+esc(ch)+' <span class="s" style="font-weight:400">· '+j.slice(8,10)+'/'+j.slice(5,7)+'/'+j.slice(0,4)+'</span></h2>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">'+
-        '<div class="tuile"><b>'+hm(L[0].quand)+' → '+hm(finTournee)+'</b><span>tournée : '+dur(amp)+(soir.length?' + chargement du soir '+hm(soir[0].a)+' → '+hm(soir[soir.length-1].b):'')+'</span></div>'+
+        '<div class="tuile"><b>'+hm(seg[0].a)+' → '+hm(finTournee)+'</b><span>tournée : '+dur(amp)+(soir.length?' + chargement du soir '+hm(soir[0].a)+' → '+hm(soir[soir.length-1].b):'')+'</span></div>'+
         '<div class="tuile"><b>'+dur(place)+'</b><span>entre 1er et dernier scan de chaque arrêt · le reste ('+dur(route)+') = route + temps non scanné</span></div>'+
         '<div class="tuile"><b>'+nLiv+'</b><span>chariots déposés chez '+Object.keys(liv).length+' client'+(Object.keys(liv).length>1?'s':'')+'</span></div>'+
         '<div class="tuile"><b>'+nRep+'</b><span>chariots repris</span></div>'+
@@ -338,6 +341,7 @@ async function planTournee(dt,ch,wd){
         var g=arrets[arrets.length-1];
         if(!g||g.lieu!==lieu){g={lieu:lieu,bdl:bdl,t:mn(s.quand),liv:0,rep:0,ch:0};if(bdl){nBdl++;g.cle=lieu+'#'+nBdl;}else g.cle=lieu;arrets.push(g);}
         if(s.etape==='livre')g.liv++;if(s.etape==='repris')g.rep++;if(s.etape==='charge')g.ch++;});
+      arrets=arrets.filter(function(g,i){return g.bdl||g.liv||g.rep||!(arrets[i+1]&&arrets[i+1].bdl);});
       arrets.forEach(function(g,i){var x=C[g.cle]=C[g.cle]||{lieu:g.lieu,bdl:g.bdl,n:0,pos:0,t:0,liv:0,rep:0,ch:0};x.n++;x.pos+=i/Math.max(1,arrets.length-1);x.t+=g.t;x.liv+=g.liv;x.rep+=g.rep;x.ch+=g.ch;});
     });
     var hm2=function(m){m=Math.round(m);return p2(Math.floor(m/60))+':'+p2(m%60);};
