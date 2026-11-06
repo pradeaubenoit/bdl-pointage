@@ -546,8 +546,13 @@ function afficherOperateur() {
   document.getElementById('operateur').textContent = op ? op : 'Opérateur ?';
 }
 function changerOperateur() {
-  const nom = prompt('Prénom de la personne qui saisit :', lire(CLE_OP, ''));
-  if (nom !== null && nom.trim()) { ecrire(CLE_OP, nom.trim()); afficherOperateur(); }
+  const avant = lire(CLE_OP, '');
+  const nom = prompt('Prénom de la personne qui saisit :', avant);
+  if (nom !== null && nom.trim()) {
+    ecrire(CLE_OP, nom.trim()); afficherOperateur();
+    // nouvelle personne : son code chariots lui sera demandé au prochain chariot
+    if (sansAccent(nom.trim()) !== sansAccent(avant)) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} }
+  }
   return lire(CLE_OP, '');
 }
 
@@ -1496,6 +1501,8 @@ async function deplacerLinge(c, ancien, contenu, question) {
 }
 async function rollIdentite(numero) {
   let id = lire(CLE_ROLL_ID, null);
+  const opNom = sansAccent(lire(CLE_OP, '') || '');
+  if (id && opNom && !sansAccent(id.nom).includes(opNom) && !opNom.includes(sansAccent(id.nom))) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} id = null; }   // la personne a changé
   if (id) return id;
   const info = await rollRpc('roll_info', { p_numero: numero });
   const ps = ((info && info.personnes) || []).filter(p => /atelier|bureau/.test(p.role || ''));
