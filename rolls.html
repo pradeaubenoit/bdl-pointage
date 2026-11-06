@@ -117,8 +117,23 @@ async function historique(id){
   var L={vide:'Vidé au tunnel',rempli:'Rempli',charge:'Chargé',livre:'Livré',repris:'Repris',rentre:'Déchargé à la BdL'};
   $('main').innerHTML='<div class="noprint"><a href="#liste" onclick="route();return false">← Rolls</a></div><h1>'+esc(r.numero)+' <span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></h1>'+
     '<div class="carte"><table><thead><tr><th>Quand</th><th>Étape</th><th>Client</th><th>Par</th><th>Contenu</th><th class="noprint"></th></tr></thead><tbody>'+(s.map(function(x){return '<tr><td>'+fmtQ(x.quand)+'</td><td>'+esc(L[x.etape]||x.etape)+'</td><td>'+esc(x.client||'')+'</td><td>'+esc(x.personne||'')+'</td><td class="s">'+esc(x.note||'')+'</td><td class="noprint"><button class="btn" style="padding:2px 10px" title="Supprimer ce scan (erreur)" data-sup="'+x.id+'">✕</button></td></tr>';}).join('')||'<tr><td colspan="6" class="s">Jamais scanné.</td></tr>')+'</tbody></table>'+
-    '<div class="s" style="margin-top:8px">✕ = scan fait par erreur (mauvais client, mauvais roll). Le roll reprend l\'état du scan précédent.</div></div>';
-  var EV={vide:'bdl',rempli:'pret',charge:'chauffeur',livre:'client',repris:'retour'};
+    '<div class="s" style="margin-top:8px">✕ = scan fait par erreur (mauvais client, mauvais roll). Le roll reprend l\'état du scan précédent.</div></div>'+
+    '<div class="carte noprint"><h2>Corriger une anomalie</h2><div class="s" style="margin-bottom:8px">Une étape a été oubliée sur le terrain ? Enregistrez-la ici (notée « correction du bureau », ignorée dans les Tournées).</div>'+
+    '<button class="btn" data-cor="vide">🌀 Vidé au tunnel (libre)</button> '+
+    (r.client?'<button class="btn" data-cor="rentre">🏭 Déchargé à la BdL (sale)</button> <button class="btn" data-cor="repris">↩ Repris chez '+esc(r.client)+'</button> <button class="btn" data-cor="livre">🚚 Livré chez '+esc(r.client)+'</button>':'')+'</div>';
+  var EV={vide:'bdl',rempli:'pret',charge:'chauffeur',livre:'client',repris:'retour',rentre:'sale'};
+  document.querySelectorAll('[data-cor]').forEach(function(bt){bt.onclick=async function(){
+    var e=bt.dataset.cor,lib=L[e]||e;
+    if(!confirm(r.numero+' : enregistrer « '+lib+(e!=='vide'&&r.client?' — '+r.client:'')+' » maintenant ?\n\n'+r.numero+' passera « '+ETATS[EV[e]]+' ».'))return;
+    var qui='Bureau',quand=new Date().toISOString();
+    try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(x){}
+    try{
+      await q(sb.from('rolls_scans').insert({roll_id:id,etape:e,client:e==='vide'?null:r.client,personne:qui,quand:quand,note:'correction du bureau'}));
+      var maj={etat:EV[e],client:e==='vide'?null:r.client,personne:qui,maj_le:quand};
+      await q(sb.from('rolls').update(maj).eq('id',id));
+      Object.assign(r,maj);historique(id);
+    }catch(x){alert('Correction impossible : '+(x.message||x));}
+  };});
   document.querySelectorAll('[data-sup]').forEach(function(bt){bt.onclick=async function(){
     var x=s.find(function(y){return y.id===bt.dataset.sup;});
     if(!confirm('Supprimer le scan « '+(L[x.etape]||x.etape)+(x.client?' — '+x.client:'')+' » du '+fmtQ(x.quand)+' ?'))return;
@@ -238,7 +253,7 @@ VUES.tournees=async function(){
   var j=jourT||auj;
   var deb=new Date(j+'T00:00:00'),fin=new Date(deb.getTime()+864e5);
   var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').in('etape',['charge','livre','repris','rentre','arrivee','depart']).gte('quand',deb.toISOString()).lt('quand',fin.toISOString()).order('quand'));
-  sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau)/.test(s.note||'');});   // regroupement de chariots dans le camion : pas une étape de tournée
+  sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau)/.test(s.note||'');});   // regroupement de chariots dans le camion : pas une étape de tournée
   var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
   var hm=function(t){var x=new Date(t);return p2(x.getHours())+':'+p2(x.getMinutes());};
   var dur=function(ms){var m=Math.round(ms/6e4);return m<60?m+' min':Math.floor(m/60)+' h '+p2(m%60);};
