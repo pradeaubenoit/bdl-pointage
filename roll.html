@@ -150,7 +150,8 @@ function afficher(msg){
   if(ARRET&&aRole('chauffeur'))h+='<div class="carte" style="background:#1f2a35;color:#fff;padding:10px 16px">📍 Chez <b>'+esc(ARRET.client)+'</b> · <a href="?" style="color:#9cc3ff" onclick="location.search=\'\';return false">voir le déchargement</a></div>';
   if(msg)h+='<div class="carte ok">'+msg+'</div>';
   h+='<div class="carte"><div class="num">'+esc(I.numero)+'</div><span class="etat e-'+esc(I.etat)+'">'+esc(ETATS[I.etat]||I.etat)+'</span>'+
-    (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+(function(){var r=(I.derniers||[]).find(function(d){return d.etape==='rempli';});return r&&r.note&&I.etat!=='bdl'?'<div style="margin-top:6px;font-size:16px;color:var(--bleu);font-weight:600">📦 '+esc(r.note)+'</div>':'';})()+
+    (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+(function(){var r=(I.derniers||[]).find(function(d){return d.etape==='rempli';});if(I.etat==='retour'||I.etat==='sale')return '<div style="margin-top:6px;font-size:16px;color:#6b2fa3;font-weight:600">🧺 Linge sale'+(I.client?' de '+esc(I.client):'')+'</div>';   // repris chez le client : plus le contenu propre
+    return r&&r.note&&(I.etat==='pret'||I.etat==='chauffeur'||I.etat==='client')?'<div style="margin-top:6px;font-size:16px;color:var(--bleu);font-weight:600">📦 '+esc(r.note)+'</div>':'';})()+
     '<div class="s" style="margin-top:6px">Dernier scan : '+(I.personne?esc(I.personne)+' · ':'')+fmtQ(I.maj_le)+'</div></div>';
   if(CHG&&I.client&&nrm(I.client)!==nrm(CHG)&&I.etat==='pret')h+='<div class="carte alerte" style="text-align:center">⚠ Ce chariot est pour « '+esc(I.client)+' »,<br>pas pour « '+esc(CHG)+' » que vous chargez.</div>';
   if(CHG!==null&&MOI&&aRole('chauffeur'))h+='<button class="gros g" onclick="ecranChargement()">🚚 Retour au chargement'+(CHG?' de '+esc(CHG):'')+'</button>';
