@@ -1509,13 +1509,20 @@ async function rollIdentite(numero) {
   ecrire(CLE_ROLL_ID, id);
   return id;
 }
-async function rollEnvoyer(x) {
+async function rollEnvoyer(x, essai) {
+  essai = essai || 0;
   try {
     const id = await rollIdentite(x.numero);
     if (!id) { ecrire(CLE_ROLL_FILE, lire(CLE_ROLL_FILE, []).concat([x])); return; }
     const r = await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: x.client, p_note: x.contenu });
     if (!r.ok) {
-      if (/code/i.test(r.error || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} toast('Rolls : code incorrect, il sera redemandé.', true); ecrire(CLE_ROLL_FILE, lire(CLE_ROLL_FILE, []).concat([x])); return; }
+      if (/code/i.test(r.error || '')) {
+        try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {}
+        // Code faux : on le redemande TOUT DE SUITE (2 essais de plus), sinon le chariot attend et sera redemandé au prochain démarrage
+        if (essai < 2) { alert('Rolls : code incorrect. Retapez-le.'); return rollEnvoyer(x, essai + 1); }
+        toast('Rolls : code incorrect. Le chariot ' + x.numero + ' attend : le code sera redemandé.', true);
+        ecrire(CLE_ROLL_FILE, lire(CLE_ROLL_FILE, []).concat([x])); return;
+      }
       toast('Chariot ' + x.numero + ' : ' + r.error, true); return;
     }
     toast('🧺 ' + x.numero + ' : rempli pour ' + x.client);
@@ -1523,12 +1530,18 @@ async function rollEnvoyer(x) {
     ecrire(CLE_ROLL_FILE, lire(CLE_ROLL_FILE, []).concat([x]));   // sans réseau : on réessaiera
   }
 }
-async function rollRenvoyer() {
-  const file = lire(CLE_ROLL_FILE, []); if (!file.length || !lire(CLE_ROLL_ID, null)) return;
+async function rollRenvoyer(demander) {
+  const file = lire(CLE_ROLL_FILE, []); if (!file.length) return;
+  if (!lire(CLE_ROLL_ID, null)) {
+    if (!demander) return;
+    // au démarrage : des chariots attendent (code faux, pas de réseau) → on demande le code pour les envoyer
+    alert('Rolls : ' + file.length + ' chariot' + (file.length > 1 ? 's attendent' : ' attend') + ' d\'être enregistré' + (file.length > 1 ? 's' : '') + ' (' + file.map(x => x.numero + ' ' + x.client).join(', ') + ').\n\nTapez le code pour les envoyer.');
+  }
   ecrire(CLE_ROLL_FILE, []);
   for (const x of file) await rollEnvoyer(x);
 }
-setInterval(rollRenvoyer, 60 * 1000);
+setInterval(() => rollRenvoyer(false), 60 * 1000);
+setTimeout(() => rollRenvoyer(true), 4000);
 
 function toast(msg, erreur) {
   const t = document.getElementById('toast');
