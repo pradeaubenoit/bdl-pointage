@@ -1196,10 +1196,12 @@ function valider() {
     }));
   if (!lignes.length) return;
   ecrire(CLE_FILE, lire(CLE_FILE, []).concat(lignes));
-  demanderChariot(clientCourant.client, lignes);   // rolls : dans quel chariot part ce linge ?
   toast('Enregistré : ' + clientCourant.client + ', ' + lignes.length + ' article' + (lignes.length > 1 ? 's' : '') +
     (jourChoisi ? ' — pour ' + libelleJour(jourChoisi) : ''));
-  afficherClients();
+  // On reste sur ce client pour enchaîner le chariot suivant ; « Pas de chariot pour l'instant » ramène à la liste des clients.
+  const cli = clientCourant, lot = lotFiltre;
+  afficherArticles(cli, false, lot);
+  demanderChariot(cli.client, lignes, { surSans: () => afficherClients() });   // rolls : dans quel chariot part ce linge ?
   majStatut();
   envoyer();
 }
@@ -1249,7 +1251,7 @@ async function rollRpc(fn, args) {
   return r.json();
 }
 function numRoll(v) { v = String(v || '').trim().toUpperCase(); if (/^\d+$/.test(v)) v = 'R-' + v.padStart(3, '0'); return v; }
-function demanderChariot(client, lignes) {
+function demanderChariot(client, lignes, opts) {
   const contenu = lignes.map(l => l.article + ' ' + l.quantite).join(', ');
   const sousTitre = contenu || 'sans quantités (suivi du chariot seulement)';
   let f = document.getElementById('fondRoll');
@@ -1271,7 +1273,7 @@ function demanderChariot(client, lignes) {
     else if (saisie.length < 4) saisie += t;
     aff();
   });
-  document.getElementById('rollSans').onclick = () => { f.style.display = 'none'; };
+  document.getElementById('rollSans').onclick = () => { f.style.display = 'none'; if (opts && opts.surSans) opts.surSans(); };
   // Déjà fait ? (une autre personne a déjà scanné ce chariot) : jamais de chariot compté deux fois
   async function verifierPuisEnvoyer(numero) {
     const msg = document.getElementById('rollMsg');
