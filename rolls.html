@@ -73,9 +73,13 @@ VUES.liste=async function(){
   var h='<h1>Rolls ('+ROLLS.length+')</h1><div class="tuiles">'+['bdl','pret','chauffeur','client','retour','sale'].map(function(e){return '<div class="tuile" data-f="'+e+'"><b>'+(n[e]||0)+'</b><span>'+ETATS[e]+'</span></div>';}).join('')+
     '<div class="tuile" data-f="vieux" style="'+(vieux.length?'border:2px solid var(--rouge)':'')+'"><b style="color:'+(vieux.length?'var(--rouge)':'inherit')+'">'+vieux.length+'</b><span>chez un client depuis '+SEUIL_J+' j ou plus</span></div></div>';
   var heures=function(d){return (Date.now()-new Date(d).getTime())/36e5;};
-  var quai=ROLLS.filter(function(r){return r.etat==='pret'&&heures(r.maj_le)>=24;}),camion=ROLLS.filter(function(r){return r.etat==='chauffeur'&&heures(r.maj_le)>=12;});
+  // Chargé le soir (après 14 h) = pour le prochain jour ouvré (lundi si chargé le vendredi ou le samedi) : alerte seulement après 18 h ce jour-là.
+  // Chargé le matin : alerte au bout de 12 h, comme avant.
+  function enRetardCamion(d){var t=new Date(d);if(t.getHours()<14)return heures(d)>=12;
+    var lim=new Date(t);do{lim.setDate(lim.getDate()+1);}while(lim.getDay()===0||lim.getDay()===6);lim.setHours(18,0,0,0);return Date.now()>lim.getTime();}
+  var quai=ROLLS.filter(function(r){return r.etat==='pret'&&heures(r.maj_le)>=24;}),camion=ROLLS.filter(function(r){return r.etat==='chauffeur'&&enRetardCamion(r.maj_le);});
   if(quai.length||camion.length)h+='<div class="carte" style="border-left:4px solid var(--rouge)"><h2 style="margin:0 0 6px">⚠ Alertes</h2>'+
-    (camion.length?'<div>🚚 <b>'+camion.length+' chariot'+(camion.length>1?'s':'')+' encore dans un camion depuis plus de 12 h</b> (déchargement incomplet ?) : '+camion.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?')+' ('+esc(r.personne||'')+')';}).join(' · ')+'</div>':'')+
+    (camion.length?'<div>🚚 <b>'+camion.length+' chariot'+(camion.length>1?'s':'')+' encore dans un camion, pas livré</b> (déchargement incomplet ?) : '+camion.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?')+' ('+esc(r.personne||'')+')';}).join(' · ')+'</div>':'')+
     (quai.length?'<div style="margin-top:4px">🧺 <b>'+quai.length+' chariot'+(quai.length>1?'s':'')+' prêt'+(quai.length>1?'s':'')+' depuis plus de 24 h, pas chargé'+(quai.length>1?'s':'')+'</b> : '+quai.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?');}).join(' · ')+'</div>':'')+'</div>';
   h+='<div class="carte"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><input id="rq" placeholder="Chercher un roll ou un client…" style="flex:1">'+(filtre?'<button class="btn" id="rTout">Tout afficher</button>':'')+'</div><div id="rRes" style="margin-bottom:8px"></div><table><thead><tr><th>Roll</th><th>État</th><th>Client</th><th>Dernier scan</th><th>Par</th></tr></thead><tbody id="rT"></tbody></table></div>'+
     '<div class="carte noprint"><h2>Ajouter des rolls</h2><input id="aN" type="number" min="1" max="200" value="10" style="width:90px"> <button class="btn p" id="aOk">Créer les suivants</button> <span class="s">Numéros à la suite du dernier (R-021, R-022…).</span></div>';
