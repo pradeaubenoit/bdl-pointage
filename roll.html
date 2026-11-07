@@ -156,7 +156,7 @@ function afficher(msg){
   if(CHG&&I.client&&nrm(I.client)!==nrm(CHG)&&I.etat==='pret')h+='<div class="carte alerte" style="text-align:center">⚠ Ce chariot est pour « '+esc(I.client)+' »,<br>pas pour « '+esc(CHG)+' » que vous chargez.</div>';
   if(CHG!==null&&MOI&&aRole('chauffeur'))h+='<button class="gros g" onclick="ecranChargement()">🚚 Retour au chargement'+(CHG?' de '+esc(CHG):'')+'</button>';
   h+='<div id="chg"></div><div id="acts"></div>';
-  if(I.derniers&&I.derniers.length)h+='<div class="carte hist"><b>Derniers passages</b>'+I.derniers.map(function(d){return '<div>'+fmtQ(d.quand)+' · '+esc(LIB[d.etape]||d.etape)+(d.client?' · '+esc(d.client):'')+' · '+esc(d.personne||'')+(d.note?'<div style="color:var(--bleu);font-weight:600">📦 '+esc(d.note)+'</div>':'')+'</div>';}).join('')+'</div>';
+  if(I.derniers&&I.derniers.length)h+='<div class="carte hist"><b>Derniers passages</b>'+I.derniers.map(function(d){return '<div>'+fmtQ(d.quand)+' · '+esc(LIB[d.etape]||d.etape)+(d.client?' · '+esc(d.client):'')+' · '+esc(d.personne||'')+(d.note?(d.etape==='rempli'?'<div style="color:var(--bleu);font-weight:600">📦 '+esc(d.note)+'</div>':'<div style="color:var(--doux);font-style:italic">📝 '+esc(d.note)+'</div>'):'')+'</div>';}).join('')+'</div>';
   $('main').innerHTML=h;
   actions();
   if(MOI&&aRole('chauffeur')&&!ARRET&&I.client&&(I.etat==='pret'||I.etat==='chauffeur'))infoChargement(I.client).then(function(x){if($('chg'))$('chg').innerHTML=x;});
