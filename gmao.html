@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.29';
+var VERSION='v9.30';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -786,6 +786,8 @@ VUES.bon=async function(id,extra){
   if($('bChMach'))$('bChMach').onclick=async function(){var x=await choisirEq();if(!x)return;await q(sb.from('gmao_interventions').update({equipement_id:x.id}).eq('id',id));route();};
   var photoMsg=null;
   $('mPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;$('mPh').textContent='⏳';try{photoMsg=await envoyerPhoto(f);$('mPh').textContent='✅';}catch(x){$('mPh').textContent='📷';erreur(x);}};
+  // v9.30 - Coller (⌘V) ou glisser une image dans la zone message du bon (ex. une pièce copiée depuis un PDF)
+  accepterPhoto(document.querySelector('.compo'),async function(f){$('mPh').textContent='⏳';try{photoMsg=await envoyerPhoto(f);$('mPh').textContent='✅';toast('Image ajoutée : écrivez un mot si besoin, puis Envoyer');}catch(x){$('mPh').textContent='📷';erreur(x);}});
   $('mEnv').onclick=async function(){
     var t=val('mTxt');if(!t&&!photoMsg)return;
     try{await q(sb.from('gmao_messages').insert({intervention_id:id,auteur:NOM,texte:t,photo:photoMsg}));route();}catch(x){erreur(x);}
