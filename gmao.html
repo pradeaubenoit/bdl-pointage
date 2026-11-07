@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.28';
+var VERSION='v9.29';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -1813,6 +1813,7 @@ function jourLocal(d){var x=new Date(d);return x.getFullYear()+'-'+String(x.getM
 function restant(b){var p=+b.temps_prevu_min||0;return p?Math.max(0,p-(+b.duree_min||0)):0;}
 /* v9.16 - AVANCE AUTOMATIQUE : un bon prévu un jour passé et pas terminé passe tout seul à aujourd'hui
    (l'historique du bon garde la trace du jour d'origine). Les bons « Attente pièce » restent où ils sont. */
+function prochainOuvre(d){var x=ajoutJours(d,1);if(new Date(x+'T12:00:00').getDay()===0)x=ajoutJours(x,1);return x;}   // pas le dimanche
 async function avancerRetards(){
   var a=auj();
   var l=await q(sb.from('gmao_interventions').select('id,prevu_le,statut').lt('prevu_le',a).not('statut','in','("Terminé","Attente pièce")'));
@@ -1833,7 +1834,8 @@ VUES.planning=async function(){
   var REPORT={};
   if(!actifs.length)html+='<div class="carte" style="background:var(--bleu2)">Ajoute d\'abord les personnes de l\'équipe maintenance avec leur temps disponible par jour (en bas de la page).</div>';
   actifs.forEach(function(p){
-    var l=ouverts.filter(function(b){return memePers(b.assigne_a,p.nom)&&(b.prevu_le===j||(j===auj()&&b.prevu_le&&b.prevu_le<j));});
+    // Aujourd'hui ET le prochain jour ouvré montrent aussi tout ce qui est en retard (pas fini, prévu avant) : on voit le reste à faire
+    var l=ouverts.filter(function(b){return memePers(b.assigne_a,p.nom)&&(b.prevu_le===j||((j===auj()||j===prochainOuvre(auj()))&&b.prevu_le&&b.prevu_le<j&&b.prevu_le<=auj()&&b.statut!=='Attente pièce'));});
     var f=finis.filter(function(b){return memePers(b.assigne_a||b.intervenant,p.nom);});
     var fait=f.reduce(function(s,b){return s+(+b.duree_min||0);},0);
     var charge=fait+l.reduce(function(s,b){return s+restant(b);},0), cap=+p.capacite_min||420, sansT=l.filter(function(b){return !b.temps_prevu_min;}).length;
@@ -1844,7 +1846,7 @@ VUES.planning=async function(){
       '<div class="barre gros'+(trop?' rouge':'')+'"><div style="width:'+pc+'%"></div></div>'+
       (trop?'<div class="alerte">⚠ Trop de tâches pour cette journée : <b>+'+fmtMin(charge-cap)+'</b>. Décale un bon à un autre jour ou confie-le à quelqu\'un d\'autre.</div>':(l.length?'<div class="etiq" style="margin:6px 0">Encore '+fmtMin(cap-charge)+' de disponible.</div>':''))+
       (sansT?'<div class="etiq" style="color:var(--orange)">'+sansT+' bon'+(sansT>1?'s':'')+' sans temps prévu (non compté'+(sansT>1?'s':'')+')</div>':'')+
-      (l.length?l.map(ligneBonPlan).join(''):(f.length?'':'<div class="vide">Rien de prévu.</div>'))+
+      (l.length?l.map(function(b){return ligneBonPlan(b,j);}).join(''):(f.length?'':'<div class="vide">Rien de prévu.</div>'))+
       (f.length?'<div class="etiq" style="margin-top:8px;font-weight:600">✓ Fait ce jour-là · '+fmtMin(fait)+'</div>'+f.map(function(b){var e=EQID[b.equipement_id];return '<a class="ligne" href="#bon/'+b.id+'" style="opacity:.85"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · terminé à '+new Date(b.fin).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+(b.prevu_le?'':' · <i>non prévu</i>')+'</div></div><b>'+fmtMin(b.duree_min)+'</b>'+(b.valide_le?'<span class="badge b-vert">✔</span>':'<span class="badge b-orange">à valider</span>')+'</a>';}).join(''):'')+'</div>';
   });
   var retard=ouverts.filter(function(b){return b.prevu_le&&b.prevu_le<auj()&&!b.assigne_a;});
@@ -1874,11 +1876,13 @@ VUES.planning=async function(){
   $('peN').onclick=function(){editerPersonne(null);};
   document.querySelectorAll('[data-pe]').forEach(function(x){x.onclick=function(){editerPersonne(x.dataset.pe);};});
 };
-function ligneBonPlan(b){
-  var e=EQID[b.equipement_id],p=+b.temps_prevu_min||0,fait=+b.duree_min||0;
+function ligneBonPlan(b,jVu){
+  var e=EQID[b.equipement_id],p=+b.temps_prevu_min||0,fait=+b.duree_min||0,jRef=typeof jVu==='string'?jVu:auj();
   return '<a class="ligne" href="#bon/'+b.id+'"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+
-    (b.assigne_a?' · 👷 '+esc(b.assigne_a):'')+(b.prevu_le?(b.prevu_le<auj()?' · <b style="color:var(--orange)">reporté du '+fmtD(b.prevu_le)+'</b>':' · '+fmtD(b.prevu_le)):'')+(p?' · prévu '+fmtMin(p)+(fait?' (déjà '+fmtMin(fait)+')':''):' · <span style="color:var(--orange)">temps ?</span>')+'</div></div>'+
-    badgeStatut(b.statut)+'<button class="btn sm" data-pl="'+b.id+'">Planifier</button></a>';
+    (b.assigne_a?' · 👷 '+esc(b.assigne_a):'')+(b.prevu_le?(b.prevu_le<jRef?' · <b style="color:var(--orange)">reporté du '+fmtD(b.prevu_le)+'</b>':' · '+fmtD(b.prevu_le)):'')+(p?' · prévu '+fmtMin(p)+(fait?' (déjà '+fmtMin(fait)+')':''):' · <span style="color:var(--orange)">temps ?</span>')+'</div></div>'+
+    // v9.29 : déjà planifié (jour + personne) → badge vert et bouton « Modifier » ; sinon « Planifier »
+    (b.prevu_le&&b.assigne_a&&b.statut==='Demandé'?'<span class="badge b-vert">✓ Planifié</span>':badgeStatut(b.statut))+
+    '<button class="btn sm" data-pl="'+b.id+'">'+(b.prevu_le&&b.assigne_a?'Modifier':'<b>Planifier</b>')+'</button></a>';
 }
 /* REPORTER EN UNE FOIS : en fin de journée, tout ce qui n'est pas fini passe au jour suivant (on décoche ce qui reste) */
 function reporterBons(liste,j){
