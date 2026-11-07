@@ -1516,6 +1516,8 @@ async function rollIdentite(numero) {
   if (!code) return null;
   id = { id: p.id, nom: p.nom, code: code.trim() };
   ecrire(CLE_ROLL_ID, id);
+  // La personne choisie devient aussi « qui saisit » (bouton en haut à droite) : plus de redemande à chaque chariot
+  if (sansAccent(lire(CLE_OP, '') || '') !== sansAccent(p.nom)) { ecrire(CLE_OP, p.nom); try { afficherOperateur(); } catch (e) {} }
   return id;
 }
 async function rollEnvoyer(x, essai) {
