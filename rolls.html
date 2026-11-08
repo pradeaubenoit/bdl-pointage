@@ -164,9 +164,29 @@ async function historique(id){
 VUES.clients=async function(){
   var g={};ROLLS.forEach(function(r){if(!r.client||!(r.etat==='client'||r.etat==='pret'||r.etat==='chauffeur'))return;var x=g[r.client]=g[r.client]||{chez:[],route:[]};(r.etat==='client'?x.chez:x.route).push(r);});
   var cl=Object.keys(g).sort(function(a,b){return g[b].chez.length-g[a].chez.length||a.localeCompare(b,'fr');});
-  $('main').innerHTML='<h1>Rolls par client</h1><div class="carte"><table><thead><tr><th>Client</th><th>Chez le client</th><th>Le plus ancien</th><th>En route vers lui</th></tr></thead><tbody>'+
+  $('main').innerHTML='<h1>Rolls par client</h1>'+
+    '<div class="carte noprint"><h2>🔀 Fusionner deux noms (même client écrit autrement)</h2><div class="s" style="margin-bottom:8px">Tous les chariots et tout l\'historique du mauvais nom passent sous le bon nom ; le mauvais disparaît des listes. Ne touche pas à la facturation.</div>'+
+    'Mauvais nom <select id="fuM"></select> → bon nom <select id="fuB"></select> <button class="btn p" id="fuOk">Fusionner</button></div>'+
+    '<div class="carte"><table><thead><tr><th>Client</th><th>Chez le client</th><th>Le plus ancien</th><th>En route vers lui</th></tr></thead><tbody>'+
     (cl.map(function(c){var x=g[c],old=x.chez.reduce(function(m,r){return Math.max(m,jours(r.maj_le));},0);
       return '<tr><td><b>'+esc(c)+'</b></td><td>'+x.chez.length+(x.chez.length?' <span class="s">('+x.chez.map(function(r){return r.numero;}).join(', ')+')</span>':'')+'</td><td class="'+(old>=SEUIL_J?'vieux':'')+'">'+(x.chez.length?old+' j':'—')+'</td><td>'+x.route.length+'</td></tr>';}).join('')||'<tr><td colspan="4" class="s">Aucun roll chez un client pour l\'instant.</td></tr>')+'</tbody></table></div>';
+  // noms connus : chariots + historique + clients sans saisie
+  var noms={};ROLLS.forEach(function(r){if(r.client)noms[r.client]=1;});
+  try{(await q(sb.from('rolls_scans').select('client').not('client','is',null).limit(5000))).forEach(function(x){noms[x.client]=1;});}catch(e){}
+  try{(await q(sb.from('rolls_clients').select('nom'))).forEach(function(x){noms[x.nom]=1;});}catch(e){}
+  var ln=Object.keys(noms).sort(function(a,b){return a.localeCompare(b,'fr');});
+  var opt='<option value="">—</option>'+ln.map(function(n){return '<option>'+esc(n)+'</option>';}).join('');
+  $('fuM').innerHTML=opt;$('fuB').innerHTML=opt;
+  $('fuOk').onclick=async function(){var m=$('fuM').value,b=$('fuB').value;
+    if(!m||!b||m===b){alert('Choisissez deux noms différents.');return;}
+    if(!confirm('Fusionner « '+m+' » dans « '+b+' » ?\n\nTous les chariots et l\'historique de « '+m+' » passeront sous « '+b+' ».'))return;
+    try{
+      await q(sb.from('rolls').update({client:b}).eq('client',m));
+      await q(sb.from('rolls_scans').update({client:b}).eq('client',m));
+      try{await q(sb.from('rolls_clients').delete().eq('nom',m));}catch(e){}
+      alert('✓ « '+m+' » fusionné dans « '+b+' ».');route();
+    }catch(e){alert('Fusion impossible : '+(e.message||e));}
+  };
 };
 // Plusieurs postes possibles par personne : enregistrés « atelier,laveur »
 function casesRoles(pref,val){var l=String(val||'').split(',');return Object.keys(ROLES).map(function(k){return '<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" data-rl="'+pref+'" value="'+k+'"'+(l.indexOf(k)>=0?' checked':'')+'> '+ROLES[k]+'</label>';}).join('');}
