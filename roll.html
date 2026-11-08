@@ -76,7 +76,9 @@ fetch(LINGE_API+'?action=catalogue').then(function(r){return r.json();}).then(fu
 }).catch(function(){});
 // + clients sans saisie (hôpitaux…) créés au bureau
 var EXTRA=lire('roll_clients_extra',[]);
-function tousClients(){return Array.from(new Set(CLIENTS.concat(EXTRA))).sort(function(a,b){return a.localeCompare(b,'fr');});}
+// Noms presque identiques (majuscules, accents, « s » final) = un seul client ; on garde l'orthographe de la facturation en priorité
+function cleNom(x){return nrm(x).replace(/[^a-z0-9]+/g,' ').trim().replace(/s\b/g,'');}
+function tousClients(){var vu={},l=[];CLIENTS.concat(EXTRA).forEach(function(c){var k=cleNom(c);if(!k||vu[k])return;vu[k]=1;l.push(c);});return l.sort(function(a,b){return a.localeCompare(b,'fr');});}
 sb.rpc('roll_clients').then(function(r){if(!r.error&&Array.isArray(r.data)){EXTRA=r.data;ecrire('roll_clients_extra',EXTRA);}}).catch(function(){});
 
 async function charger(){
@@ -267,10 +269,11 @@ function choisirClient(titre,fn){
   $('acts').innerHTML=h;
   function rendre(){var t=$('cQ').value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
     var l=tousClients().filter(function(c){return c.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').indexOf(t)>=0;}).slice(0,80);
-    $('cL').innerHTML=(l.length?l:[]).map(function(c,i){return '<div data-c="'+esc(c)+'">'+esc(c)+'</div>';}).join('')+(t&&!l.length?'<div data-c="'+esc($('cQ').value.trim())+'">➕ '+esc($('cQ').value.trim())+'</div>':'');}
+    $('cL').innerHTML=(l.length?l:[]).map(function(c,i){return '<div data-c="'+esc(c)+'">'+esc(c)+'</div>';}).join('')+(t&&!l.length?(aRole('bureau')?'<div data-c="'+esc($('cQ').value.trim())+'">➕ '+esc($('cQ').value.trim())+'</div>':'<div class="alerte" style="margin-top:8px">Client introuvable. N\'en créez pas : <b>appelez le bureau</b> (Benoît 06 43 59 20 03).</div>'):'');}
   $('cQ').oninput=rendre;rendre();
   $('cL').onclick=async function(e){var d=e.target.closest('[data-c]');if(!d)return;var c=d.getAttribute('data-c');
-    if(tousClients().some(function(x){return nrm(x)===nrm(c);}))return fn(c);
+    var dej=tousClients().find(function(x){return cleNom(x)===cleNom(c);});if(dej)return fn(dej);
+    if(!aRole('bureau')){alert('Seul le bureau peut créer un client.');return;}
     if(!confirm('Créer le client « '+c+' » ?\n\nVérifiez qu\'il n\'existe pas déjà sous un autre nom.'))return;
     try{var r=await sb.rpc('roll_client_ajouter',{p_personne:MOI.id,p_code:MOI.code,p_nom:c});if(r.error||!r.data||!r.data.ok)throw new Error((r.data&&r.data.error)||(r.error&&r.error.message)||'refusé');
       c=r.data.nom;if(EXTRA.indexOf(c)<0){EXTRA.push(c);ecrire('roll_clients_extra',EXTRA);}}catch(x){alert('Création impossible : '+(x.message||x));return;}
