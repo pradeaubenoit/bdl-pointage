@@ -309,6 +309,7 @@ VUES.tournees=async function(){
       g.b=s.quand;if(s.etape==='arrivee'){g.arr=s.quand;g.sansQR=!!s.note;return;}if(s.etape==='depart'){g.dep=s.quand;return;}var n=num[s.roll_id]||'?';({charge:g.ch,livre:g.liv,repris:g.rep,rentre:g.re})[s.etape].push(n);});
     // Arrêt chez un client sans aucun chariot, juste avant un passage à la BdL : fausse manip (« Où suis-je ? » à la BdL) → ignoré
     seg=seg.filter(function(g,i){return g.bdl||g.liv.length||g.rep.length||!(seg[i+1]&&seg[i+1].bdl);});
+    seg=seg.reduce(function(acc,g){var d=acc[acc.length-1];if(d&&d.lieu===g.lieu&&!g.arr){d.b=g.b;d.liv=d.liv.concat(g.liv);d.rep=d.rep.concat(g.rep);d.ch=d.ch.concat(g.ch);d.re=d.re.concat(g.re);if(g.dep)d.dep=g.dep;}else acc.push(g);return acc;},[]);
     if(!seg.length)return;
     // Chargement du soir = chargements faits après la dernière livraison / reprise / déchargement de la journée (le camion repart de chez le chauffeur)
     var dernierTerrain=-1;seg.forEach(function(g,i){if(g.liv.length||g.rep.length||g.re.length)dernierTerrain=i;});   // dernière vraie action (dépôt, reprise, déchargement) ; un arrêt sans chariot ne compte pas
@@ -389,9 +390,12 @@ async function planTournee(dt,ch,wd){
       J.forEach(function(s){
         var bdl=s.etape==='charge'||s.etape==='rentre',lieu=bdl?(s.etape==='charge'?'BdL — chargement':'BdL — déchargement du linge sale'):(s.client||'?');
         var g=arrets[arrets.length-1];
-        if(!g||g.lieu!==lieu){g={lieu:lieu,bdl:bdl,t:mn(s.quand),liv:0,rep:0,ch:0};if(bdl){nBdl++;g.cle=lieu+'#'+nBdl;}else g.cle=lieu;arrets.push(g);}
+        if(!g||g.lieu!==lieu){g={lieu:lieu,bdl:bdl,t:mn(s.quand),liv:0,rep:0,ch:0};arrets.push(g);}
         if(s.etape==='livre')g.liv++;if(s.etape==='repris')g.rep++;if(s.etape==='charge')g.ch++;});
       arrets=arrets.filter(function(g,i){return g.bdl||g.liv||g.rep||!(arrets[i+1]&&arrets[i+1].bdl);});
+      // après avoir retiré les fausses manips, on regroupe deux passages identiques qui se suivent (ex. chargement en plusieurs fois)
+      arrets=arrets.reduce(function(acc,g){var d=acc[acc.length-1];if(d&&d.lieu===g.lieu){d.liv+=g.liv;d.rep+=g.rep;d.ch+=g.ch;}else acc.push(g);return acc;},[]);
+      var vus={};arrets.forEach(function(g){if(g.bdl){nBdl++;g.cle=g.lieu+'#'+nBdl;}else{var k=nrm2(g.lieu);vus[k]=(vus[k]||0)+1;g.cle=g.lieu+(vus[k]>1?'#'+vus[k]:'');}});   // 2ᵉ passage chez un même client = ligne à part
       arrets.forEach(function(g,i){var x=C[g.cle]=C[g.cle]||{lieu:g.lieu,bdl:g.bdl,n:0,pos:0,t:0,liv:0,rep:0,ch:0};x.n++;x.pos+=i/Math.max(1,arrets.length-1);x.t+=g.t;x.liv+=g.liv;x.rep+=g.rep;x.ch+=g.ch;});
     });
     var hm2=function(m){m=Math.round(m);return p2(Math.floor(m/60))+':'+p2(m%60);};
