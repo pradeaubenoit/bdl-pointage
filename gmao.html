@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.33';
+var VERSION='v9.34';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -2074,7 +2074,10 @@ async function suiteADonner(b,attente){
   var libre=art==='__creer__'?'':null; if(libre!==null)art=null;
   var src=art?meilleureSource(art):null;
   ouvrir('<h3>'+(attente?'⏳ Pièce attendue — ':'🔁 Suite à donner — ')+numBT(b.numero)+'</h3>'+
-    '<label>Pièce à commander</label>'+(art?'<div class="ligne" style="border:1px solid var(--ligne);border-radius:8px">'+renduArt(art)+'</div>':'<input id="sdP" placeholder="ex. Sangle empileur SFM, réf. 4479069">')+
+    '<label>Pièce à commander</label>'+(art?'<div class="ligne" style="border:1px solid var(--ligne);border-radius:8px">'+renduArt(art)+'</div>':'<input id="sdP" placeholder="ex. Courroie de transmission SFM 3 coss">'+
+      // v9.34 - pièce nouvelle : référence + prix, et création automatique dans la liste des pièces
+      '<div class="grille"><div><label>Référence fournisseur</label><input id="sdR" placeholder="ex. 448.413/5"></div><div><label>Prix unitaire HT (€)</label><input id="sdX" inputmode="decimal" placeholder="ex. 86,50"></div></div>'+
+      '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:15px;margin-top:10px"><input type="checkbox" id="sdN" style="width:auto" checked> Ajouter cette pièce à la liste des Pièces'+(e?' et à « '+esc(e.nom)+' »':'')+' (avec la dernière photo du bon)</label>')+
     '<div class="grille"><div><label>Quantité</label><input id="sdQ" inputmode="decimal" value="1"></div>'+
     '<div><label>Fournisseur</label><input id="sdF" list="dlSdF" value="'+esc(src?src.partenaire:'')+'"><datalist id="dlSdF">'+PART.map(function(p){return '<option value="'+esc(p.nom)+'">';}).join('')+'</datalist></div></div>'+
     (src&&src.prix!=null?'<div class="etiq">Prix connu : '+(+src.prix).toLocaleString('fr-FR',{style:'currency',currency:'EUR'})+' chez '+esc(src.partenaire)+(src.ref?' (réf. '+esc(src.ref)+')':'')+'</div>':'')+
@@ -2090,6 +2093,16 @@ async function suiteADonner(b,attente){
     var des=art?art.designation:val('sdP');if(!des){toast('Indique la pièce');return;}
     this.disabled=true;
     try{
+      // v9.34 - pièce pas encore connue : on la crée (fiche + fournisseur/réf./prix + lien machine + photo du bon)
+      if(!art&&$('sdN')&&$('sdN').checked){
+        var nv=(await q(sb.from('gmao_articles').insert({designation:des,stock:0,stock_mini:0}).select()))[0];
+        ART.push(nv);ARTID[nv.id]=nv;art=nv;
+        var fo=val('sdF'),rf=val('sdR'),px=nb(String(val('sdX')||'').replace(',','.'));
+        if(fo||rf||px!=null){try{await q(sb.from('gmao_sources').insert({article_id:nv.id,partenaire:fo||'?',ref:rf||null,prix:px,date_prix:auj()}));src={partenaire:fo,ref:rf||null,prix:px};}catch(z){}}
+        if(e){try{var lk=(await q(sb.from('gmao_liens').insert({article_id:nv.id,equipement_id:e.id,quantite:1}).select()))[0];LIENS.push(lk);}catch(z){}}
+        try{var ph=await q(sb.from('gmao_messages').select('photo').eq('intervention_id',b.id).not('photo','is',null).order('cree_le',{ascending:false}).limit(1));
+          if(ph.length&&ph[0].photo){await q(sb.from('gmao_articles').update({photo:ph[0].photo}).eq('id',nv.id));nv.photo=ph[0].photo;}}catch(z){}
+      }else if(!art&&val('sdR')){src={ref:val('sdR')};}
       var suite=null;
       if($('sdB').checked){
         var r=await q(sb.from('gmao_interventions').insert({titre:val('sdT')||('Suite de '+numBT(b.numero)),description:'Suite de '+numBT(b.numero)+' : '+b.titre+'\n☐ '+(val('sdT')||'Remplacer '+des),
