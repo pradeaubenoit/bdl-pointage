@@ -888,9 +888,9 @@ function ficheDepuisCommande(c,b,e){
   $('fpO').onclick=async function(){
     var d=val('fpD');if(!d){toast('Indique la désignation');return;}this.disabled=true;
     try{
-      var nv=(await q(sb.from('gmao_articles').insert({designation:d,stock:0,stock_mini:0}).select()))[0];ART.push(nv);ARTID[nv.id]=nv;
       var fo=val('fpF'),rf=val('fpR'),px=nb(String(val('fpX')||'').replace(',','.'));
-      if(fo||rf||px!=null){try{await q(sb.from('gmao_sources').insert({article_id:nv.id,partenaire:fo||'?',ref:rf||null,prix:px,date_prix:auj()}));}catch(z){}}
+      var nv=(await q(sb.from('gmao_articles').insert({designation:d,stock:0,stock_mini:0}).select()))[0];ART.push(nv);ARTID[nv.id]=nv;
+      if(fo||rf||px!=null){try{var sx=(await q(sb.from('gmao_sources').insert({article_id:nv.id,partenaire:fo||'?',ref:rf||null,prix:px,date_prix:auj()}).select()))[0];(SRCA[nv.id]=SRCA[nv.id]||[]).push(sx);}catch(z){}}
       if(e&&$('fpL')&&$('fpL').checked){try{var lk=(await q(sb.from('gmao_liens').insert({article_id:nv.id,equipement_id:e.id,quantite:1}).select()))[0];LIENS.push(lk);}catch(z){}}
       if($('fpP').checked){try{var ph=await q(sb.from('gmao_messages').select('photo').eq('intervention_id',b.id).not('photo','is',null).order('cree_le',{ascending:false}).limit(1));
         if(ph.length&&ph[0].photo){await q(sb.from('gmao_articles').update({photo:ph[0].photo}).eq('id',nv.id));nv.photo=ph[0].photo;}}catch(z){}}
@@ -2145,10 +2145,10 @@ async function suiteADonner(b,attente){
     try{
       // v9.34 - pièce pas encore connue : on la crée (fiche + fournisseur/réf./prix + lien machine + photo du bon)
       if(!art&&$('sdN')&&$('sdN').checked){
+        var fo=val('sdF'),rf=val('sdR'),px=nb(String(val('sdX')||'').replace(',','.'));
         var nv=(await q(sb.from('gmao_articles').insert({designation:des,stock:0,stock_mini:0}).select()))[0];
         ART.push(nv);ARTID[nv.id]=nv;art=nv;
-        var fo=val('sdF'),rf=val('sdR'),px=nb(String(val('sdX')||'').replace(',','.'));
-        if(fo||rf||px!=null){try{await q(sb.from('gmao_sources').insert({article_id:nv.id,partenaire:fo||'?',ref:rf||null,prix:px,date_prix:auj()}));src={partenaire:fo,ref:rf||null,prix:px};}catch(z){}}
+        if(fo||rf||px!=null){try{var sx=(await q(sb.from('gmao_sources').insert({article_id:nv.id,partenaire:fo||'?',ref:rf||null,prix:px,date_prix:auj()}).select()))[0];(SRCA[nv.id]=SRCA[nv.id]||[]).push(sx);src={partenaire:fo,ref:rf||null,prix:px};}catch(z){}}
         if(e){try{var lk=(await q(sb.from('gmao_liens').insert({article_id:nv.id,equipement_id:e.id,quantite:1}).select()))[0];LIENS.push(lk);}catch(z){}}
         try{var ph=await q(sb.from('gmao_messages').select('photo').eq('intervention_id',b.id).not('photo','is',null).order('cree_le',{ascending:false}).limit(1));
           if(ph.length&&ph[0].photo){await q(sb.from('gmao_articles').update({photo:ph[0].photo}).eq('id',nv.id));nv.photo=ph[0].photo;}}catch(z){}
