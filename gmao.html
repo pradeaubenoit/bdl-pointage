@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.31';
+var VERSION='v9.33';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -730,7 +730,7 @@ VUES.bon=async function(id,extra){
   var html='<div class="chemin"><a href="#bons">← Bons de travail</a></div>'+
     '<h1 class="titre">'+numBT(b.numero)+' · '+esc(b.titre)+'</h1>'+
     '<div class="carte"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+badgeStatut(b.statut)+(b.valide_le?'<span class="badge b-vert">✔ validé</span>':'')+badgePrio(b.priorite,b.machine_arretee&&!fini)+'<span class="badge">'+esc(b.type)+'</span><span class="etiq">demandé par '+esc(b.demandeur||'?')+' le '+fmtDH(b.cree_le)+'</span></div>'+
-    (e?'<div><b>Machine :</b> <a href="#eq/'+e.id+'">'+esc(chemin(e))+'</a> <span class="etiq">'+esc(e.code)+'</span></div>':'<div><b>Machine :</b> — <button class="btn l sm" id="bChMach">choisir</button></div>')+
+    (e?'<div><b>Machine :</b> <a href="#eq/'+e.id+'">'+esc(chemin(e))+'</a> <span class="etiq">'+esc(e.code)+'</span>'+(fini?'':' <button class="btn l sm" id="bChMach">changer de machine</button>')+'</div>':'<div><b>Machine :</b> — <button class="btn l sm" id="bChMach">choisir</button></div>')+
     (parent?'<div style="margin-top:4px">↩ Suite de <a href="#bon/'+parent.id+'">'+numBT(parent.numero)+' · '+esc(parent.titre)+'</a></div>':'')+
     (suites.length?'<div style="margin-top:4px">➡ Suite prévue : '+suites.map(function(x){return '<a href="#bon/'+x.id+'">'+numBT(x.numero)+'</a> '+badgeStatut(x.statut);}).join(' ')+'</div>':'')+
     // v9.17 - La pièce attendue est visible sur le bon (désignation, réf., fournisseur, état de la commande)
@@ -795,7 +795,9 @@ VUES.bon=async function(id,extra){
   $('bSuite').onclick=function(){suiteADonner(b);};
   $('bMail').onclick=function(){mailPrestataire(b,e);};
   $('bRepM').onclick=function(){reponsePrestataire(b,e);};
-  if($('bChMach'))$('bChMach').onclick=async function(){var x=await choisirEq();if(!x)return;await q(sb.from('gmao_interventions').update({equipement_id:x.id}).eq('id',id));route();};
+  if($('bChMach'))$('bChMach').onclick=async function(){var x=await choisirEq();if(!x)return;if(e&&x.id===e.id)return;
+    if(e&&!confirm('Déplacer ce bon de « '+e.nom+' » vers « '+x.nom+' » ?'))return;
+    try{await q(sb.from('gmao_interventions').update({equipement_id:x.id}).eq('id',id));try{await logSys(id,'🔁 Machine changée'+(e?' : '+e.nom+' → ':' : ')+x.nom);}catch(z){}route();}catch(z){erreur(z);}};
   var photoMsg=null;
   $('mPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;$('mPh').textContent='⏳';try{photoMsg=await envoyerPhoto(f);$('mPh').textContent='✅';}catch(x){$('mPh').textContent='📷';erreur(x);}};
   // v9.30 - Coller (⌘V) ou glisser une image dans la zone message du bon (ex. une pièce copiée depuis un PDF)
@@ -831,6 +833,23 @@ VUES.bon=async function(id,extra){
 /* v9.26 - Mail au prestataire depuis le bon : part de la messagerie de l'utilisateur, copie gardée dans les Échanges */
 function prestaDefaut(b,e){var c=contratDe(e);if(c)return c.p;var n=norm(b.intervenant||'');return PART.find(function(x){return n&&norm(x.nom)===n;})||null;}
 function optsPresta(sel){return PART.slice().sort(function(a,c){return a.nom.localeCompare(c.nom,'fr');}).map(function(x){return '<option value="'+x.id+'"'+(sel&&sel.id===x.id?' selected':'')+'>'+esc(x.nom)+(x.email?'':' (pas d\'e-mail)')+'</option>';}).join('');}
+// v9.32 - Mail prêt à envoyer : défaut signalé, machine, n° de série, n° de contrat, référence du bon
+function texteMailPanne(b,e){
+  var c=e?contratDe(e):null,m=e&&e.modele_id&&MODID[e.modele_id]?MODID[e.modele_id].nom:'';
+  var machine=e?[e.nom,e.marque,m].filter(Boolean).filter(function(x,i,t){return t.indexOf(x)===i;}).join(' — '):'';
+  var l=['Bonjour,','','Nous vous signalons une panne sur notre matériel :',''];
+  if(machine)l.push('• Machine : '+machine);
+  if(e&&e.num_serie)l.push('• N° de série : '+e.num_serie);
+  if(c&&c.eq.contrat_ref)l.push('• N° de contrat : '+c.eq.contrat_ref);
+  if(e)l.push('• Emplacement : '+chemin(e,' › '));
+  l.push('• Défaut constaté : '+(b.titre||'')+(b.description&&b.description!==b.titre?' — '+b.description:''));
+  if(b.cree_le)l.push('• Signalé le : '+fmtD(String(b.cree_le).slice(0,10)));
+  l.push('• Machine à l\'arrêt : '+(b.machine_arretee?'oui':'non'));
+  l.push('','Pourriez-vous nous indiquer vos disponibilités pour une intervention dans les meilleurs délais ?','Notre référence : '+numBT(b.numero)+'.','',
+    'Je vous remercie par avance et vous prie d\'agréer, Madame, Monsieur, mes salutations distinguées.','',
+    /benoit/.test(norm(NOM||''))?'Benoît Pradeau\nDirecteur technique — Blanchisserie du Limousin\nRoute de Saint-Denis, 23100 La Courtine\n06 43 59 20 03':(NOM||'')+'\nBlanchisserie du Limousin');
+  return l.join('\n');
+}
 function mailPrestataire(b,e){
   var p=prestaDefaut(b,e),obj='['+numBT(b.numero)+'] '+(e?e.nom+(e.code?' ('+e.code+')':'')+' — ':'')+b.titre;
   ouvrir('<h3>✉ Écrire au prestataire — '+numBT(b.numero)+'</h3>'+
@@ -838,7 +857,7 @@ function mailPrestataire(b,e){
     '<label>Adresse e-mail</label><input id="mlA" type="email" value="'+esc(p&&p.email||'')+'"><div class="etiq" id="mlAi"></div>'+
     '<label>ou messagerie SAV en ligne (lien du QR collé sur la machine)</label><input id="mlU" type="url" placeholder="https://…" value="'+esc(p&&p.site||'')+'">'+
     '<label>Objet</label><input id="mlO" value="'+esc(obj)+'">'+
-    '<label>Message</label><textarea id="mlT" style="min-height:220px">Bonjour,\n\n\n\nCordialement,\n\n'+esc(NOM)+'</textarea>'+
+    '<label>Message</label><textarea id="mlT" style="min-height:300px">'+esc(texteMailPanne(b,e))+'</textarea>'+
     '<div class="etiq">Le mail s\'ouvre dans votre messagerie (Mail, Outlook…) et part de votre adresse. Une copie est gardée dans les Échanges du bon.</div>'+
     '<div class="actions"><button class="btn" onclick="fermer()">Annuler</button><button class="btn" id="mlWeb">🌐 Copier le texte et ouvrir leur messagerie</button><button class="btn p" id="mlOk">✉ Ouvrir dans ma messagerie</button></div>');
   function maj(){var x=PART.find(function(y){return y.id===$('mlP').value;});if(x&&x.email)$('mlA').value=x.email;if(x&&x.site)$('mlU').value=x.site;
