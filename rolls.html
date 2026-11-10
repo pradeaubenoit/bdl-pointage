@@ -319,13 +319,17 @@ var chT=null;   // chauffeur affiché (null = tous)
    2. chargé puis redescendu au quai / au dépôt par le même chauffeur = chargement annulé
    3. les étapes « rempli » / « vidé » ne sont pas des étapes de tournée */
 function scansTournee(sc){
-  var deja={};   // a-t-il déjà livré/repris ce jour-là ?
+  var deja={},dern={};   // a-t-il déjà livré/repris ce jour-là ? dernier arrêt client
+  var norme=function(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();};
   sc.forEach(function(s,i){
     var j=String(s.quand).slice(0,10),k=(s.personne||'')+'|'+j;
     if(s.etape==='charge'&&deja[k]){
       for(var m=i-1;m>=0&&m>=i-6;m--){var t=sc[m];if(t.roll_id===s.roll_id&&t.etape==='rempli'&&/^non scanné à l'atelier/.test(t.note||'')&&new Date(s.quand)-new Date(t.quand)<180000){s.etape='repris';s.client=s.client||t.client;s.note='repris sale (chariot non scanné chez le client)';break;}}
     }
-    if(s.etape==='livre'||s.etape==='repris')deja[k]=1;
+    // chargement juste après un arrêt client (≤ 10 min, sans être repassé par le déchargement BdL) = chariot sale repris chez ce client
+    if(s.etape==='charge'&&deja[k]&&dern[k]&&new Date(s.quand)-new Date(dern[k].t)<=600000&&(!s.client||norme(s.client)===norme(dern[k].c))){s.etape='repris';s.client=dern[k].c;s.note='repris sale (chariot non scanné chez le client)';}
+    if(s.etape==='livre'||s.etape==='repris'||s.etape==='arrivee'||s.etape==='depart'){deja[k]=deja[k]||(s.etape==='livre'||s.etape==='repris');if(s.client||dern[k])dern[k]={t:s.quand,c:s.client||(dern[k]&&dern[k].c)};}
+    if(s.etape==='rentre')dern[k]=null;
   });
   sc=sc.filter(function(s,i){if(s.etape!=='charge')return true;for(var k=i+1;k<sc.length;k++){var t=sc[k];if(t.roll_id!==s.roll_id)continue;
       if((t.etape==='rempli'||t.etape==='vide')&&t.personne===s.personne)return false;return true;}return true;});
