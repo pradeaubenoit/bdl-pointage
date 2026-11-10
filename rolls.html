@@ -317,7 +317,8 @@ VUES.qrclients=async function(){
 var TYPES_INC=[
   {k:'laveur',ic:'🌀',lib:'Laveur : chariot pas libéré au tunnel',poste:'Laveur',re:/^incident : (non vidé au tunnel|pas déchargé ni vidé)/},
   {k:'atelier',ic:'🧺',lib:'Atelier : chariot rempli sans scan',poste:'Atelier',re:/^non scanné à l'atelier/},
-  {k:'chauffeur',ic:'🚚',lib:'Chauffeur : scan oublié chez le client',poste:'Chauffeur',re:/scan oublié chez le client|non scanné chez le client|repris sale/},
+  {k:'chauffeur',ic:'🚚',lib:'Chauffeur : scan oublié (livré, repris ou déchargé)',poste:'Chauffeur',re:/scan oublié chez le client|non scanné chez le client|repris sale/},
+  {k:'reprise',ic:'↩',lib:'Chauffeur : chariot sale repris sans scan',poste:'Chauffeur',re:/^$a/},
   {k:'retrouve',ic:'📍',lib:'Chariot noté chez le client, retrouvé à l\'atelier',poste:'Chauffeur',re:/^incident : noté chez le client/},
   {k:'numero',ic:'🔢',lib:'Mauvais n° de chariot (corrigé)',poste:'Atelier',re:/^n° corrigé/},
   {k:'livreBureau',ic:'🏢',lib:'Livraison régularisée par le bureau',poste:'Chauffeur',re:/^régularisé par le bureau/},
@@ -329,9 +330,17 @@ VUES.incidents=async function(){
   var depuis=new Date(Date.now()-perInc*864e5);
   var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').not('note','is',null).gte('quand',depuis.toISOString()).order('quand',{ascending:false}).limit(5000));
   var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
-  var l=[];sc.forEach(function(s){var t=typeIncident(s.note);if(t)l.push({s:s,t:t});});
+  // 1re livraison/reprise de chaque chauffeur, par jour (pour reconnaître une reprise sale enregistrée « rempli »)
+  var prem={};try{(await q(sb.from('rolls_scans').select('quand,personne').in('etape',['livre','repris']).gte('quand',depuis.toISOString()).order('quand').limit(10000))).forEach(function(x){var k=(x.personne||'')+'|'+String(x.quand).slice(0,10);if(!prem[k])prem[k]=x.quand;});}catch(e){}
+  var TK={};TYPES_INC.forEach(function(t){TK[t.k]=t;});
+  var l=[];sc.forEach(function(s){var t=typeIncident(s.note);if(!t)return;
+    // correction du bureau : on l'attribue au poste qui a oublié l'étape
+    if(t.k==='correction'){if(s.etape==='livre'||s.etape==='repris'||s.etape==='rentre'||s.etape==='charge')t=TK.chauffeur;else if(s.etape==='vide')t=TK.laveur;else if(s.etape==='rempli')t=TK.atelier;}
+    // « rempli sans scan » fait par un chauffeur APRÈS sa 1re livraison du jour = chariot sale repris chez le client
+    if(t.k==='atelier'){var k=(s.personne||'')+'|'+String(s.quand).slice(0,10);if(prem[k]&&prem[k]<s.quand)t=TK.reprise;}
+    l.push({s:s,t:t});});
   // une correction groupée = une fiche par chariot et par minute
-  var vu={};l=l.filter(function(x){var k=x.t.k+'|'+x.s.roll_id+'|'+String(x.s.quand).slice(0,16);if(vu[k])return false;vu[k]=1;return true;});
+  var vu={};l=l.filter(function(x){var k=x.t.k+'|'+x.s.roll_id+'|'+String(x.s.quand).slice(0,15);if(vu[k])return false;vu[k]=1;return true;});
   var parT={},parP={};l.forEach(function(x){parT[x.t.k]=(parT[x.t.k]||0)+1;var p=x.t.poste;parP[p]=(parP[p]||0)+1;});
   var h='<h1>⚠ Incidents chariots</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(d===perInc?' p':'')+'" data-per="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
     ' <button class="btn" onclick="window.print()">🖨 Imprimer</button><div class="s" style="margin-top:6px">Relevés automatiquement à partir des scans : chaque oubli rattrapé (au tunnel, à l\'atelier, chez le client, au bureau) devient une fiche.</div></div>'+
@@ -340,7 +349,7 @@ VUES.incidents=async function(){
     '<div class="carte"><table><thead><tr><th>Quand</th><th>Incident</th><th>Chariot</th><th>Client</th><th>Signalé par</th><th>Détail</th></tr></thead><tbody id="incT"></tbody></table></div>';
   $('main').innerHTML=h;
   var filtreT='';
-  function rendre(){$('incT').innerHTML=l.filter(function(x){return !filtreT||x.t.k===filtreT;}).map(function(x){return '<tr style="cursor:pointer" data-r="'+x.s.roll_id+'"><td>'+fmtQ(x.s.quand)+'</td><td>'+x.t.ic+' '+esc(x.t.lib)+'</td><td><b>'+esc(num[x.s.roll_id]||'?')+'</b></td><td>'+esc(x.s.client||'')+'</td><td>'+esc(x.s.personne||'')+'</td><td class="s">'+esc(x.s.note)+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun incident sur la période. 👍</td></tr>';
+  function rendre(){$('incT').innerHTML=l.filter(function(x){return !filtreT||x.t.k===filtreT;}).map(function(x){return '<tr style="cursor:pointer" data-r="'+x.s.roll_id+'"><td>'+fmtQ(x.s.quand)+'</td><td>'+x.t.ic+' '+esc(x.t.lib)+'</td><td><b>'+esc(num[x.s.roll_id]||'?')+'</b></td><td>'+esc(x.s.client||'')+'</td><td>'+esc(x.s.personne||'')+'</td><td class="s">'+esc(x.s.note)+(x.s.note==='correction du bureau'?' ('+esc({livre:'livré',repris:'repris',rentre:'déchargé',vide:'vidé',rempli:'rempli',charge:'chargé'}[x.s.etape]||x.s.etape)+')':'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun incident sur la période. 👍</td></tr>';
     document.querySelectorAll('[data-ti]').forEach(function(t){t.style.outline=t.dataset.ti===filtreT?'3px solid var(--bleu)':'';});}
   rendre();
   document.querySelectorAll('[data-ti]').forEach(function(t){t.onclick=function(){filtreT=filtreT===t.dataset.ti?'':t.dataset.ti;rendre();};});
