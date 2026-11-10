@@ -188,6 +188,7 @@ function actions(){
     }else if(I.etat==='client'&&nrm(I.client)===nrm(ARRET.client)){
       bouton('↩ Reprendre ce chariot (vide)','o',function(){scan('repris',ARRET.client);});
     }else if(I.etat==='retour'||I.etat==='bdl'||I.etat==='sale'||!I.client){
+      if(I.etat!=='retour')bouton('↩ Je le reprends plein de linge sale','o',function(){scan('repris',ARRET.client,(I.etat==='bdl'||!I.client)?'chariot non scanné chez le client : repris sale':null);});
       bouton('✅ Déposer VIDE chez '+ARRET.client,'v',function(){scan('livre',ARRET.client,'chariot vide déposé'+(I.client&&nrm(I.client)!==nrm(ARRET.client)?' (repris chez '+I.client+')':''));});
     }else{
       bouton('✅ Déposer chez '+ARRET.client,'v',function(){scan('livre',ARRET.client);});
@@ -195,6 +196,8 @@ function actions(){
     bouton('📍 Retour au déchargement de '+ARRET.client,'g',function(){location.search='';});
     bouton('Je ne suis plus chez ce client','g',function(){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}afficher();});
   }else if(aRole('chauffeur')){
+    // En tournée (déjà livré aujourd'hui), hors « Où suis-je ? » : un chariot non enregistré est le plus souvent du linge SALE repris chez un client
+    if(enTournee()&&(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur')))bouton('↩ Je le reprends plein de linge sale chez…','o',function(){choisirClient('Repris chez quel client ?',function(c){if(c)scan('repris',c,'chariot non scanné chez le client : repris sale');});});
     if(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur')){
       // Chariot plein mais pas scanné « rempli » à l'atelier : le chauffeur indique le client puis le charge
       bouton('🚚 Il est PLEIN : charger pour un client…','o',function(){choisirClient('Ce chariot est plein pour quel client ?',async function(c){
