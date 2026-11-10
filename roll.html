@@ -215,8 +215,10 @@ function actions(){
           if(r2.error)throw r2.error;if(!r2.data.ok)throw new Error(r2.data.error);
           var i2=await sb.rpc('roll_info',{p_numero:I.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
           if(navigator.vibrate)navigator.vibrate(120);afficher('✓ '+esc(I.numero)+' chargé pour '+esc(c));}catch(e){afficher('<span style="color:var(--rouge)">Erreur : '+esc(e.message||e)+'</span>');}});});
-    if(!(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur')))bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
-    if(I.etat==='retour'||I.etat==='client')bouton('🏭 Déchargé à la BdL (linge sale)','o',function(){scan('rentre',null);});
+    // Retour à la BdL : un chariot repris (ou resté « chez le client ») se DÉCHARGE ; on ne propose plus de le charger
+    var sale=I.etat==='retour'||I.etat==='client';
+    if(sale)bouton('🏭 Déchargé à la BdL (linge sale)','v',function(){scan('rentre',null);});
+    if(!sale&&I.etat!=='sale'&&!(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur')))bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
     if(I.etat==='retour'||I.etat==='client'||I.etat==='sale')bouton('📦 Chariot VIDE — rangé au dépôt BdL','g',function(){if(confirm(I.numero+' : chariot vide, rangé au dépôt ?\n(Il redevient libre, sans client.)'))scan('vide',null,'rangé vide au dépôt');});
     // Livrer / reprendre : d'abord dire OÙ il est (bouton 📍), ensuite scanner ses chariots
     $('acts').insertAdjacentHTML('beforeend','<div class="carte" style="text-align:center;font-size:17px">📍 Pour <b>livrer</b> ou <b>reprendre</b> :<br>indiquez d\'abord <b>chez quel client</b> vous êtes<br>(bouton <b>📍</b> en bas), puis scannez vos chariots.</div>');
