@@ -43,7 +43,7 @@ input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);borde
 </style>
 </head>
 <body>
-<header class="noprint"><b>🧺 Rolls BdL</b><a href="#liste" id="n-liste">Rolls</a><a href="#clients" id="n-clients">Par client</a><a href="#personnes" id="n-personnes">Personnes</a><a href="#etiquettes" id="n-etiquettes">Étiquettes QR</a><a href="#qrclients" id="n-qrclients">QR clients</a><a href="#tournees" id="n-tournees">Tournées</a></header>
+<header class="noprint"><b>🧺 Rolls BdL</b><a href="#liste" id="n-liste">Rolls</a><a href="#clients" id="n-clients">Par client</a><a href="#personnes" id="n-personnes">Personnes</a><a href="#etiquettes" id="n-etiquettes">Étiquettes QR</a><a href="#qrclients" id="n-qrclients">QR clients</a><a href="#tournees" id="n-tournees">Tournées</a><a href="#incidents" id="n-incidents">⚠ Incidents</a></header>
 <div id="login" class="carte" style="display:none"><h2>Connexion</h2><div class="s">Même compte que la GMAO.</div><input id="lE" type="email" placeholder="E-mail"><input id="lP" type="password" placeholder="Mot de passe"><button class="btn p" id="lOk">Se connecter</button><div id="lErr" class="s" style="color:var(--rouge)"></div></div>
 <main id="main"></main>
 <script>
@@ -78,6 +78,8 @@ VUES.liste=async function(){
   function enRetardCamion(d){var t=new Date(d);if(t.getHours()<14)return heures(d)>=12;
     var lim=new Date(t);do{lim.setDate(lim.getDate()+1);}while(lim.getDay()===0||lim.getDay()===6);lim.setHours(18,0,0,0);return Date.now()>lim.getTime();}
   var quai=ROLLS.filter(function(r){return r.etat==='pret'&&heures(r.maj_le)>=24;}),camion=ROLLS.filter(function(r){return r.etat==='chauffeur'&&enRetardCamion(r.maj_le);});
+  var incAuj=0;try{var d0=new Date();d0.setHours(0,0,0,0);var si=await q(sb.from('rolls_scans').select('note,roll_id,quand').not('note','is',null).gte('quand',d0.toISOString()).limit(2000));var vu2={};si.forEach(function(x){var t=typeIncident(x.note);if(!t||t.k==='correction'||t.k==='livreBureau')return;var k=t.k+x.roll_id;if(!vu2[k]){vu2[k]=1;incAuj++;}});}catch(e){}
+  if(incAuj)h+='<div class="carte" style="border-left:4px solid var(--orange);cursor:pointer" onclick="location.hash=\'#incidents\'"><b>⚠ '+incAuj+' incident'+(incAuj>1?'s':'')+' aujourd\'hui</b> (scans oubliés au tunnel, à l\'atelier ou chez le client) — voir le détail →</div>';
   if(quai.length||camion.length)h+='<div class="carte" style="border-left:4px solid var(--rouge)"><h2 style="margin:0 0 6px">⚠ Alertes</h2>'+
     (camion.length?'<div>🚚 <b>'+camion.length+' chariot'+(camion.length>1?'s':'')+' encore dans un camion, pas livré</b> (déchargement incomplet ?) : '+camion.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?')+' ('+esc(r.personne||'')+')';}).join(' · ')+'</div>':'')+
     (quai.length?'<div style="margin-top:4px">🧺 <b>'+quai.length+' chariot'+(quai.length>1?'s':'')+' prêt'+(quai.length>1?'s':'')+' depuis plus de 24 h, pas chargé'+(quai.length>1?'s':'')+'</b> : '+quai.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?');}).join(' · ')+'</div>':'')+'</div>';
@@ -310,6 +312,40 @@ VUES.qrclients=async function(){
   $('qcR').onclick=function(){coche={};liste();planche();};
   $('qcP').onclick=function(){if(!noms.some(function(n){return coche[n];})){alert('Cochez au moins un client');return;}window.print();};
   liste();
+};
+/* ---------- INCIDENTS : lus dans les notes des scans (aucune saisie en plus) ---------- */
+var TYPES_INC=[
+  {k:'laveur',ic:'🌀',lib:'Laveur : chariot pas libéré au tunnel',poste:'Laveur',re:/^incident : (non vidé au tunnel|pas déchargé ni vidé)/},
+  {k:'atelier',ic:'🧺',lib:'Atelier : chariot rempli sans scan',poste:'Atelier',re:/^non scanné à l'atelier/},
+  {k:'chauffeur',ic:'🚚',lib:'Chauffeur : scan oublié chez le client',poste:'Chauffeur',re:/scan oublié chez le client|non scanné chez le client|repris sale/},
+  {k:'retrouve',ic:'📍',lib:'Chariot noté chez le client, retrouvé à l\'atelier',poste:'Chauffeur',re:/^incident : noté chez le client/},
+  {k:'numero',ic:'🔢',lib:'Mauvais n° de chariot (corrigé)',poste:'Atelier',re:/^n° corrigé/},
+  {k:'livreBureau',ic:'🏢',lib:'Livraison régularisée par le bureau',poste:'Chauffeur',re:/^régularisé par le bureau/},
+  {k:'correction',ic:'✏️',lib:'Correction du bureau',poste:'Bureau',re:/^correction du bureau/}
+];
+function typeIncident(n){for(var i=0;i<TYPES_INC.length;i++)if(TYPES_INC[i].re.test(n||''))return TYPES_INC[i];return null;}
+var perInc=7;
+VUES.incidents=async function(){
+  var depuis=new Date(Date.now()-perInc*864e5);
+  var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').not('note','is',null).gte('quand',depuis.toISOString()).order('quand',{ascending:false}).limit(5000));
+  var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
+  var l=[];sc.forEach(function(s){var t=typeIncident(s.note);if(t)l.push({s:s,t:t});});
+  // une correction groupée = une fiche par chariot et par minute
+  var vu={};l=l.filter(function(x){var k=x.t.k+'|'+x.s.roll_id+'|'+String(x.s.quand).slice(0,16);if(vu[k])return false;vu[k]=1;return true;});
+  var parT={},parP={};l.forEach(function(x){parT[x.t.k]=(parT[x.t.k]||0)+1;var p=x.t.poste;parP[p]=(parP[p]||0)+1;});
+  var h='<h1>⚠ Incidents chariots</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(d===perInc?' p':'')+'" data-per="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
+    ' <button class="btn" onclick="window.print()">🖨 Imprimer</button><div class="s" style="margin-top:6px">Relevés automatiquement à partir des scans : chaque oubli rattrapé (au tunnel, à l\'atelier, chez le client, au bureau) devient une fiche.</div></div>'+
+    '<div class="tuiles">'+TYPES_INC.map(function(t){return '<div class="tuile" data-ti="'+t.k+'"><b>'+(parT[t.k]||0)+'</b><span>'+t.ic+' '+esc(t.lib)+'</span></div>';}).join('')+'</div>'+
+    '<div class="carte"><b>Par poste :</b> '+(Object.keys(parP).length?Object.keys(parP).sort(function(a,b){return parP[b]-parP[a];}).map(function(p){return esc(p)+' <b>'+parP[p]+'</b>';}).join(' · '):'aucun incident')+'</div>'+
+    '<div class="carte"><table><thead><tr><th>Quand</th><th>Incident</th><th>Chariot</th><th>Client</th><th>Signalé par</th><th>Détail</th></tr></thead><tbody id="incT"></tbody></table></div>';
+  $('main').innerHTML=h;
+  var filtreT='';
+  function rendre(){$('incT').innerHTML=l.filter(function(x){return !filtreT||x.t.k===filtreT;}).map(function(x){return '<tr style="cursor:pointer" data-r="'+x.s.roll_id+'"><td>'+fmtQ(x.s.quand)+'</td><td>'+x.t.ic+' '+esc(x.t.lib)+'</td><td><b>'+esc(num[x.s.roll_id]||'?')+'</b></td><td>'+esc(x.s.client||'')+'</td><td>'+esc(x.s.personne||'')+'</td><td class="s">'+esc(x.s.note)+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun incident sur la période. 👍</td></tr>';
+    document.querySelectorAll('[data-ti]').forEach(function(t){t.style.outline=t.dataset.ti===filtreT?'3px solid var(--bleu)':'';});}
+  rendre();
+  document.querySelectorAll('[data-ti]').forEach(function(t){t.onclick=function(){filtreT=filtreT===t.dataset.ti?'':t.dataset.ti;rendre();};});
+  document.querySelectorAll('[data-per]').forEach(function(b){b.onclick=function(){perInc=+b.dataset.per;VUES.incidents();};});
+  $('incT').onclick=function(e){var tr=e.target.closest('[data-r]');if(tr)historique(tr.dataset.r);};
 };
 /* ---------- TOURNÉES : horaires du chauffeur, déduits de ses scans ---------- */
 var jourT=null;
