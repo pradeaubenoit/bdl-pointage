@@ -1281,6 +1281,10 @@ function demanderChariot(client, lignes, opts) {
     let info = null;
     try { info = await rollRpc('roll_info', { p_numero: numero }); } catch (e) { info = null; }   // pas de réseau : on envoie (file d'attente)
     if (info && info.ok === false) { msg.style.color = '#c62828'; msg.textContent = info.error || 'Chariot inconnu'; return; }
+    // Chariot encore noté sale / en retour / chez le client mais rempli ici : on le libère d'abord (incident enregistré), sans bloquer l'atelier
+    const INC = {sale:'incident : non vidé au tunnel (oubli du laveur)',retour:'incident : pas déchargé ni vidé (oubli chauffeur + laveur)',client:'incident : noté chez le client, retrouvé à l\'atelier'};
+    const avant = info && info.ok ? INC[info.etat] || null : null;
+    if (avant) { f.style.display = 'none'; rollEnvoyer({ numero, client, contenu, avant }); return; }
     if (info && info.ok && info.etat === 'pret' && info.client) {
       const qui = (info.personne || 'quelqu\'un') + ' à ' + new Date(info.maj_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       const meme = sansAccent(info.client) === sansAccent(client);
@@ -1525,6 +1529,10 @@ async function rollEnvoyer(x, essai) {
   try {
     const id = await rollIdentite(x.numero);
     if (!id) { ecrire(CLE_ROLL_FILE, lire(CLE_ROLL_FILE, []).concat([x])); return; }
+    if (x.avant) {   // remise à zéro du chariot (oubli du laveur…) avant de le remplir
+      const r0 = await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'vide', p_client: null, p_note: x.avant });
+      if (r0 && r0.ok) { x.avant = null; toast('⚠ ' + x.numero + ' : incident noté (chariot pas libéré au tunnel)'); }
+    }
     const r = await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: x.client, p_note: x.contenu });
     if (!r.ok) {
       if (/code/i.test(r.error || '')) {
