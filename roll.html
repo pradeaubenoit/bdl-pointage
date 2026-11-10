@@ -312,6 +312,9 @@ async function scan(etape,client,note){
   if(!dejaFait(etape,client))return;
   $('acts').innerHTML='<div class="carte">Envoi…</div>';
   try{
+    // Rempli alors qu'il est encore noté sale / en retour / chez le client : on le libère d'abord, avec un incident
+    var INC={sale:'incident : non vidé au tunnel (oubli du laveur)',retour:'incident : pas déchargé ni vidé (oubli chauffeur + laveur)',client:'incident : noté chez le client, retrouvé à l\'atelier'};
+    if(etape==='rempli'&&INC[INFO.etat]){var r0=await sb.rpc('roll_scan',{p_numero:INFO.numero,p_personne:MOI.id,p_code:MOI.code,p_etape:'vide',p_client:null,p_note:INC[INFO.etat]});if(r0.error)throw r0.error;}
     var r=await sb.rpc('roll_scan',{p_numero:INFO.numero,p_personne:MOI.id,p_code:MOI.code,p_etape:etape,p_client:client,p_note:note||null});
     if(r.error)throw r.error;
     if(!r.data.ok){if(/code/i.test(r.data.error)){alert('Code incorrect. Retapez votre code.');MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}majMoi();return choisirMoi();}throw new Error(r.data.error);}
