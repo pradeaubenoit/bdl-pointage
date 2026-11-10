@@ -66,7 +66,7 @@ async function route(){var v=(location.hash||'#liste').slice(1).split('/')[0];do
   try{await charger();await (VUES[v]||VUES.liste)();}catch(e){$('main').innerHTML='<div class="carte" style="color:var(--rouge)">Erreur : '+esc(e.message||e)+'</div>';}}
 window.addEventListener('hashchange',route);
 
-var filtre='';
+var filtre='',rechMem='',coches={};
 VUES.liste=async function(){
   var n={};ROLLS.forEach(function(r){n[r.etat]=(n[r.etat]||0)+1;});
   var vieux=ROLLS.filter(function(r){return (r.etat==='client'||r.etat==='retour')&&jours(r.maj_le)>=SEUIL_J;});
@@ -81,10 +81,11 @@ VUES.liste=async function(){
   if(quai.length||camion.length)h+='<div class="carte" style="border-left:4px solid var(--rouge)"><h2 style="margin:0 0 6px">⚠ Alertes</h2>'+
     (camion.length?'<div>🚚 <b>'+camion.length+' chariot'+(camion.length>1?'s':'')+' encore dans un camion, pas livré</b> (déchargement incomplet ?) : '+camion.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?')+' ('+esc(r.personne||'')+')';}).join(' · ')+'</div>':'')+
     (quai.length?'<div style="margin-top:4px">🧺 <b>'+quai.length+' chariot'+(quai.length>1?'s':'')+' prêt'+(quai.length>1?'s':'')+' depuis plus de 24 h, pas chargé'+(quai.length>1?'s':'')+'</b> : '+quai.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?');}).join(' · ')+'</div>':'')+'</div>';
-  h+='<div class="carte"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><input id="rq" placeholder="Chercher un roll ou un client…" style="flex:1">'+(filtre?'<button class="btn" id="rTout">Tout afficher</button>':'')+'</div><div id="rRes" style="margin-bottom:8px"></div><table><thead><tr><th>Roll</th><th>État</th><th>Client</th><th>Dernier scan</th><th>Par</th></tr></thead><tbody id="rT"></tbody></table></div>'+
+  h+='<div class="carte"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><input id="rq" placeholder="Chercher un roll ou un client…" style="flex:1">'+(filtre?'<button class="btn" id="rTout">Tout afficher</button>':'')+'</div><div id="rRes" style="margin-bottom:8px"></div><div id="rLot" class="noprint" style="display:none;position:sticky;top:0;z-index:5;background:#1f2a35;color:#fff;border-radius:8px;padding:8px 12px;margin-bottom:8px"></div><table><thead><tr><th class="noprint"><input type="checkbox" id="rAll" title="Tout cocher"></th><th>Roll</th><th>État</th><th>Client</th><th>Dernier scan</th><th>Par</th></tr></thead><tbody id="rT"></tbody></table></div>'+
     '<div class="carte noprint"><h2>Ajouter des rolls</h2><input id="aN" type="number" min="1" max="200" value="10" style="width:90px"> <button class="btn p" id="aOk">Créer les suivants</button> <span class="s">Numéros à la suite du dernier (R-021, R-022…).</span></div>';
   $('main').innerHTML=h;
-  function rendre(){var t=($('rq').value||'').toLowerCase();
+  $('rq').value=rechMem;
+  function rendre(){rechMem=$('rq').value||'';var t=rechMem.toLowerCase();
     var l=ROLLS.filter(function(r){if(!t){if(filtre==='vieux')return vieux.indexOf(r)>=0;if(filtre&&r.etat!==filtre)return false;return true;}return (r.numero+' '+(r.client||'')).toLowerCase().indexOf(t)>=0;});   // une recherche cherche dans TOUS les chariots, même si une tuile est sélectionnée
     // Recherche : résumé par état (ex. « BB : 3 chez le client · 1 dans le camion »)
     var n2={};l.forEach(function(r){n2[r.etat]=(n2[r.etat]||0)+1;});
@@ -94,16 +95,47 @@ VUES.liste=async function(){
     $('rRes').innerHTML=t&&l.length?'<div style="background:var(--bleu2);border-radius:8px;padding:8px 12px;font-size:15px"><b>« '+esc($('rq').value.trim())+' » : '+l.length+' chariot'+(l.length>1?'s':'')+'</b> — '+['client','chauffeur','pret','retour','sale','bdl'].filter(function(e){return n2[e];}).map(function(e){return '<b>'+n2[e]+'</b> '+esc(ETATS[e]).toLowerCase();}).join(' · ')+(boutonsLiv?'<div class="noprint">'+boutonsLiv+'</div>':'')+'</div>':'';
     document.querySelectorAll('[data-liv]').forEach(function(b){b.onclick=function(){livrerSansScan(b.getAttribute('data-liv'),aLivrer[b.getAttribute('data-liv')]);};});
     $('rT').innerHTML=l.map(function(r){var j=jours(r.maj_le),v=(r.etat==='client'||r.etat==='retour')&&j>=SEUIL_J;
-      return '<tr style="cursor:pointer" data-r="'+r.id+'"><td><b>'+esc(r.numero)+'</b></td><td><span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></td><td>'+esc(r.client||'—')+'</td><td class="'+(v?'vieux':'')+'">'+fmtQ(r.maj_le)+' <span class="s">('+j+' j)</span></td><td>'+esc(r.personne||'')+'</td></tr>';}).join('')||'<tr><td colspan="5" class="s">Aucun roll.</td></tr>';}
+      return '<tr style="cursor:pointer" data-r="'+r.id+'"><td class="noprint" data-ck><input type="checkbox" data-c="'+r.id+'"'+(coches[r.id]?' checked':'')+'></td><td><b>'+esc(r.numero)+'</b></td><td><span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></td><td>'+esc(r.client||'—')+'</td><td class="'+(v?'vieux':'')+'">'+fmtQ(r.maj_le)+' <span class="s">('+j+' j)</span></td><td>'+esc(r.personne||'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun roll.</td></tr>';
+    LISTE_VUE=l;barreLot();}
   $('rq').oninput=rendre;rendre();
   document.querySelectorAll('[data-f]').forEach(function(x){x.onclick=function(){filtre=filtre===x.dataset.f?'':x.dataset.f;VUES.liste();};});
   if($('rTout'))$('rTout').onclick=function(){filtre='';VUES.liste();};
-  $('rT').onclick=function(e){var tr=e.target.closest('[data-r]');if(tr)historique(tr.dataset.r);};
+  $('rT').onclick=function(e){
+    if(e.target.closest('[data-ck]')){var c=e.target.closest('[data-ck]').querySelector('input');if(e.target!==c)c.checked=!c.checked;if(c.checked)coches[c.dataset.c]=1;else delete coches[c.dataset.c];barreLot();return;}
+    var tr=e.target.closest('[data-r]');if(tr)historique(tr.dataset.r);};
+  $('rAll').onchange=function(){var on=this.checked;(LISTE_VUE||[]).forEach(function(r){if(on)coches[r.id]=1;else delete coches[r.id];});rendre();};
   $('aOk').onclick=async function(){var k=parseInt($('aN').value)||0;if(k<1)return;
     var max=ROLLS.reduce(function(m,r){var x=parseInt(String(r.numero).replace(/\D/g,''))||0;return Math.max(m,x);},0);
     var l=[];for(var i=1;i<=k;i++)l.push({numero:'R-'+String(max+i).padStart(3,'0')});
     try{await q(sb.from('rolls').insert(l));route();}catch(e){alert(e.message);}};
 };
+/* ---------- Correction groupée : cocher plusieurs chariots puis une seule étape pour tous (scans oubliés) ---------- */
+var LISTE_VUE=[];
+function barreLot(){var z=$('rLot');if(!z)return;var ids=Object.keys(coches).filter(function(id){return ROLLS.some(function(r){return r.id===id;});});
+  if(!ids.length){z.style.display='none';return;}z.style.display='block';
+  z.innerHTML='<b>'+ids.length+' coché'+(ids.length>1?'s':'')+'</b> : '+
+    '<button class="btn" data-lot="livre">🚚 Livré chez leur client</button> <button class="btn" data-lot="repris">↩ Repris chez leur client</button> '+
+    '<button class="btn" data-lot="rentre">🏭 Déchargé à la BdL (sale)</button> <button class="btn" data-lot="vide">🌀 Vidé au tunnel</button> '+
+    '<button class="btn" data-lot="tout">🔁 Livré + repris + déchargé</button> <button class="btn" data-lot="aucun" style="background:transparent;color:#cfd8e0;border-color:#cfd8e0">Décocher</button>';
+  z.querySelectorAll('[data-lot]').forEach(function(b){b.onclick=function(){var e=b.dataset.lot;if(e==='aucun'){coches={};VUES.liste();return;}corrigerLot(ids,e);};});}
+async function corrigerLot(ids,e){
+  var liste=ROLLS.filter(function(r){return ids.indexOf(r.id)>=0;});
+  var etapes=e==='tout'?['livre','repris','rentre']:[e];
+  var sansCli=liste.filter(function(r){return !r.client;});
+  if(e!=='vide'&&sansCli.length){alert(sansCli.map(function(r){return r.numero;}).join(', ')+' : pas de client. Décochez-les (ou indiquez leur client dans leur fiche).');return;}
+  var L={livre:'Livré',repris:'Repris',rentre:'Déchargé sale',vide:'Vidé au tunnel'};
+  if(!confirm(liste.length+' chariot(s) : '+etapes.map(function(x){return L[x];}).join(' → ')+'\n\n'+liste.map(function(r){return r.numero+(r.client?' ('+r.client+')':'');}).join('\n')))return;
+  var qui='Bureau';try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(x){}
+  var EV={livre:'client',repris:'retour',rentre:'sale',vide:'bdl'},t0=Date.now(),scans=[];
+  liste.forEach(function(r){etapes.forEach(function(et,k){scans.push({roll_id:r.id,etape:et,client:et==='vide'?null:r.client,personne:qui,quand:new Date(t0+k*1000).toISOString(),note:'correction du bureau'});});});
+  try{
+    await q(sb.from('rolls_scans').insert(scans));
+    var der=etapes[etapes.length-1],quand=new Date(t0+(etapes.length-1)*1000).toISOString();
+    if(der==='vide')await q(sb.from('rolls').update({etat:'bdl',client:null,personne:qui,maj_le:quand}).in('id',ids));
+    else await q(sb.from('rolls').update({etat:EV[der],personne:qui,maj_le:quand}).in('id',ids));
+    coches={};alert('✓ '+liste.length+' chariot(s) corrigé(s).');route();
+  }catch(x){alert('Correction impossible : '+(x.message||x));}
+}
 // Le linge est parti sans scan (chauffeur absent…) : le bureau déclare les chariots livrés chez le client.
 async function livrerSansScan(client,liste){
   if(!liste||!liste.length)return;
