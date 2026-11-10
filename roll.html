@@ -218,7 +218,7 @@ function actions(){
     // Retour à la BdL : un chariot repris (ou resté « chez le client ») se DÉCHARGE ; on ne propose plus de le charger
     var sale=I.etat==='retour'||I.etat==='client';
     if(sale)bouton('🏭 Déchargé à la BdL (linge sale)','v',function(){scan('rentre',null);});
-    if(!sale&&I.etat!=='sale'&&!(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur')))bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
+    if(!sale&&I.etat!=='sale'&&I.etat!=='chauffeur'&&!(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur')))bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
     if(I.etat==='retour'||I.etat==='client'||I.etat==='sale')bouton('📦 Chariot VIDE — rangé au dépôt BdL','g',function(){if(confirm(I.numero+' : chariot vide, rangé au dépôt ?\n(Il redevient libre, sans client.)'))scan('vide',null,'rangé vide au dépôt');});
     // Livrer / reprendre : d'abord dire OÙ il est (bouton 📍), ensuite scanner ses chariots
     $('acts').insertAdjacentHTML('beforeend','<div class="carte" style="text-align:center;font-size:17px">📍 Pour <b>livrer</b> ou <b>reprendre</b> :<br>indiquez d\'abord <b>chez quel client</b> vous êtes<br>(bouton <b>📍</b> en bas), puis scannez vos chariots.</div>');
@@ -230,7 +230,17 @@ function actions(){
   }
   if(aRole('chauffeur')&&I.etat==='chauffeur'&&I.client)bouton('↩ Regrouper dans un autre chariot','g',regrouperCamion);
   // Chargé par erreur : le chariot redescend au quai (rempli, même client, même contenu) ; vide : il retourne au dépôt
-  if(aRole('chauffeur')&&I.etat==='chauffeur')bouton('⬇ Chargé par erreur : redescendre au quai','g',function(){
+  // Retour BdL avec un chariot jamais scanné chez le client : il a été livré, repris, et revient SALE → on enregistre les 3 étapes d'un coup
+  if(aRole('chauffeur')&&!ARRET&&I.etat==='chauffeur'&&I.client)bouton('🏭 Il revient SALE de chez '+I.client+' : déchargé','v',async function(){
+    if(!confirm(I.numero+' : livré chez '+I.client+', repris, et déchargé SALE à la BdL ?\n\n(Les scans chez le client ont été oubliés.)'))return;
+    var base={p_numero:I.numero,p_personne:MOI.id,p_code:MOI.code};
+    try{for(var et of [['livre',I.client,'scan oublié chez le client'],['repris',I.client,'scan oublié chez le client'],['rentre',null,null]]){
+        var r=await sb.rpc('roll_scan',Object.assign({p_etape:et[0],p_client:et[1],p_note:et[2]},base));if(r.error)throw r.error;if(!r.data.ok)throw new Error(r.data.error);}
+      var i2=await sb.rpc('roll_info',{p_numero:I.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
+      if(navigator.vibrate)navigator.vibrate(120);afficher('✓ '+esc(I.numero)+' déchargé sale (de chez '+esc(I.client)+')');
+    }catch(e){afficher('<span style="color:var(--rouge)">Erreur : '+esc(e.message||e)+'</span>');}
+  });
+  if(aRole('chauffeur')&&I.etat==='chauffeur')bouton('⬇ Chargé par erreur : redescendre au quai (encore propre)','g',function(){
     if(I.client){if(!confirm(I.numero+' ('+I.client+') : chargé par erreur ?\n\nIl redescend au quai, « Rempli, prêt » pour '+I.client+', avec son contenu.'))return;
       var c=contenuDe(I);scan('rempli',I.client,c||null);}
     else{if(!confirm(I.numero+' : chariot vide chargé par erreur ?\n\nIl retourne au dépôt, libre.'))return;scan('vide',null,'redescendu du camion (chargé par erreur)');}
@@ -238,7 +248,8 @@ function actions(){
   if(aRole('atelier')&&rempliApres)bRempli();
   if(aRole('laveur'))bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
 }
-function contenuDe(info){if(!info)return '';if(info.note)return info.note;var r=(info.derniers||[]).find(function(d){return d.etape==='rempli';});return (r&&r.note)||'';}
+function contenuDe(info){if(!info)return '';var estNote=function(n){return /^(non scanné|regroupement|correction|redescendu|rangé|vidé|n° corrigé|chariot vide)/i.test(n||'');};
+  if(info.note&&!estNote(info.note))return info.note;var r=(info.derniers||[]).find(function(d){return d.etape==='rempli'&&d.note&&!estNote(d.note);});return (r&&r.note)||'';}
 function fusionContenu(a,b){var tot={},ordre=[];[a,b].forEach(function(txt){String(txt||'').split(',').forEach(function(m){m=m.trim();if(!m)return;var x=m.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/);var nom=x?x[1]:m,q=x?Number(x[2].replace(',','.')):null,k=nrm(nom);if(!(k in tot)){tot[k]={nom:nom,q:null};ordre.push(k);}if(q!=null)tot[k].q=(tot[k].q||0)+q;});});return ordre.map(function(k){return tot[k].nom+(tot[k].q!=null?' '+tot[k].q:'');}).join(', ');}
 /* Regroupement dans le camion : le linge propre de INFO passe dans un autre chariot du même client ; INFO reste dans le camion, VIDE et sans client.
    Étapes enregistrées avec la note « regroupement » (ignorées dans les Tournées). */
