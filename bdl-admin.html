@@ -7400,6 +7400,8 @@ async function planReproduire() {
         if (avant !== JSON.stringify(pl.map(function (p) { return [p.debut, p.fin, p.poste]; }))) travaux.push({ emp: emp.empId, j: j, pl: pl });
       }
     });
+    window.__lotEnCours = true;
+    try {
     for (var i = 0; i < travaux.length; i++) {
       if (prog) prog(i + 1, travaux.length);
       var t = travaux[i], r = await callApi('saveAffectationsJour', { semaine: _planData.semaine, empId: t.emp, jour: t.j, plages: JSON.stringify(t.pl) });
@@ -7407,6 +7409,7 @@ async function planReproduire() {
       if (!_affData[t.emp]) _affData[t.emp] = {};
       _affData[t.emp][t.j] = t.pl;
     }
+    } finally { window.__lotEnCours = false; }
     return { ok: true, recales: travaux.length };
   };
 
@@ -8877,6 +8880,8 @@ async function reproduirePostesSemaine(empId, jourSrc) {
   var hhmm = function (m) { return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
   var faits = 0, sautes = [];
   var noms = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  window.__lotEnCours = true;
+  try {
   for (var j = 0; j < 6; j++) {
     if (j === jourSrc) continue;
     var h = (emp.jours || [])[j] || {}, hd = _affMinFromHHMM(h.debut), hf = _affMinFromHHMM(h.fin);
@@ -8898,6 +8903,7 @@ async function reproduirePostesSemaine(empId, jourSrc) {
     if (!_affData[emp.empId]) _affData[emp.empId] = {};
     _affData[emp.empId][j] = pl; faits++;
   }
+  } finally { window.__lotEnCours = false; }
   return { ok: true, jours: faits, sautes: sautes };
 }
 
@@ -9808,7 +9814,8 @@ else document.addEventListener('DOMContentLoaded', lancer);
   var minuteur = null;
   function rafraichirBarres() {
     clearTimeout(minuteur);
-    minuteur = setTimeout(function () { if (document.getElementById('barWrap') && typeof barRender === 'function') barRender(); }, 700);
+    if (window.__lotEnCours) return;   // recalage / recopie en cours : on rafraîchit une seule fois à la fin
+    minuteur = setTimeout(function () { if (!window.__lotEnCours && document.getElementById('barWrap') && typeof barRender === 'function') barRender(); }, 700);
   }
   var orig = callApi;
   callApi = function (action, params) {
