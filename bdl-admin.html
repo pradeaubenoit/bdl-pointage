@@ -5793,6 +5793,7 @@ function _planSyncEcran() {
     for (var j = 0; j < 6; j++) { if (!r.jours[j]) r.jours[j] = {}; r.jours[j].debut = js[j].debut; r.jours[j].fin = js[j].fin; }
   });
 }
+document.addEventListener('change', function (e) { if (e.target && e.target.classList && e.target.classList.contains('plan-input')) { try { _planSyncEcran(); } catch (x) {} } }, true);
 function _planCollect() {
   var map = {};
   (_planData.planning || []).forEach(function (r) {
@@ -5857,7 +5858,19 @@ async function planSaveEmp(empId) {
       empId: p.empId,
       jours: JSON.stringify(p.jours)
     });
-    if (resp && resp.ok) { toast('Ligne enregistrée ✓', 'success'); }
+    if (resp && resp.ok) {
+      _planSyncEcran();   // la mémoire de la page suit ce qui vient d'être enregistré (un réaffichage ne remettra plus l'ancien horaire)
+      // contre-vérification : on relit la semaine sur le serveur
+      var v = await callApi('getPlanningSemaine', { semaine: _planData.semaine });
+      var lu = v && v.ok ? (v.planning || []).find(function (r) { return String(r.empId) === String(p.empId); }) : null;
+      var ecarts = [];
+      if (lu) for (var jj = 0; jj < p.jours.length; jj++) {
+        var a = p.jours[jj] || {}, b2 = (lu.jours || [])[jj] || {};
+        if ((a.debut || '') !== (b2.debut || '') || (a.fin || '') !== (b2.fin || '')) ecarts.push(['lun', 'mar', 'mer', 'jeu', 'ven', 'sam'][jj] + ' ' + (b2.debut || '—') + '→' + (b2.fin || '—'));
+      }
+      if (ecarts.length) toast('⚠ Le serveur n\'a PAS gardé ces horaires : ' + ecarts.join(', '), 'error');
+      else toast('Ligne enregistrée ✓' + (lu ? ' (vérifiée)' : ''), 'success');
+    }
     else { toast('Échec : ' + ((resp && resp.error) || '?'), 'error'); }
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
@@ -5883,6 +5896,7 @@ async function planSaveEmp(empId) {
       });
       if (resp && resp.ok) okCount++;
     }
+    _planSyncEcran();
     toast('Planning enregistré (' + okCount + '/' + total + ' salariés)', 'success');
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
