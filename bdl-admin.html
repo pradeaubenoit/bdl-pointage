@@ -6720,6 +6720,8 @@ var _barAbs = _planData.absences || {};
   });
 
   if (rows.length === 0) { wrap.innerHTML = '<div style="color:var(--ink-faint);font-size:13px;padding:8px">Personne de planifié ce jour.</div>'; return; }
+  // copie des lignes : la Vue barres ne doit JAMAIS modifier les horaires du planning (sinon la 💾 suivante les enregistrerait)
+  rows = rows.map(function (r) { return Object.assign({}, r, { jours: (r.jours || []).map(function (h) { return Object.assign({}, h); }) }); });
 // Présence partielle : remplacer l'horaire par les heures de présence réelles (8h-12h)
   function _barHHMM(v) {
     if (v == null) return '';
