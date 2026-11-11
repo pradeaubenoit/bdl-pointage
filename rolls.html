@@ -334,7 +334,7 @@ var TYPES_INC=[
 function typeIncident(n){for(var i=0;i<TYPES_INC.length;i++)if(TYPES_INC[i].re.test(n||''))return TYPES_INC[i];return null;}
 var perInc=7;
 VUES.incidents=async function(){
-  var depuis=new Date(Date.now()-perInc*864e5);
+  var depuis=new Date(Date.now()-perInc*864e5);if(perInc===1){depuis=new Date();depuis.setHours(0,0,0,0);}   // « aujourd'hui » = depuis minuit
   var sc=await q(sb.from('rolls_scans').select('id,quand,etape,client,personne,roll_id,note').not('note','is',null).gte('quand',depuis.toISOString()).order('quand',{ascending:false}).limit(5000));
   var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
   // 1re livraison/reprise de chaque chauffeur, par jour (pour reconnaître une reprise sale enregistrée « rempli »)
@@ -375,7 +375,7 @@ VUES.incidents=async function(){
       return {prob:Object.keys(set),info:rt?'revenu sale le '+fmtQ(rt.quand):''};}
     if(k==='atelier'){  // personnes de l'atelier qui ont rempli d'autres chariots pour ce client ce jour-là
       var set2={},j2=jourDe(x.s.quand);
-      tous.forEach(function(y){if(y.etape==='rempli'&&jourDe(y.quand)===j2&&humain(y.personne)&&y.client&&x.s.client&&y.client.toLowerCase()===x.s.client.toLowerCase()&&/atelier/.test(roleDe[y.personne]||''))set2[y.personne]=1;});
+      tous.forEach(function(y){if(y.etape==='rempli'&&!/^non scanné à l'atelier/.test(y.note||'')&&jourDe(y.quand)===j2&&humain(y.personne)&&y.client&&x.s.client&&y.client.toLowerCase()===x.s.client.toLowerCase()&&/atelier/.test(roleDe[y.personne]||''))set2[y.personne]=1;});
       return {prob:Object.keys(set2)};}
     return {prob:[]};
   }
