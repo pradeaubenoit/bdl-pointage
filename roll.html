@@ -190,6 +190,11 @@ function actions(){
     }else if(I.etat==='retour'||I.etat==='bdl'||I.etat==='sale'||!I.client){
       if(I.etat!=='retour')bouton('↩ Je le reprends plein de linge sale','o',function(){scan('repris',ARRET.client,(I.etat==='bdl'||!I.client)?'chariot non scanné chez le client : repris sale':null);});
       bouton('✅ Déposer VIDE chez '+ARRET.client,'v',function(){scan('livre',ARRET.client,'chariot vide déposé'+(I.client&&nrm(I.client)!==nrm(ARRET.client)?' (repris chez '+I.client+')':''));});
+    }else if(I.etat==='pret'){
+      // Rempli mais jamais chargé dans un camion : il est normalement encore au quai de la BdL
+      $('acts').insertAdjacentHTML('beforeend','<div class="alerte" style="font-size:18px;text-align:center">⚠ Ce chariot n\'a pas été chargé dans un camion.<br>Pour l\'appli, il est encore <b>au quai de la BdL</b>.</div>');
+      bouton('Je ne suis plus chez '+ARRET.client,'o',function(){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}afficher();});
+      bouton('Il est bien ici : le déposer chez '+ARRET.client,'g',function(){if(confirm(I.numero+' n\'a pas été scanné « Chargé dans mon camion ».\n\nVous êtes VRAIMENT chez '+ARRET.client+' et vous le déposez ?'))scan('livre',ARRET.client,'déposé sans scan de chargement');});
     }else{
       bouton('✅ Déposer chez '+ARRET.client,'v',function(){scan('livre',ARRET.client);});
     }
