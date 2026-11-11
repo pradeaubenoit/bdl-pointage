@@ -43,7 +43,7 @@ main{padding-bottom:110px}
 <main id="main"><div class="carte">Chargement…</div></main>
 <div id="barre"><button class="gros" id="bChg" onclick="ecranChargement()" style="display:none">🚚</button><button class="gros" id="bOu" onclick="jeSuisChez()" style="display:none">📍 Où ?</button><button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner</button><button class="gros" id="bNum" onclick="ouvrirNumero()">⌨ N°</button></div>
 <div id="numFond"><div class="boite"><div class="s" style="text-align:center">Numéro écrit sur le chariot</div><div id="numAff">R-</div><div class="pave" id="pave"></div><div style="display:flex;gap:10px;margin-top:10px"><button class="gros g" style="margin:0" onclick="fermerNumero()">Annuler</button><button class="gros v" style="margin:0" onclick="validerNumero()">Ouvrir</button></div></div></div>
-<div id="scanFond"><div class="bar">Approchez le code-barres dans le cadre — dans n'importe quel sens</div><div id="lecteur"></div><div class="bar"><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button></div></div>
+<div id="scanFond"><div class="bar" id="scanHaut">Approchez le code-barres dans le cadre — dans n'importe quel sens</div><div id="lecteur"></div><div class="bar" id="scanBas"><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button></div></div>
 <script>
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var LINGE_API='https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
@@ -411,6 +411,7 @@ async function ecranChargement(msg,d){
       '<button class="gros g" id="chAddFav">⭐ Ajouter un client à mes clients…</button>'+
       '<div class="s" style="margin:-6px 4px 10px">☆ = ajouter à <b>mes clients</b> : ils restent en haut de la liste, même quand rien n\'est prêt (pour ne pas en oublier).</div>';
   }
+  h='<button class="gros o" onclick="chargerRafale()" style="font-size:20px">📷 Charger en rafale<div style="font-size:14px;font-weight:600">scannez tous les chariots à la suite, puis « Charger »</div></button>'+h;
   h+='<div class="s" style="text-align:center;margin:-4px 0 8px">🔄 Mis à jour à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' (automatique toutes les 30 s)</div>';
   h+='<button class="gros g" id="chFin">Terminer le chargement</button>';
   $('main').innerHTML=h;
@@ -490,7 +491,8 @@ var LECTEUR=null;
 /* Lecteur maison (ZXing) : lit les codes-barres dans les DEUX sens (collés dans la longueur d'un tube) + les QR */
 var ZX=null,FLUX=null,BOUCLE=null;
 function chargerScript(srcs){return new Promise(function(ok,ko){(function essai(i){if(i>=srcs.length)return ko(new Error('Lecteur indisponible (réseau)'));var sc=document.createElement('script');sc.src=srcs[i];sc.onload=ok;sc.onerror=function(){essai(i+1);};document.head.appendChild(sc);})(0);});}
-async function ouvrirScanner(){
+async function ouvrirScanner(rafale){
+  if(rafale!==true)RAF=null;
   $('scanFond').style.display='flex';
   try{
     if(!window.ZXing)await chargerScript(['https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js','https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js']);
@@ -512,12 +514,53 @@ async function ouvrirScanner(){
       x.save();if(rot){x.translate(c.width,0);x.rotate(Math.PI/2);}
       x.drawImage(v,sx,sy,cw,ch,0,0,Math.round(cw*k),Math.round(ch*k));x.restore();
       try{var src=new ZXing.HTMLCanvasElementLuminanceSource(c),bm=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(src));
-        var r=ZX.decodeWithState(bm);if(r&&r.getText()){var t=r.getText();if(navigator.vibrate)navigator.vibrate(80);fermerScanner().then(function(){traiterCode(t);});}
+        var r=ZX.decodeWithState(bm);if(r&&r.getText()){var t=r.getText();if(RAF){rafaleCode(t);return;}if(navigator.vibrate)navigator.vibrate(80);fermerScanner().then(function(){traiterCode(t);});}
       }catch(e){}
     },120);
   }catch(e){fermerScanner();alert('Caméra impossible : '+(e.message||e)+'\n\nAutorisez la caméra pour ce site dans Safari (aA → Réglages du site web).');}
 }
-async function fermerScanner(){$('scanFond').style.display='none';if(BOUCLE){clearInterval(BOUCLE);BOUCLE=null;}if(FLUX){FLUX.getTracks().forEach(function(t){t.stop();});FLUX=null;}$('lecteur').innerHTML='';}
+async function fermerScanner(){$('scanFond').style.display='none';RAF=null;
+  $('scanHaut').style.background='';$('scanHaut').innerHTML='Approchez le code-barres dans le cadre — dans n\'importe quel sens';$('scanBas').innerHTML='<button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button>';if(BOUCLE){clearInterval(BOUCLE);BOUCLE=null;}if(FLUX){FLUX.getTracks().forEach(function(t){t.stop();});FLUX=null;}$('lecteur').innerHTML='';}
+/* ---------- Chargement EN RAFALE : la caméra reste ouverte, chaque chariot lu est chargé tout seul (bip + écran vert) ---------- */
+var RAF=null,RAF_AC=null;
+function bip(ok){try{var A=window.AudioContext||window.webkitAudioContext;if(!RAF_AC)RAF_AC=new A();var o=RAF_AC.createOscillator(),g=RAF_AC.createGain();
+  o.frequency.value=ok?1400:260;o.type=ok?'sine':'square';g.gain.value=0.25;o.connect(g);g.connect(RAF_AC.destination);o.start();o.stop(RAF_AC.currentTime+(ok?0.12:0.45));}catch(e){}
+  if(navigator.vibrate)navigator.vibrate(ok?80:[250,120,250]);}
+function rafaleAff(txt,coul){var h=$('scanHaut');h.style.background=coul;h.innerHTML='<div style="font-size:24px;font-weight:800;line-height:1.25">'+txt+'</div>';}
+function rafaleBas(){var n=RAF.ok.length;$('scanBas').innerHTML=(n?'<div style="font-size:14px;margin-bottom:8px;opacity:.9">'+RAF.ok.map(function(x){return esc(x.n)+' '+esc(x.c||'');}).join(' · ')+'</div>':'')+
+  '<button class="gros v" style="margin:0 0 8px" onclick="finRafale()"'+(n?'':' disabled')+'>🚚 Charger '+(n>1?'les '+n+' chariots':n+' chariot')+' dans mon camion</button><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button>';}
+async function chargerRafale(){
+  if(!MOI)return choisirMoi(chargerRafale);
+  try{var A=window.AudioContext||window.webkitAudioContext;if(!RAF_AC)RAF_AC=new A();RAF_AC.resume();}catch(e){}   // le son doit être activé par un toucher
+  RAF={ok:[],dernier:'',t:0,occupe:false};
+  await ouvrirScanner(true);if(!RAF)return;
+  rafaleAff('📷 Scannez tous les chariots à la suite'+(CHG?'<div style="font-size:16px;font-weight:600">pour '+esc(CHG)+'</div>':''),'#1f2a35');rafaleBas();
+}
+async function rafaleCode(t){
+  if(!RAF||RAF.occupe)return;
+  var mr=t.match(/[?&]r=([^&#]+)/),nu=t.match(/^R-?(\d{1,4})$/i);
+  var n=mr?decodeURIComponent(mr[1]).trim().toUpperCase():(nu?'R-'+nu[1].padStart(3,'0'):'');
+  if(t===RAF.dernier&&Date.now()-RAF.t<4000)return;   // même chariot encore devant la caméra
+  RAF.dernier=t;RAF.t=Date.now();
+  if(!n){bip(false);rafaleAff('Code non reconnu<div style="font-size:15px">(QR client : pas en rafale)</div>','#b3261e');return;}
+  if(RAF.ok.some(function(x){return x.n===n;})){rafaleAff('✓ '+esc(n)+' déjà dans la liste','#555e68');return;}
+  RAF.occupe=true;rafaleAff('⏳ '+esc(n)+'…','#1f2a35');
+  try{
+    var i=await sb.rpc('roll_info',{p_numero:n});if(i.error)throw i.error;var I=i.data;if(!I||!I.ok)throw new Error((I&&I.error)||'chariot inconnu');
+    if(I.etat==='pret'){
+      if(CHG&&I.client&&nrm(I.client)!==nrm(CHG)){bip(false);rafaleAff('✗ STOP '+esc(n)+'<div style="font-size:18px">est pour « '+esc(I.client)+' »,<br>pas pour « '+esc(CHG)+' »</div>','#b3261e');}
+      else{RAF.ok.push({n:n,c:I.client});bip(true);rafaleAff('✓ '+esc(n)+' ('+RAF.ok.length+')<div style="font-size:18px">'+esc(I.client||'')+'</div>','#2e7d32');rafaleBas();}
+    }else if(I.etat==='chauffeur'&&MOI&&I.personne===MOI.nom){rafaleAff('✓ '+esc(n)+' déjà dans votre camion','#555e68');}
+    else{bip(false);rafaleAff('⚠ '+esc(n)+' : '+esc((ETATS[I.etat]||I.etat).toLowerCase())+(I.client?' ('+esc(I.client)+')':'')+'<div style="font-size:16px">PAS chargé. Terminez la rafale et scannez-le seul.</div>','#e67e00');}
+  }catch(e){bip(false);rafaleAff('⚠ '+esc(n)+' non enregistré<div style="font-size:15px">'+esc(e.message||e)+' — rescannez-le</div>','#b3261e');RAF.dernier='';}
+  if(RAF)RAF.occupe=false;
+}
+async function finRafale(){if(!RAF||!RAF.ok.length)return;var l=RAF.ok.slice(),ok=0,ko=[];RAF.occupe=true;
+  for(var i=0;i<l.length;i++){rafaleAff('🚚 Chargement… '+(i+1)+' / '+l.length,'#1f2a35');
+    try{var r=await sb.rpc('roll_scan',{p_numero:l[i].n,p_personne:MOI.id,p_code:MOI.code,p_etape:'charge',p_client:null,p_note:null});if(r.error)throw r.error;
+      if(!r.data.ok){if(/code/i.test(r.data.error)){fermerScanner();alert('Code incorrect. Retapez votre code.');MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}return choisirMoi();}throw new Error(r.data.error);}ok++;}catch(e){ko.push(l[i].n);}}
+  fermerScanner();if(ko.length)alert('⚠ Pas enregistrés (réseau ?) : '+ko.join(', ')+'\n\nScannez-les à nouveau.');
+  ecranChargement('✓ '+ok+' chariot'+(ok>1?'s':'')+' chargé'+(ok>1?'s':'')+' dans votre camion');}
 /* ---------- Saisie du numéro au clavier (étiquette illisible, pas de caméra…) ---------- */
 var NUMS='';
 function ouvrirNumero(){NUMS='';majNum();$('numFond').style.display='flex';
