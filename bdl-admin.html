@@ -7368,6 +7368,46 @@ async function planReproduire() {
     document.getElementById('recalBtn').addEventListener('click', recalRun);
   }
 
+  // Recalage fait dans la page : chaque jour où la personne a un horaire et des postes,
+  // 1 poste = toute la plage horaire ; plusieurs postes = mêmes proportions, étalées sur l'horaire du jour.
+  window.recalerPostesSemaine = async function (prog) {
+    var a = await callApi('getAffectationsSemaine', { semaine: _planData.semaine });
+    if (!a || !a.ok) return { ok: false, error: 'lecture des postes impossible' };
+    _affData = a.affectations || {};
+    var abs = _planData.absences || {};
+    var hhmm = function (m) { m = Math.round(m / 5) * 5; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+    var travaux = [];
+    (_planData.planning || []).forEach(function (emp) {
+      var parJour = _affData[emp.empId] || {};
+      for (var j = 0; j < 6; j++) {
+        var src = (parJour[j] || []).filter(function (p) { return p.debut && p.fin && p.poste; });
+        if (!src.length) continue;
+        if (abs[emp.empId] && abs[emp.empId][j]) continue;                    // absent ce jour-là : on ne touche pas
+        var h = (emp.jours || [])[j] || {}, hd = _affMinFromHHMM(h.debut), hf = _affMinFromHHMM(h.fin);
+        if (hd == null || hf == null || hf <= hd) continue;                     // pas d'horaire : rien à caler
+        var pl;
+        if (src.length === 1) pl = [{ debut: hhmm(hd), fin: hhmm(hf), poste: src[0].poste }];
+        else {
+          src.sort(function (x, y) { return _affMinFromHHMM(x.debut) - _affMinFromHHMM(y.debut); });
+          var dur = src.map(function (p) { return Math.max(0, _affMinFromHHMM(p.fin) - _affMinFromHHMM(p.debut)); });
+          var tot = dur.reduce(function (x, y) { return x + y; }, 0) || src.length, cur = hd;
+          pl = src.map(function (p, i) { var f = i === src.length - 1 ? hf : cur + (hf - hd) * (dur[i] || (tot / src.length)) / tot; var r = { debut: hhmm(cur), fin: hhmm(f), poste: p.poste }; cur = _affMinFromHHMM(r.fin); return r; })
+            .filter(function (p) { return _affMinFromHHMM(p.fin) > _affMinFromHHMM(p.debut); });
+        }
+        var avant = JSON.stringify(src.map(function (p) { return [p.debut, p.fin, p.poste]; }));
+        if (avant !== JSON.stringify(pl.map(function (p) { return [p.debut, p.fin, p.poste]; }))) travaux.push({ emp: emp.empId, j: j, pl: pl });
+      }
+    });
+    for (var i = 0; i < travaux.length; i++) {
+      if (prog) prog(i + 1, travaux.length);
+      var t = travaux[i], r = await callApi('saveAffectationsJour', { semaine: _planData.semaine, empId: t.emp, jour: t.j, plages: JSON.stringify(t.pl) });
+      if (!r || !r.ok) return { ok: false, error: ((r && r.error) || 'enregistrement impossible') + ' (' + (i) + ' déjà recalés)' };
+      if (!_affData[t.emp]) _affData[t.emp] = {};
+      _affData[t.emp][t.j] = t.pl;
+    }
+    return { ok: true, recales: travaux.length };
+  };
+
   window.recalRun = async function () {
     var semaine = (typeof _planData !== 'undefined' && _planData && _planData.semaine)
       ? _planData.semaine
@@ -7377,7 +7417,7 @@ async function planReproduire() {
     var btn = document.getElementById('recalBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Recalage…'; }
     try {
-      var resp = await callApi('recalerAffectationsSurHoraires', { semaine: semaine });
+      var resp = await recalerPostesSemaine(function (i, n) { if (btn) btn.textContent = 'Recalage… ' + i + ' / ' + n; });
       if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || 'inconnue'), 'error'); return; }
       toast('✓ ' + (resp.recales || 0) + ' poste(s) recalé(s) sur ' + semaine, 'success');
       var hint = document.getElementById('recalHint');
