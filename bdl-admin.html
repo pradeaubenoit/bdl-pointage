@@ -8820,6 +8820,43 @@ window.lancerAnalyseSup = async function () {
   }
 };  
   
+// Recopie les PLAGES ET LES POSTES d'un jour sur les autres jours de la semaine (samedi compris), pour un salarié.
+// Même horaire que le jour modèle → plages recopiées telles quelles ; horaire différent → plages décalées sur l'horaire du jour.
+async function reproduirePostesSemaine(empId, jourSrc) {
+  jourSrc = Number(jourSrc);
+  var a = await callApi('getAffectationsSemaine', { semaine: _planData.semaine });
+  if (!a || !a.ok) return { ok: false, error: 'lecture des postes impossible' };
+  _affData = a.affectations || {};
+  var emp = (_planData.planning || []).find(function (r) { return String(r.empId) === String(empId); });
+  if (!emp) return { ok: false, error: 'salarié introuvable dans le planning' };
+  var src = ((_affData[emp.empId] || {})[jourSrc] || []).filter(function (p) { return p.debut && p.fin; });
+  if (!src.length) return { ok: false, error: "aucun poste affecté ce jour-là : affecte d'abord le jour modèle (Éditer les plages)" };
+  var hS = (emp.jours || [])[jourSrc] || {}, d0 = _affMinFromHHMM(src[0].debut);
+  var hhmm = function (m) { return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+  var faits = 0, sautes = [];
+  var noms = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  for (var j = 0; j < 6; j++) {
+    if (j === jourSrc) continue;
+    var h = (emp.jours || [])[j] || {}, hd = _affMinFromHHMM(h.debut), hf = _affMinFromHHMM(h.fin);
+    if (hd == null || hf == null || hf <= hd) { sautes.push(noms[j]); continue; }   // pas d'horaire ce jour-là (repos)
+    var pl;
+    if (h.debut === hS.debut && h.fin === hS.fin) pl = src.map(function (p) { return { debut: p.debut, fin: p.fin, poste: p.poste || '' }; });
+    else if (src.length === 1) pl = [{ debut: h.debut, fin: h.fin, poste: src[0].poste || '' }];
+    else {   // horaire différent : on décale les plages, la dernière va jusqu'à la fin de l'horaire du jour
+      var dec = hd - d0;
+      pl = src.map(function (p, i) {
+        var d = Math.max(hd, _affMinFromHHMM(p.debut) + dec), f = i === src.length - 1 ? hf : Math.min(hf, _affMinFromHHMM(p.fin) + dec);
+        return { debut: hhmm(d), fin: hhmm(f), poste: p.poste || '' };
+      }).filter(function (p) { return _affMinFromHHMM(p.fin) > _affMinFromHHMM(p.debut); });
+    }
+    var r = await callApi('saveAffectationsJour', { semaine: _planData.semaine, empId: emp.empId, jour: j, plages: JSON.stringify(pl) });
+    if (!r || !r.ok) return { ok: false, error: noms[j] + ' : ' + ((r && r.error) || 'enregistrement impossible') };
+    if (!_affData[emp.empId]) _affData[emp.empId] = {};
+    _affData[emp.empId][j] = pl; faits++;
+  }
+  return { ok: true, jours: faits, sautes: sautes };
+}
+
 (function injectReproPosteSalarie() {
   setInterval(function () {
     var sec = document.getElementById('section-planning');
@@ -8855,8 +8892,8 @@ window.lancerAnalyseSup = async function () {
       if (!_planData || !_planData.semaine) { toast('Ouvre une semaine de planning', 'error'); return; }
       btn.disabled = true; var old = btn.textContent; btn.textContent = '…';
       try {
-        var resp = await callApi('reproduirePostesJourSalarie', { empId: emp, semaine: _planData.semaine, jour: jour });
-        if (resp && resp.ok) { toast('Poste reproduit sur la semaine ✓', 'success'); if (typeof loadPlanningSection === 'function') loadPlanningSection(); }
+        var resp = await reproduirePostesSemaine(emp, jour);
+        if (resp && resp.ok) { toast('Postes recopiés sur ' + resp.jours + ' jour(s) ✓' + (resp.sautes.length ? ' (sans horaire : ' + resp.sautes.join(', ') + ')' : ''), 'success'); if (typeof loadPlanningSection === 'function') loadPlanningSection(); }
         else toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
       } catch (e) { toast('Erreur : ' + e.message, 'error'); }
       finally { btn.disabled = false; btn.textContent = old; }
@@ -8882,8 +8919,8 @@ window.lancerAnalyseSup = async function () {
       if (!confirm('Appliquer le poste du jour sélectionné à TOUTE la semaine, pour ce salarié uniquement (samedi compris) ?')) return;
       b.disabled = true; var old = b.textContent; b.textContent = '…';
       try {
-        var resp = await callApi('reproduirePostesJourSalarie', { empId: emp, semaine: _planData.semaine, jour: jour });
-        if (resp && resp.ok) { toast('Poste appliqué à la semaine ✓', 'success'); if (typeof loadPlanningSection === 'function') loadPlanningSection(); }
+        var resp = await reproduirePostesSemaine(emp, jour);
+        if (resp && resp.ok) { toast('Postes recopiés sur ' + resp.jours + ' jour(s) ✓' + (resp.sautes.length ? ' (sans horaire : ' + resp.sautes.join(', ') + ')' : ''), 'success'); if (typeof loadPlanningSection === 'function') loadPlanningSection(); }
         else toast('Erreur : ' + ((resp && resp.error) || ''), 'error');
       } catch (e) { toast('Erreur : ' + e.message, 'error'); }
       finally { b.disabled = false; b.textContent = old; }
