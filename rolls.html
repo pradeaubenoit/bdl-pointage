@@ -339,6 +339,11 @@ VUES.incidents=async function(){
     // « rempli sans scan » fait par un chauffeur APRÈS sa 1re livraison du jour = chariot sale repris chez le client
     if(t.k==='atelier'){var k=(s.personne||'')+'|'+String(s.quand).slice(0,10);if(prem[k]&&prem[k]<s.quand)t=TK.reprise;}
     l.push({s:s,t:t});});
+  // la suite de l'historique tranche : livré ensuite = il était PROPRE (oubli de l'atelier) ; déchargé / vidé = il était SALE (reprise)
+  var tousTmp=[];try{tousTmp=await q(sb.from('rolls_scans').select('quand,etape,roll_id').in('roll_id',Array.from(new Set(l.filter(function(x){return x.t.k==='reprise'||x.t.k==='atelier';}).map(function(x){return x.s.roll_id;})))).gte('quand',depuis.toISOString()).order('quand').limit(5000));}catch(e){}
+  l.forEach(function(x){if(x.t.k!=='reprise'&&x.t.k!=='atelier')return;
+    var ap=tousTmp.filter(function(y){return y.roll_id===x.s.roll_id&&y.quand>x.s.quand&&y.etape!=='charge'&&y.etape!=='rempli';})[0];
+    if(ap&&ap.etape==='livre')x.t=TK.atelier;else if(ap&&(ap.etape==='rentre'||ap.etape==='vide'||ap.etape==='repris'))x.t=TK.reprise;});
   // une correction groupée = une fiche par chariot et par minute
   var vu={};l=l.filter(function(x){var k=x.t.k+'|'+x.s.roll_id+'|'+String(x.s.quand).slice(0,15);if(vu[k])return false;vu[k]=1;return true;});
   // ---- Qui est en cause ? D'après l'historique complet des chariots concernés ----
@@ -351,7 +356,10 @@ VUES.incidents=async function(){
     var h=(parRoll[x.s.roll_id]||[]).filter(function(y){return y.quand<x.s.quand;}),dern=function(et){for(var i=h.length-1;i>=0;i--)if(et.indexOf(h[i].etape)>=0&&humain(h[i].personne))return h[i];return null;};
     var k=x.t.k;
     if(k==='reprise'||(k==='chauffeur'&&humain(x.s.personne)&&/chauffeur/.test(roleDe[x.s.personne]||'')))return {sur:[x.s.personne]};
-    if(k==='chauffeur'||k==='livreBureau'||k==='retrouve'){var c=dern(['charge','livre','repris']);return c?{sur:[c.personne]}:{prob:[]};}
+    if(k==='chauffeur'||k==='livreBureau'||k==='retrouve'){var c=dern(['charge','livre','repris']);if(c)return {sur:[c.personne]};
+      var cl=String(x.s.client||'').toLowerCase(),t0=new Date(x.s.quand).getTime(),set={};
+      tous.forEach(function(y){var dt=t0-new Date(y.quand).getTime();if(dt>=0&&dt<=36*36e5&&humain(y.personne)&&/chauffeur/.test(roleDe[y.personne]||'')&&String(y.client||'').toLowerCase()===cl&&/arrivee|livre|repris|charge|depart/.test(y.etape))set[y.personne]=1;});
+      var n=Object.keys(set);return n.length===1?{sur:n,info:'passé chez ce client'}:{prob:n};}
     if(k==='numero'){var r=dern(['rempli']);return r?{sur:[r.personne]}:{prob:[]};}
     var dit=/laveur : ([^)]+?)\)?$/.exec(x.s.note||'');if(k==='laveur'&&dit)return {sur:[dit[1].trim()]};   // indiqué par le bureau
     if(k==='laveur'){   // laveurs qui ont vidé des chariots le jour où ce chariot est revenu sale
@@ -366,21 +374,24 @@ VUES.incidents=async function(){
   }
   // Chariots vidés au tunnel par le bureau (rattrapage) = incident laveur
   var bureauNoms={};PERS.forEach(function(p){if(/bureau/.test(p.role||''))bureauNoms[p.nom]=1;});
-  tous.forEach(function(y){if(y.etape==='vide'&&!y.note&&y.quand>=depuis.toISOString()&&(bureauNoms[y.personne]||/^Bureau/.test(y.personne||'')))l.push({s:Object.assign({},y,{note:'vidé au tunnel par le bureau (oubli du laveur)'}),t:TK.laveur,brut:true});});
+  var laveurs={};PERS.forEach(function(p){if(/laveur/.test(p.role||''))laveurs[p.nom]=1;});
+  tous.forEach(function(y){if(y.etape==='vide'&&(!y.note||/^vidé à l'atelier$/.test(y.note))&&y.quand>=depuis.toISOString()&&(bureauNoms[y.personne]||/^Bureau/.test(y.personne||'')||!laveurs[y.personne])&&(parRoll[y.roll_id]||[]).some(function(z){return z.quand<y.quand&&(z.etape==='rentre'||z.etape==='repris');}))l.push({s:Object.assign({},y,{note:'vidé au tunnel par le bureau (oubli du laveur)'}),t:TK.laveur,brut:true});});
   l.sort(function(a,b){return a.s.quand<b.s.quand?1:-1;});
   // Planning de BdL Admin (postes du jour) : qui était au TUNNEL ce jour-là ?
   var PLAN={},planOk=false,API=null;try{API=localStorage.getItem('bdl_api_url');}catch(e){}
   function isoSem(d){var x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));var j=x.getUTCDay()||7;x.setUTCDate(x.getUTCDate()+4-j);var y0=new Date(Date.UTC(x.getUTCFullYear(),0,1));return x.getUTCFullYear()+'-W'+String(Math.ceil((((x-y0)/864e5)+1)/7)).padStart(2,'0');}
   function jourLaveur(x){var h=(parRoll[x.s.roll_id]||[]).filter(function(y){return y.quand<x.s.quand&&(y.etape==='rentre'||y.etape==='repris');});return new Date(h.length?h[h.length-1].quand:x.s.quand);}
-  if(API){var sems={};l.forEach(function(x){if(x.t.k==='laveur')sems[isoSem(jourLaveur(x))]=1;});
+  function joursVidage(x){var d=jourLaveur(x),f=new Date(x.s.quand),l3=[];d=new Date(d.getFullYear(),d.getMonth(),d.getDate());for(var i=0;i<8&&d<=f;i++){l3.push(new Date(d));d.setDate(d.getDate()+1);}return l3.length?l3:[f];}
+  if(API){var sems={};l.forEach(function(x){if(x.t.k==='laveur')joursVidage(x).forEach(function(d){sems[isoSem(d)]=1;});});
     await Promise.all(Object.keys(sems).map(async function(w){try{
-      var u=function(a){return API+'?action='+a+'&semaine='+encodeURIComponent(w);};
+      var u=function(a){return API+(API.indexOf('?')>=0?'&':'?')+'action='+a+'&semaine='+encodeURIComponent(w);};
       var pl=await (await fetch(u('getPlanningSemaine'))).json(),af=await (await fetch(u('getAffectationsSemaine'))).json();
       if(pl&&pl.ok&&af&&af.ok){PLAN[w]={emp:pl.planning||[],aff:af.affectations||{}};planOk=true;}}catch(e){}}));}
   function auTunnel(d){var w=PLAN[isoSem(d)];if(!w)return null;var j=(d.getDay()+6)%7,l2=[];
     w.emp.forEach(function(e){var pl=(w.aff[e.empId]||{})[j]||[];if(pl.some(function(p){return /tunnel|lavage|laveur/i.test(p.poste||'');}))l2.push(e.prenom||e.nom||'?');});return l2;}
   l.forEach(function(x){x.qui=enCause(x);
-    if(x.t.k==='laveur'&&!(x.qui.sur&&x.qui.sur.length)){var d=jourLaveur(x),t=auTunnel(d);if(t&&t.length){x.qui={sur:t,info:'au tunnel le '+d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' (planning)'};}}});
+    if(x.t.k==='laveur'&&!(x.qui.sur&&x.qui.sur.length)){var js=joursVidage(x),set={},dts=[];js.forEach(function(d){var t=auTunnel(d)||[];if(t.length)dts.push(d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}));t.forEach(function(n){set[n]=1;});});
+      var n=Object.keys(set);if(n.length===1)x.qui={sur:n,info:'au tunnel le '+dts.join(', ')+' (planning)'};else if(n.length)x.qui={prob:n,info:'au tunnel le '+dts.join(', ')+' (planning)'};}});
   var parS={};l.forEach(function(x){(x.qui.sur||[]).forEach(function(n){var o=parS[n]=parS[n]||{s:0,p:0};o.s++;});(x.qui.prob||[]).forEach(function(n){var o=parS[n]=parS[n]||{s:0,p:0};o.p++;});});
   var parT={},parP={};l.forEach(function(x){parT[x.t.k]=(parT[x.t.k]||0)+1;var p=x.t.poste;parP[p]=(parP[p]||0)+1;});
   var h='<h1>⚠ Incidents chariots</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(d===perInc?' p':'')+'" data-per="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
@@ -388,12 +399,12 @@ VUES.incidents=async function(){
     '<div class="tuiles">'+TYPES_INC.map(function(t){return '<div class="tuile" data-ti="'+t.k+'"><b>'+(parT[t.k]||0)+'</b><span>'+t.ic+' '+esc(t.lib)+'</span></div>';}).join('')+'</div>'+
     '<div class="carte"><b>Par poste :</b> '+(Object.keys(parP).length?Object.keys(parP).sort(function(a,b){return parP[b]-parP[a];}).map(function(p){return esc(p)+' <b>'+parP[p]+'</b>';}).join(' · '):'aucun incident')+'</div>'+
     '<div class="carte"><b>Par salarié :</b> '+(Object.keys(parS).length?Object.keys(parS).sort(function(a,b){return (parS[b].s*2+parS[b].p)-(parS[a].s*2+parS[a].p);}).map(function(n){var o=parS[n];return '<span data-sal="'+esc(n)+'" style="cursor:pointer;white-space:nowrap">'+esc(n)+' <b>'+o.s+'</b>'+(o.p?' <span class="s">(+'+o.p+' possible'+(o.p>1?'s':'')+')</span>':'')+'</span>';}).join(' · '):'—')+
-      '<div class="s" style="margin-top:4px">Chiffre en gras = personne identifiée : elle avait le chariot, ou le <b>planning de BdL Admin</b> la place au tunnel ce jour-là. « possibles » = elle était au poste, sans certitude. À vérifier avant toute remarque.'+(API?(planOk?'':' <span style="color:var(--orange)">Planning BdL Admin injoignable.</span>'):' <span style="color:var(--orange)">Pour lire le planning : ouvrez une fois BdL Admin dans ce navigateur.</span>')+'</div></div>'+
+      '<div class="s" style="margin-top:4px">Chiffre en gras = personne identifiée : elle avait le chariot, ou le <b>planning de BdL Admin</b> la place au tunnel ce jour-là. « possibles » = elle était au poste, sans certitude. À vérifier avant toute remarque.'+(API?(planOk||!l.some(function(x){return x.t.k==='laveur';})?'':' <span style="color:var(--orange)">Planning BdL Admin injoignable.</span>'):' <span style="color:var(--orange)">Pour lire le planning : ouvrez une fois BdL Admin dans ce navigateur.</span>')+'</div></div>'+
     '<div class="carte"><table><thead><tr><th>Quand</th><th>Incident</th><th>Chariot</th><th>Client</th><th>En cause</th><th>Détail</th></tr></thead><tbody id="incT"></tbody></table></div>';
   $('main').innerHTML=h;
   var filtreT='',filtreS='';
   var cause=function(x){var q2=x.qui||{};if(q2.sur&&q2.sur.length)return '<b>'+esc(q2.sur.join(', '))+'</b>'+(q2.info?'<div class="s">'+esc(q2.info)+'</div>':'');
-    if(x.t.k==='laveur')return (q2.prob&&q2.prob.length?'<span class="s">possible : </span>'+esc(q2.prob.join(', '))+'<br>':'')+'<button class="btn noprint" style="padding:2px 8px;font-size:12px" data-lav="'+esc(String(x.s.quand).slice(0,10))+'">👤 Indiquer le laveur</button>';if(q2.prob&&q2.prob.length)return '<span class="s">possible : </span>'+esc(q2.prob.join(', '));return '<span class="s">non identifié</span>';};
+    if(x.t.k==='laveur')return (q2.prob&&q2.prob.length?'<span class="s">possible : </span>'+esc(q2.prob.join(', '))+(q2.info?' <span class="s">('+esc(q2.info)+')</span>':'')+'<br>':'')+'<button class="btn noprint" style="padding:2px 8px;font-size:12px" data-lav="'+esc(String(x.s.quand).slice(0,10))+'">👤 Indiquer le laveur</button>';if(q2.prob&&q2.prob.length)return '<span class="s">possible : </span>'+esc(q2.prob.join(', '));return '<span class="s">non identifié</span>';};
   function rendre(){$('incT').innerHTML=l.filter(function(x){return (!filtreT||x.t.k===filtreT)&&(!filtreS||(x.qui.sur||[]).concat(x.qui.prob||[]).indexOf(filtreS)>=0);}).map(function(x){return '<tr style="cursor:pointer" data-r="'+x.s.roll_id+'"><td>'+fmtQ(x.s.quand)+'</td><td>'+x.t.ic+' '+esc(x.t.lib)+'</td><td><b>'+esc(num[x.s.roll_id]||'?')+'</b></td><td>'+esc(x.s.client||'')+'</td><td>'+cause(x)+'</td><td class="s">'+esc(x.s.note)+(x.s.note==='correction du bureau'?' ('+esc({livre:'livré',repris:'repris',rentre:'déchargé',vide:'vidé',rempli:'rempli',charge:'chargé'}[x.s.etape]||x.s.etape)+')':'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun incident sur la période. 👍</td></tr>';
     document.querySelectorAll('[data-ti]').forEach(function(t){t.style.outline=t.dataset.ti===filtreT?'3px solid var(--bleu)':'';});}
   rendre();
