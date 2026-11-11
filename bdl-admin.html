@@ -6986,8 +6986,9 @@ function _planFillSemaineSelector() {
 
 async function planReproduire() {
   if (!_planData || !_planData.semaine) { toast("Charge d'abord une semaine", 'error'); return; }
-  var sem = (function(){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+3-((d.getDay()+6)%7));var w1=new Date(d.getFullYear(),0,4);var wk=1+Math.round(((d-w1)/86400000-3+((w1.getDay()+6)%7))/7);return d.getFullYear()+'-W'+(wk<10?'0'+wk:wk);})();
-  if (!confirm('Reproduire le planning de ' + sem + ' (horaires + postes) sur les 8 semaines suivantes ?\n\nLes semaines qui ont déjà un planning ne seront PAS touchées.')) return;
+  // Source = la semaine AFFICHÉE (avant : toujours la semaine en cours, même quand on regardait une autre semaine → elle écrasait la semaine préparée)
+  var sem = _planData.semaine;
+  if (!confirm('Reproduire le planning de la semaine AFFICHÉE ' + sem + ' (horaires + postes) sur les 8 semaines SUIVANTES ?\n\n' + sem + ' elle-même ne change pas. Les semaines qui ont déjà un planning ne seront PAS touchées.')) return;
   var btn = document.getElementById('planBtnRepro');
   if (btn) { btn.disabled = true; btn.textContent = 'Copie…'; }
   try {
@@ -6998,7 +6999,7 @@ async function planReproduire() {
       var ok2 = confirm(
         resp.nb_remplies + ' semaine(s) créée(s).\n\n' +
         resp.existantes.length + ' semaine(s) ont déjà un planning :\n' + resp.existantes.join(', ') + '\n\n' +
-        'Veux-tu aussi les ÉCRASER avec ' + sem + ' ?'
+        '⚠ Veux-tu aussi les ÉCRASER avec ' + sem + ' ? Tout ce qui a été préparé sur ces semaines sera PERDU.'
       );
       if (ok2) {
         var resp2 = await callApi('reproduirePlanningSemaines', { semaine: sem, nb: 8, forcer: 1 });
