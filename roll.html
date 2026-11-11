@@ -357,6 +357,18 @@ var CHG=null;
 function favs(){return MOI?lire('roll_fav_'+MOI.id,[]):[];}
 function estFav(c){return favs().some(function(x){return nrm(x)===nrm(c);});}
 function basculerFav(c){var f=favs(),i=f.findIndex(function(x){return nrm(x)===nrm(c);});if(i>=0)f.splice(i,1);else f.push(c);ecrire('roll_fav_'+MOI.id,f);}   // client choisi (ou '' = vue d'ensemble) tant que l'écran chargement est actif
+// L'écran Chargement se met à jour tout seul (toutes les 30 s, et quand on revient sur l'appli) : les chariots remplis entre-temps apparaissent
+var CHG_NB=null;
+async function majChargementAuto(){
+  if(!MOI||!$('chFin')||$('fQ')||document.visibilityState!=='visible')return;          // pas sur l'écran Chargement, ou en train de choisir ses clients
+  if($('scanFond')&&$('scanFond').style.display&&$('scanFond').style.display!=='none')return;   // scanner ouvert
+  var q=$('chQ');if(q&&(document.activeElement===q||q.value))return;                          // il est en train de chercher un client
+  try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(r.error||!r.data||!r.data.ok)return;
+    if(!$('chFin'))return;var y=window.scrollY,n=r.data.a_quai.length,av=CHG_NB;
+    ecranChargement(av!==null&&n>av?'🆕 '+(n-av)+' chariot'+(n-av>1?'s':'')+' de plus prêt'+(n-av>1?'s':'')+' à charger':null,r.data);window.scrollTo(0,y);}catch(e){}
+}
+setInterval(majChargementAuto,30000);
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')majChargementAuto();});
 async function ecranChargement(msg,d){
   if(!MOI)return;
   if(ARRET){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}}
@@ -364,7 +376,7 @@ async function ecranChargement(msg,d){
   if(!d){$('main').innerHTML='<div class="carte">Chargement de la liste…</div>';
     try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(r.error)throw r.error;d=r.data;if(!d.ok)throw new Error(d.error);}
     catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="ecranChargement()">Réessayer</button>';return;}}
-  majMoi();
+  majMoi();CHG_NB=d.a_quai.length;
   var g={};function a(x,k){var c=x.client||'🧺 Chariots vides';(g[c]=g[c]||{ch:[],q:[]})[k].push(x.numero);}
   d.camion.forEach(function(x){a(x,'ch');});d.a_quai.forEach(function(x){a(x,'q');});
   favs().forEach(function(c){if(!Object.keys(g).some(function(k){return nrm(k)===nrm(c);}))g[c]={ch:[],q:[],vide:true};});
@@ -389,6 +401,7 @@ async function ecranChargement(msg,d){
       '<button class="gros g" id="chAddFav">⭐ Ajouter un client à mes clients…</button>'+
       '<div class="s" style="margin:-6px 4px 10px">☆ = ajouter à <b>mes clients</b> : ils restent en haut de la liste, même quand rien n\'est prêt (pour ne pas en oublier).</div>';
   }
+  h+='<div class="s" style="text-align:center;margin:-4px 0 8px">🔄 Mis à jour à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' (automatique toutes les 30 s)</div>';
   h+='<button class="gros g" id="chFin">Terminer le chargement</button>';
   $('main').innerHTML=h;
   if($('chQ')){$('chQ').oninput=function(){var t=nrm(this.value);document.querySelectorAll('#chL [data-c]').forEach(function(x){x.style.display=!t||x.dataset.n.indexOf(t)>=0?'flex':'none';});};}
