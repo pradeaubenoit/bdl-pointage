@@ -1466,6 +1466,7 @@ async function chariotsClient(c) {
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
     '<div style="font-size:22px;font-weight:800">🧺 Chariots prêts — ' + rollEsc(c.client) + '</div>' +
     (l.length ? l.map((x, i) => '<div style="border:1px solid #dde2e7;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + '</div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'sans contenu') + '</div>' +
+      '<button data-qte="' + i + '" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">✎ Corriger les quantités</button>' +
       '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° (code Bureau)</button></div>').join('')
       : '<div style="color:#666;margin-top:10px">Aucun chariot « prêt » pour ce client.</div>') +
     (saisiJour ? '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #dde2e7"><div style="font-weight:700">Linge saisi aujourd\'hui (tous ateliers) :</div><div style="color:#555">' + rollEsc(saisiJour) + '</div>' +
@@ -1474,8 +1475,37 @@ async function chariotsClient(c) {
       '<button id="ccJ" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">Mettre ce reste dans le chariot n°… (code Bureau)</button></div>' : '') +
     '<button id="ccX" style="' + bt + 'border:2px solid #999;background:#fff">Fermer</button></div>';
   document.getElementById('ccX').onclick = () => { f.style.display = 'none'; };
+  f.querySelectorAll('[data-qte]').forEach(b => b.onclick = () => corrigerQuantites(c, l[+b.dataset.qte]));
   f.querySelectorAll('[data-chg]').forEach(b => b.onclick = () => { const x = l[+b.dataset.chg]; deplacerLinge(c, x.numero, x.note || '', 'Nouveau numéro pour le linge de ' + x.numero + ' :'); });
   if (document.getElementById('ccJ')) document.getElementById('ccJ').onclick = () => deplacerLinge(c, null, duJour, 'Numéro du chariot où est ce linge :');
+}
+// Corriger le contenu d'un chariot prêt (quantités fausses) directement à l'atelier : le chariot reste le même, seul son contenu change.
+function corrigerQuantites(c, x) {
+  const f = document.getElementById('fondRoll');
+  const lignes = [];
+  String(x.note || '').split(',').forEach(m => { const y = m.trim().match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/); if (y) lignes.push({ a: y[1], q: y[2].replace(',', '.') }); });
+  (c.articles || []).forEach(a => { if (!lignes.some(l => sansAccent(l.a) === sansAccent(a))) lignes.push({ a: a, q: '' }); });   // articles du client absents du chariot
+  const champ = 'width:110px;font-size:24px;font-weight:700;text-align:center;padding:8px;border:2px solid #ccd;border-radius:10px';
+  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
+    '<div style="font-size:22px;font-weight:800">✎ ' + rollEsc(x.numero) + ' — ' + rollEsc(c.client) + '</div>' +
+    '<div style="color:#555;margin:4px 0 10px">Tapez les quantités qui sont VRAIMENT dans ce chariot. Vide = article absent.</div>' +
+    lignes.map((l, i) => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #eef0f2"><span style="font-size:18px;font-weight:600">' + rollEsc(l.a) + '</span>' +
+      '<input data-q="' + i + '" type="number" inputmode="numeric" min="0" value="' + rollEsc(l.q) + '" style="' + champ + '"></div>').join('') +
+    '<button id="cqOk" style="width:100%;margin-top:14px;font-size:20px;padding:14px;border-radius:12px;border:none;background:#2e7d32;color:#fff;font-weight:800">✓ Enregistrer le contenu</button>' +
+    '<button id="cqX" style="width:100%;margin-top:8px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Annuler</button></div>';
+  f.style.display = 'flex';
+  document.getElementById('cqX').onclick = () => chariotsClient(c);
+  document.getElementById('cqOk').onclick = async () => {
+    const total = lignes.map((l, i) => { const v = Number(String(f.querySelector('[data-q="' + i + '"]').value).replace(',', '.')); return v > 0 ? l.a + ' ' + v : ''; }).filter(Boolean).join(', ');
+    if (!confirm(x.numero + ' (' + c.client + ') contiendra :\n\n' + (total || '— vide —') + '\n\nAvant : ' + (x.note || '—'))) return;
+    const id = await rollIdentite(x.numero); if (!id) return;
+    try {
+      const r = await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
+      if (!r || !r.ok) { if (/code/i.test((r && r.error) || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} } toast((r && r.error) || 'Refusé', true); return; }
+      toast('🧺 ' + x.numero + ' corrigé : ' + (total || 'vide'));
+      chariotsClient(c);
+    } catch (e) { toast('Pas de réseau : réessayez.', true); }
+  };
 }
 async function deplacerLinge(c, ancien, contenu, question) {
   const v = prompt(question); if (!v || !v.trim()) return;
