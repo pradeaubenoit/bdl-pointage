@@ -492,6 +492,8 @@ var LECTEUR=null;
 var ZX=null,FLUX=null,BOUCLE=null;
 function chargerScript(srcs){return new Promise(function(ok,ko){(function essai(i){if(i>=srcs.length)return ko(new Error('Lecteur indisponible (réseau)'));var sc=document.createElement('script');sc.src=srcs[i];sc.onload=ok;sc.onerror=function(){essai(i+1);};document.head.appendChild(sc);})(0);});}
 async function ouvrirScanner(rafale){
+  // Sur l'écran Chargement au quai, le bouton 📷 Scanner du bas lance directement la rafale
+  if(rafale!==true&&$('chFin')&&MOI&&aRole('chauffeur'))return chargerRafale();
   if(rafale!==true)RAF=null;
   $('scanFond').style.display='flex';
   try{
