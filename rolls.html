@@ -315,7 +315,7 @@ VUES.qrclients=async function(){
 };
 /* ---------- INCIDENTS : lus dans les notes des scans (aucune saisie en plus) ---------- */
 var TYPES_INC=[
-  {k:'laveur',ic:'🌀',lib:'Laveur : chariot pas libéré au tunnel',poste:'Laveur',re:/^incident : (non vidé au tunnel|pas déchargé ni vidé)/},
+  {k:'laveur',ic:'🌀',lib:'Laveur : chariot pas libéré au tunnel',poste:'Laveur',re:/^incident : (non vidé au tunnel|pas déchargé ni vidé)|^vidé au tunnel par le bureau/},
   {k:'atelier',ic:'🧺',lib:'Atelier : chariot rempli sans scan',poste:'Atelier',re:/^non scanné à l'atelier/},
   {k:'chauffeur',ic:'🚚',lib:'Chauffeur : scan oublié (livré, repris ou déchargé)',poste:'Chauffeur',re:/scan oublié chez le client|non scanné chez le client|repris sale/},
   {k:'reprise',ic:'↩',lib:'Chauffeur : chariot sale repris sans scan',poste:'Chauffeur',re:/^$a/},
@@ -328,7 +328,7 @@ function typeIncident(n){for(var i=0;i<TYPES_INC.length;i++)if(TYPES_INC[i].re.t
 var perInc=7;
 VUES.incidents=async function(){
   var depuis=new Date(Date.now()-perInc*864e5);
-  var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').not('note','is',null).gte('quand',depuis.toISOString()).order('quand',{ascending:false}).limit(5000));
+  var sc=await q(sb.from('rolls_scans').select('id,quand,etape,client,personne,roll_id,note').not('note','is',null).gte('quand',depuis.toISOString()).order('quand',{ascending:false}).limit(5000));
   var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
   // 1re livraison/reprise de chaque chauffeur, par jour (pour reconnaître une reprise sale enregistrée « rempli »)
   var prem={};try{(await q(sb.from('rolls_scans').select('quand,personne').in('etape',['livre','repris']).gte('quand',depuis.toISOString()).order('quand').limit(10000))).forEach(function(x){var k=(x.personne||'')+'|'+String(x.quand).slice(0,10);if(!prem[k])prem[k]=x.quand;});}catch(e){}
@@ -341,20 +341,77 @@ VUES.incidents=async function(){
     l.push({s:s,t:t});});
   // une correction groupée = une fiche par chariot et par minute
   var vu={};l=l.filter(function(x){var k=x.t.k+'|'+x.s.roll_id+'|'+String(x.s.quand).slice(0,15);if(vu[k])return false;vu[k]=1;return true;});
+  // ---- Qui est en cause ? D'après l'historique complet des chariots concernés ----
+  var tous=[];try{tous=await q(sb.from('rolls_scans').select('id,quand,etape,client,personne,roll_id,note').gte('quand',new Date(depuis.getTime()-3*864e5).toISOString()).order('quand').limit(20000));}catch(e){}
+  var parRoll={};tous.forEach(function(x){(parRoll[x.roll_id]=parRoll[x.roll_id]||[]).push(x);});
+  var roleDe={};PERS.forEach(function(p){roleDe[p.nom]=p.role||'';});
+  var humain=function(n){return n&&!/^Bureau/.test(n);};
+  var jourDe=function(t){return String(t).slice(0,10);};
+  function enCause(x){
+    var h=(parRoll[x.s.roll_id]||[]).filter(function(y){return y.quand<x.s.quand;}),dern=function(et){for(var i=h.length-1;i>=0;i--)if(et.indexOf(h[i].etape)>=0&&humain(h[i].personne))return h[i];return null;};
+    var k=x.t.k;
+    if(k==='reprise'||(k==='chauffeur'&&humain(x.s.personne)&&/chauffeur/.test(roleDe[x.s.personne]||'')))return {sur:[x.s.personne]};
+    if(k==='chauffeur'||k==='livreBureau'||k==='retrouve'){var c=dern(['charge','livre','repris']);return c?{sur:[c.personne]}:{prob:[]};}
+    if(k==='numero'){var r=dern(['rempli']);return r?{sur:[r.personne]}:{prob:[]};}
+    var dit=/laveur : ([^)]+?)\)?$/.exec(x.s.note||'');if(k==='laveur'&&dit)return {sur:[dit[1].trim()]};   // indiqué par le bureau
+    if(k==='laveur'){   // laveurs qui ont vidé des chariots le jour où ce chariot est revenu sale
+      var rt=dern(['rentre','repris']),j=rt?jourDe(rt.quand):jourDe(x.s.quand),set={};
+      tous.forEach(function(y){if(y.etape==='vide'&&jourDe(y.quand)===j&&humain(y.personne)&&/laveur/.test(roleDe[y.personne]||''))set[y.personne]=1;});
+      return {prob:Object.keys(set),info:rt?'revenu sale le '+fmtQ(rt.quand):''};}
+    if(k==='atelier'){  // personnes de l'atelier qui ont rempli d'autres chariots pour ce client ce jour-là
+      var set2={},j2=jourDe(x.s.quand);
+      tous.forEach(function(y){if(y.etape==='rempli'&&jourDe(y.quand)===j2&&humain(y.personne)&&y.client&&x.s.client&&y.client.toLowerCase()===x.s.client.toLowerCase()&&/atelier/.test(roleDe[y.personne]||''))set2[y.personne]=1;});
+      return {prob:Object.keys(set2)};}
+    return {prob:[]};
+  }
+  // Chariots vidés au tunnel par le bureau (rattrapage) = incident laveur
+  var bureauNoms={};PERS.forEach(function(p){if(/bureau/.test(p.role||''))bureauNoms[p.nom]=1;});
+  tous.forEach(function(y){if(y.etape==='vide'&&!y.note&&y.quand>=depuis.toISOString()&&(bureauNoms[y.personne]||/^Bureau/.test(y.personne||'')))l.push({s:Object.assign({},y,{note:'vidé au tunnel par le bureau (oubli du laveur)'}),t:TK.laveur,brut:true});});
+  l.sort(function(a,b){return a.s.quand<b.s.quand?1:-1;});
+  // Planning de BdL Admin (postes du jour) : qui était au TUNNEL ce jour-là ?
+  var PLAN={},planOk=false,API=null;try{API=localStorage.getItem('bdl_api_url');}catch(e){}
+  function isoSem(d){var x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));var j=x.getUTCDay()||7;x.setUTCDate(x.getUTCDate()+4-j);var y0=new Date(Date.UTC(x.getUTCFullYear(),0,1));return x.getUTCFullYear()+'-W'+String(Math.ceil((((x-y0)/864e5)+1)/7)).padStart(2,'0');}
+  function jourLaveur(x){var h=(parRoll[x.s.roll_id]||[]).filter(function(y){return y.quand<x.s.quand&&(y.etape==='rentre'||y.etape==='repris');});return new Date(h.length?h[h.length-1].quand:x.s.quand);}
+  if(API){var sems={};l.forEach(function(x){if(x.t.k==='laveur')sems[isoSem(jourLaveur(x))]=1;});
+    await Promise.all(Object.keys(sems).map(async function(w){try{
+      var u=function(a){return API+'?action='+a+'&semaine='+encodeURIComponent(w);};
+      var pl=await (await fetch(u('getPlanningSemaine'))).json(),af=await (await fetch(u('getAffectationsSemaine'))).json();
+      if(pl&&pl.ok&&af&&af.ok){PLAN[w]={emp:pl.planning||[],aff:af.affectations||{}};planOk=true;}}catch(e){}}));}
+  function auTunnel(d){var w=PLAN[isoSem(d)];if(!w)return null;var j=(d.getDay()+6)%7,l2=[];
+    w.emp.forEach(function(e){var pl=(w.aff[e.empId]||{})[j]||[];if(pl.some(function(p){return /tunnel|lavage|laveur/i.test(p.poste||'');}))l2.push(e.prenom||e.nom||'?');});return l2;}
+  l.forEach(function(x){x.qui=enCause(x);
+    if(x.t.k==='laveur'&&!(x.qui.sur&&x.qui.sur.length)){var d=jourLaveur(x),t=auTunnel(d);if(t&&t.length){x.qui={sur:t,info:'au tunnel le '+d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' (planning)'};}}});
+  var parS={};l.forEach(function(x){(x.qui.sur||[]).forEach(function(n){var o=parS[n]=parS[n]||{s:0,p:0};o.s++;});(x.qui.prob||[]).forEach(function(n){var o=parS[n]=parS[n]||{s:0,p:0};o.p++;});});
   var parT={},parP={};l.forEach(function(x){parT[x.t.k]=(parT[x.t.k]||0)+1;var p=x.t.poste;parP[p]=(parP[p]||0)+1;});
   var h='<h1>⚠ Incidents chariots</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(d===perInc?' p':'')+'" data-per="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
     ' <button class="btn" onclick="window.print()">🖨 Imprimer</button><div class="s" style="margin-top:6px">Relevés automatiquement à partir des scans : chaque oubli rattrapé (au tunnel, à l\'atelier, chez le client, au bureau) devient une fiche.</div></div>'+
     '<div class="tuiles">'+TYPES_INC.map(function(t){return '<div class="tuile" data-ti="'+t.k+'"><b>'+(parT[t.k]||0)+'</b><span>'+t.ic+' '+esc(t.lib)+'</span></div>';}).join('')+'</div>'+
     '<div class="carte"><b>Par poste :</b> '+(Object.keys(parP).length?Object.keys(parP).sort(function(a,b){return parP[b]-parP[a];}).map(function(p){return esc(p)+' <b>'+parP[p]+'</b>';}).join(' · '):'aucun incident')+'</div>'+
-    '<div class="carte"><table><thead><tr><th>Quand</th><th>Incident</th><th>Chariot</th><th>Client</th><th>Signalé par</th><th>Détail</th></tr></thead><tbody id="incT"></tbody></table></div>';
+    '<div class="carte"><b>Par salarié :</b> '+(Object.keys(parS).length?Object.keys(parS).sort(function(a,b){return (parS[b].s*2+parS[b].p)-(parS[a].s*2+parS[a].p);}).map(function(n){var o=parS[n];return '<span data-sal="'+esc(n)+'" style="cursor:pointer;white-space:nowrap">'+esc(n)+' <b>'+o.s+'</b>'+(o.p?' <span class="s">(+'+o.p+' possible'+(o.p>1?'s':'')+')</span>':'')+'</span>';}).join(' · '):'—')+
+      '<div class="s" style="margin-top:4px">Chiffre en gras = personne identifiée : elle avait le chariot, ou le <b>planning de BdL Admin</b> la place au tunnel ce jour-là. « possibles » = elle était au poste, sans certitude. À vérifier avant toute remarque.'+(API?(planOk?'':' <span style="color:var(--orange)">Planning BdL Admin injoignable.</span>'):' <span style="color:var(--orange)">Pour lire le planning : ouvrez une fois BdL Admin dans ce navigateur.</span>')+'</div></div>'+
+    '<div class="carte"><table><thead><tr><th>Quand</th><th>Incident</th><th>Chariot</th><th>Client</th><th>En cause</th><th>Détail</th></tr></thead><tbody id="incT"></tbody></table></div>';
   $('main').innerHTML=h;
-  var filtreT='';
-  function rendre(){$('incT').innerHTML=l.filter(function(x){return !filtreT||x.t.k===filtreT;}).map(function(x){return '<tr style="cursor:pointer" data-r="'+x.s.roll_id+'"><td>'+fmtQ(x.s.quand)+'</td><td>'+x.t.ic+' '+esc(x.t.lib)+'</td><td><b>'+esc(num[x.s.roll_id]||'?')+'</b></td><td>'+esc(x.s.client||'')+'</td><td>'+esc(x.s.personne||'')+'</td><td class="s">'+esc(x.s.note)+(x.s.note==='correction du bureau'?' ('+esc({livre:'livré',repris:'repris',rentre:'déchargé',vide:'vidé',rempli:'rempli',charge:'chargé'}[x.s.etape]||x.s.etape)+')':'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun incident sur la période. 👍</td></tr>';
+  var filtreT='',filtreS='';
+  var cause=function(x){var q2=x.qui||{};if(q2.sur&&q2.sur.length)return '<b>'+esc(q2.sur.join(', '))+'</b>'+(q2.info?'<div class="s">'+esc(q2.info)+'</div>':'');
+    if(x.t.k==='laveur')return (q2.prob&&q2.prob.length?'<span class="s">possible : </span>'+esc(q2.prob.join(', '))+'<br>':'')+'<button class="btn noprint" style="padding:2px 8px;font-size:12px" data-lav="'+esc(String(x.s.quand).slice(0,10))+'">👤 Indiquer le laveur</button>';if(q2.prob&&q2.prob.length)return '<span class="s">possible : </span>'+esc(q2.prob.join(', '));return '<span class="s">non identifié</span>';};
+  function rendre(){$('incT').innerHTML=l.filter(function(x){return (!filtreT||x.t.k===filtreT)&&(!filtreS||(x.qui.sur||[]).concat(x.qui.prob||[]).indexOf(filtreS)>=0);}).map(function(x){return '<tr style="cursor:pointer" data-r="'+x.s.roll_id+'"><td>'+fmtQ(x.s.quand)+'</td><td>'+x.t.ic+' '+esc(x.t.lib)+'</td><td><b>'+esc(num[x.s.roll_id]||'?')+'</b></td><td>'+esc(x.s.client||'')+'</td><td>'+cause(x)+'</td><td class="s">'+esc(x.s.note)+(x.s.note==='correction du bureau'?' ('+esc({livre:'livré',repris:'repris',rentre:'déchargé',vide:'vidé',rempli:'rempli',charge:'chargé'}[x.s.etape]||x.s.etape)+')':'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun incident sur la période. 👍</td></tr>';
     document.querySelectorAll('[data-ti]').forEach(function(t){t.style.outline=t.dataset.ti===filtreT?'3px solid var(--bleu)':'';});}
   rendre();
   document.querySelectorAll('[data-ti]').forEach(function(t){t.onclick=function(){filtreT=filtreT===t.dataset.ti?'':t.dataset.ti;rendre();};});
+  document.querySelectorAll('[data-sal]').forEach(function(t){t.onclick=function(){filtreS=filtreS===t.dataset.sal?'':t.dataset.sal;document.querySelectorAll('[data-sal]').forEach(function(u){u.style.textDecoration=u.dataset.sal===filtreS?'underline':'';});rendre();};});
   document.querySelectorAll('[data-per]').forEach(function(b){b.onclick=function(){perInc=+b.dataset.per;VUES.incidents();};});
-  $('incT').onclick=function(e){var tr=e.target.closest('[data-r]');if(tr)historique(tr.dataset.r);};
+  $('incT').onclick=async function(e){
+    var bl=e.target.closest('[data-lav]');
+    if(bl){e.stopPropagation();var j=bl.dataset.lav,lav=PERS.filter(function(p){return /laveur/.test(p.role||'')&&p.actif!==false;}).map(function(p){return p.nom;});
+      var n=prompt('Quel laveur était au tunnel ?\n'+lav.map(function(x,i){return (i+1)+'. '+x;}).join('\n')+'\n\nTapez le numéro (ou le nom) :');if(!n)return;
+      var nom=lav[(parseInt(n)||0)-1]||n.trim();
+      var cibles=l.filter(function(x){return x.t.k==='laveur'&&String(x.s.quand).slice(0,10)===j&&!(x.qui.sur&&x.qui.sur.length)&&x.s.id;});
+      if(!confirm('Attribuer à « '+nom+' » les '+cibles.length+' incident(s) tunnel du '+j.slice(8,10)+'/'+j.slice(5,7)+' sans laveur identifié ?'))return;
+      try{for(var i=0;i<cibles.length;i++){var nt=(cibles[i].brut?'vidé au tunnel par le bureau (oubli du laveur)':String(cibles[i].s.note).replace(/ — laveur : .*$/,''))+' — laveur : '+nom;
+          await q(sb.from('rolls_scans').update({note:nt}).eq('id',cibles[i].s.id));}
+        VUES.incidents();}catch(x){alert('Enregistrement impossible : '+(x.message||x));}
+      return;}
+    var tr=e.target.closest('[data-r]');if(tr)historique(tr.dataset.r);};
 };
 /* ---------- TOURNÉES : horaires du chauffeur, déduits de ses scans ---------- */
 var jourT=null;
