@@ -34,7 +34,8 @@ label{font-weight:600;font-size:15px}
 .pave{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.pave button{font-size:28px;font-weight:700;padding:16px 0;border-radius:12px;border:1px solid var(--ligne);background:#f4f6f8}
 main{padding-bottom:110px}
 #scanFond{position:fixed;inset:0;background:#000;z-index:100;display:none;flex-direction:column}
-#lecteur{flex:1;width:100%}#lecteur video{object-fit:cover}
+#lecteur{flex:1;width:100%;min-height:0;overflow:hidden}#lecteur video{object-fit:cover}
+#scanFond{height:100%;height:100dvh}#scanFond .bar{flex-shrink:0}#scanBas{padding-bottom:max(12px,env(safe-area-inset-bottom))!important}#rafListe{max-height:18vh;overflow:auto}
 #scanFond .bar{padding:12px 16px;color:#fff;text-align:center;font-size:16px}
 </style>
 </head>
@@ -42,7 +43,7 @@ main{padding-bottom:110px}
 <header><b>🧺 Roll BdL</b><button id="moiBtn" onclick="changerMoi()"></button></header>
 <main id="main"><div class="carte">Chargement…</div></main>
 <div id="barre"><button class="gros" id="bChg" onclick="ecranChargement()" style="display:none">🚚</button><button class="gros" id="bOu" onclick="jeSuisChez()" style="display:none">📍 Où ?</button><button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner</button><button class="gros" id="bNum" onclick="ouvrirNumero()">⌨ N°</button></div>
-<div id="numFond"><div class="boite"><div class="s" style="text-align:center">Numéro écrit sur le chariot</div><div id="numAff">R-</div><div class="pave" id="pave"></div><div style="display:flex;gap:10px;margin-top:10px"><button class="gros g" style="margin:0" onclick="fermerNumero()">Annuler</button><button class="gros v" style="margin:0" onclick="validerNumero()">Ouvrir</button></div></div></div>
+<div id="numFond"><div class="boite"><div class="s" style="text-align:center">Numéro écrit sur le chariot</div><div id="numAff">R-</div><div class="pave" id="pave"></div><div style="display:flex;gap:10px;margin-top:10px"><button class="gros g" style="margin:0" onclick="fermerNumero()">Annuler</button><button class="gros v" id="numOk" style="margin:0" onclick="validerNumero()">Ouvrir</button></div><div id="numListe" style="margin-top:10px"></div><button class="gros o" id="numCh" style="margin:8px 0 0;display:none" onclick="chargerNumeros()">🚚 Charger</button></div></div>
 <div id="scanFond"><div class="bar" id="scanHaut">Approchez le code-barres dans le cadre — dans n'importe quel sens</div><div id="lecteur"></div><div class="bar" id="scanBas"><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button></div></div>
 <script>
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
@@ -529,7 +530,7 @@ function bip(ok){try{var A=window.AudioContext||window.webkitAudioContext;if(!RA
   o.frequency.value=ok?1400:260;o.type=ok?'sine':'square';g.gain.value=0.25;o.connect(g);g.connect(RAF_AC.destination);o.start();o.stop(RAF_AC.currentTime+(ok?0.12:0.45));}catch(e){}
   if(navigator.vibrate)navigator.vibrate(ok?80:[250,120,250]);}
 function rafaleAff(txt,coul){var h=$('scanHaut');h.style.background=coul;h.innerHTML='<div style="font-size:24px;font-weight:800;line-height:1.25">'+txt+'</div>';}
-function rafaleBas(){var n=RAF.ok.length;$('scanBas').innerHTML=(n?'<div style="font-size:14px;margin-bottom:8px;opacity:.9">'+RAF.ok.map(function(x){return esc(x.n)+' '+esc(x.c||'');}).join(' · ')+'</div>':'')+
+function rafaleBas(){var n=RAF.ok.length;$('scanBas').innerHTML=(n?'<div id="rafListe" style="font-size:14px;margin-bottom:8px;opacity:.9">'+RAF.ok.map(function(x){return esc(x.n)+' '+esc(x.c||'');}).join(' · ')+'</div>':'')+
   '<button class="gros v" style="margin:0 0 8px" onclick="finRafale()"'+(n?'':' disabled')+'>🚚 Charger '+(n>1?'les '+n+' chariots':n+' chariot')+' dans mon camion</button><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button>';}
 async function chargerRafale(){
   if(!MOI)return choisirMoi(chargerRafale);
@@ -538,6 +539,11 @@ async function chargerRafale(){
   await ouvrirScanner(true);if(!RAF)return;
   rafaleAff('📷 Scannez tous les chariots à la suite'+(CHG?'<div style="font-size:16px;font-weight:600">pour '+esc(CHG)+'</div>':''),'#1f2a35');rafaleBas();
 }
+async function verifierPourCharger(n){   // → {ok:true,c:client} ou {msg,coul}
+  var i=await sb.rpc('roll_info',{p_numero:n});if(i.error)throw i.error;var I=i.data;if(!I||!I.ok)throw new Error((I&&I.error)||'chariot inconnu');
+  if(I.etat==='pret'){if(CHG&&I.client&&nrm(I.client)!==nrm(CHG))return {msg:'✗ STOP '+esc(n)+' est pour « '+esc(I.client)+' », pas pour « '+esc(CHG)+' »',coul:'#b3261e'};return {ok:true,c:I.client};}
+  if(I.etat==='chauffeur'&&MOI&&I.personne===MOI.nom)return {msg:'✓ '+esc(n)+' déjà dans votre camion',coul:'#555e68',deja:true};
+  return {msg:'⚠ '+esc(n)+' : '+esc((ETATS[I.etat]||I.etat).toLowerCase())+(I.client?' ('+esc(I.client)+')':'')+' — pas chargé',coul:'#e67e00'};}
 async function rafaleCode(t){
   if(!RAF||RAF.occupe)return;
   var mr=t.match(/[?&]r=([^&#]+)/),nu=t.match(/^R-?(\d{1,4})$/i);
@@ -557,20 +563,35 @@ async function rafaleCode(t){
   }catch(e){bip(false);rafaleAff('⚠ '+esc(n)+' non enregistré<div style="font-size:15px">'+esc(e.message||e)+' — rescannez-le</div>','#b3261e');RAF.dernier='';}
   if(RAF)RAF.occupe=false;
 }
-async function finRafale(){if(!RAF||!RAF.ok.length)return;var l=RAF.ok.slice(),ok=0,ko=[];RAF.occupe=true;
-  for(var i=0;i<l.length;i++){rafaleAff('🚚 Chargement… '+(i+1)+' / '+l.length,'#1f2a35');
+async function finRafale(){if(!RAF||!RAF.ok.length)return;RAF.occupe=true;return chargerListe(RAF.ok.slice(),function(i,n){rafaleAff('🚚 Chargement… '+i+' / '+n,'#1f2a35');});}
+async function chargerListe(l,prog){var ok=0,ko=[];
+  for(var i=0;i<l.length;i++){prog(i+1,l.length);
     try{var r=await sb.rpc('roll_scan',{p_numero:l[i].n,p_personne:MOI.id,p_code:MOI.code,p_etape:'charge',p_client:null,p_note:null});if(r.error)throw r.error;
       if(!r.data.ok){if(/code/i.test(r.data.error)){fermerScanner();alert('Code incorrect. Retapez votre code.');MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}return choisirMoi();}throw new Error(r.data.error);}ok++;}catch(e){ko.push(l[i].n);}}
-  fermerScanner();if(ko.length)alert('⚠ Pas enregistrés (réseau ?) : '+ko.join(', ')+'\n\nScannez-les à nouveau.');
+  fermerScanner();fermerNumero();if(ko.length)alert('⚠ Pas enregistrés (réseau ?) : '+ko.join(', ')+'\n\nScannez-les à nouveau.');
   ecranChargement('✓ '+ok+' chariot'+(ok>1?'s':'')+' chargé'+(ok>1?'s':'')+' dans votre camion');}
 /* ---------- Saisie du numéro au clavier (étiquette illisible, pas de caméra…) ---------- */
 var NUMS='';
-function ouvrirNumero(){NUMS='';majNum();$('numFond').style.display='flex';
+var NUML=null;   // liste de numéros à charger (clavier, écran Chargement)
+function ouvrirNumero(){NUMS='';NUML=($('chFin')&&MOI&&aRole('chauffeur'))?[]:null;majNum();$('numFond').style.display='flex';majNumListe();
   $('pave').innerHTML=['1','2','3','4','5','6','7','8','9','⌫','0','C'].map(function(k){return '<button data-k="'+k+'">'+k+'</button>';}).join('');
   $('pave').onclick=function(e){var b=e.target.closest('[data-k]');if(!b)return;var k=b.dataset.k;if(k==='⌫')NUMS=NUMS.slice(0,-1);else if(k==='C')NUMS='';else if(NUMS.length<4)NUMS+=k;majNum();};}
 function majNum(){$('numAff').textContent='R-'+(NUMS?NUMS.padStart(3,'0'):'');}
-function fermerNumero(){$('numFond').style.display='none';}
-function validerNumero(){if(!NUMS)return;fermerNumero();traiterCode('R-'+NUMS);}
+function fermerNumero(){$('numFond').style.display='none';NUML=null;}
+function majNumListe(msg,coul){var z=$('numListe');if(!z)return;
+  if(NUML===null){z.innerHTML='';$('numOk').textContent='Ouvrir';$('numCh').style.display='none';return;}
+  $('numOk').textContent='➕ Ajouter';$('numCh').style.display='';$('numCh').disabled=!NUML.length;$('numCh').textContent='🚚 Charger '+(NUML.length>1?'les '+NUML.length+' chariots':NUML.length+' chariot')+' dans mon camion';
+  z.innerHTML=(msg?'<div style="background:'+coul+';color:#fff;border-radius:10px;padding:8px 10px;font-weight:700;margin-bottom:6px">'+msg+'</div>':'')+
+    (NUML.length?'<div style="max-height:16vh;overflow:auto;font-size:15px">'+NUML.map(function(x,i){return '<span style="display:inline-block;background:#eef1f4;border-radius:8px;padding:4px 8px;margin:2px">'+esc(x.n)+' <span class="s">'+esc(x.c||'')+'</span> <b data-sup="'+i+'" style="color:var(--rouge);padding:0 4px">✕</b></span>';}).join('')+'</div>':'<div class="s">Tapez un numéro puis « Ajouter », autant de fois qu\'il faut.</div>');
+  z.querySelectorAll('[data-sup]').forEach(function(b){b.onclick=function(){NUML.splice(+b.dataset.sup,1);majNumListe();};});}
+async function validerNumero(){if(!NUMS)return;var n='R-'+NUMS.padStart(3,'0');
+  if(NUML===null){fermerNumero();return traiterCode('R-'+NUMS);}
+  NUMS='';majNum();
+  if(NUML.some(function(x){return x.n===n;}))return majNumListe('✓ '+n+' déjà dans la liste','#555e68');
+  majNumListe('⏳ '+n+'…','#1f2a35');
+  try{var v=await verifierPourCharger(n);if(v.ok){NUML.push({n:n,c:v.c});bip(true);majNumListe('✓ '+n+' ajouté'+(v.c?' ('+esc(v.c)+')':''),'#2e7d32');}else{if(!v.deja)bip(false);majNumListe(v.msg,v.coul);}}
+  catch(e){bip(false);majNumListe('⚠ '+n+' : '+esc(e.message||e),'#b3261e');}}
+function chargerNumeros(){if(!NUML||!NUML.length)return;var l=NUML.slice();$('numCh').disabled=true;chargerListe(l,function(i,n){$('numCh').textContent='Envoi… '+i+' / '+n;});}
 /* ---------- « Je suis chez… » : le chauffeur choisit le client (QR absent ou abîmé) ---------- */
 async function jeSuisChez(suite){
   var cam=[];try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!r.error&&r.data&&r.data.ok)cam=r.data.camion;}catch(e){}
