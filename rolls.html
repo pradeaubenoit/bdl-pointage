@@ -67,6 +67,7 @@ async function route(){var v=(location.hash||'#liste').slice(1).split('/')[0];do
 window.addEventListener('hashchange',route);
 
 var filtre='',rechMem='',coches={};
+var etatRech='';
 VUES.liste=async function(){
   var n={};ROLLS.forEach(function(r){n[r.etat]=(n[r.etat]||0)+1;});
   var vieux=ROLLS.filter(function(r){return (r.etat==='client'||r.etat==='retour')&&jours(r.maj_le)>=SEUIL_J;});
@@ -95,14 +96,16 @@ VUES.liste=async function(){
     '<div class="carte noprint"><h2>Ajouter des rolls</h2><input id="aN" type="number" min="1" max="200" value="10" style="width:90px"> <button class="btn p" id="aOk">Créer les suivants</button> <span class="s">Numéros à la suite du dernier (R-021, R-022…).</span></div>';
   $('main').innerHTML=h;
   $('rq').value=rechMem;
-  function rendre(){rechMem=$('rq').value||'';var t=rechMem.toLowerCase();
+  function rendre(){if(($('rq').value||'')!==rechMem)etatRech='';rechMem=$('rq').value||'';var t=rechMem.toLowerCase();
     var l=ROLLS.filter(function(r){if(!t){if(filtre==='vieux')return vieux.indexOf(r)>=0;if(filtre&&r.etat!==filtre)return false;return true;}return (r.numero+' '+(r.client||'')+' '+(r.personne||'')).toLowerCase().indexOf(t)>=0;});   // une recherche cherche dans TOUS les chariots, même si une tuile est sélectionnée
     // Recherche : résumé par état (ex. « BB : 3 chez le client · 1 dans le camion »)
     var n2={};l.forEach(function(r){n2[r.etat]=(n2[r.etat]||0)+1;});
+    if(t&&etatRech)l=l.filter(function(r){return r.etat===etatRech;});   // clic sur « 10 en retour » dans le résumé
     // Régularisation : chariots prêts ou dans un camion pour ce client → « livré sans scan » en un clic
     var aLivrer={};l.forEach(function(r){if((r.etat==='pret'||r.etat==='chauffeur')&&r.client)(aLivrer[r.client]=aLivrer[r.client]||[]).push(r);});
     var boutonsLiv=t?Object.keys(aLivrer).map(function(c){var n=aLivrer[c].length;return '<button class="btn p" data-liv="'+esc(c)+'" style="margin:6px 6px 0 0">🚚 Livré chez '+esc(c)+' sans scan ('+n+' chariot'+(n>1?'s':'')+')</button>';}).join(''):'';
-    $('rRes').innerHTML=t&&l.length?'<div style="background:var(--bleu2);border-radius:8px;padding:8px 12px;font-size:15px"><b>« '+esc($('rq').value.trim())+' » : '+l.length+' chariot'+(l.length>1?'s':'')+'</b> — '+['client','chauffeur','pret','retour','sale','bdl'].filter(function(e){return n2[e];}).map(function(e){return '<b>'+n2[e]+'</b> '+esc(ETATS[e]).toLowerCase();}).join(' · ')+(boutonsLiv?'<div class="noprint">'+boutonsLiv+'</div>':'')+'</div>':'';
+    $('rRes').innerHTML=t&&l.length?'<div style="background:var(--bleu2);border-radius:8px;padding:8px 12px;font-size:15px"><b>« '+esc($('rq').value.trim())+' » : '+l.length+' chariot'+(l.length>1?'s':'')+'</b> — '+['client','chauffeur','pret','retour','sale','bdl'].filter(function(e){return n2[e];}).map(function(e){return '<span data-er="'+e+'" title="Afficher seulement ceux-là" style="cursor:pointer;padding:1px 6px;border-radius:6px;'+(etatRech===e?'background:var(--bleu);color:#fff':'text-decoration:underline dotted')+'"><b>'+n2[e]+'</b> '+esc(ETATS[e]).toLowerCase()+'</span>';}).join(' · ')+(boutonsLiv?'<div class="noprint">'+boutonsLiv+'</div>':'')+'</div>':'';
+    document.querySelectorAll('[data-er]').forEach(function(b){b.onclick=function(){etatRech=etatRech===b.dataset.er?'':b.dataset.er;rendre();};});
     document.querySelectorAll('[data-liv]').forEach(function(b){b.onclick=function(){livrerSansScan(b.getAttribute('data-liv'),aLivrer[b.getAttribute('data-liv')]);};});
     $('rT').innerHTML=l.map(function(r){var j=jours(r.maj_le),v=(r.etat==='client'||r.etat==='retour')&&j>=SEUIL_J;
       return '<tr style="cursor:pointer" data-r="'+r.id+'"><td class="noprint" data-ck><input type="checkbox" data-c="'+r.id+'"'+(coches[r.id]?' checked':'')+'></td><td><b>'+esc(r.numero)+'</b></td><td><span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></td><td>'+esc(r.client||'—')+'</td><td class="'+(v?'vieux':'')+'">'+fmtQ(r.maj_le)+' <span class="s">('+j+' j)</span></td><td>'+esc(r.personne||'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun roll.</td></tr>';
