@@ -88,7 +88,7 @@ VUES.liste=async function(){
   $('main').innerHTML=h;
   $('rq').value=rechMem;
   function rendre(){rechMem=$('rq').value||'';var t=rechMem.toLowerCase();
-    var l=ROLLS.filter(function(r){if(!t){if(filtre==='vieux')return vieux.indexOf(r)>=0;if(filtre&&r.etat!==filtre)return false;return true;}return (r.numero+' '+(r.client||'')).toLowerCase().indexOf(t)>=0;});   // une recherche cherche dans TOUS les chariots, même si une tuile est sélectionnée
+    var l=ROLLS.filter(function(r){if(!t){if(filtre==='vieux')return vieux.indexOf(r)>=0;if(filtre&&r.etat!==filtre)return false;return true;}return (r.numero+' '+(r.client||'')+' '+(r.personne||'')).toLowerCase().indexOf(t)>=0;});   // une recherche cherche dans TOUS les chariots, même si une tuile est sélectionnée
     // Recherche : résumé par état (ex. « BB : 3 chez le client · 1 dans le camion »)
     var n2={};l.forEach(function(r){n2[r.etat]=(n2[r.etat]||0)+1;});
     // Régularisation : chariots prêts ou dans un camion pour ce client → « livré sans scan » en un clic
@@ -118,8 +118,15 @@ function barreLot(){var z=$('rLot');if(!z)return;var ids=Object.keys(coches).fil
   z.innerHTML='<b>'+ids.length+' coché'+(ids.length>1?'s':'')+'</b> : '+
     '<button class="btn" data-lot="livre">🚚 Livré chez leur client</button> <button class="btn" data-lot="repris">↩ Repris chez leur client</button> '+
     '<button class="btn" data-lot="rentre">🏭 Déchargé à la BdL (sale)</button> <button class="btn" data-lot="vide">🌀 Vidé au tunnel</button> '+
-    '<button class="btn" data-lot="tout">🔁 Livré + repris + déchargé</button> <button class="btn" data-lot="aucun" style="background:transparent;color:#cfd8e0;border-color:#cfd8e0">Décocher</button>';
-  z.querySelectorAll('[data-lot]').forEach(function(b){b.onclick=function(){var e=b.dataset.lot;if(e==='aucun'){coches={};VUES.liste();return;}corrigerLot(ids,e);};});}
+    '<button class="btn" data-lot="tout">🔁 Livré + repris + déchargé</button> <button class="btn" data-lot="ratt">🌀 Leur dernier vidage était un rattrapage (oubli du laveur)</button> <button class="btn" data-lot="aucun" style="background:transparent;color:#cfd8e0;border-color:#cfd8e0">Décocher</button>';
+  z.querySelectorAll('[data-lot]').forEach(function(b){b.onclick=function(){var e=b.dataset.lot;if(e==='aucun'){coches={};VUES.liste();return;}if(e==='ratt')return marquerRattrapage(ids);corrigerLot(ids,e);};});}
+// Vidages faits par le bureau sous le nom d'un laveur : on les marque « rattrapage » pour qu'ils comptent comme incident laveur
+async function marquerRattrapage(ids){
+  if(!confirm(ids.length+' chariot(s) : leur DERNIER « vidé au tunnel » était un rattrapage du bureau (le laveur ne l\'avait pas scanné) ?'))return;
+  var n=0;try{for(var i=0;i<ids.length;i++){var v=await q(sb.from('rolls_scans').select('id').eq('roll_id',ids[i]).eq('etape','vide').order('quand',{ascending:false}).limit(1));
+      if(v.length){await q(sb.from('rolls_scans').update({note:'vidé au tunnel par le bureau (oubli du laveur)'}).eq('id',v[0].id));n++;}}
+    coches={};alert('✓ '+n+' vidage(s) marqué(s). Ils apparaissent dans ⚠ Incidents.');route();}catch(x){alert('Impossible : '+(x.message||x));}
+}
 async function corrigerLot(ids,e){
   var liste=ROLLS.filter(function(r){return ids.indexOf(r.id)>=0;});
   var etapes=e==='tout'?['livre','repris','rentre']:[e];
@@ -364,7 +371,7 @@ VUES.incidents=async function(){
     var dit=/laveur : ([^)]+?)\)?$/.exec(x.s.note||'');if(k==='laveur'&&dit)return {sur:[dit[1].trim()]};   // indiqué par le bureau
     if(k==='laveur'){   // laveurs qui ont vidé des chariots le jour où ce chariot est revenu sale
       var rt=dern(['rentre','repris']),j=rt?jourDe(rt.quand):jourDe(x.s.quand),set={};
-      tous.forEach(function(y){if(y.etape==='vide'&&jourDe(y.quand)===j&&humain(y.personne)&&/laveur/.test(roleDe[y.personne]||''))set[y.personne]=1;});
+      tous.forEach(function(y){if(y.etape==='vide'&&!/^vidé au tunnel par le bureau/.test(y.note||'')&&jourDe(y.quand)===j&&humain(y.personne)&&/laveur/.test(roleDe[y.personne]||'')&&!/bureau/.test(roleDe[y.personne]||''))set[y.personne]=1;});
       return {prob:Object.keys(set),info:rt?'revenu sale le '+fmtQ(rt.quand):''};}
     if(k==='atelier'){  // personnes de l'atelier qui ont rempli d'autres chariots pour ce client ce jour-là
       var set2={},j2=jourDe(x.s.quand);
