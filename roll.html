@@ -52,6 +52,8 @@ var $=function(i){return document.getElementById(i);};
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function lire(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
 function ecrire(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+// En tournée = ce téléphone a déjà livré ou repris un chariot chez un client aujourd'hui
+function enTournee(){try{return lire('roll_tournee','')===new Date().toDateString();}catch(e){return false;}}
 var ETATS={bdl:'Vide à la BdL',pret:'Rempli — prêt à partir',chauffeur:'Dans le camion',client:'Chez le client',retour:'Repris — en retour',sale:'Sale — déchargé à la BdL'};
 var ROLES={chauffeur:'Chauffeur',atelier:'Atelier',laveur:'Laveur',bureau:'Bureau'};
 var PRM=new URLSearchParams(location.search);
@@ -59,11 +61,16 @@ var numero=(PRM.get('r')||'').trim().toUpperCase();
 // Arrêt chez un client : posé en scannant le QR du client (roll.html?c=Nom), gardé 4 h sur le téléphone
 var ARRET=lire('roll_arret',null);
 var NOUVEL_ARRET=false;
-if(PRM.get('c')){var cNv=PRM.get('c').trim();NOUVEL_ARRET=!ARRET||ARRET.client!==cNv||Date.now()-ARRET.t>4*3600e3;ARRET={client:cNv,t:Date.now()};ecrire('roll_arret',ARRET);}
+if(PRM.get('c')){var cNv=PRM.get('c').trim();NOUVEL_ARRET=!ARRET||ARRET.client!==cNv||Date.now()-ARRET.t>20*60e3;ARRET={client:cNv,t:Date.now()};ecrire('roll_arret',ARRET);}
 // Arrivée / départ enregistrés (heure réelle) ; gardés sur le téléphone si pas de réseau
 function noterArret(etape,client){if(!MOI)return;var a={p_personne:MOI.id,p_code:MOI.code,p_client:client,p_etape:etape};if(ARRET&&ARRET.src==='liste')a.p_note='choisi dans la liste (sans QR)';
   sb.rpc('roll_arret',a).then(function(r){if(r&&r.error&&a.p_note){delete a.p_note;sb.rpc('roll_arret',a).catch(function(){});}}).catch(function(){});}
-if(ARRET&&Date.now()-ARRET.t>4*3600e3){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}}
+// Client en cours : il s'efface tout seul 20 min après le dernier scan chez lui → l'appli revient au neutre (« Où suis-je ? »)
+var ARRET_MAX=20*60e3;
+function arretExpire(){if(ARRET&&Date.now()-ARRET.t>ARRET_MAX){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}return true;}return false;}
+function finArret(){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}if(typeof majMoi==='function')try{majMoi();}catch(e){}}
+arretExpire();
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&arretExpire()){try{majMoi();}catch(e){}if(!numero)location.replace(location.pathname);}});
 function nrm(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();}
 var INFO=null, MOI=lire('roll_moi',null), CLIENTS=lire('roll_clients',[]);
 function majMoi(){$('moiBtn').textContent=MOI?('👤 '+MOI.nom):'👤 Qui êtes-vous ?';var b=$('bOu');if(b){var ch=MOI&&String(MOI.role||'').split(',').some(function(x){return x==='chauffeur'||x==='bureau';});b.style.display=ch?'':'none';b.textContent=ARRET?'📍 '+ARRET.client:'📍 Où suis-je ?';var c2=$('bChg');if(c2)c2.style.display=ch?'':'none';}}
@@ -325,6 +332,9 @@ async function scan(etape,client,note){
     if(!r.data.ok){if(/code/i.test(r.data.error)){alert('Code incorrect. Retapez votre code.');MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}majMoi();return choisirMoi();}throw new Error(r.data.error);}
     var i2=await sb.rpc('roll_info',{p_numero:INFO.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
     if(navigator.vibrate)navigator.vibrate(120);
+    if(etape==='livre'||etape==='repris')ecrire('roll_tournee',new Date().toDateString());
+    if(ARRET&&(etape==='livre'||etape==='repris')){ARRET.t=Date.now();ecrire('roll_arret',ARRET);}
+    if(ARRET&&(etape==='charge'||etape==='rentre'))finArret();   // il est revenu à la BdL
     if(ARRET&&(etape==='livre'||etape==='repris')){numero='';history.replaceState(null,'',location.pathname);return chargerArret('✓ '+esc(INFO.numero)+' '+esc(LIB[etape])+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le chariot suivant.</div>');}
     if(etape==='charge'){try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!cm.error&&cm.data&&cm.data.ok&&CHG){numero='';history.replaceState(null,'','?');return ecranChargement('✓ '+esc(INFO.numero)+' chargé ('+esc(INFO.client||'')+')',cm.data);}
       if(!cm.error&&cm.data&&cm.data.ok){var ic=INFO.client?await infoChargement(INFO.client,true):'';return afficher('✓ '+esc(INFO.numero)+' chargé'+ic+resumeCamion(cm.data));}}catch(x){}}
@@ -487,7 +497,7 @@ function afficherOuAccueil(){if(INFO&&INFO.numero)afficher();else demanderNumero
 function traiterCode(t){
   t=String(t||'').trim();
   var mc=t.match(/[?&]c=([^&#]+)/),mr=t.match(/[?&]r=([^&#]+)/),nu=t.match(/^R-?(\d{1,4})$/i);
-  if(mc){var c=decodeURIComponent(mc[1].replace(/\+/g,' ')).trim();NOUVEL_ARRET=!ARRET||ARRET.client!==c||Date.now()-ARRET.t>4*3600e3;ARRET={client:c,t:Date.now()};ecrire('roll_arret',ARRET);
+  if(mc){var c=decodeURIComponent(mc[1].replace(/\+/g,' ')).trim();NOUVEL_ARRET=!ARRET||ARRET.client!==c||Date.now()-ARRET.t>20*60e3;ARRET={client:c,t:Date.now()};ecrire('roll_arret',ARRET);
     numero='';history.replaceState(null,'','?c='+encodeURIComponent(c));return charger();}
   var n=mr?decodeURIComponent(mr[1]).trim().toUpperCase():(nu?'R-'+nu[1].padStart(3,'0'):'');
   if(!n){alert('Code non reconnu : '+t);return;}
