@@ -67,7 +67,7 @@ async function route(){var v=(location.hash||'#liste').slice(1).split('/')[0];do
 window.addEventListener('hashchange',route);
 
 var filtre='',rechMem='',coches={};
-var etatRech='';
+var etatRech='',AVANT={};   // AVANT[roll] = dernière personne (hors bureau) avant une correction du bureau
 VUES.liste=async function(){
   var n={};ROLLS.forEach(function(r){n[r.etat]=(n[r.etat]||0)+1;});
   var vieux=ROLLS.filter(function(r){return (r.etat==='client'||r.etat==='retour')&&jours(r.maj_le)>=SEUIL_J;});
@@ -96,22 +96,26 @@ VUES.liste=async function(){
     '<div class="carte noprint"><h2>Ajouter des rolls</h2><input id="aN" type="number" min="1" max="200" value="10" style="width:90px"> <button class="btn p" id="aOk">Créer les suivants</button> <span class="s">Numéros à la suite du dernier (R-021, R-022…).</span></div>';
   $('main').innerHTML=h;
   $('rq').value=rechMem;
+  var corr=ROLLS.filter(function(r){return /^Bureau/.test(r.personne||'');});
+  if(corr.length){try{var sv=await q(sb.from('rolls_scans').select('roll_id,personne,quand').in('roll_id',corr.map(function(r){return r.id;})).order('quand',{ascending:false}).limit(5000));
+    sv.forEach(function(x){if(!/^Bureau/.test(x.personne||'')&&x.personne&&!AVANT[x.roll_id])AVANT[x.roll_id]=x.personne;});}catch(e){}}
   function rendre(){if(($('rq').value||'')!==rechMem)etatRech='';rechMem=$('rq').value||'';var t=rechMem.toLowerCase();
-    var l=ROLLS.filter(function(r){if(!t){if(filtre==='vieux')return vieux.indexOf(r)>=0;if(filtre&&r.etat!==filtre)return false;return true;}return (r.numero+' '+(r.client||'')+' '+(r.personne||'')).toLowerCase().indexOf(t)>=0;});   // une recherche cherche dans TOUS les chariots, même si une tuile est sélectionnée
+    var l=ROLLS.filter(function(r){if(filtre==='vieux'&&vieux.indexOf(r)<0)return false;if(filtre&&filtre!=='vieux'&&r.etat!==filtre)return false;
+      return !t||(r.numero+' '+(r.client||'')+' '+(r.personne||'')+' '+(AVANT[r.id]||'')).toLowerCase().indexOf(t)>=0;});   // tuile ET recherche
     // Recherche : résumé par état (ex. « BB : 3 chez le client · 1 dans le camion »)
     var n2={};l.forEach(function(r){n2[r.etat]=(n2[r.etat]||0)+1;});
     var nTot=l.length;if(t&&etatRech){l=l.filter(function(r){return r.etat===etatRech;});if(!l.length){etatRech='';return rendre();}}   // clic sur « 10 en retour » dans le résumé
     // Régularisation : chariots prêts ou dans un camion pour ce client → « livré sans scan » en un clic
     var aLivrer={};l.forEach(function(r){if((r.etat==='pret'||r.etat==='chauffeur')&&r.client)(aLivrer[r.client]=aLivrer[r.client]||[]).push(r);});
     var boutonsLiv=t?Object.keys(aLivrer).map(function(c){var n=aLivrer[c].length;return '<button class="btn p" data-liv="'+esc(c)+'" style="margin:6px 6px 0 0">🚚 Livré chez '+esc(c)+' sans scan ('+n+' chariot'+(n>1?'s':'')+')</button>';}).join(''):'';
-    $('rRes').innerHTML=t&&nTot?'<div style="background:var(--bleu2);border-radius:8px;padding:8px 12px;font-size:15px"><b>« '+esc($('rq').value.trim())+' » : '+nTot+' chariot'+(nTot>1?'s':'')+'</b> — '+['client','chauffeur','pret','retour','sale','bdl'].filter(function(e){return n2[e];}).map(function(e){return '<span data-er="'+e+'" title="Afficher seulement ceux-là" style="cursor:pointer;padding:1px 6px;border-radius:6px;'+(etatRech===e?'background:var(--bleu);color:#fff':'text-decoration:underline dotted')+'"><b>'+n2[e]+'</b> '+esc(ETATS[e]).toLowerCase()+'</span>';}).join(' · ')+(boutonsLiv?'<div class="noprint">'+boutonsLiv+'</div>':'')+'</div>':'';
+    $('rRes').innerHTML=t&&nTot?'<div style="background:var(--bleu2);border-radius:8px;padding:8px 12px;font-size:15px"><b>« '+esc($('rq').value.trim())+' »'+(filtre?' dans « '+esc(filtre==='vieux'?'chez un client depuis '+SEUIL_J+' j':ETATS[filtre])+' »':'')+' : '+nTot+' chariot'+(nTot>1?'s':'')+'</b> — '+['client','chauffeur','pret','retour','sale','bdl'].filter(function(e){return n2[e];}).map(function(e){return '<span data-er="'+e+'" title="Afficher seulement ceux-là" style="cursor:pointer;padding:1px 6px;border-radius:6px;'+(etatRech===e?'background:var(--bleu);color:#fff':'text-decoration:underline dotted')+'"><b>'+n2[e]+'</b> '+esc(ETATS[e]).toLowerCase()+'</span>';}).join(' · ')+(boutonsLiv?'<div class="noprint">'+boutonsLiv+'</div>':'')+'</div>':'';
     document.querySelectorAll('[data-er]').forEach(function(b){b.onclick=function(){etatRech=etatRech===b.dataset.er?'':b.dataset.er;rendre();};});
     document.querySelectorAll('[data-liv]').forEach(function(b){b.onclick=function(){livrerSansScan(b.getAttribute('data-liv'),aLivrer[b.getAttribute('data-liv')]);};});
     $('rT').innerHTML=l.map(function(r){var j=jours(r.maj_le),v=(r.etat==='client'||r.etat==='retour')&&j>=SEUIL_J;
-      return '<tr style="cursor:pointer" data-r="'+r.id+'"><td class="noprint" data-ck><input type="checkbox" data-c="'+r.id+'"'+(coches[r.id]?' checked':'')+'></td><td><b>'+esc(r.numero)+'</b></td><td><span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></td><td>'+esc(r.client||'—')+'</td><td class="'+(v?'vieux':'')+'">'+fmtQ(r.maj_le)+' <span class="s">('+j+' j)</span></td><td>'+esc(r.personne||'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun roll.</td></tr>';
+      return '<tr style="cursor:pointer" data-r="'+r.id+'"><td class="noprint" data-ck><input type="checkbox" data-c="'+r.id+'"'+(coches[r.id]?' checked':'')+'></td><td><b>'+esc(r.numero)+'</b></td><td><span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></td><td>'+esc(r.client||'—')+'</td><td class="'+(v?'vieux':'')+'">'+fmtQ(r.maj_le)+' <span class="s">('+j+' j)</span></td><td>'+esc(r.personne||'')+(AVANT[r.id]&&/^Bureau/.test(r.personne||'')?' <span class="s">(avant : '+esc(AVANT[r.id])+')</span>':'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun roll.'+(t&&filtre?' (recherche limitée à la tuile « '+esc(ETATS[filtre]||filtre)+' » : cliquez « Tout afficher »)':'')+'</td></tr>';
     LISTE_VUE=l;barreLot();}
   $('rq').oninput=rendre;rendre();
-  document.querySelectorAll('[data-f]').forEach(function(x){x.onclick=function(){filtre=filtre===x.dataset.f?'':x.dataset.f;rechMem='';etatRech='';VUES.liste();};});   // une tuile efface la recherche
+  document.querySelectorAll('[data-f]').forEach(function(x){x.onclick=function(){filtre=filtre===x.dataset.f?'':x.dataset.f;etatRech='';VUES.liste();};});   // la tuile s'ajoute à la recherche
   if($('rTout'))$('rTout').onclick=function(){filtre='';VUES.liste();};
   $('rT').onclick=function(e){
     if(e.target.closest('[data-ck]')){var c=e.target.closest('[data-ck]').querySelector('input');if(e.target!==c)c.checked=!c.checked;if(c.checked)coches[c.dataset.c]=1;else delete coches[c.dataset.c];barreLot();return;}
