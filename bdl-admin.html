@@ -8838,9 +8838,11 @@ async function reproduirePostesSemaine(empId, jourSrc) {
   for (var j = 0; j < 6; j++) {
     if (j === jourSrc) continue;
     var h = (emp.jours || [])[j] || {}, hd = _affMinFromHHMM(h.debut), hf = _affMinFromHHMM(h.fin);
-    if (hd == null || hf == null || hf <= hd) { sautes.push(noms[j]); continue; }   // pas d'horaire ce jour-là (repos)
+    var srcSansHoraire = _affMinFromHHMM(hS.debut) == null || _affMinFromHHMM(hS.fin) == null;
+    if ((hd == null || hf == null || hf <= hd) && !srcSansHoraire) { sautes.push(noms[j]); continue; }   // pas d'horaire ce jour-là (repos)
     var pl;
-    if (h.debut === hS.debut && h.fin === hS.fin) pl = src.map(function (p) { return { debut: p.debut, fin: p.fin, poste: p.poste || '' }; });
+    // même horaire, ou cadre sans horaire au planning : recopie telle quelle
+    if (srcSansHoraire || (h.debut === hS.debut && h.fin === hS.fin)) pl = src.map(function (p) { return { debut: p.debut, fin: p.fin, poste: p.poste || '' }; });
     else if (src.length === 1) pl = [{ debut: h.debut, fin: h.fin, poste: src[0].poste || '' }];
     else {   // horaire différent : on décale les plages, la dernière va jusqu'à la fin de l'horaire du jour
       var dec = hd - d0;
@@ -9757,5 +9759,27 @@ else document.addEventListener('DOMContentLoaded', lancer);
 
   init();
  </script>
+<script>
+// Vue barres : se met à jour toute seule dès qu'un poste, un horaire ou une absence change (plus besoin de cliquer « Afficher »)
+(function () {
+  var MODIF = /^(saveAffectationsJour|reproduireAffectationsJourSemaine|recalerAffectationsSurHoraires|reproduirePostesJourSalarie|savePlanningEmp|seedPlanningPointages|reproduirePlanningSemaines|reorganiserAbsence|setAbsence|setAbsenceRemplace|setHeureAbsence|deleteAbsencePlage)$/;
+  var minuteur = null;
+  function rafraichirBarres() {
+    clearTimeout(minuteur);
+    minuteur = setTimeout(function () { if (document.getElementById('barWrap') && typeof barRender === 'function') barRender(); }, 700);
+  }
+  var orig = callApi;
+  callApi = function (action, params) {
+    var r = orig.apply(this, arguments);
+    if (MODIF.test(action || '')) Promise.resolve(r).then(function (x) { if (x && x.ok !== false) rafraichirBarres(); }, function () {});
+    return r;
+  };
+  // changement de semaine ou rechargement du planning
+  if (typeof loadPlanningSection === 'function') {
+    var origLoad = loadPlanningSection;
+    loadPlanningSection = async function () { var r = await origLoad.apply(this, arguments); try { barFillJours(); } catch (e) {} rafraichirBarres(); return r; };
+  }
+})();
+</script>
 </body>
 </html>
