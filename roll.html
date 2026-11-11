@@ -136,7 +136,7 @@ function afficherArret(msg){
   };
 }
 function demanderNumero(garde){
-  var h=(garde?$('main').innerHTML:'')+'<div class="carte"><label>Numéro du roll</label><input id="nNum" placeholder="ex. R-012" autocapitalize="characters"><button class="gros" onclick="var v=document.getElementById(\'nNum\').value.trim().toUpperCase();if(v){if(/^\\d+$/.test(v))v=\'R-\'+v.padStart(3,\'0\');location.search=\'?r=\'+encodeURIComponent(v);}">Ouvrir</button><div class="s">Le plus simple : scanner l\'étiquette du roll avec l\'appareil photo.</div></div>'+(MOI&&aRole('chauffeur')?'<button class="gros" onclick="jeSuisChez()">📍 Je suis chez un client…</button>':'');
+  var h=(garde?$('main').innerHTML:'')+'<div class="carte"><label>Numéro du roll</label><input id="nNum" placeholder="ex. R-012" autocapitalize="characters"><button class="gros" onclick="var v=document.getElementById(\'nNum\').value.trim().toUpperCase();if(v){if(/^\\d+$/.test(v))v=\'R-\'+v.padStart(3,\'0\');location.search=\'?r=\'+encodeURIComponent(v);}">Ouvrir</button><div class="s">Le plus simple : scanner l\'étiquette du roll avec l\'appareil photo.</div></div>'+(MOI&&aRole('chauffeur')?'<button class="gros" onclick="jeSuisChez()">📍 Je suis chez un client…</button><button class="gros v" onclick="dechargerTout()">🏭 Je suis à la BdL : vider mon camion</button>':'');
   $('main').innerHTML=h;
 }
 function choisirMoi(suite){
@@ -235,6 +235,7 @@ function actions(){
     // Retour à la BdL : un chariot repris (ou resté « chez le client ») se DÉCHARGE ; on ne propose plus de le charger
     var sale=I.etat==='retour'||I.etat==='client';
     if(sale)bouton('🏭 Déchargé à la BdL (linge sale)','v',function(){scan('rentre',null);});
+    if(I.etat==='retour')bouton('🏭 Vider tout mon camion d\'un coup','g',dechargerTout);
     if(!sale&&I.etat!=='sale'&&I.etat!=='chauffeur'&&!(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur')))bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
     if(I.etat==='retour'||I.etat==='client'||I.etat==='sale')bouton('📦 Chariot VIDE — rangé au dépôt BdL','g',function(){if(confirm(I.numero+' : chariot vide, rangé au dépôt ?\n(Il redevient libre, sans client.)'))scan('vide',null,'rangé vide au dépôt');});
     // Livrer / reprendre : d'abord dire OÙ il est (bouton 📍), ensuite scanner ses chariots
@@ -447,6 +448,35 @@ async function ecranChargement(msg,d){
       if($('rRet'))$('rRet').onclick=function(){CHG=c;ecranChargement(null,d);};
     }
     suivant();
+  };
+}
+// Retour à la BdL : tous les chariots repris par ce chauffeur sont déchargés d'un seul coup (sans les scanner un par un)
+async function dechargerTout(){
+  if(!MOI)return choisirMoi(dechargerTout);
+  finArret();$('main').innerHTML='<div class="carte">Lecture de votre camion…</div>';
+  var rep=[],propres=[];
+  try{var r=await sb.rpc('roll_retour',{p_personne:MOI.id});if(r.error)throw r.error;rep=r.data||[];}
+  catch(e){$('main').innerHTML='<div class="carte alerte">Fonction indisponible (Benoît doit installer « roll_retour » dans Supabase).<br><span class="s">'+esc(e.message||e)+'</span></div>';return;}
+  try{var c=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!c.error&&c.data&&c.data.ok)propres=c.data.camion||[];}catch(e){}
+  var h='<div class="carte"><b style="font-size:20px">🏭 Vider mon camion à la BdL</b>';
+  if(!rep.length)h+='<div style="margin-top:10px">Aucun chariot repris enregistré dans votre camion.</div><div class="s" style="margin-top:6px">Un chariot pas scanné chez le client ? Scannez-le : « Je le reprends plein de linge sale… »</div></div>';
+  else h+='<div class="s" style="margin:6px 0 10px">Chariots que vous avez repris chez les clients. Décochez ceux qui restent dans le camion.</div>'+
+    rep.map(function(x,i){return '<label style="display:flex;gap:12px;align-items:center;font-size:19px;padding:8px 0;border-bottom:1px solid var(--ligne)"><input type="checkbox" checked data-i="'+i+'" style="width:26px;height:26px;margin:0"><b>'+esc(x.numero)+'</b><span style="flex:1">'+esc(x.client||'')+'</span></label>';}).join('')+
+    '</div><button class="gros v" id="dtOk">🏭 Décharger les '+rep.length+' chariots</button>';
+  if(propres.length)h+='<div class="carte s">Encore dans le camion, <b>pas livrés</b> (linge propre) : '+propres.map(function(x){return esc(x.numero)+(x.client?' ('+esc(x.client)+')':'');}).join(', ')+'. Ils ne sont pas déchargés ici.</div>';
+  h+='<button class="gros g" onclick="afficherOuAccueil()">Annuler</button>';
+  $('main').innerHTML=h;
+  var maj=function(){var n=document.querySelectorAll('#main input[data-i]:checked').length;if($('dtOk')){$('dtOk').textContent='🏭 Décharger '+(n>1?'les '+n+' chariots':n+' chariot');$('dtOk').disabled=!n;}};
+  document.querySelectorAll('#main input[data-i]').forEach(function(x){x.onchange=maj;});
+  if($('dtOk'))$('dtOk').onclick=async function(){
+    var l=Array.from(document.querySelectorAll('#main input[data-i]:checked')).map(function(x){return rep[+x.dataset.i];});if(!l.length)return;
+    this.disabled=true;var ok=[],ko=[];
+    for(var i=0;i<l.length;i++){$('dtOk').textContent='Envoi… '+(i+1)+' / '+l.length;
+      try{var r2=await sb.rpc('roll_scan',{p_numero:l[i].numero,p_personne:MOI.id,p_code:MOI.code,p_etape:'rentre',p_client:null,p_note:'déchargé en lot (vider mon camion)'});
+        if(r2.error)throw r2.error;if(!r2.data.ok)throw new Error(r2.data.error);ok.push(l[i].numero);}catch(e){ko.push(l[i].numero);if(/code/i.test(String(e.message||e)))break;}}
+    if(navigator.vibrate)navigator.vibrate(120);
+    $('main').innerHTML='<div class="carte ok">✓ '+ok.length+' chariot'+(ok.length>1?'s':'')+' déchargé'+(ok.length>1?'s':'')+' à la BdL (sale)</div>'+
+      (ko.length?'<div class="carte alerte">Pas enregistrés (réseau ?) : '+ko.map(esc).join(', ')+'</div><button class="gros" onclick="dechargerTout()">Réessayer</button>':'');
   };
 }
 function resumeCamion(d){
