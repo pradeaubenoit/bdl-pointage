@@ -5782,6 +5782,17 @@ total += _planHeuresCell(c, j);
   }).join('');
 }
 
+// Recopie dans _planData les horaires TELS QU'ILS SONT À L'ÉCRAN (sinon recalage / recopie / barres utilisent les horaires du dernier chargement)
+function _planSyncEcran() {
+  if (!_planData || !document.querySelector('.plan-input')) return;
+  var parEmp = {};
+  _planCollect().forEach(function (c) { parEmp[String(c.empId)] = c.jours; });
+  (_planData.planning || []).forEach(function (r) {
+    var js = parEmp[String(r.empId)]; if (!js) return;
+    if (!r.jours) r.jours = [];
+    for (var j = 0; j < 6; j++) { if (!r.jours[j]) r.jours[j] = {}; r.jours[j].debut = js[j].debut; r.jours[j].fin = js[j].fin; }
+  });
+}
 function _planCollect() {
   var map = {};
   (_planData.planning || []).forEach(function (r) {
@@ -6695,6 +6706,7 @@ async function barRender() {
   if (!_planData) { if (wrap) wrap.innerHTML = '<div style="color:var(--ink-faint);font-size:13px;padding:8px">Charge le planning.</div>'; return; }
   var sel = document.getElementById('barJour');
   _barJour = sel ? Number(sel.value || 0) : 0;
+  _planSyncEcran();
 
   if (wrap) wrap.innerHTML = '<div style="color:var(--ink-faint);font-size:13px;padding:8px">Chargement…</div>';
  try {
@@ -7373,6 +7385,7 @@ async function planReproduire() {
   // Recalage fait dans la page : chaque jour où la personne a un horaire et des postes,
   // 1 poste = toute la plage horaire ; plusieurs postes = mêmes proportions, étalées sur l'horaire du jour.
   window.recalerPostesSemaine = async function (prog) {
+    _planSyncEcran();
     var a = await callApi('getAffectationsSemaine', { semaine: _planData.semaine });
     if (!a || !a.ok) return { ok: false, error: 'lecture des postes impossible' };
     _affData = a.affectations || {};
@@ -8869,6 +8882,7 @@ window.lancerAnalyseSup = async function () {
 // Même horaire que le jour modèle → plages recopiées telles quelles ; horaire différent → plages décalées sur l'horaire du jour.
 async function reproduirePostesSemaine(empId, jourSrc) {
   jourSrc = Number(jourSrc);
+  _planSyncEcran();
   var a = await callApi('getAffectationsSemaine', { semaine: _planData.semaine });
   if (!a || !a.ok) return { ok: false, error: 'lecture des postes impossible' };
   _affData = a.affectations || {};
@@ -9815,7 +9829,7 @@ else document.addEventListener('DOMContentLoaded', lancer);
   function rafraichirBarres() {
     clearTimeout(minuteur);
     if (window.__lotEnCours) return;   // recalage / recopie en cours : on rafraîchit une seule fois à la fin
-    minuteur = setTimeout(function () { if (!window.__lotEnCours && document.getElementById('barWrap') && typeof barRender === 'function') barRender(); }, 700);
+    minuteur = setTimeout(function () { var w = document.getElementById('barWrap'); if (!window.__lotEnCours && w && w.querySelector('svg') && typeof barRender === 'function') barRender(); }, 700);   // seulement si la Vue barres est déjà affichée
   }
   var orig = callApi;
   callApi = function (action, params) {
