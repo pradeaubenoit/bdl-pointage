@@ -7446,11 +7446,11 @@ async function planReproduire() {
       ? _planData.semaine
       : (typeof _planIsoWeekStr === 'function' ? _planIsoWeekStr(new Date()) : '');
     if (!semaine) { toast('Charge d\'abord le planning', 'error'); return; }
-    if (!confirm('Recaler les postes sur les horaires de la semaine ' + semaine + ' ?\n\nChaque poste sera placé sur les heures de travail de la personne (1 poste = toute la plage ; plusieurs postes = répartis dans la plage).')) return;
+    if (!confirm('Recaler les postes sur les horaires de la semaine ' + semaine + ' ?\n\n(Les horaires pris en compte sont ceux ENREGISTRÉS avec 💾.)\n\nChaque poste sera placé sur les heures de travail de la personne (1 poste = toute la plage ; plusieurs postes = répartis dans la plage).')) return;
     var btn = document.getElementById('recalBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Recalage…'; }
     try {
-      var resp = await recalerPostesSemaine(function (i, n) { if (btn) btn.textContent = 'Recalage… ' + i + ' / ' + n; });
+      var resp = await callApi('recalerAffectationsSurHoraires', { semaine: semaine });   // recalage rapide, fait par le script Google (horaires ENREGISTRÉS)
       if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || 'inconnue'), 'error'); return; }
       toast('✓ ' + (resp.recales || 0) + ' poste(s) recalé(s) sur ' + semaine, 'success');
       var hint = document.getElementById('recalHint');
