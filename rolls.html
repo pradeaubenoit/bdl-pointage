@@ -375,7 +375,7 @@ VUES.incidents=async function(){
   // Chariots vidés au tunnel par le bureau (rattrapage) = incident laveur
   var bureauNoms={};PERS.forEach(function(p){if(/bureau/.test(p.role||''))bureauNoms[p.nom]=1;});
   var laveurs={};PERS.forEach(function(p){if(/laveur/.test(p.role||''))laveurs[p.nom]=1;});
-  tous.forEach(function(y){if(y.etape==='vide'&&(!y.note||/^vidé à l'atelier$/.test(y.note))&&y.quand>=depuis.toISOString()&&(bureauNoms[y.personne]||/^Bureau/.test(y.personne||'')||!laveurs[y.personne])&&(parRoll[y.roll_id]||[]).some(function(z){return z.quand<y.quand&&(z.etape==='rentre'||z.etape==='repris');}))l.push({s:Object.assign({},y,{note:'vidé au tunnel par le bureau (oubli du laveur)'}),t:TK.laveur,brut:true});});
+  tous.forEach(function(y){if(y.etape==='vide'&&(!y.note||/^vidé à l'atelier$/.test(y.note))&&y.quand>=depuis.toISOString()&&(bureauNoms[y.personne]||/^Bureau/.test(y.personne||'')||!laveurs[y.personne]))l.push({s:Object.assign({},y,{note:'vidé au tunnel par le bureau (oubli du laveur)'}),t:TK.laveur,brut:true});});
   l.sort(function(a,b){return a.s.quand<b.s.quand?1:-1;});
   // Planning de BdL Admin (postes du jour) : qui était au TUNNEL ce jour-là ?
   var PLAN={},planOk=false,API=null;try{API=localStorage.getItem('bdl_api_url');}catch(e){}
