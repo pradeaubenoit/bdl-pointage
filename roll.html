@@ -111,7 +111,9 @@ async function chargerArret(msg){
   INFO={personnes:ARR.personnes};
   if(MOI){var me=(ARR.personnes||[]).find(function(p){return p.id===MOI.id;});if(!me){MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}}else{MOI.role=me.role;MOI.nom=me.nom;ecrire('roll_moi',MOI);majMoi();}}
   if(!MOI)return choisirMoi(function(){chargerArret();});
-  if(NOUVEL_ARRET&&aRole('chauffeur')){NOUVEL_ARRET=false;noterArret('arrivee',ARRET.client);}
+  if(NOUVEL_ARRET&&aRole('chauffeur')){NOUVEL_ARRET=false;noterArret('arrivee',ARRET.client);
+    try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});var li=cm&&cm.data&&cm.data.ok?incomplets(cm.data):[];
+      if(li.length){if(navigator.vibrate)navigator.vibrate([300,150,300]);msg=bandeauIncomplet(li)+'<div style="font-size:15px;margin-top:6px">Ces chariots sont restés à la BdL. Prévenez Benoît.</div>'+(msg?'<div style="margin-top:8px">'+msg+'</div>':'');}}catch(e){}}
   afficherArret(msg);
 }
 function afficherArret(msg){
@@ -359,6 +361,12 @@ function estFav(c){return favs().some(function(x){return nrm(x)===nrm(c);});}
 function basculerFav(c){var f=favs(),i=f.findIndex(function(x){return nrm(x)===nrm(c);});if(i>=0)f.splice(i,1);else f.push(c);ecrire('roll_fav_'+MOI.id,f);}   // client choisi (ou '' = vue d'ensemble) tant que l'écran chargement est actif
 // L'écran Chargement se met à jour tout seul (toutes les 30 s, et quand on revient sur l'appli) : les chariots remplis entre-temps apparaissent
 var CHG_NB=null;
+// Camion incomplet : clients dont au moins un chariot est dans le camion, mais dont d'autres sont restés au quai
+function incomplets(d){var g={};(d.camion||[]).forEach(function(x){if(x.client)(g[x.client]=g[x.client]||{ch:0,q:[]}).ch++;});
+  (d.a_quai||[]).forEach(function(x){var k=Object.keys(g).find(function(c){return nrm(c)===nrm(x.client);});if(k)g[k].q.push(x.numero);});
+  return Object.keys(g).filter(function(c){return g[c].q.length;}).map(function(c){return {c:c,ch:g[c].ch,q:g[c].q};});}
+function bandeauIncomplet(l){return l.length?'<div class="alerte" style="font-size:19px;text-align:center">⛔ CAMION INCOMPLET<div style="font-size:17px;font-weight:600;margin-top:6px">'+l.map(function(x){return esc(x.c)+' : '+x.ch+' / '+(x.ch+x.q.length)+' — reste au quai <b>'+x.q.map(esc).join(', ')+'</b>';}).join('<br>')+'</div></div>':'';}
+var VU_INC='';
 async function majChargementAuto(){
   if(!MOI||!$('chFin')||$('fQ')||document.visibilityState!=='visible')return;          // pas sur l'écran Chargement, ou en train de choisir ses clients
   if($('scanFond')&&$('scanFond').style.display&&$('scanFond').style.display!=='none')return;   // scanner ouvert
@@ -377,7 +385,7 @@ async function ecranChargement(msg,d){
     try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(r.error)throw r.error;d=r.data;if(!d.ok)throw new Error(d.error);}
     catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="ecranChargement()">Réessayer</button>';return;}}
   majMoi();CHG_NB=d.a_quai.length;
-  var g={};function a(x,k){var c=x.client||'🧺 Chariots vides';(g[c]=g[c]||{ch:[],q:[]})[k].push(x.numero);}
+  var g={};function a(x,k){var c=x.client||'🧺 Chariots vides';c=Object.keys(g).find(function(z){return nrm(z)===nrm(c);})||c;(g[c]=g[c]||{ch:[],q:[]})[k].push(x.numero);}
   d.camion.forEach(function(x){a(x,'ch');});d.a_quai.forEach(function(x){a(x,'q');});
   favs().forEach(function(c){if(!Object.keys(g).some(function(k){return nrm(k)===nrm(c);}))g[c]={ch:[],q:[],vide:true};});
   var cl=Object.keys(g).sort(function(x,y){return (estFav(x)?0:1)-(estFav(y)?0:1)||(g[x].q.length?0:1)-(g[y].q.length?0:1)||x.localeCompare(y,'fr');});
@@ -391,7 +399,8 @@ async function ecranChargement(msg,d){
       '<button class="gros g" id="chRet">← Tous les clients</button>';
   }else{
     CHG='';
-    var tq=d.a_quai.length;
+    var tq=d.a_quai.length,inc=incomplets(d);h+=bandeauIncomplet(inc);
+    var cleInc=inc.map(function(x){return x.c+x.q.join();}).join('|');if(cleInc&&cleInc!==VU_INC&&navigator.vibrate)navigator.vibrate([300,150,300]);VU_INC=cleInc;
     var mesC=cl.filter(function(c){return estFav(c)&&!g[c].vide;});
     if(mesC.length&&mesC.every(function(c){return !g[c].q.length;}))h+='<div class="carte ok">✓ Tous vos clients sont chargés'+(cl.some(function(c){return estFav(c)&&g[c].vide;})?'<div class="s" style="color:var(--orange)">sauf ceux sans chariot prêt (⚠)</div>':'')+'</div>';
     h+='<div class="carte"><b>🚚 Chargement au quai</b><div class="s">'+(tq?tq+' chariot'+(tq>1?'s':'')+' prêt'+(tq>1?'s':'')+' à charger. Touchez un client pour voir ses chariots.':'Rien à charger pour l\'instant.')+'</div>'+(cl.length>3?'<input id="chQ" placeholder="🔎 Chercher un client…" autocomplete="off" style="margin-top:10px">':'')+'</div>'+
@@ -415,8 +424,8 @@ async function ecranChargement(msg,d){
   if($('chRet'))$('chRet').onclick=function(){CHG='';ecranChargement(null,d);};
   $('chFin').onclick=function(){
     // Mes clients pas (entièrement) chargés : on demande si c'est normal, sinon on prévient l'atelier
-    var pb=cl.filter(function(c){return estFav(c)&&(g[c].vide||g[c].q.length);});
-    var autres=cl.filter(function(c){return !estFav(c)&&g[c].q.length;});
+    var pb=cl.filter(function(c){return (estFav(c)&&(g[c].vide||g[c].q.length))||(g[c].ch.length&&g[c].q.length);});
+    var autres=cl.filter(function(c){return !estFav(c)&&!g[c].ch.length&&g[c].q.length;});
     var rep={};
     function fin(){CHG=null;
       var nonOk=pb.filter(function(c){return rep[c]==='non';});
