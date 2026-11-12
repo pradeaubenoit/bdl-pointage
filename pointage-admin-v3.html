@@ -1284,8 +1284,12 @@ window.imprimerDetail = function(empId, empName) {
 window.envoyerBilanMail = async function(empId, empName) {
   var adr = '';
   try {
-    if (!employees.length) { var dS = await apiGet('salaries'); employees = (dS && dS.salaries) || []; }
     var emp = employees.find(function (x) { return x.id === empId; });
+    if (!emp || !emp.email) {   // liste absente ou chargée avant la saisie de l'adresse : on relit les salariés sans cache
+      window._apiCache = {};
+      var dS = await apiGet('salaries'); if (dS && dS.salaries && dS.salaries.length) employees = dS.salaries;
+      emp = employees.find(function (x) { return x.id === empId; });
+    }
     adr = (emp && emp.email) || '';
   } catch (e) {}
   var dest = prompt('Adresse e-mail du destinataire' + (adr ? ' (celle du salarié est déjà remplie, modifiable)' : ' (aucune adresse sur sa fiche : à saisir)') + ' :', adr);
@@ -1299,7 +1303,7 @@ window.envoyerBilanMail = async function(empId, empName) {
     var _resp = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'envoyerBilanMail', empId: empId, dest: dest, month: $('rpt-month').value, html: el.innerHTML })
+      body: JSON.stringify({ action: 'envoyerBilanMail', empId: empId, dest: dest, month: $('rpt-month').value, html: (function () { var c = el.cloneNode(true); c.querySelectorAll('.no-print').forEach(function (x) { x.remove(); }); return c.innerHTML; })() })   // sans les boutons « Envoyer / Imprimer »
     });
     var d = await _resp.json();
     if (d && d.ok) toast('✓ Bilan envoyé à ' + dest, 'success');
