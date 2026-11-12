@@ -379,6 +379,12 @@ footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-si
     <div class="field"><label>Actif</label><input type="checkbox" id="new-actif" checked style="width:24px;height:24px;margin-top:8px"></div>
     <button class="btn btn-primary" id="btn-add-emp">+ Ajouter</button>
   </div>
+  <div class="emp-form" style="grid-template-columns:2fr 1fr 1fr 1fr;margin-top:-23px;border-top:1px dashed var(--line)">
+    <div class="field"><label>E-mail (bilan mensuel)</label><input type="email" id="new-email" placeholder="prenom.nom@exemple.fr"></div>
+    <div class="field"><label>Contrat</label><select id="new-contrat"><option value="">—</option><option value="CDI">CDI</option><option value="CDD">CDD</option><option value="interim">Intérim</option><option value="apprentissage">Apprentissage</option><option value="stage">Stage</option></select></div>
+    <div class="field"><label>Entrée</label><input type="date" id="new-debut"></div>
+    <div class="field"><label>Fin de contrat</label><input type="date" id="new-fin" title="Vide pour un CDI. Le lendemain, le salarié sort du pointage et des plannings (historique gardé)."></div>
+  </div>
 
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <button class="btn btn-ghost" id="btn-refresh-emp">↻ Rafraîchir la liste</button>
@@ -1273,7 +1279,13 @@ window.imprimerDetail = function(empId, empName) {
   };
   // V4.9.31 - Envoi du bilan individuel par mail
 window.envoyerBilanMail = async function(empId, empName) {
-  var dest = prompt('Adresse e-mail du destinataire (comptable, agence...) :');
+  var adr = '';
+  try {
+    if (!employees.length) { var dS = await apiGet('salaries'); employees = (dS && dS.salaries) || []; }
+    var emp = employees.find(function (x) { return x.id === empId; });
+    adr = (emp && emp.email) || '';
+  } catch (e) {}
+  var dest = prompt('Adresse e-mail du destinataire' + (adr ? ' (celle du salarié est déjà remplie, modifiable)' : ' (aucune adresse sur sa fiche : à saisir)') + ' :', adr);
   if (!dest) return;
   if (dest.indexOf('@') === -1) return toast('Adresse invalide', 'error');
   var el = document.getElementById('detail-content-' + empId);
@@ -1371,12 +1383,23 @@ async function renderEmployees() {
       <div class="actif-col" style="text-align:center"><input type="checkbox" class="emp-actif"${e.actif?' checked':''}></div>
       <button class="qr-btn" data-emp="${e.id}">QR / Lien</button>
       <button class="del-btn" data-emp="${e.id}">Supprimer</button>
+      <div class="contrat-line" style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-left:44px;font-size:12px;color:var(--ink-2)">
+        <span>✉️</span><input type="email" class="emp-email" value="${e.email||''}" placeholder="e-mail du salarié" style="flex:2;min-width:200px">
+        <span>Contrat</span><select class="emp-contrat" style="width:auto;min-width:110px">${'<option value="">—</option><option value="CDI">CDI</option><option value="CDD">CDD</option><option value="interim">Intérim</option><option value="apprentissage">Apprentissage</option><option value="stage">Stage</option>'.replace('value="'+(e.contrat||'')+'"','value="'+(e.contrat||'')+'" selected')}</select>
+        <span>Entrée</span><input type="date" class="emp-debut" value="${e.debutContrat||''}" style="width:auto">
+        <span>Fin</span><input type="date" class="emp-fin" value="${e.finContrat||''}" style="width:auto">
+        ${e.finContrat && e.finContrat < new Date().toISOString().slice(0,10) ? '<span style="color:var(--bad)">contrat terminé : sorti du pointage et des plannings</span>' : ''}
+      </div>
     </div>`).join('');
 
     list.querySelectorAll('.emp-row').forEach(row => {
       const id = row.dataset.id;
-      const fields = ['prenom','nom','role','taux','actif'];
+      const fields = ['prenom','nom','role','taux','actif','email','contrat','debut','fin'];
       const inputs = {
+        email: row.querySelector('.emp-email'),
+        contrat: row.querySelector('.emp-contrat'),
+        debut: row.querySelector('.emp-debut'),
+        fin: row.querySelector('.emp-fin'),
         prenom: row.querySelector('.emp-prenom'),
         nom: row.querySelector('.emp-nom'),
         role: row.querySelector('.emp-role'),
@@ -1388,13 +1411,17 @@ async function renderEmployees() {
           await apiPost({ action:'updateEmployee', employee: {
             id, prenom: inputs.prenom.value, nom: inputs.nom.value,
             role: inputs.role.value, tauxHoraire: parseFloat(inputs.taux.value)||0,
-            actif: inputs.actif.checked
+            actif: inputs.actif.checked,
+            email: inputs.email.value.trim(), contrat: inputs.contrat.value,
+            debutContrat: inputs.debut.value, finContrat: inputs.fin.value
           }});
           toast('✓ Modifications enregistrées', 'success');
           const idx = employees.findIndex(x => x.id === id);
           if (idx > -1) {
             employees[idx] = { ...employees[idx], prenom: inputs.prenom.value, nom: inputs.nom.value,
-              role: inputs.role.value, tauxHoraire: parseFloat(inputs.taux.value)||0, actif: inputs.actif.checked };
+              role: inputs.role.value, tauxHoraire: parseFloat(inputs.taux.value)||0, actif: inputs.actif.checked,
+              email: inputs.email.value.trim(), contrat: inputs.contrat.value, debutContrat: inputs.debut.value, finContrat: inputs.fin.value };
+            window._apiCache = {};
           }
         } catch(e) { toast('Erreur : ' + e.message, 'error'); }
       };
@@ -1419,14 +1446,17 @@ $('btn-add-emp').addEventListener('click', async () => {
     prenom, nom,
     role: $('new-role').value,
     tauxHoraire: parseFloat($('new-taux').value)||0,
-    actif: $('new-actif').checked
+    actif: $('new-actif').checked,
+    email: $('new-email').value.trim(), contrat: $('new-contrat').value,
+    debutContrat: $('new-debut').value, finContrat: $('new-fin').value
   };
   try {
     const d = await apiPost({ action:'addEmployee', employee });
     toast(`✓ ${prenom} ${nom} ajouté`, 'success');
     $('new-prenom').value = ''; $('new-nom').value = '';
     $('new-taux').value = '';
-    employees = [];
+    ['new-email','new-debut','new-fin'].forEach(x => $(x).value = ''); $('new-contrat').value = '';
+    employees = []; window._apiCache = {};
     renderEmployees();
   } catch (e) { toast('Erreur : ' + e.message, 'error'); }
 });
