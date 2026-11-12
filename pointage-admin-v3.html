@@ -666,7 +666,12 @@ function apiCallBrut(params) {
     }
     window[cbName] = function(data) {
       cleanup();
-      if (data && data.error) reject(new Error(data.error));
+      if (data && data.error) {
+        // Lecture refusée par Google (serveur occupé, délai interne…) : second essai automatique après 3 s
+        var _lect = /^(get|ping$|presents$|salaries$|monthlyReport$)/.test(String(params.action || ''));
+        if (_lect && !params._retry) { setTimeout(function() { apiCall(Object.assign({}, params, { _retry: 1 })).then(resolve, reject); }, 3000); return; }
+        reject(new Error(data.error));
+      }
       else { if (_cacheable) window._apiCache[_key] = { t: Date.now(), d: data || {} }; resolve(data || {}); }
     };
     script.src = url.toString();
@@ -945,7 +950,7 @@ async function renderReport() {
     if (!d.report.length || d.report[0].soldeFinMois == null) loadAllSoldes(d.report);
     loadOpsMonth(month);
   } catch (e) {
-    totauxWrap.innerHTML = `<div style="padding:20px;color:var(--bad)">Erreur : ${e.message}</div>`;
+    totauxWrap.innerHTML = `<div style="padding:20px;color:var(--bad)">Le serveur Google n'a pas répondu (${e.message}). <button class="btn" style="margin-left:10px" onclick="window._apiCache={};renderReport()">↻ Réessayer</button></div>`;
   }
 }
 
