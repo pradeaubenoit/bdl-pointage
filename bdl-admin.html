@@ -6667,6 +6667,20 @@ function affRenderModal(emp, jour, horaire, plages) {
 // Ajoute un bandeau "Vue barres" + une zone SVG sous le tableau.
 // ============================================================
 var _barJour = 0;
+// Cale les plages de postes d'une journée sur l'horaire du planning : 1 poste = tout l'horaire ; plusieurs = mêmes proportions, dans l'ordre.
+function _calerPlages(src, h) {
+  var mn = function (x) { var m = String(x || '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+  var hhmm = function (m) { m = Math.round(m / 5) * 5; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+  src = (src || []).filter(function (p) { return p.debut && p.fin && p.poste; });
+  var hd = mn(h && h.debut), hf = mn(h && h.fin);
+  if (!src.length || hd == null || hf == null || hf <= hd) return src;
+  if (src.length === 1) return [{ debut: hhmm(hd), fin: hhmm(hf), poste: src[0].poste }];
+  src = src.slice().sort(function (x, y) { return mn(x.debut) - mn(y.debut); });
+  var dur = src.map(function (p) { return Math.max(0, mn(p.fin) - mn(p.debut)); });
+  var tot = dur.reduce(function (x, y) { return x + y; }, 0) || src.length, cur = hd;
+  return src.map(function (p, i) { var f = i === src.length - 1 ? hf : cur + (hf - hd) * (dur[i] || (tot / src.length)) / tot; var r = { debut: hhmm(cur), fin: hhmm(f), poste: p.poste }; cur = mn(r.fin); return r; })
+    .filter(function (p) { return mn(p.fin) > mn(p.debut); });
+}
 var _barColors = {};
 var _BAR_PALETTE = ['#185FA5', '#1D9E75', '#BA7517', '#534AB7', '#993C1D', '#993556', '#0F6E56', '#5F5E5A', '#3B6D11'];
 
@@ -6792,6 +6806,7 @@ var _barAbs = _planData.absences || {};
   }
   rows.forEach(function (r) {
     var aff = (_affData[r.empId] && _affData[r.empId][_barJour]) || [];
+    aff = _calerPlages(aff, r.jours[_barJour]);   // les barres suivent TOUJOURS l'horaire du planning (aucun enregistrement nécessaire)
     if (aff.length) {
       // regrouper les segments du salarié par poste
 var parPoste = {};
@@ -7415,10 +7430,8 @@ async function planReproduire() {
         if (abs[emp.empId] && abs[emp.empId][j]) continue;                    // absent ce jour-là : on ne touche pas
         var h = (emp.jours || [])[j] || {}, hd = _affMinFromHHMM(h.debut), hf = _affMinFromHHMM(h.fin);
         if (hd == null || hf == null || hf <= hd) continue;                     // pas d'horaire : rien à caler
-        var pl;
-        if (src.length === 1) pl = [{ debut: hhmm(hd), fin: hhmm(hf), poste: src[0].poste }];
-        else {
-          src.sort(function (x, y) { return _affMinFromHHMM(x.debut) - _affMinFromHHMM(y.debut); });
+        var pl = _calerPlages(src, h);
+        if (false) {
           var dur = src.map(function (p) { return Math.max(0, _affMinFromHHMM(p.fin) - _affMinFromHHMM(p.debut)); });
           var tot = dur.reduce(function (x, y) { return x + y; }, 0) || src.length, cur = hd;
           pl = src.map(function (p, i) { var f = i === src.length - 1 ? hf : cur + (hf - hd) * (dur[i] || (tot / src.length)) / tot; var r = { debut: hhmm(cur), fin: hhmm(f), poste: p.poste }; cur = _affMinFromHHMM(r.fin); return r; })
@@ -7446,11 +7459,12 @@ async function planReproduire() {
       ? _planData.semaine
       : (typeof _planIsoWeekStr === 'function' ? _planIsoWeekStr(new Date()) : '');
     if (!semaine) { toast('Charge d\'abord le planning', 'error'); return; }
-    if (!confirm('Recaler les postes sur les horaires de la semaine ' + semaine + ' ?\n\n(Les horaires pris en compte sont ceux ENREGISTRÉS avec 💾.)\n\nChaque poste sera placé sur les heures de travail de la personne (1 poste = toute la plage ; plusieurs postes = répartis dans la plage).')) return;
+    if (!confirm('Recaler les postes sur les horaires de la semaine ' + semaine + ' ?\n\n(Horaires pris en compte : ceux affichés dans le tableau.)\n\nChaque poste sera placé sur les heures de travail de la personne (1 poste = toute la plage ; plusieurs postes = répartis dans la plage).')) return;
     var btn = document.getElementById('recalBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Recalage…'; }
     try {
-      var resp = await callApi('recalerAffectationsSurHoraires', { semaine: semaine });   // recalage rapide, fait par le script Google (horaires ENREGISTRÉS)
+      // Le recalage du script Google annonce « N recalés » sans modifier les plages : on le fait ici, en ne touchant QUE les postes dont l'heure est fausse
+      var resp = await recalerPostesSemaine(function (i, n) { if (btn) btn.textContent = 'Recalage… ' + i + ' / ' + n; });
       if (!resp || !resp.ok) { toast('Erreur : ' + ((resp && resp.error) || 'inconnue'), 'error'); return; }
       toast('✓ ' + (resp.recales || 0) + ' poste(s) recalé(s) sur ' + semaine, 'success');
       var hint = document.getElementById('recalHint');
@@ -9847,9 +9861,47 @@ else document.addEventListener('DOMContentLoaded', lancer);
     minuteur = setTimeout(function () { var w = document.getElementById('barWrap'); if (!window.__lotEnCours && w && w.querySelector('svg') && typeof barRender === 'function') barRender(); }, 700);   // seulement si la Vue barres est déjà affichée
   }
   var orig = callApi;
+  // Contrats : un salarié hors de son contrat (fin dépassée, pas encore entré, ou désactivé) disparaît des Pointages et du Planning.
+  // Son historique reste : un jour où il a des pointages, il est toujours affiché.
+  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  var AUJ = iso(new Date());
+  function hors(emp, debutP, finP) {   // période affichée [debutP, finP]
+    if (!emp) return false;
+    if (emp.finContrat && debutP > emp.finContrat) return true;
+    if (emp.debutContrat && finP < emp.debutContrat) return true;
+    if (emp.actif === false && !emp.finContrat && finP >= AUJ) return true;
+    return false;
+  }
+  function lundiSem(sem) {
+    var m = String(sem || '').match(/^(\d{4})-W(\d{1,2})$/); if (!m) return null;
+    var j4 = new Date(Number(m[1]), 0, 4), l = new Date(j4); l.setDate(j4.getDate() - ((j4.getDay() + 6) % 7) + (Number(m[2]) - 1) * 7); return l;
+  }
+  var salP = null;
+  function salaries() { if (!salP) salP = Promise.resolve(orig('salaries', {})).then(function (x) { var m = {}; ((x && x.salaries) || []).forEach(function (e) { m[String(e.id)] = e; }); return m; }).catch(function () { salP = null; return {}; }); return salP; }
   callApi = function (action, params) {
     var r = orig.apply(this, arguments);
     if (MODIF.test(action || '')) Promise.resolve(r).then(function (x) { if (x && x.ok !== false) rafraichirBarres(); }, function () {});
+    if (action === 'updateEmployee' || action === 'addEmployee') salP = null;
+    if (action === 'getPointagesJour') return Promise.resolve(r).then(function (x) {
+      if (!x || !x.ok || !x.par_salarie) return x;
+      var d = x.date || (params && params.date) || AUJ, retires = 0;
+      x.par_salarie = x.par_salarie.filter(function (p) {
+        if (p.nb_scans > 0 || !hors(p.employee, d, d)) return true;
+        if (p.est_absence_non_qualifiee) retires++;
+        return false;
+      });
+      if (retires && x.nb_absences_non_qualifiees) x.nb_absences_non_qualifiees = Math.max(0, x.nb_absences_non_qualifiees - retires);
+      return x;
+    });
+    if (action === 'getPlanningSemaine') return Promise.resolve(r).then(function (x) {
+      if (!x || !x.ok || !x.planning) return x;
+      var l = lundiSem(x.semaine || (params && params.semaine)); if (!l) return x;
+      var sa = new Date(l); sa.setDate(l.getDate() + 5);
+      return salaries().then(function (m) {
+        x.planning = x.planning.filter(function (row) { return !hors(m[String(row.empId)], iso(l), iso(sa)); });
+        return x;
+      });
+    });
     return r;
   };
   // changement de semaine ou rechargement du planning
