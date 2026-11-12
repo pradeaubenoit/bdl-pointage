@@ -2537,8 +2537,9 @@ var MOTS_CAT_JS=/^(sac|sacs|gaz|a|eponge|eponges|drap|draps|serviette|serviettes
 function noyauCli(nom){
   var s=String(nom||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
   s=s.replace(/^hotels? /,''); var w=s.split(' ');
-  while(w.length>1&&(MOTS_CAT_JS.test(w[w.length-1])||/^\d+$/.test(w[w.length-1])))w.pop();
-  return w.join(' ');
+  // « spa » / « spas » DISTINGUE deux clients pour le n° du tunnel : « magnétic » ≠ « magnétic spa »
+  while(w.length>1&&!/^spas?$/.test(w[w.length-1])&&(MOTS_CAT_JS.test(w[w.length-1])||/^\d+$/.test(w[w.length-1])))w.pop();
+  return w.join(' ').replace(/ spas$/,' spa');
 }
 function codesTunnelHtml(r,i){
   var k=noyauCli(r.client), n=(CFG.codesClients||{})[k];
