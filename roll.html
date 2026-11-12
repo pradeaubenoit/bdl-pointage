@@ -137,7 +137,7 @@ function afficherArret(msg){
   };
 }
 function demanderNumero(garde){
-  var h=(garde?$('main').innerHTML:'')+'<div class="carte"><label>Numéro du roll</label><input id="nNum" placeholder="ex. R-012" autocapitalize="characters"><button class="gros" onclick="var v=document.getElementById(\'nNum\').value.trim().toUpperCase();if(v){if(/^\\d+$/.test(v))v=\'R-\'+v.padStart(3,\'0\');location.search=\'?r=\'+encodeURIComponent(v);}">Ouvrir</button><div class="s">Le plus simple : scanner l\'étiquette du roll avec l\'appareil photo.</div></div>'+(MOI&&aRole('chauffeur')?'<button class="gros" onclick="jeSuisChez()">📍 Je suis chez un client…</button><button class="gros v" onclick="dechargerTout()">🏭 Je suis à la BdL : vider mon camion</button>':'');
+  var h=(garde?$('main').innerHTML:'')+'<div class="carte"><label>Numéro du roll</label><input id="nNum" placeholder="ex. R-012" autocapitalize="characters"><button class="gros" onclick="var v=document.getElementById(\'nNum\').value.trim().toUpperCase();if(v){if(/^\\d+$/.test(v))v=\'R-\'+v.padStart(3,\'0\');location.search=\'?r=\'+encodeURIComponent(v);}">Ouvrir</button><div class="s">Le plus simple : scanner l\'étiquette du roll avec l\'appareil photo.</div></div>'+(MOI&&aRole('chauffeur')?'<button class="gros" onclick="jeSuisChez()">📍 Je suis chez un client…</button><button class="gros v" onclick="dechargerTout()">🏭 Je suis à la BdL : vider mon camion</button>':'')+(MOI&&aRole('laveur')?'<button class="gros v" onclick="viderRafale()">🌀 Vider au tunnel en rafale<div style="font-size:14px;font-weight:600">scannez tous les chariots à la suite</div></button>':'');
   $('main').innerHTML=h;
 }
 function choisirMoi(suite){
@@ -266,6 +266,7 @@ function actions(){
   });
   if(aRole('atelier')&&rempliApres)bRempli();
   if(aRole('laveur'))bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
+  if(aRole('laveur'))bouton('🌀 Plusieurs chariots : vider en rafale','g',viderRafale);
 }
 function contenuDe(info){if(!info)return '';var estNote=function(n){return /^(non scanné|regroupement|correction|redescendu|rangé|vidé|n° corrigé|chariot vide)/i.test(n||'');};
   if(info.note&&!estNote(info.note))return info.note;var r=(info.derniers||[]).find(function(d){return d.etape==='rempli'&&d.note&&!estNote(d.note);});return (r&&r.note)||'';}
@@ -531,11 +532,19 @@ function bip(ok){try{var A=window.AudioContext||window.webkitAudioContext;if(!RA
   if(navigator.vibrate)navigator.vibrate(ok?80:[250,120,250]);}
 function rafaleAff(txt,coul){var h=$('scanHaut');h.style.background=coul;h.innerHTML='<div style="font-size:24px;font-weight:800;line-height:1.25">'+txt+'</div>';}
 function rafaleBas(){var n=RAF.ok.length;$('scanBas').innerHTML=(n?'<div id="rafListe" style="font-size:14px;margin-bottom:8px;opacity:.9">'+RAF.ok.map(function(x){return esc(x.n)+' '+esc(x.c||'');}).join(' · ')+'</div>':'')+
-  '<button class="gros v" style="margin:0 0 8px" onclick="finRafale()"'+(n?'':' disabled')+'>🚚 Charger '+(n>1?'les '+n+' chariots':n+' chariot')+' dans mon camion</button><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button>';}
+  '<button class="gros v" style="margin:0 0 8px" onclick="finRafale()"'+(n?'':' disabled')+'>'+(RAF.mode==='vide'?'🌀 Vidé au tunnel : '+(n>1?'les '+n+' chariots':n+' chariot'):'🚚 Charger '+(n>1?'les '+n+' chariots':n+' chariot')+' dans mon camion')+'</button><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button>';}
+// Lavage en rafale : le laveur scanne tous les chariots sales à la suite, puis « Vidé au tunnel » pour tous d'un coup
+async function viderRafale(){
+  if(!MOI)return choisirMoi(viderRafale);
+  try{var A=window.AudioContext||window.webkitAudioContext;if(!RAF_AC)RAF_AC=new A();RAF_AC.resume();}catch(e){}
+  RAF={ok:[],dernier:'',t:0,occupe:false,mode:'vide'};
+  await ouvrirScanner(true);if(!RAF)return;
+  rafaleAff('🌀 Scannez tous les chariots vidés au tunnel, à la suite','#1f2a35');rafaleBas();
+}
 async function chargerRafale(){
   if(!MOI)return choisirMoi(chargerRafale);
   try{var A=window.AudioContext||window.webkitAudioContext;if(!RAF_AC)RAF_AC=new A();RAF_AC.resume();}catch(e){}   // le son doit être activé par un toucher
-  RAF={ok:[],dernier:'',t:0,occupe:false};
+  RAF={ok:[],dernier:'',t:0,occupe:false,mode:'charge'};
   await ouvrirScanner(true);if(!RAF)return;
   rafaleAff('📷 Scannez tous les chariots à la suite'+(CHG?'<div style="font-size:16px;font-weight:600">pour '+esc(CHG)+'</div>':''),'#1f2a35');rafaleBas();
 }
@@ -555,7 +564,13 @@ async function rafaleCode(t){
   RAF.occupe=true;rafaleAff('⏳ '+esc(n)+'…','#1f2a35');
   try{
     var i=await sb.rpc('roll_info',{p_numero:n});if(i.error)throw i.error;var I=i.data;if(!I||!I.ok)throw new Error((I&&I.error)||'chariot inconnu');
-    if(I.etat==='pret'){
+    if(RAF.mode==='vide'){
+      if(I.etat==='sale'||I.etat==='retour'||I.etat==='client'){
+        RAF.ok.push({n:n,c:I.client,note:I.etat==='client'?'retour non scanné (repris + déchargé sans scan)':null});bip(true);
+        rafaleAff('✓ '+esc(n)+' ('+RAF.ok.length+')<div style="font-size:18px">'+esc(I.client||'')+'</div>','#2e7d32');rafaleBas();}
+      else if(I.etat==='bdl'){rafaleAff('✓ '+esc(n)+' est déjà vide','#555e68');}
+      else{bip(false);rafaleAff('⚠ '+esc(n)+' : '+esc((ETATS[I.etat]||I.etat).toLowerCase())+(I.client?' ('+esc(I.client)+')':'')+'<div style="font-size:16px">Linge PROPRE : pas vidé. Vérifiez ce chariot.</div>','#e67e00');}
+    }else if(I.etat==='pret'){
       if(CHG&&I.client&&nrm(I.client)!==nrm(CHG)){bip(false);rafaleAff('✗ STOP '+esc(n)+'<div style="font-size:18px">est pour « '+esc(I.client)+' »,<br>pas pour « '+esc(CHG)+' »</div>','#b3261e');}
       else{RAF.ok.push({n:n,c:I.client});bip(true);rafaleAff('✓ '+esc(n)+' ('+RAF.ok.length+')<div style="font-size:18px">'+esc(I.client||'')+'</div>','#2e7d32');rafaleBas();}
     }else if(I.etat==='chauffeur'&&MOI&&I.personne===MOI.nom){rafaleAff('✓ '+esc(n)+' déjà dans votre camion','#555e68');}
@@ -563,12 +578,13 @@ async function rafaleCode(t){
   }catch(e){bip(false);rafaleAff('⚠ '+esc(n)+' non enregistré<div style="font-size:15px">'+esc(e.message||e)+' — rescannez-le</div>','#b3261e');RAF.dernier='';}
   if(RAF)RAF.occupe=false;
 }
-async function finRafale(){if(!RAF||!RAF.ok.length)return;RAF.occupe=true;return chargerListe(RAF.ok.slice(),function(i,n){rafaleAff('🚚 Chargement… '+i+' / '+n,'#1f2a35');});}
-async function chargerListe(l,prog){var ok=0,ko=[];
+async function finRafale(){if(!RAF||!RAF.ok.length)return;RAF.occupe=true;var m=RAF.mode;return chargerListe(RAF.ok.slice(),function(i,n){rafaleAff((m==='vide'?'🌀 Enregistrement… ':'🚚 Chargement… ')+i+' / '+n,'#1f2a35');},m);}
+async function chargerListe(l,prog,mode){var ok=0,ko=[],etape=mode==='vide'?'vide':'charge';
   for(var i=0;i<l.length;i++){prog(i+1,l.length);
-    try{var r=await sb.rpc('roll_scan',{p_numero:l[i].n,p_personne:MOI.id,p_code:MOI.code,p_etape:'charge',p_client:null,p_note:null});if(r.error)throw r.error;
+    try{var r=await sb.rpc('roll_scan',{p_numero:l[i].n,p_personne:MOI.id,p_code:MOI.code,p_etape:etape,p_client:null,p_note:l[i].note||null});if(r.error)throw r.error;
       if(!r.data.ok){if(/code/i.test(r.data.error)){fermerScanner();alert('Code incorrect. Retapez votre code.');MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}return choisirMoi();}throw new Error(r.data.error);}ok++;}catch(e){ko.push(l[i].n);}}
   fermerScanner();fermerNumero();if(ko.length)alert('⚠ Pas enregistrés (réseau ?) : '+ko.join(', ')+'\n\nScannez-les à nouveau.');
+  if(etape==='vide'){$('main').innerHTML='<div class="carte ok">✓ '+ok+' chariot'+(ok>1?'s':'')+' vidé'+(ok>1?'s':'')+' au tunnel : ils sont libres</div><button class="gros v" onclick="viderRafale()">🌀 Vider d\'autres chariots en rafale</button>';return;}
   ecranChargement('✓ '+ok+' chariot'+(ok>1?'s':'')+' chargé'+(ok>1?'s':'')+' dans votre camion');}
 /* ---------- Saisie du numéro au clavier (étiquette illisible, pas de caméra…) ---------- */
 var NUMS='';
