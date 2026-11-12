@@ -789,9 +789,19 @@ async function ouvrirConfig(client, recherche) {
   corps.innerHTML = '<p class="vide-liste">Recherche dans Evoliz…</p>';
   document.getElementById('fondConfig').style.display = 'flex';
   try {
-    const rep = await fetch(API_URL + '?action=evolizSuggestion&client=' + encodeURIComponent(client) + (recherche ? '&recherche=' + encodeURIComponent(recherche) : ''));
-    const d = await rep.json();
+    // Plusieurs mots séparés par des virgules (« DB, DT, PS, oshi, P ») : une recherche par mot, résultats réunis
+    const termes = String(recherche || '').split(',').map(x => x.trim()).filter(Boolean);
+    const appel = t => fetch(API_URL + '?action=evolizSuggestion&client=' + encodeURIComponent(client) + (t ? '&recherche=' + encodeURIComponent(t) : '')).then(r => r.json());
+    const d = await appel(termes[0] || recherche);
     if (!d.ok) throw new Error(d.error || 'Réponse invalide');
+    if (termes.length > 1) {
+      const vus = new Set((d.articles || []).map(a => a.ref));
+      for (const t of termes.slice(1)) {
+        const d2 = await appel(t);
+        if (d2 && d2.ok) (d2.articles || []).forEach(a => { if (!vus.has(a.ref)) { vus.add(a.ref); d.articles.push(a); } });
+      }
+      d.terme = termes.join(', ');
+    }
     configEnCours.data = d;
     let h = '<h3>1. Fiche client Evoliz</h3><select id="cfgFiche"><option value="">— choisir —</option>';
     if (d.fiches.length) {
@@ -801,7 +811,7 @@ async function ouvrirConfig(client, recherche) {
     h += '<h3>2. Articles (référence Evoliz contenant « ' + echapHtml(d.terme) + ' »)</h3>';
     h += '<div style="display:flex;gap:8px;margin-bottom:6px"><input type="text" id="cfgTerme" value="' + echapHtml(d.terme) + '" style="flex:1"><button class="btn" onclick="ouvrirConfig(configEnCours.client, document.getElementById(\'cfgTerme\').value)">Chercher</button></div>';
     if (!d.articles.length) {
-      h += '<p class="vide-liste">Aucun article Evoliz trouvé. Essaie un autre mot ci-dessus, ou demande à Alexandra de créer les articles dans Evoliz.</p>';
+      h += '<p class="vide-liste">Aucun article Evoliz trouvé. Essaie un autre mot ci-dessus (plusieurs mots possibles, séparés par des virgules : DB, DT, PS…), ou demande à Alexandra de créer les articles dans Evoliz.</p>';
     } else {
       h += '<p class="vide-liste" style="margin:0 0 4px">Coche les articles lavés pour ce client. Le nom à gauche est celui que verra l\'atelier : tu peux le raccourcir.</p>';
       h += d.articles.map((a, i) => '<label class="ligneArt"><input type="checkbox" data-i="' + i + '" checked><input type="text" data-nom="' + i + '" value="' + echapHtml(a.nom) + '"><span class="ref" title="' + echapHtml(a.ref) + '">' + echapHtml(a.ref) + '</span></label>').join('');
