@@ -1498,14 +1498,14 @@ async function chariotsClient(c) {
     '<div style="font-size:22px;font-weight:800">🧺 Chariots prêts — ' + rollEsc(c.client) + '</div>' +
     (l.length ? l.map((x, i) => '<div style="border:1px solid #dde2e7;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + '</div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'sans contenu') + '</div>' +
       '<button data-qte="' + i + '" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">✎ Corriger les quantités</button>' +
-      '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° (code Bureau)</button></div>').join('')
+      '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° du chariot</button></div>').join('')
       : '<div style="color:#666;margin-top:10px">Aucun chariot « prêt » pour ce client.</div>') +
     (cam.length ? '<div style="font-size:19px;font-weight:800;margin-top:16px">🚚 Déjà partis de l\'atelier (camion ou livrés aujourd\'hui)</div>' + cam.map((x, i) => '<div style="border:1px solid #f0c48a;background:#fff8ef;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + ' <span style="font-size:15px;font-weight:600;color:#b25e00">' + rollEsc(x.ou) + '</span></div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'contenu : voir en corrigeant') + '</div>' +
       '<button data-cam="' + i + '" style="' + bt + 'border:2px solid #b25e00;color:#b25e00;background:#fff">✎ Corriger les quantités (code Bureau)</button></div>').join('') : '') +
     (saisiJour ? '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #dde2e7"><div style="font-weight:700">Linge saisi aujourd\'hui (tous ateliers) :</div><div style="color:#555">' + rollEsc(saisiJour) + '</div>' +
       '<div style="font-weight:700;margin-top:6px">Pas encore dans un chariot :</div><div style="color:' + (duJour ? '#b3261e' : '#2e7d32') + ';font-weight:600">' + rollEsc(duJour || '✓ tout est rangé dans un chariot') + '</div></div>' : '') +
     (duJour ? '<div>' +
-      '<button id="ccJ" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">Mettre ce reste dans le chariot n°… (code Bureau)</button></div>' : '') +
+      '<button id="ccJ" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">Mettre ce reste dans le chariot n°…</button></div>' : '') +
     '<button id="ccX" style="' + bt + 'border:2px solid #999;background:#fff">Fermer</button></div>';
   document.getElementById('ccX').onclick = () => { f.style.display = 'none'; };
   f.querySelectorAll('[data-qte]').forEach(b => b.onclick = () => corrigerQuantites(c, l[+b.dataset.qte]));
@@ -1573,13 +1573,13 @@ async function deplacerLinge(c, ancien, contenu, question) {
     if (ch === '1') total = contenu; else if (ch !== '2') return;
   }
   if (!confirm((ancien ? 'Déplacer le linge de ' + ancien + ' vers ' + cible : 'Mettre ce linge dans ' + cible) + ' ?\n\n' + cible + ' (' + c.client + ') contiendra :\n' + (total || '—') + (ancien ? '\n\n' + ancien + ' redevient vide et libre.' : ''))) return;
-  const id = await idBureau(cible); if (!id) return;
+  const id = await rollIdentite(cible); if (!id) return;   // chariot encore à l'atelier : le code de la personne de l'atelier suffit
   try {
     const r1 = await rollRpc('roll_scan', { p_numero: cible, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
-    if (!r1 || !r1.ok) { toast((r1 && r1.error) || 'Refusé', true); return; }
+    if (!r1 || !r1.ok) { if (/code/i.test((r1 && r1.error) || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} } toast((r1 && r1.error) || 'Refusé', true); return; }
     if (ancien) {
       const r2 = await rollRpc('roll_scan', { p_numero: ancien, p_personne: id.id, p_code: id.code, p_etape: 'vide', p_client: null, p_note: 'n° corrigé : linge déplacé dans ' + cible });
-      if (!r2 || !r2.ok) { toast(ancien + ' : ' + ((r2 && r2.error) || 'refusé'), true); return; }
+      if (!r2 || !r2.ok) { toast('Linge mis dans ' + cible + '. ' + ancien + ' : ' + ((r2 && r2.error) || 'refusé') + ' → à vider au tunnel.', true); chariotsClient(c); return; }
     }
     toast('🧺 ' + cible + ' : ' + total);
     chariotsClient(c);
