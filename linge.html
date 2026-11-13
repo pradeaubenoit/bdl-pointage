@@ -1304,6 +1304,8 @@ function demanderChariot(client, lignes, opts) {
       const meme = sansAccent(info.client) === sansAccent(client);
       if (meme && !contenuCur) { msg.style.color = '#2e7d32'; msg.textContent = '✓ Déjà fait : ' + numero + ' est déjà rempli pour ' + info.client + ' (' + qui + '). Rien à refaire.'; setTimeout(() => { f.style.display = 'none'; }, 2500); return; }
       if (meme && !confirm('✓ ' + numero + ' est déjà rempli pour « ' + info.client + ' » (' + qui + ').\n\nAjouter ce linge dans le MÊME chariot ?\n(Ça ne compte pas un chariot de plus.)')) return;
+      // Même chariot complété depuis un autre poste : son contenu s'ajoute à ce qu'il contenait déjà
+      if (meme && contenuCur && !/^suite du lot/.test(contenuCur)) { f.style.display = 'none'; rollEnvoyer({ numero, client, contenu: fusionContenu(noteDeRoll(info), contenuCur) }); suivant(numero); return; }
       if (!meme && !confirm('⚠ ' + numero + ' est déjà rempli pour « ' + info.client + ' » (' + qui + ').\n\nLe changer pour « ' + client + ' » ?')) return;
     }
     f.style.display = 'none';
