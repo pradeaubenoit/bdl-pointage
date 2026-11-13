@@ -191,6 +191,7 @@ async function historique(id){
     '<div class="carte noprint"><h2>Corriger une anomalie</h2><div class="s" style="margin-bottom:8px">Une étape a été oubliée sur le terrain ? Enregistrez-la ici (notée « correction du bureau », ignorée dans les Tournées).</div>'+
     (dernierRempli(s)?'<button class="btn" id="corCont">✎ Corriger le contenu (quantités)</button> ':'')+
     '<button class="btn" data-cor="vide">🌀 Vidé au tunnel (libre)</button> '+
+    (r.etat!=='sale'?'<button class="btn" id="corSale">🧺 Arrivé SALE à la BdL de chez…</button> ':'')+
     (!r.client&&r.etat!=='bdl'?'<button class="btn" id="corCli">🏷 Il était plein : indiquer le client</button> ':'')+
     (r.client?'<button class="btn" data-cor="rentre">🏭 Déchargé à la BdL (sale)</button> <button class="btn" data-cor="repris">↩ Repris chez '+esc(r.client)+'</button> <button class="btn" data-cor="livre">🚚 Livré chez '+esc(r.client)+'</button>':'')+'</div>';
   var EV={vide:'bdl',rempli:'pret',charge:'chauffeur',livre:'client',repris:'retour',rentre:'sale'};
@@ -200,6 +201,16 @@ async function historique(id){
     if(v===null)return;v=v.trim();if(v===(x.note||''))return;
     if(!confirm(r.numero+' contiendra :\n\n'+(v||'— vide —')+'\n\nAvant : '+(x.note||'—')))return;
     try{await q(sb.from('rolls_scans').update({note:v}).eq('id',x.id));historique(id);}catch(e){alert('Correction impossible : '+(e.message||e));}
+  };
+  if($('corSale'))$('corSale').onclick=async function(){
+    var connus=Array.from(new Set(ROLLS.map(function(x){return x.client;}).filter(Boolean))).sort(function(a,b){return a.localeCompare(b,'fr');});
+    var c=prompt(r.numero+' est arrivé plein de linge SALE de quel client ?\n(nom exact, ex. : '+connus.slice(0,6).join(', ')+'…)',r.client||'');if(!c||!c.trim())return;c=c.trim();
+    var ex=connus.find(function(x){return x.toLowerCase()===c.toLowerCase();});
+    if(!ex&&!confirm('« '+c+' » n\'est sur aucun autre chariot. Le garder quand même ?'))return;c=ex||c;
+    var qui='Bureau',quand=new Date().toISOString();
+    try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(x){}
+    try{await q(sb.from('rolls_scans').insert({roll_id:id,etape:'rentre',client:c,personne:qui,quand:quand,note:'correction du bureau : arrivé sale sans scan'}));
+      await q(sb.from('rolls').update({etat:'sale',client:c,personne:qui,maj_le:quand}).eq('id',id));Object.assign(r,{etat:'sale',client:c});historique(id);}catch(x){alert('Correction impossible : '+(x.message||x));}
   };
   if($('corCli'))$('corCli').onclick=async function(){
     var connus=Array.from(new Set(ROLLS.map(function(x){return x.client;}).filter(Boolean))).sort(function(a,b){return a.localeCompare(b,'fr');});
