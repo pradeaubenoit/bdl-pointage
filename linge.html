@@ -1560,6 +1560,14 @@ async function deplacerLinge(c, ancien, contenu, question) {
   if (cible === ancien) { toast('C\'est le même chariot.', true); return; }
   let info; try { info = await rollRpc('roll_info', { p_numero: cible }); } catch (e) { toast('Pas de réseau.', true); return; }
   if (!info || info.ok === false) { toast((info && info.error) || 'Chariot inconnu', true); return; }
+  // chariot oublié au tunnel (noté sale / repris / chez le client) mais physiquement vide à l'atelier : on le régularise
+  const INC = { sale: 'incident : non vidé au tunnel (oubli du laveur)', retour: 'incident : pas déchargé ni vidé (oubli chauffeur + laveur)', client: 'incident : noté chez le client, retrouvé à l\'atelier' };
+  let incident = '';
+  if (INC[info.etat]) {
+    const ou = { sale: 'sale, pas passé au tunnel', retour: 'repris chez « ' + (info.client || '?') + ' », pas déchargé', client: 'chez « ' + (info.client || '?') + ' »' }[info.etat];
+    if (!confirm(cible + ' est noté « ' + ou + ' ».\n\nS\'il est bien ici, vide, à l\'atelier : OK pour le noter vidé et l\'utiliser.')) return;
+    incident = INC[info.etat]; info = Object.assign({}, info, { etat: 'bdl', client: null, note: '', derniers: [] });
+  }
   if (info.etat !== 'pret' && info.etat !== 'bdl') {
     // chariot déjà chargé / livré : on peut quand même compléter son contenu (code Bureau), sans changer son état
     if (ancien || !info.client || sansAccent(info.client) !== sansAccent(c.client)) { toast(cible + ' n\'est plus à l\'atelier (chargé ou livré).', true); return; }
@@ -1586,6 +1594,7 @@ async function deplacerLinge(c, ancien, contenu, question) {
   if (!confirm((ancien ? 'Déplacer le linge de ' + ancien + ' vers ' + cible : 'Mettre ce linge dans ' + cible) + ' ?\n\n' + cible + ' (' + c.client + ') contiendra :\n' + (total || '—') + (ancien ? '\n\n' + ancien + ' redevient vide et libre.' : ''))) return;
   const id = await rollIdentite(cible); if (!id) return;   // chariot encore à l'atelier : le code de la personne de l'atelier suffit
   try {
+    if (incident) { const r0 = await rollRpc('roll_scan', { p_numero: cible, p_personne: id.id, p_code: id.code, p_etape: 'vide', p_client: null, p_note: incident }); if (!r0 || !r0.ok) { toast(cible + ' : ' + ((r0 && r0.error) || 'refusé'), true); return; } }
     const r1 = await rollRpc('roll_scan', { p_numero: cible, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
     if (!r1 || !r1.ok) { if (/code/i.test((r1 && r1.error) || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} } toast((r1 && r1.error) || 'Refusé', true); return; }
     if (ancien) {
