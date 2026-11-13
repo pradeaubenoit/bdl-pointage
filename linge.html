@@ -1382,10 +1382,20 @@ function noteDeRoll(info) {
   if (info.note) return info.note;
   return (r && r.note) || '';
 }
-function fusionContenu(a, b) {
+// Étiquette « 📅 14/11 » = linge préparé d'avance (saisie « Livré demain ») : le chauffeur ne doit pas le charger avant ce jour.
+const RE_POUR = /📅\s*\d{1,2}\/\d{1,2}/;
+function tagPour(n) { const m = String(n || '').match(RE_POUR); return m ? m[0] : ''; }
+function avecTag(tag, txt) { txt = String(txt || '').split(',').map(m => m.trim()).filter(m => m && !/^📅/.test(m)).join(', '); return tag ? (txt ? tag + ', ' + txt : tag) : txt; }
+function pourLivraison(client) {   // date de livraison si elle est après aujourd'hui, sinon ''
+  const iso = reportDe(client) || jourCourant();
+  if (!iso || iso <= isoLocal(new Date())) return '';
+  const d = dateDe(iso); return '📅 ' + String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function fusionContenu(a, b) { return avecTag(tagPour(a) || tagPour(b), fusion0(a, b)); }
+function fusion0(a, b) {
   const tot = {}, ordre = [];
   [a, b].forEach(txt => String(txt || '').split(',').forEach(m => {
-    m = m.trim(); if (!m) return;
+    m = m.trim(); if (!m || /^📅/.test(m)) return;
     const x = m.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/);
     const nom = x ? x[1] : m, q = x ? Number(x[2].replace(',', '.')) : null;
     const k = sansAccent(nom);
@@ -1542,7 +1552,7 @@ async function corrigerQuantites(c, x, camion) {
   f.style.display = 'flex';
   document.getElementById('cqX').onclick = () => chariotsClient(c);
   document.getElementById('cqOk').onclick = async () => {
-    const total = lignes.map((l, i) => { const v = Number(String(f.querySelector('[data-q="' + i + '"]').value).replace(',', '.')); return v > 0 ? l.a + ' ' + v : ''; }).filter(Boolean).join(', ');
+    const total = avecTag(tagPour(x.note), lignes.map((l, i) => { const v = Number(String(f.querySelector('[data-q="' + i + '"]').value).replace(',', '.')); return v > 0 ? l.a + ' ' + v : ''; }).filter(Boolean).join(', '));
     if (!confirm(x.numero + ' (' + c.client + ') contiendra :\n\n' + (total || '— vide —') + '\n\nAvant : ' + (x.note || '—'))) return;
     const id = camion ? await idBureau(x.numero) : await rollIdentite(x.numero); if (!id) return;
     try {
@@ -1633,7 +1643,9 @@ async function rollEnvoyer(x, essai) {
       const r0 = await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'vide', p_client: null, p_note: x.avant });
       if (r0 && r0.ok) { x.avant = null; toast('⚠ ' + x.numero + ' : incident noté (chariot pas libéré au tunnel)'); }
     }
-    const r = await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: x.client, p_note: x.contenu });
+    if (x.pour === undefined) x.pour = pourLivraison(x.client);   // calculé une fois (le chariot peut partir plus tard s'il n'y a pas de réseau)
+    const note = x.pour ? avecTag(x.pour, x.contenu) : x.contenu;
+    const r = await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: x.client, p_note: note || null });
     if (!r.ok) {
       if (/code/i.test(r.error || '')) {
         try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {}
@@ -1644,7 +1656,7 @@ async function rollEnvoyer(x, essai) {
       }
       toast('Chariot ' + x.numero + ' : ' + r.error, true); return;
     }
-    toast('🧺 ' + x.numero + ' : rempli pour ' + x.client);
+    toast('🧺 ' + x.numero + ' : rempli pour ' + x.client + (x.pour ? ' (' + x.pour + ')' : ''));
   } catch (e) {
     ecrire(CLE_ROLL_FILE, lire(CLE_ROLL_FILE, []).concat([x]));   // sans réseau : on réessaiera
   }
