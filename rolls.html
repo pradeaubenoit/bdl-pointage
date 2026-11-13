@@ -93,7 +93,7 @@ VUES.liste=async function(){
     (camion.length?'<div>🚚 <b>'+camion.length+' chariot'+(camion.length>1?'s':'')+' encore dans un camion, pas livré</b> (déchargement incomplet ?) : '+camion.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?')+' ('+esc(r.personne||'')+')';}).join(' · ')+'</div>':'')+
     (quai.length?'<div style="margin-top:4px">🧺 <b>'+quai.length+' chariot'+(quai.length>1?'s':'')+' prêt'+(quai.length>1?'s':'')+' depuis plus de 24 h, pas chargé'+(quai.length>1?'s':'')+'</b> : '+quai.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?');}).join(' · ')+'</div>':'')+'</div>';
   h+='<div class="carte"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><input id="rq" placeholder="Chercher un roll ou un client…" style="flex:1">'+(filtre?'<button class="btn" id="rTout">Tout afficher</button>':'')+'</div><div id="rRes" style="margin-bottom:8px"></div><div id="rLot" class="noprint" style="display:none;position:sticky;top:0;z-index:5;background:#1f2a35;color:#fff;border-radius:8px;padding:8px 12px;margin-bottom:8px"></div><table><thead><tr><th class="noprint"><input type="checkbox" id="rAll" title="Tout cocher"></th><th>Roll</th><th>État</th><th>Client</th><th>Dernier scan</th><th>Par</th></tr></thead><tbody id="rT"></tbody></table></div>'+
-    '<div class="carte noprint"><h2>Ajouter des rolls</h2><input id="aN" type="number" min="1" max="200" value="10" style="width:90px"> <button class="btn p" id="aOk">Créer les suivants</button> <span class="s">Numéros à la suite du dernier (R-021, R-022…).</span></div>';
+    '<div class="carte noprint"><h2>Ajouter des rolls</h2><input id="aN" type="number" min="1" max="500" value="10" style="width:90px"> <button class="btn p" id="aOk">Créer les suivants</button> <span class="s">Numéros à la suite du dernier (R-021, R-022…).</span></div>';
   $('main').innerHTML=h;
   $('rq').value=rechMem;
   var corr=ROLLS.filter(function(r){return /^Bureau/.test(r.personne||'');});
@@ -121,10 +121,18 @@ VUES.liste=async function(){
     if(e.target.closest('[data-ck]')){var c=e.target.closest('[data-ck]').querySelector('input');if(e.target!==c)c.checked=!c.checked;if(c.checked)coches[c.dataset.c]=1;else delete coches[c.dataset.c];barreLot();return;}
     var tr=e.target.closest('[data-r]');if(tr)historique(tr.dataset.r);};
   $('rAll').onchange=function(){var on=this.checked;(LISTE_VUE||[]).forEach(function(r){if(on)coches[r.id]=1;else delete coches[r.id];});rendre();};
-  $('aOk').onclick=async function(){var k=parseInt($('aN').value)||0;if(k<1)return;
-    var max=ROLLS.reduce(function(m,r){var x=parseInt(String(r.numero).replace(/\D/g,''))||0;return Math.max(m,x);},0);
-    var l=[];for(var i=1;i<=k;i++)l.push({numero:'R-'+String(max+i).padStart(3,'0')});
-    try{await q(sb.from('rolls').insert(l));route();}catch(e){alert(e.message);}};
+  $('aOk').onclick=async function(){var b=this,k=parseInt($('aN').value)||0;if(k<1)return;if(k>500){alert('500 maximum à la fois.');return;}
+    b.disabled=true;var t0=b.textContent;b.textContent='Création…';
+    try{
+      /* dernier numéro sur TOUS les chariots, y compris ceux désactivés (sinon doublon refusé) */
+      var tous=await q(sb.from('rolls').select('numero').range(0,9999));
+      var pris={},max=0;tous.forEach(function(r){pris[r.numero]=1;var x=parseInt(String(r.numero).replace(/\D/g,''))||0;if(x>max)max=x;});
+      var l=[];for(var i=1;l.length<k;i++){var n='R-'+String(max+i).padStart(3,'0');if(!pris[n])l.push({numero:n});}
+      var faits=0;
+      for(var j=0;j<l.length;j+=50){b.textContent='Création… '+faits+'/'+l.length;await q(sb.from('rolls').insert(l.slice(j,j+50)));faits+=Math.min(50,l.length-j);}
+      alert(faits+' chariots créés : '+l[0].numero+' à '+l[l.length-1].numero+'.');route();
+    }catch(e){alert('Création impossible'+(faits?' (après '+faits+' créés)':'')+' : '+(e.message||e));route();}
+    finally{b.disabled=false;b.textContent=t0;}};
 };
 /* ---------- Correction groupée : cocher plusieurs chariots puis une seule étape pour tous (scans oubliés) ---------- */
 var LISTE_VUE=[];
