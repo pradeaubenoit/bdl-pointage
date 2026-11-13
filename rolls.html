@@ -180,6 +180,8 @@ async function livrerSansScan(client,liste){
     alert('✓ '+liste.length+' chariot(s) livré(s) chez « '+client+' ».');route();
   }catch(e){alert('Régularisation impossible : '+(e.message||e));}
 }
+// dernier « rempli » du cycle en cours (après le dernier passage au tunnel) : c'est lui qui porte le contenu du chariot
+function dernierRempli(s){for(var i=0;i<s.length;i++){if(s[i].etape==='vide')return null;if(s[i].etape==='rempli')return s[i];}return null;}
 async function historique(id){
   var r=ROLLS.find(function(x){return x.id===id;});var s=await q(sb.from('rolls_scans').select('*').eq('roll_id',id).order('quand',{ascending:false}).limit(100));
   var L={vide:'Vidé au tunnel',rempli:'Rempli',charge:'Chargé',livre:'Livré',repris:'Repris',rentre:'Déchargé à la BdL'};
@@ -187,10 +189,18 @@ async function historique(id){
     '<div class="carte"><table><thead><tr><th>Quand</th><th>Étape</th><th>Client</th><th>Par</th><th>Contenu</th><th class="noprint"></th></tr></thead><tbody>'+(s.map(function(x){return '<tr><td>'+fmtQ(x.quand)+'</td><td>'+esc(L[x.etape]||x.etape)+'</td><td>'+esc(x.client||'')+'</td><td>'+esc(x.personne||'')+'</td><td class="s">'+esc(x.note||'')+'</td><td class="noprint"><button class="btn" style="padding:2px 10px" title="Supprimer ce scan (erreur)" data-sup="'+x.id+'">✕</button></td></tr>';}).join('')||'<tr><td colspan="6" class="s">Jamais scanné.</td></tr>')+'</tbody></table>'+
     '<div class="s" style="margin-top:8px">✕ = scan fait par erreur (mauvais client, mauvais roll). Le roll reprend l\'état du scan précédent.</div></div>'+
     '<div class="carte noprint"><h2>Corriger une anomalie</h2><div class="s" style="margin-bottom:8px">Une étape a été oubliée sur le terrain ? Enregistrez-la ici (notée « correction du bureau », ignorée dans les Tournées).</div>'+
+    (dernierRempli(s)?'<button class="btn" id="corCont">✎ Corriger le contenu (quantités)</button> ':'')+
     '<button class="btn" data-cor="vide">🌀 Vidé au tunnel (libre)</button> '+
     (!r.client&&r.etat!=='bdl'?'<button class="btn" id="corCli">🏷 Il était plein : indiquer le client</button> ':'')+
     (r.client?'<button class="btn" data-cor="rentre">🏭 Déchargé à la BdL (sale)</button> <button class="btn" data-cor="repris">↩ Repris chez '+esc(r.client)+'</button> <button class="btn" data-cor="livre">🚚 Livré chez '+esc(r.client)+'</button>':'')+'</div>';
   var EV={vide:'bdl',rempli:'pret',charge:'chauffeur',livre:'client',repris:'retour',rentre:'sale'};
+  if($('corCont'))$('corCont').onclick=async function(){
+    var x=dernierRempli(s);
+    var v=prompt(r.numero+' ('+(x.client||'')+') — contenu actuel :\n'+(x.note||'—')+'\n\nCorrigez le texte (format : article quantité, article quantité) :',x.note||'');
+    if(v===null)return;v=v.trim();if(v===(x.note||''))return;
+    if(!confirm(r.numero+' contiendra :\n\n'+(v||'— vide —')+'\n\nAvant : '+(x.note||'—')))return;
+    try{await q(sb.from('rolls_scans').update({note:v}).eq('id',x.id));historique(id);}catch(e){alert('Correction impossible : '+(e.message||e));}
+  };
   if($('corCli'))$('corCli').onclick=async function(){
     var connus=Array.from(new Set(ROLLS.map(function(x){return x.client;}).filter(Boolean))).sort(function(a,b){return a.localeCompare(b,'fr');});
     var c=prompt('Client de '+r.numero+' ?\n(écrivez le nom exact, ex. : '+connus.slice(0,6).join(', ')+'…)');if(!c||!c.trim())return;c=c.trim();
