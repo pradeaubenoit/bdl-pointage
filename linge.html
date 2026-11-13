@@ -1362,7 +1362,15 @@ function chariotSansSaisie() {
 // Le chariot de destination reçoit le contenu des deux (quantités additionnées) ; celui vidé redevient « Vide à la BdL ».
 // Les quantités saisies pour la facturation ne changent pas. Refusé si un chariot est déjà parti (camion, client).
 // Contenu d'un chariot = note de son dernier « rempli »
-function noteDeRoll(info) { if (!info) return ''; if (info.note) return info.note; const r = (info.derniers || []).find(d => d.etape === 'rempli'); return (r && r.note) || ''; }
+function noteDeRoll(info) {
+  if (!info) return '';
+  const l = info.derniers || [];
+  let r = null;
+  for (const d of l) { if (d.etape === 'vide') break; if (d.etape === 'rempli') { r = d; break; } }
+  if (l.length && !r) return '';   // vidé au tunnel depuis le dernier remplissage : plus de contenu
+  if (info.note) return info.note;
+  return (r && r.note) || '';
+}
 function fusionContenu(a, b) {
   const tot = {}, ordre = [];
   [a, b].forEach(txt => String(txt || '').split(',').forEach(m => {
@@ -1481,6 +1489,7 @@ async function chariotsClient(c) {
   let tous = [];
   try { const r = await rollRpc('roll_client', { p_client: c.client }); tous = (r && r.a_decharger) || []; l = tous.filter(x => x.etat === 'pret'); }
   catch (e) { f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px">Pas de réseau.<button id="ccX" style="width:100%;margin-top:12px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Fermer</button></div>'; document.getElementById('ccX').onclick = () => { f.style.display = 'none'; }; return; }
+  const cam = tous.filter(x => x.etat === 'chauffeur');
   const saisiJour = contenuDuJour(c);
   const duJour = soustraireContenu(saisiJour, tous.map(x => x.note));   // pas encore dans un chariot
   const bt = 'width:100%;margin-top:8px;font-size:17px;padding:12px;border-radius:12px;font-weight:700;';
@@ -1490,6 +1499,8 @@ async function chariotsClient(c) {
       '<button data-qte="' + i + '" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">✎ Corriger les quantités</button>' +
       '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° (code Bureau)</button></div>').join('')
       : '<div style="color:#666;margin-top:10px">Aucun chariot « prêt » pour ce client.</div>') +
+    (cam.length ? '<div style="font-size:19px;font-weight:800;margin-top:16px">🚚 Déjà chargés dans le camion</div>' + cam.map((x, i) => '<div style="border:1px solid #f0c48a;background:#fff8ef;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + '</div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'sans contenu') + '</div>' +
+      '<button data-cam="' + i + '" style="' + bt + 'border:2px solid #b25e00;color:#b25e00;background:#fff">✎ Corriger les quantités (code Bureau)</button></div>').join('') : '') +
     (saisiJour ? '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #dde2e7"><div style="font-weight:700">Linge saisi aujourd\'hui (tous ateliers) :</div><div style="color:#555">' + rollEsc(saisiJour) + '</div>' +
       '<div style="font-weight:700;margin-top:6px">Pas encore dans un chariot :</div><div style="color:' + (duJour ? '#b3261e' : '#2e7d32') + ';font-weight:600">' + rollEsc(duJour || '✓ tout est rangé dans un chariot') + '</div></div>' : '') +
     (duJour ? '<div>' +
@@ -1497,11 +1508,12 @@ async function chariotsClient(c) {
     '<button id="ccX" style="' + bt + 'border:2px solid #999;background:#fff">Fermer</button></div>';
   document.getElementById('ccX').onclick = () => { f.style.display = 'none'; };
   f.querySelectorAll('[data-qte]').forEach(b => b.onclick = () => corrigerQuantites(c, l[+b.dataset.qte]));
+  f.querySelectorAll('[data-cam]').forEach(b => b.onclick = () => corrigerQuantites(c, cam[+b.dataset.cam], true));
   f.querySelectorAll('[data-chg]').forEach(b => b.onclick = () => { const x = l[+b.dataset.chg]; deplacerLinge(c, x.numero, x.note || '', 'Nouveau numéro pour le linge de ' + x.numero + ' :'); });
   if (document.getElementById('ccJ')) document.getElementById('ccJ').onclick = () => deplacerLinge(c, null, duJour, 'Numéro du chariot où est ce linge :');
 }
 // Corriger le contenu d'un chariot prêt (quantités fausses) directement à l'atelier : le chariot reste le même, seul son contenu change.
-function corrigerQuantites(c, x) {
+function corrigerQuantites(c, x, camion) {
   const f = document.getElementById('fondRoll');
   const lignes = [];
   String(x.note || '').split(',').forEach(m => { const y = m.trim().match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/); if (y) lignes.push({ a: y[1], q: y[2].replace(',', '.') }); });
@@ -1519,10 +1531,11 @@ function corrigerQuantites(c, x) {
   document.getElementById('cqOk').onclick = async () => {
     const total = lignes.map((l, i) => { const v = Number(String(f.querySelector('[data-q="' + i + '"]').value).replace(',', '.')); return v > 0 ? l.a + ' ' + v : ''; }).filter(Boolean).join(', ');
     if (!confirm(x.numero + ' (' + c.client + ') contiendra :\n\n' + (total || '— vide —') + '\n\nAvant : ' + (x.note || '—'))) return;
-    const id = await rollIdentite(x.numero); if (!id) return;
+    const id = camion ? await idBureau(x.numero) : await rollIdentite(x.numero); if (!id) return;
     try {
-      const r = await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
-      if (!r || !r.ok) { if (/code/i.test((r && r.error) || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} } toast((r && r.error) || 'Refusé', true); return; }
+      const r = camion ? await rollRpc('roll_contenu', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_note: total })
+                       : await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
+      if (!r || !r.ok) { if (!camion && /code/i.test((r && r.error) || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} } toast((r && r.error) || 'Refusé', true); return; }
       toast('🧺 ' + x.numero + ' corrigé : ' + (total || 'vide'));
       chariotsClient(c);
     } catch (e) { toast('Pas de réseau : réessayez.', true); }
