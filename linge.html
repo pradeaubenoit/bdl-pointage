@@ -1259,7 +1259,7 @@ function demanderChariot(client, lignes, opts) {
   let saisie = '';
   const touches = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:440px">' +
-    '<div style="font-size:22px;font-weight:800">🧺 Dans quel chariot ?</div><div style="color:#555;margin:4px 0 10px">' + rollEsc(client) + ' · ' + rollEsc(sousTitre) + '</div>' +
+    '<div id="rollTitre" style="font-size:22px;font-weight:800">🧺 Dans quel chariot ?</div><div id="rollSous" style="color:#555;margin:4px 0 10px">' + rollEsc(client) + ' · ' + rollEsc(sousTitre) + '</div>' +
     '<div id="rollAff" style="font-size:44px;font-weight:900;text-align:center;border:2px solid #ccd;border-radius:12px;padding:8px;min-height:68px;letter-spacing:2px"></div>' +
     '<div id="rollMsg" style="min-height:22px;color:#c62828;font-weight:700;margin:6px 0"></div>' +
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + touches.map(t => '<button data-t="' + t + '" style="font-size:28px;font-weight:700;padding:16px 0;border-radius:12px;border:1px solid #ccd;background:' + (t === 'OK' ? '#2e7d32;color:#fff' : '#f4f6f8') + '">' + t + '</button>').join('') + '</div>' +
@@ -1273,7 +1273,20 @@ function demanderChariot(client, lignes, opts) {
     else if (saisie.length < 4) saisie += t;
     aff();
   });
-  document.getElementById('rollSans').onclick = () => { f.style.display = 'none'; if (opts && opts.surSans) opts.surSans(); };
+  // Un même linge peut remplir PLUSIEURS chariots (ex. Royatonic plié à la table) : après chaque chariot, on propose le suivant
+  const faits = [];
+  let contenuCur = contenu;
+  function suivant(numero) {
+    faits.push(numero);
+    contenuCur = contenu ? 'suite du lot ' + faits[0] + ' (' + contenu + ')' : '';
+    saisie = ''; aff();
+    document.getElementById('rollTitre').textContent = '🧺 Encore un chariot pour ce linge ?';
+    document.getElementById('rollSous').innerHTML = rollEsc(client) + ' · <b style="color:#2e7d32">✓ ' + faits.map(rollEsc).join(', ') + '</b><br>Tapez le numéro du chariot suivant, ou « Terminé ».';
+    document.getElementById('rollMsg').textContent = '';
+    document.getElementById('rollSans').textContent = '✓ Terminé (' + faits.length + ' chariot' + (faits.length > 1 ? 's' : '') + ')';
+    f.style.display = 'flex';
+  }
+  document.getElementById('rollSans').onclick = () => { f.style.display = 'none'; if (!faits.length && opts && opts.surSans) opts.surSans(); };
   // Déjà fait ? (une autre personne a déjà scanné ce chariot) : jamais de chariot compté deux fois
   async function verifierPuisEnvoyer(numero) {
     const msg = document.getElementById('rollMsg');
@@ -1284,16 +1297,18 @@ function demanderChariot(client, lignes, opts) {
     // Chariot encore noté sale / en retour / chez le client mais rempli ici : on le libère d'abord (incident enregistré), sans bloquer l'atelier
     const INC = {sale:'incident : non vidé au tunnel (oubli du laveur)',retour:'incident : pas déchargé ni vidé (oubli chauffeur + laveur)',client:'incident : noté chez le client, retrouvé à l\'atelier'};
     const avant = info && info.ok ? INC[info.etat] || null : null;
-    if (avant) { f.style.display = 'none'; rollEnvoyer({ numero, client, contenu, avant }); return; }
+    if (faits.indexOf(numero) >= 0) { msg.style.color = '#c62828'; msg.textContent = numero + ' est déjà dans ce lot.'; return; }
+    if (avant) { f.style.display = 'none'; rollEnvoyer({ numero, client, contenu: contenuCur, avant }); suivant(numero); return; }
     if (info && info.ok && info.etat === 'pret' && info.client) {
       const qui = (info.personne || 'quelqu\'un') + ' à ' + new Date(info.maj_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       const meme = sansAccent(info.client) === sansAccent(client);
-      if (meme && !contenu) { msg.style.color = '#2e7d32'; msg.textContent = '✓ Déjà fait : ' + numero + ' est déjà rempli pour ' + info.client + ' (' + qui + '). Rien à refaire.'; setTimeout(() => { f.style.display = 'none'; }, 2500); return; }
+      if (meme && !contenuCur) { msg.style.color = '#2e7d32'; msg.textContent = '✓ Déjà fait : ' + numero + ' est déjà rempli pour ' + info.client + ' (' + qui + '). Rien à refaire.'; setTimeout(() => { f.style.display = 'none'; }, 2500); return; }
       if (meme && !confirm('✓ ' + numero + ' est déjà rempli pour « ' + info.client + ' » (' + qui + ').\n\nAjouter ce linge dans le MÊME chariot ?\n(Ça ne compte pas un chariot de plus.)')) return;
       if (!meme && !confirm('⚠ ' + numero + ' est déjà rempli pour « ' + info.client + ' » (' + qui + ').\n\nLe changer pour « ' + client + ' » ?')) return;
     }
     f.style.display = 'none';
-    rollEnvoyer({ numero, client, contenu });
+    rollEnvoyer({ numero, client, contenu: contenuCur });
+    suivant(numero);
   }
 }
 // Clients qu'on ne compte pas (ex. hôpitaux) : on suit seulement leurs chariots, sans saisir de quantités.
