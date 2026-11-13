@@ -1321,6 +1321,7 @@ function chariotSansSaisie() {
     '<div style="font-size:22px;font-weight:800">🧺 Chariot sans saisie — quel client ?</div>' +
     '<input id="csQ" placeholder="Tapez quelques lettres…" style="font-size:20px;padding:12px;margin:10px 0;border:1px solid #ccd;border-radius:10px">' +
     '<div id="csL" style="overflow:auto;flex:1"></div>' +
+    '<button id="csM" style="margin-top:10px;font-size:17px;padding:12px;border-radius:12px;border:2px solid #1f5fa8;color:#1f5fa8;background:#fff;font-weight:700">🔁 Mode : nouveau chariot — appuyer pour corriger un chariot déjà fait</button>' +
     '<button id="csX" style="margin-top:10px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Annuler</button></div>';
   f.style.display = 'flex';
   let noms = catalogue.map(c => c.client).filter(Boolean).sort((a, b) => a.localeCompare(b, 'fr'));
@@ -1354,7 +1355,17 @@ function chariotSansSaisie() {
       } catch (x) { toast('Création impossible sans réseau.', true); }
       return;
     }
-    const d = e.target.closest('[data-cs]'); if (d) demanderChariot(d.getAttribute('data-cs'), []);
+    const d = e.target.closest('[data-cs]'); if (!d) return;
+    const nom = d.getAttribute('data-cs');
+    if (modeCorr) { const cc = catalogue.find(x => sansAccent(x.client) === sansAccent(nom)); chariotsClient(cc || { client: nom, articles: [] }); }
+    else demanderChariot(nom, []);
+  };
+  let modeCorr = false;
+  document.getElementById('csM').onclick = () => {
+    modeCorr = !modeCorr;
+    const b = document.getElementById('csM');
+    b.textContent = modeCorr ? '✎ Mode : corriger un chariot déjà fait (changer le n°…) — appuyer pour revenir' : '🔁 Mode : nouveau chariot — appuyer pour corriger un chariot déjà fait';
+    b.style.background = modeCorr ? '#1f5fa8' : '#fff'; b.style.color = modeCorr ? '#fff' : '#1f5fa8';
   };
   document.getElementById('csX').onclick = () => { f.style.display = 'none'; };
 }
