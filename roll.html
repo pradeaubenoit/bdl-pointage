@@ -162,7 +162,7 @@ function afficher(msg){
   if(ARRET&&aRole('chauffeur'))h+='<div class="carte" style="background:#1f2a35;color:#fff;padding:10px 16px">📍 Chez <b>'+esc(ARRET.client)+'</b> · <a href="?" style="color:#9cc3ff" onclick="location.search=\'\';return false">voir le déchargement</a></div>';
   if(msg)h+='<div class="carte ok">'+msg+'</div>';
   h+='<div class="carte"><div class="num">'+esc(I.numero)+'</div><span class="etat e-'+esc(I.etat)+'">'+esc(ETATS[I.etat]||I.etat)+'</span>'+
-    (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+(function(){var r=(I.derniers||[]).find(function(d){return d.etape==='rempli';});if(I.etat==='retour'||I.etat==='sale')return '<div style="margin-top:6px;font-size:16px;color:#6b2fa3;font-weight:600">🧺 Linge sale'+(I.client?' de '+esc(I.client):'')+'</div>';   // repris chez le client : plus le contenu propre
+    (I.client?'<div class="client">'+esc(I.client)+'</div>':'')+(function(){var r=rempliCycle(I.derniers);if(I.etat==='retour'||I.etat==='sale')return '<div style="margin-top:6px;font-size:16px;color:#6b2fa3;font-weight:600">🧺 Linge sale'+(I.client?' de '+esc(I.client):'')+'</div>';   // repris chez le client : plus le contenu propre
     return r&&r.note&&(I.etat==='pret'||I.etat==='chauffeur'||I.etat==='client')?'<div style="margin-top:6px;font-size:16px;color:var(--bleu);font-weight:600">📦 '+esc(r.note)+'</div>':'';})()+
     '<div class="s" style="margin-top:6px">Dernier scan : '+(I.personne?esc(I.personne)+' · ':'')+fmtQ(I.maj_le)+'</div></div>';
   if(CHG&&I.client&&nrm(I.client)!==nrm(CHG)&&I.etat==='pret')h+='<div class="carte alerte" style="text-align:center">⚠ Ce chariot est pour « '+esc(I.client)+' »,<br>pas pour « '+esc(CHG)+' » que vous chargez.</div>';
@@ -265,11 +265,26 @@ function actions(){
     else{if(!confirm(I.numero+' : chariot vide chargé par erreur ?\n\nIl retourne au dépôt, libre.'))return;scan('vide',null,'redescendu du camion (chargé par erreur)');}
   });
   if(aRole('atelier')&&rempliApres)bRempli();
+  // Aux sales : chariot déchargé plein de linge sale alors qu'il est noté vide / prêt / chez le client (scans oubliés) → on le note sale, du bon client
+  if((aRole('laveur')||aRole('chauffeur'))&&I.etat!=='sale'&&I.etat!=='retour'&&I.etat!=='chauffeur')bouton('🧺 Il est ici aux sales, PLEIN de linge sale','o',function(){
+    choisirClient('Linge sale de quel client ?',async function(c){
+      if(!confirm(I.numero+' : déchargé à la BdL, plein du linge sale de « '+c+' » ?\n\n(Les scans oubliés sont notés comme incident.)'))return;
+      var base={p_numero:I.numero,p_personne:MOI.id,p_code:MOI.code};
+      try{var r=await sb.rpc('roll_scan',Object.assign({p_etape:'repris',p_client:c,p_note:'incident : repris sans scan, retrouvé plein aux sales'},base));if(r.error)throw r.error;if(!r.data.ok)throw new Error(r.data.error);
+        r=await sb.rpc('roll_scan',Object.assign({p_etape:'rentre',p_client:c,p_note:null},base));if(r.error)throw r.error;if(!r.data.ok)throw new Error(r.data.error);
+        var i2=await sb.rpc('roll_info',{p_numero:I.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
+        if(navigator.vibrate)navigator.vibrate(120);afficher('✓ '+esc(I.numero)+' : sale de « '+esc(c)+' », à la BdL');
+      }catch(e){afficher('<span style="color:var(--rouge)">Erreur : '+esc(e.message||e)+'</span>');}
+    });
+  });
   if(aRole('laveur'))bouton('🌀 Vidé au tunnel','v',function(){scan('vide',null);});
   if(aRole('laveur'))bouton('🌀 Plusieurs chariots : vider en rafale','g',viderRafale);
 }
+// dernier « rempli » APRÈS le dernier passage au tunnel (sinon : contenu d'un ancien client)
+function rempliCycle(l,ok){l=l||[];for(var i=0;i<l.length;i++){if(l[i].etape==='vide')return null;if(l[i].etape==='rempli'&&(!ok||ok(l[i])))return l[i];}return null;}
 function contenuDe(info){if(!info)return '';var estNote=function(n){return /^(non scanné|regroupement|correction|redescendu|rangé|vidé|n° corrigé|chariot vide)/i.test(n||'');};
-  if(info.note&&!estNote(info.note))return info.note;var r=(info.derniers||[]).find(function(d){return d.etape==='rempli'&&d.note&&!estNote(d.note);});return (r&&r.note)||'';}
+  var vu=(info.derniers||[]).length?rempliCycle(info.derniers):1;if(!vu)return '';   // vidé au tunnel depuis le dernier remplissage : plus de contenu
+  if(info.note&&!estNote(info.note))return info.note;var r=rempliCycle(info.derniers,function(d){return d.note&&!estNote(d.note);});return (r&&r.note)||'';}
 function fusionContenu(a,b){var tot={},ordre=[];[a,b].forEach(function(txt){String(txt||'').split(',').forEach(function(m){m=m.trim();if(!m)return;var x=m.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/);var nom=x?x[1]:m,q=x?Number(x[2].replace(',','.')):null,k=nrm(nom);if(!(k in tot)){tot[k]={nom:nom,q:null};ordre.push(k);}if(q!=null)tot[k].q=(tot[k].q||0)+q;});});return ordre.map(function(k){return tot[k].nom+(tot[k].q!=null?' '+tot[k].q:'');}).join(', ');}
 /* Regroupement dans le camion : le linge propre de INFO passe dans un autre chariot du même client ; INFO reste dans le camion, VIDE et sans client.
    Étapes enregistrées avec la note « regroupement » (ignorées dans les Tournées). */
