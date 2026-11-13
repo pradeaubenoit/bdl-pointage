@@ -1534,7 +1534,21 @@ async function deplacerLinge(c, ancien, contenu, question) {
   if (cible === ancien) { toast('C\'est le même chariot.', true); return; }
   let info; try { info = await rollRpc('roll_info', { p_numero: cible }); } catch (e) { toast('Pas de réseau.', true); return; }
   if (!info || info.ok === false) { toast((info && info.error) || 'Chariot inconnu', true); return; }
-  if (info.etat !== 'pret' && info.etat !== 'bdl') { toast(cible + ' n\'est plus à l\'atelier (chargé ou livré).', true); return; }
+  if (info.etat !== 'pret' && info.etat !== 'bdl') {
+    // chariot déjà chargé / livré : on peut quand même compléter son contenu (code Bureau), sans changer son état
+    if (ancien || !info.client || sansAccent(info.client) !== sansAccent(c.client)) { toast(cible + ' n\'est plus à l\'atelier (chargé ou livré).', true); return; }
+    const deja2 = noteDeRoll(info);
+    const total2 = fusionContenu(deja2, contenu);
+    if (!confirm(cible + ' est déjà parti de l\'atelier (chargé ou livré).\n\nAjouter ce linge à son contenu quand même ?\n\n' + cible + ' (' + c.client + ') contiendra :\n' + (total2 || '—') + '\n\nAvant : ' + (deja2 || '—'))) return;
+    const id2 = await idBureau(cible); if (!id2) return;
+    try {
+      const r = await rollRpc('roll_contenu', { p_numero: cible, p_personne: id2.id, p_code: id2.code, p_note: total2 });
+      if (!r || !r.ok) { toast((r && r.error) || 'Refusé', true); return; }
+      toast('🧺 ' + cible + ' : ' + total2);
+      chariotsClient(c);
+    } catch (e) { toast('Correction impossible (fonction roll_contenu absente ?)', true); }
+    return;
+  }
   if (info.etat === 'pret' && info.client && sansAccent(info.client) !== sansAccent(c.client)) { toast(cible + ' est rempli pour « ' + info.client + ' ».', true); return; }
   // linge du jour : s'il est déjà sur ce chariot, on ne l'additionne pas une 2ᵉ fois
   const deja = info.etat === 'pret' ? noteDeRoll(info) : '';
