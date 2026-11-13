@@ -50,8 +50,16 @@ var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5m
 var LINGE_API='https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
 var sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false}});
 // Heure du dernier chargement fait par CE téléphone : un chariot rempli APRÈS n'était pas prêt quand le camion est parti (linge du lendemain…)
+// Linge préparé d'avance (« 📅 14/11 » dans le contenu, mis par la tablette quand la saisie est « Livré demain ») :
+// il n'est pas à charger aujourd'hui → retiré des listes « au quai » et des alertes, montré à part.
+function pourDe(n){var m=String(n||'').match(/📅\s*(\d{1,2})\/(\d{1,2})/);if(!m)return null;var a=new Date(),d=new Date(a.getFullYear(),+m[2]-1,+m[1]);if(d<new Date(a.getFullYear(),a.getMonth(),a.getDate()-180))d.setFullYear(a.getFullYear()+1);return d;}
+function plusTard(x){var d=pourDe(x&&x.note);if(!d)return false;var a=new Date();return d>new Date(a.getFullYear(),a.getMonth(),a.getDate(),23,59);}
 (function(){var o=sb.rpc.bind(sb);sb.rpc=function(fn,args){var pr=o(fn,args);
   if(fn==='roll_scan'&&args&&args.p_etape==='charge')Promise.resolve(pr).then(function(r){if(r&&!r.error&&r.data&&r.data.ok){try{localStorage.setItem('roll_dernier_charge',new Date().toISOString());}catch(e){}}}).catch(function(){});
+  if(fn==='roll_camion'||fn==='roll_client')return Promise.resolve(pr).then(function(r){try{var d=r&&r.data;
+    if(d&&Array.isArray(d.a_quai)){d.plus_tard=d.a_quai.filter(plusTard);d.a_quai=d.a_quai.filter(function(x){return !plusTard(x);});}
+    if(d&&Array.isArray(d.a_decharger)){d.plus_tard=d.a_decharger.filter(function(x){return x.etat==='pret'&&plusTard(x);});d.a_decharger=d.a_decharger.filter(function(x){return !(x.etat==='pret'&&plusTard(x));});}
+  }catch(e){}return r;});
   return pr;};})();
 function pretAuDepart(x){var t=null;try{t=localStorage.getItem('roll_dernier_charge');}catch(e){}
   if(!t||!x||!x.maj_le)return true;return new Date(x.maj_le).getTime()<=new Date(t).getTime();}
@@ -293,7 +301,8 @@ function rempliCycle(l,ok){l=l||[];for(var i=0;i<l.length;i++){if(l[i].etape==='
 function contenuDe(info){if(!info)return '';var estNote=function(n){return /^(non scanné|regroupement|correction|redescendu|rangé|vidé|n° corrigé|chariot vide)/i.test(n||'');};
   var vu=(info.derniers||[]).length?rempliCycle(info.derniers):1;if(!vu)return '';   // vidé au tunnel depuis le dernier remplissage : plus de contenu
   if(info.note&&!estNote(info.note))return info.note;var r=rempliCycle(info.derniers,function(d){return d.note&&!estNote(d.note);});return (r&&r.note)||'';}
-function fusionContenu(a,b){var tot={},ordre=[];[a,b].forEach(function(txt){String(txt||'').split(',').forEach(function(m){m=m.trim();if(!m)return;var x=m.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/);var nom=x?x[1]:m,q=x?Number(x[2].replace(',','.')):null,k=nrm(nom);if(!(k in tot)){tot[k]={nom:nom,q:null};ordre.push(k);}if(q!=null)tot[k].q=(tot[k].q||0)+q;});});return ordre.map(function(k){return tot[k].nom+(tot[k].q!=null?' '+tot[k].q:'');}).join(', ');}
+function fusionContenu(a,b){var tot={},ordre=[],tag=(String(a||'').match(/📅\s*\d{1,2}\/\d{1,2}/)||String(b||'').match(/📅\s*\d{1,2}\/\d{1,2}/)||[''])[0];var res=fusion0(a,b);return tag?(res?tag+', '+res:tag):res;}
+function fusion0(a,b){var tot={},ordre=[];[a,b].forEach(function(txt){String(txt||'').split(',').forEach(function(m){m=m.trim();if(!m||/^📅/.test(m))return;var x=m.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/);var nom=x?x[1]:m,q=x?Number(x[2].replace(',','.')):null,k=nrm(nom);if(!(k in tot)){tot[k]={nom:nom,q:null};ordre.push(k);}if(q!=null)tot[k].q=(tot[k].q||0)+q;});});return ordre.map(function(k){return tot[k].nom+(tot[k].q!=null?' '+tot[k].q:'');}).join(', ');}
 /* Regroupement dans le camion : le linge propre de INFO passe dans un autre chariot du même client ; INFO reste dans le camion, VIDE et sans client.
    Étapes enregistrées avec la note « regroupement » (ignorées dans les Tournées). */
 async function regrouperCamion(){
@@ -429,6 +438,8 @@ async function ecranChargement(msg,d){
     var cleInc=inc.map(function(x){return x.c+x.q.join();}).join('|');if(cleInc&&cleInc!==VU_INC&&navigator.vibrate)navigator.vibrate([300,150,300]);VU_INC=cleInc;
     var mesC=cl.filter(function(c){return estFav(c)&&!g[c].vide;});
     if(mesC.length&&mesC.every(function(c){return !g[c].q.length;}))h+='<div class="carte ok">✓ Tous vos clients sont chargés'+(cl.some(function(c){return estFav(c)&&g[c].vide;})?'<div class="s" style="color:var(--orange)">sauf ceux sans chariot prêt (⚠)</div>':'')+'</div>';
+    if((d.plus_tard||[]).length){var pt={};d.plus_tard.forEach(function(x){var k=(x.client||'?')+' — pour le '+pourDe(x.note).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});(pt[k]=pt[k]||[]).push(x.numero);});
+      h+='<div class="carte" style="color:#666;font-size:15px">📅 <b>Préparés d\'avance, à NE PAS charger aujourd\'hui</b> :<br>'+Object.keys(pt).sort().map(function(k){return esc(k)+' : '+pt[k].map(esc).join(', ');}).join('<br>')+'</div>';}
     h+='<div class="carte"><b>🚚 Chargement au quai</b><div class="s">'+(tq?tq+' chariot'+(tq>1?'s':'')+' prêt'+(tq>1?'s':'')+' à charger. Touchez un client pour voir ses chariots.':'Rien à charger pour l\'instant.')+'</div>'+(cl.length>3?'<input id="chQ" placeholder="🔎 Chercher un client…" autocomplete="off" style="margin-top:10px">':'')+'</div>'+
       (cl.length?'<div class="carte liste" id="chL" style="max-height:none">'+cl.map(function(c){var x=g[c],tot=x.ch.length+x.q.length,fini=!x.q.length;
         var fv=estFav(c),et=x.vide?'<b style="color:var(--rouge)">rien de prêt</b>':'<b style="color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+'</b>';
