@@ -1489,7 +1489,8 @@ async function chariotsClient(c) {
   let tous = [];
   try { const r = await rollRpc('roll_client', { p_client: c.client }); tous = (r && r.a_decharger) || []; l = tous.filter(x => x.etat === 'pret'); }
   catch (e) { f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px">Pas de réseau.<button id="ccX" style="width:100%;margin-top:12px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Fermer</button></div>'; document.getElementById('ccX').onclick = () => { f.style.display = 'none'; }; return; }
-  const cam = tous.filter(x => x.etat === 'chauffeur');
+  const cam = tous.filter(x => x.etat === 'chauffeur').map(x => Object.assign({ ou: '🚚 dans le camion' }, x));
+  try { const r2 = await rollRpc('roll_client', { p_client: c.client }); ((r2 && r2.livres_auj) || []).forEach(x => { if (!cam.some(y => y.numero === x.numero)) cam.push(Object.assign({ ou: '✅ livré aujourd\'hui' }, x)); }); } catch (e) {}
   const saisiJour = contenuDuJour(c);
   const duJour = soustraireContenu(saisiJour, tous.map(x => x.note));   // pas encore dans un chariot
   const bt = 'width:100%;margin-top:8px;font-size:17px;padding:12px;border-radius:12px;font-weight:700;';
@@ -1499,7 +1500,7 @@ async function chariotsClient(c) {
       '<button data-qte="' + i + '" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">✎ Corriger les quantités</button>' +
       '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° (code Bureau)</button></div>').join('')
       : '<div style="color:#666;margin-top:10px">Aucun chariot « prêt » pour ce client.</div>') +
-    (cam.length ? '<div style="font-size:19px;font-weight:800;margin-top:16px">🚚 Déjà chargés dans le camion</div>' + cam.map((x, i) => '<div style="border:1px solid #f0c48a;background:#fff8ef;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + '</div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'sans contenu') + '</div>' +
+    (cam.length ? '<div style="font-size:19px;font-weight:800;margin-top:16px">🚚 Déjà partis de l\'atelier (camion ou livrés aujourd\'hui)</div>' + cam.map((x, i) => '<div style="border:1px solid #f0c48a;background:#fff8ef;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + ' <span style="font-size:15px;font-weight:600;color:#b25e00">' + rollEsc(x.ou) + '</span></div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'contenu : voir en corrigeant') + '</div>' +
       '<button data-cam="' + i + '" style="' + bt + 'border:2px solid #b25e00;color:#b25e00;background:#fff">✎ Corriger les quantités (code Bureau)</button></div>').join('') : '') +
     (saisiJour ? '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #dde2e7"><div style="font-weight:700">Linge saisi aujourd\'hui (tous ateliers) :</div><div style="color:#555">' + rollEsc(saisiJour) + '</div>' +
       '<div style="font-weight:700;margin-top:6px">Pas encore dans un chariot :</div><div style="color:' + (duJour ? '#b3261e' : '#2e7d32') + ';font-weight:600">' + rollEsc(duJour || '✓ tout est rangé dans un chariot') + '</div></div>' : '') +
@@ -1513,7 +1514,8 @@ async function chariotsClient(c) {
   if (document.getElementById('ccJ')) document.getElementById('ccJ').onclick = () => deplacerLinge(c, null, duJour, 'Numéro du chariot où est ce linge :');
 }
 // Corriger le contenu d'un chariot prêt (quantités fausses) directement à l'atelier : le chariot reste le même, seul son contenu change.
-function corrigerQuantites(c, x, camion) {
+async function corrigerQuantites(c, x, camion) {
+  if (camion) { try { const inf = await rollRpc('roll_info', { p_numero: x.numero }); x = Object.assign({}, x, { note: noteDeRoll(inf) }); } catch (e) {} }
   const f = document.getElementById('fondRoll');
   const lignes = [];
   String(x.note || '').split(',').forEach(m => { const y = m.trim().match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/); if (y) lignes.push({ a: y[1], q: y[2].replace(',', '.') }); });
