@@ -49,6 +49,12 @@ main{padding-bottom:110px}
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var LINGE_API='https://script.google.com/macros/s/AKfycbxxHYpmiuhfyoKgzPmAwDtuuyxNx-uOalpohNT7p6Zrl2BPFnOGd0P-Q7_iNHVSTQc/exec';
 var sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false}});
+// Heure du dernier chargement fait par CE téléphone : un chariot rempli APRÈS n'était pas prêt quand le camion est parti (linge du lendemain…)
+(function(){var o=sb.rpc.bind(sb);sb.rpc=function(fn,args){var pr=o(fn,args);
+  if(fn==='roll_scan'&&args&&args.p_etape==='charge')Promise.resolve(pr).then(function(r){if(r&&!r.error&&r.data&&r.data.ok){try{localStorage.setItem('roll_dernier_charge',new Date().toISOString());}catch(e){}}}).catch(function(){});
+  return pr;};})();
+function pretAuDepart(x){var t=null;try{t=localStorage.getItem('roll_dernier_charge');}catch(e){}
+  if(!t||!x||!x.maj_le)return true;return new Date(x.maj_le).getTime()<=new Date(t).getTime();}
 var $=function(i){return document.getElementById(i);};
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function lire(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
@@ -109,6 +115,8 @@ async function chargerArret(msg){
   try{var r=await sb.rpc('roll_client',{p_client:ARRET.client});if(r.error)throw r.error;ARR=r.data;}
   catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="chargerArret()">Réessayer</button>';return;}
   if(!ARR.ok){$('main').innerHTML='<div class="carte alerte">'+esc(ARR.error)+'</div>';return;}
+  // heure de remplissage des chariots restés au quai (pour ne pas signaler le linge préparé après le départ du camion)
+  try{await Promise.all((ARR.a_decharger||[]).filter(function(x){return x.etat==='pret'&&!x.maj_le;}).map(async function(x){var i=await sb.rpc('roll_info',{p_numero:x.numero});if(!i.error&&i.data&&i.data.maj_le)x.maj_le=i.data.maj_le;}));}catch(e){}
   INFO={personnes:ARR.personnes};
   if(MOI){var me=(ARR.personnes||[]).find(function(p){return p.id===MOI.id;});if(!me){MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}}else{MOI.role=me.role;MOI.nom=me.nom;ecrire('roll_moi',MOI);majMoi();}}
   if(!MOI)return choisirMoi(function(){chargerArret();});
@@ -119,7 +127,7 @@ async function chargerArret(msg){
 }
 function afficherArret(msg){
   majMoi();
-  var A=ARR,cam=A.a_decharger.filter(function(x){return x.etat==='chauffeur';}),quai=A.a_decharger.filter(function(x){return x.etat==='pret';});
+  var A=ARR,cam=A.a_decharger.filter(function(x){return x.etat==='chauffeur';}),quai=A.a_decharger.filter(function(x){return x.etat==='pret'&&pretAuDepart(x);});
   var fait=A.livres_auj.length,tot=fait+cam.length,h='';
   if(msg)h+='<div class="carte ok">'+msg+'</div>';
   h+='<div class="carte"><div class="s">📍 Vous êtes chez</div><div class="num" style="font-size:28px">'+esc(A.client)+'</div>'+
