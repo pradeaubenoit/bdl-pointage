@@ -1459,9 +1459,13 @@ function soustraireContenu(total, autres) {
   autres.forEach(txt => String(txt || '').split(',').forEach(m => { const x = m.trim().match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/); if (x) { const k = sansAccent(x[1]); enlev[k] = (enlev[k] || 0) + Number(x[2].replace(',', '.')); } }));
   return String(total || '').split(',').map(m => { const x = m.trim().match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/); if (!x) return ''; const r = Number(x[2].replace(',', '.')) - (enlev[sansAccent(x[1])] || 0); return r > 0 ? x[1] + ' ' + r : ''; }).filter(Boolean).join(', ');
 }
-async function idBureau() {
-  let info; try { info = await rollRpc('roll_info', { p_numero: 'R-001' }); } catch (e) { toast('Pas de réseau.', true); return null; }
-  const ps = ((info && info.personnes) || []).filter(p => /bureau/.test(p.role || ''));
+async function idBureau(numero) {
+  let info = null;
+  for (const n of [numero, 'R-001', 'R-002', 'R-010'].filter(Boolean)) {
+    try { info = await rollRpc('roll_info', { p_numero: n }); } catch (e) { toast('Pas de réseau.', true); return null; }
+    if (info && (info.personnes || []).length) break;
+  }
+  const ps = ((info && info.personnes) || []).filter(p => /bureau/i.test(p.role || ''));
   if (!ps.length) { toast('Aucune personne « Bureau » dans Rolls → Personnes.', true); return null; }
   let p = ps.length === 1 ? ps[0] : null;
   if (!p) { const n = prompt('Qui corrige ?\n' + ps.map((x, i) => (i + 1) + '. ' + x.nom).join('\n') + '\n\nTapez le numéro :'); p = ps[(parseInt(n) || 0) - 1]; if (!p) return null; }
@@ -1540,7 +1544,7 @@ async function deplacerLinge(c, ancien, contenu, question) {
     if (ch === '1') total = contenu; else if (ch !== '2') return;
   }
   if (!confirm((ancien ? 'Déplacer le linge de ' + ancien + ' vers ' + cible : 'Mettre ce linge dans ' + cible) + ' ?\n\n' + cible + ' (' + c.client + ') contiendra :\n' + (total || '—') + (ancien ? '\n\n' + ancien + ' redevient vide et libre.' : ''))) return;
-  const id = await idBureau(); if (!id) return;
+  const id = await idBureau(cible); if (!id) return;
   try {
     const r1 = await rollRpc('roll_scan', { p_numero: cible, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
     if (!r1 || !r1.ok) { toast((r1 && r1.error) || 'Refusé', true); return; }
