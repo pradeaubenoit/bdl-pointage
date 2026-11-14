@@ -459,8 +459,10 @@ function estLav(r){ return !!(r&&(r._lav||r.machine==='laveuse')); }
 /* HORS SAISON (pause) : clients mis en pause quelques mois (thermes…). Leurs lignes RESTENT dans les journées
    (pour les retrouver à la reprise), mais sont traitées comme absentes : pas lavées, pas comptées, pas envoyées
    à l'atelier. Liste : CFG.enPause = { 'nom en minuscules': {nom, depuis} }. */
-function cleCli(n){ return String(n||'').trim().toLowerCase().replace(/\s+/g,' '); }
-function estPause(r){ return !!(r && CFG && CFG.enPause && CFG.enPause[cleCli(r.client)]); }
+function cleCli(n){ return String(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+/* Une entrée de la liste = un nom OU un mot-clé : toute ligne dont le nom CONTIENT ce texte est en pause
+   (« therme » met en pause tous les thermes, quelle que soit l'écriture du jour). */
+function estPause(r){ if(!r||!CFG||!CFG.enPause)return false; var n=' '+cleCli(r.client)+' '; for(var k in CFG.enPause){ if(k&&n.indexOf(' '+k+' ')>=0) return true; } return false; }
 function estIgn(r){ return !!(r&&(r._ign||estPause(r))); }
 function triFaits(l){ return l.map(function(r,i){return {r:r,i:i};}).sort(function(a,b){var ta=a.r._faitAt!=null?a.r._faitAt:1e9, tb=b.r._faitAt!=null?b.r._faitAt:1e9; return (ta-tb)||(a.i-b.i);}).map(function(x){return x.r;}); }
 /* LIVRAISON SUIVANTE : ligne lavée aujourd'hui mais qui part à la prochaine livraison (ex. peignoirs du samedi pour lundi).
@@ -2717,35 +2719,50 @@ if(pickedId!=null||pickedSel){pickedId=null;pickedSel=null;renderResults();retur
 })();
 
 function nbPause(){ return Object.keys((CFG&&CFG.enPause)||{}).length; }
-function ouvrirPause(){
+async function ouvrirPause(){
   if(!CFG.enPause)CFG.enPause={};
-  var noms={}; rows.forEach(function(r){ var k=cleCli(r.client); if(k&&!noms[k]) noms[k]=(r.client||'').trim(); });
-  Object.keys(CFG.enPause).forEach(function(k){ if(!noms[k]) noms[k]=CFG.enPause[k].nom||k; });
-  var cles=Object.keys(noms).sort(function(a,b){ var pa=!!CFG.enPause[a], pb=!!CFG.enPause[b]; return (pb-pa)||a.localeCompare(b,'fr'); });
-  var coche={}; cles.forEach(function(k){ coche[k]=!!CFG.enPause[k]; });
+  // tous les noms du plan, de 2 semaines avant à 3 semaines après (les écritures varient d'un jour à l'autre)
+  var noms={}, nb={};
+  function ajout(n){ var k=cleCli(n); if(!k)return; if(!noms[k]) noms[k]=String(n).trim(); nb[k]=(nb[k]||0)+1; }
+  rows.forEach(function(r){ ajout(r.client); });
+  try{ for(var off=0;off<20000;off+=1000){ var q=await sb.from('plan_charges').select('client').eq('user_id',USER.id).gte('date_jour',isoMinus(curDate,14)).lte('date_jour',isoPlus(curDate,21)).range(off,off+999); if(q.error||!q.data||!q.data.length)break; q.data.forEach(function(x){ ajout(x.client); }); if(q.data.length<1000)break; } }catch(e){}
+  var motsCles=Object.keys(CFG.enPause).filter(function(k){ return !noms[k]; });   // mots-clés libres (« therme »)
+  var cles=Object.keys(noms).sort(function(a,b){ return a.localeCompare(b,'fr'); });
+  var actifs={}; Object.keys(CFG.enPause).forEach(function(k){ actifs[k]=true; });
   var wrap=document.createElement('div'); wrap.className='modal-bg';
-  wrap.innerHTML='<div class="modal-card" style="max-width:560px"><h3>\u23f8 Clients hors saison</h3>'+
-    '<div class="sub">Cochez les clients à mettre en pause. Leurs lignes restent dans le plan (barrées, en bas) et reviendront telles quelles à la reprise : il suffira de les décocher. En pause, ils ne sont ni lavés, ni comptés dans le temps, ni envoyés à l\'atelier.</div>'+
-    '<div style="display:flex;gap:8px;margin:10px 0"><input type="text" id="pz-f" placeholder="Filtrer (ex. therme)\u2026" style="flex:1"><button type="button" class="btn-ghost" id="pz-all">cocher la liste filtrée</button><button type="button" class="btn-ghost" id="pz-none">décocher</button></div>'+
-    '<div id="pz-l" style="max-height:50vh;overflow:auto;border:1px solid var(--line,#ddd);border-radius:8px;padding:6px"></div>'+
+  wrap.innerHTML='<div class="modal-card" style="max-width:600px"><h3>⏸ Clients hors saison</h3>'+
+    '<div class="sub">Les clients en pause restent dans le plan (barrés, en bas) et reviennent tels quels à la reprise. En pause : ni lavés, ni comptés dans le temps, ni envoyés à l\'atelier.</div>'+
+    '<label style="margin-top:10px">Mot-clé (met en pause toutes les lignes qui le contiennent)</label>'+
+    '<div style="display:flex;gap:8px"><input type="text" id="pz-mot" placeholder="ex. therme" style="flex:1"><button type="button" class="btn-primary" id="pz-add">+ mettre en pause</button></div>'+
+    '<div id="pz-mots" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0"></div>'+
+    '<label>Ou cochez des noms précis</label>'+
+    '<input type="text" id="pz-f" placeholder="Filtrer la liste…" style="width:100%;margin-bottom:6px">'+
+    '<div id="pz-l" style="max-height:40vh;overflow:auto;border:1px solid var(--line,#ddd);border-radius:8px;padding:6px"></div>'+
+    '<div class="sub" id="pz-res" style="margin-top:8px"></div>'+
     '<div class="modal-actions"><button type="button" class="btn-ghost" id="pz-cancel">Annuler</button><button type="button" class="btn-primary" id="pz-ok">Enregistrer</button></div></div>';
   document.body.appendChild(wrap);
-  var f=wrap.querySelector('#pz-f'), L=wrap.querySelector('#pz-l');
-  function visibles(){ var q=cleCli(f.value); return cles.filter(function(k){ return !q || k.indexOf(q)>=0; }); }
-  function peindre(){ L.innerHTML=visibles().map(function(k){ var d=CFG.enPause[k]&&CFG.enPause[k].depuis; return '<label style="display:flex;gap:10px;align-items:center;padding:6px 4px;margin:0;font-weight:500;cursor:pointer"><input type="checkbox" data-k="'+esc(k)+'"'+(coche[k]?' checked':'')+' style="width:20px;height:20px">'+esc(noms[k])+(d?'<span class="sub" style="margin-left:auto">en pause depuis le '+esc(d.split('-').reverse().join('/'))+'</span>':'')+'</label>'; }).join('')||'<div class="sub">Aucun client.</div>'; }
+  var f=wrap.querySelector('#pz-f'), L=wrap.querySelector('#pz-l'), M=wrap.querySelector('#pz-mots'), R=wrap.querySelector('#pz-res');
+  function couvert(k){ var n=' '+k+' '; for(var a in actifs){ if(actifs[a] && n.indexOf(' '+a+' ')>=0) return a; } return null; }
+  function peindre(){
+    M.innerHTML=motsCles.filter(function(k){return actifs[k];}).map(function(k){ return '<span class="pill" style="color:#6B4FA8;border:1px solid #c9b8ea">⏸ « '+esc(k)+' » <button type="button" class="btn-ghost" data-x="'+esc(k)+'" style="padding:0 6px" title="Reprendre">✕</button></span>'; }).join('');
+    var q=cleCli(f.value);
+    L.innerHTML=cles.filter(function(k){ return !q || k.indexOf(q)>=0; }).map(function(k){ var c=couvert(k), parMot=c&&c!==k;
+      return '<label style="display:flex;gap:10px;align-items:center;padding:5px 4px;margin:0;font-weight:500;cursor:pointer'+(parMot?';opacity:.6':'')+'"><input type="checkbox" data-k="'+esc(k)+'"'+(c?' checked':'')+(parMot?' disabled':'')+' style="width:20px;height:20px">'+esc(noms[k])+(parMot?'<span class="sub" style="margin-left:auto">par « '+esc(c)+' »</span>':'')+'</label>'; }).join('')||'<div class="sub">Aucun nom.</div>';
+    var nAuj=rows.filter(function(r){ return couvert(cleCli(r.client)); }).length;
+    R.textContent=nAuj+' ligne(s) du '+curDate.split('-').reverse().join('/')+' seront en pause.';
+  }
   peindre();
   f.addEventListener('input',peindre);
-  L.addEventListener('change',function(e){ var k=e.target.getAttribute('data-k'); if(k!=null) coche[k]=e.target.checked; });
-  wrap.querySelector('#pz-all').addEventListener('click',function(){ visibles().forEach(function(k){ coche[k]=true; }); peindre(); });
-  wrap.querySelector('#pz-none').addEventListener('click',function(){ visibles().forEach(function(k){ coche[k]=false; }); peindre(); });
+  L.addEventListener('change',function(e){ var k=e.target.getAttribute('data-k'); if(k!=null){ actifs[k]=e.target.checked; peindre(); } });
+  M.addEventListener('click',function(e){ var k=e.target.getAttribute('data-x'); if(k!=null){ actifs[k]=false; peindre(); } });
+  wrap.querySelector('#pz-add').addEventListener('click',function(){ var k=cleCli(wrap.querySelector('#pz-mot').value); if(!k)return; if(motsCles.indexOf(k)<0&&!noms[k])motsCles.push(k); actifs[k]=true; wrap.querySelector('#pz-mot').value=''; peindre(); });
   wrap.querySelector('#pz-cancel').addEventListener('click',function(){ wrap.remove(); });
   wrap.querySelector('#pz-ok').addEventListener('click',function(){
-    var avant=nbPause(), np={};
-    cles.forEach(function(k){ if(coche[k]) np[k]=CFG.enPause[k]||{nom:noms[k],depuis:todayISO()}; });
-    var ajout=Object.keys(np).filter(function(k){return !CFG.enPause[k];}).length, retire=Object.keys(CFG.enPause).filter(function(k){return !np[k];}).length;
+    var np={}; Object.keys(actifs).forEach(function(k){ if(actifs[k]) np[k]=CFG.enPause[k]||{nom:noms[k]||k,depuis:todayISO()}; });
+    var ajoutes=Object.keys(np).filter(function(k){return !CFG.enPause[k];}).length, repris=Object.keys(CFG.enPause).filter(function(k){return !np[k];}).length;
     CFG.enPause=np; wrap.remove();
     scheduleSaveConfig(); renderRows(); renderResults(); if(typeof updateSummary==='function')updateSummary();
-    if(ajout||retire) alert((ajout?ajout+' client(s) mis en pause. ':'')+(retire?retire+' client(s) repris.':''));
+    if(ajoutes||repris) alert((ajoutes?ajoutes+' entrée(s) mise(s) en pause. ':'')+(repris?repris+' reprise(s).':''));
   });
 }
 function ouvrirAjout(pos){
