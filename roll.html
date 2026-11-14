@@ -40,7 +40,7 @@ main{padding-bottom:110px}
 </style>
 </head>
 <body>
-<header><b>🧺 Roll BdL</b><button id="moiBtn" onclick="changerMoi()"></button></header>
+<header><b onclick="location.href=location.pathname" style="cursor:pointer" title="Retour à l'accueil">🧺 Roll BdL</b><button id="moiBtn" onclick="changerMoi()"></button></header>
 <main id="main"><div class="carte">Chargement…</div></main>
 <button id="bAnnul" type="button" onclick="annulerDernier()" style="display:none;position:fixed;left:16px;right:16px;bottom:calc(max(16px,env(safe-area-inset-bottom)) + 92px);z-index:51;padding:12px 14px;border-radius:14px;border:2px solid #b3261e;background:#fff;color:#b3261e;font-size:17px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.18)"></button>
 <div id="barre"><button class="gros" id="bChg" onclick="ecranChargement()" style="display:none">🚚</button><button class="gros" id="bOu" onclick="jeSuisChez()" style="display:none">📍 Où ?</button><button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner</button><button class="gros" id="bNum" onclick="ouvrirNumero()">⌨ N°</button></div>
