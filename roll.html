@@ -55,10 +55,10 @@ var sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false}});
 // il n'est pas à charger aujourd'hui → retiré des listes « au quai » et des alertes, montré à part.
 function pourDe(n){var m=String(n||'').match(/📅\s*(\d{1,2})\/(\d{1,2})/);if(!m)return null;var a=new Date(),d=new Date(a.getFullYear(),+m[2]-1,+m[1]);if(d<new Date(a.getFullYear(),a.getMonth(),a.getDate()-180))d.setFullYear(a.getFullYear()+1);return d;}
 function plusTard(x){var d=pourDe(x&&x.note);if(!d)return false;var a=new Date();return d>new Date(a.getFullYear(),a.getMonth(),a.getDate(),23,59);}
-(function(){var o=sb.rpc.bind(sb);sb.rpc=function(fn,args){var pr=o(fn,args);
-  if(fn==='roll_scan'&&args)Promise.resolve(pr).then(function(r){if(r&&!r.error&&r.data&&r.data.ok){try{localStorage.setItem('roll_dernier_scan',JSON.stringify({n:args.p_numero,e:args.p_etape,c:args.p_client||'',t:Date.now()}));}catch(e){}setTimeout(majAnnul,50);}}).catch(function(){});
-  if(fn==='roll_scan'&&args&&args.p_etape==='charge')Promise.resolve(pr).then(function(r){if(r&&!r.error&&r.data&&r.data.ok){try{localStorage.setItem('roll_dernier_charge',new Date().toISOString());}catch(e){}}}).catch(function(){});
-  if(fn==='roll_camion'||fn==='roll_client')return Promise.resolve(pr).then(function(r){try{var d=r&&r.data;
+(function(){var o=sb.rpc.bind(sb);sb.rpc=function(fn,args){var pr=Promise.resolve(o(fn,args));   // UNE seule exécution de la requête (la requête Supabase repart à chaque .then)
+  if(fn==='roll_scan'&&args)pr.then(function(r){if(r&&!r.error&&r.data&&r.data.ok){try{localStorage.setItem('roll_dernier_scan',JSON.stringify({n:args.p_numero,e:args.p_etape,c:args.p_client||'',t:Date.now()}));}catch(e){}setTimeout(majAnnul,50);}}).catch(function(){});
+  if(fn==='roll_scan'&&args&&args.p_etape==='charge')pr.then(function(r){if(r&&!r.error&&r.data&&r.data.ok){try{localStorage.setItem('roll_dernier_charge',new Date().toISOString());}catch(e){}}}).catch(function(){});
+  if(fn==='roll_camion'||fn==='roll_client')return pr.then(function(r){try{var d=r&&r.data;
     if(d&&Array.isArray(d.a_quai)){d.plus_tard=d.a_quai.filter(plusTard);d.a_quai=d.a_quai.filter(function(x){return !plusTard(x);});}
     if(d&&Array.isArray(d.a_decharger)){d.plus_tard=d.a_decharger.filter(function(x){return x.etat==='pret'&&plusTard(x);});d.a_decharger=d.a_decharger.filter(function(x){return !(x.etat==='pret'&&plusTard(x));});}
   }catch(e){}return r;});
