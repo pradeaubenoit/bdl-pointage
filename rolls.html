@@ -50,6 +50,14 @@ input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);borde
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co', SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
 var $=function(i){return document.getElementById(i);};
+/* Tri de la liste des rolls : numéro (défaut), client, date du dernier scan (plus anciens d'abord, ou l'inverse) */
+var TRI='num';try{TRI=localStorage.getItem('rolls_tri')||'num';}catch(e){}
+function flecheTri(k){return (TRI===k||(k==='date'&&TRI==='date-'))?(TRI==='date-'?' ▼':' ▲'):'';}
+function trierListe(l){l=l.slice();
+  if(TRI==='date')l.sort(function(a,b){return String(a.maj_le||'').localeCompare(String(b.maj_le||''));});
+  else if(TRI==='date-')l.sort(function(a,b){return String(b.maj_le||'').localeCompare(String(a.maj_le||''));});
+  else if(TRI==='client')l.sort(function(a,b){return String(a.client||'~').localeCompare(String(b.client||'~'),'fr')||a.numero.localeCompare(b.numero);});
+  return l;}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 async function q(p){var r=await p;if(r.error)throw r.error;return r.data;}
 var ETATS={bdl:'Vide à la BdL',pret:'Rempli, prêt',chauffeur:'Dans le camion',client:'Chez le client',retour:'En retour',sale:'Sale, à la BdL'};
@@ -92,7 +100,7 @@ VUES.liste=async function(){
     (oublies.length?'<div style="margin-bottom:4px">📦 <b>'+oublies.length+' chariot'+(oublies.length>1?'s':'')+' resté'+(oublies.length>1?'s':'')+' au quai alors que le client a été livré</b> (oubli au chargement, ou parti sans scan) : '+oublies.map(function(o){return esc(o.r.numero)+' pour '+esc(o.r.client)+' (rempli '+fmtQ(o.r.maj_le)+', livré '+fmtQ(o.l.quand)+' par '+esc(o.l.personne||'?')+')';}).join(' · ')+'</div>':'')+
     (camion.length?'<div>🚚 <b>'+camion.length+' chariot'+(camion.length>1?'s':'')+' encore dans un camion, pas livré</b> (déchargement incomplet ?) : '+camion.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?')+' ('+esc(r.personne||'')+')';}).join(' · ')+'</div>':'')+
     (quai.length?'<div style="margin-top:4px">🧺 <b>'+quai.length+' chariot'+(quai.length>1?'s':'')+' prêt'+(quai.length>1?'s':'')+' depuis plus de 24 h, pas chargé'+(quai.length>1?'s':'')+'</b> : '+quai.map(function(r){return esc(r.numero)+' pour '+esc(r.client||'?');}).join(' · ')+'</div>':'')+'</div>';
-  h+='<div class="carte"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><input id="rq" placeholder="Chercher un roll ou un client…" style="flex:1">'+(filtre?'<button class="btn" id="rTout">Tout afficher</button>':'')+'</div><div id="rRes" style="margin-bottom:8px"></div><div id="rLot" class="noprint" style="display:none;position:sticky;top:0;z-index:5;background:#1f2a35;color:#fff;border-radius:8px;padding:8px 12px;margin-bottom:8px"></div><table><thead><tr><th class="noprint"><input type="checkbox" id="rAll" title="Tout cocher"></th><th>Roll</th><th>État</th><th>Client</th><th>Dernier scan</th><th>Par</th></tr></thead><tbody id="rT"></tbody></table></div>'+
+  h+='<div class="carte"><div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><input id="rq" placeholder="Chercher un roll ou un client…" style="flex:1">'+(filtre?'<button class="btn" id="rTout">Tout afficher</button>':'')+'</div><div id="rRes" style="margin-bottom:8px"></div><div id="rLot" class="noprint" style="display:none;position:sticky;top:0;z-index:5;background:#1f2a35;color:#fff;border-radius:8px;padding:8px 12px;margin-bottom:8px"></div><table><thead><tr><th class="noprint"><input type="checkbox" id="rAll" title="Tout cocher"></th><th data-tri="num" style="cursor:pointer" title="Trier par numéro">Roll'+flecheTri('num')+'</th><th>État</th><th data-tri="client" style="cursor:pointer" title="Trier par client">Client'+flecheTri('client')+'</th><th data-tri="date" style="cursor:pointer" title="Trier par date : plus anciens d\'abord, recliquer pour inverser">Dernier scan'+flecheTri('date')+'</th><th>Par</th></tr></thead><tbody id="rT"></tbody></table></div>'+
     '<div class="carte noprint"><h2>Ajouter des rolls</h2><input id="aN" type="number" min="1" max="500" value="10" style="width:90px"> <button class="btn p" id="aOk">Créer les suivants</button> <span class="s">Numéros à la suite du dernier (R-021, R-022…).</span></div>';
   $('main').innerHTML=h;
   $('rq').value=rechMem;
@@ -111,10 +119,12 @@ VUES.liste=async function(){
     $('rRes').innerHTML=t&&nTot?'<div style="background:var(--bleu2);border-radius:8px;padding:8px 12px;font-size:15px"><b>« '+esc($('rq').value.trim())+' »'+(filtre?' dans « '+esc(filtre==='vieux'?'chez un client depuis '+SEUIL_J+' j':ETATS[filtre])+' »':'')+' : '+nTot+' chariot'+(nTot>1?'s':'')+'</b> — '+['client','chauffeur','pret','retour','sale','bdl'].filter(function(e){return n2[e];}).map(function(e){return '<span data-er="'+e+'" title="Afficher seulement ceux-là" style="cursor:pointer;padding:1px 6px;border-radius:6px;'+(etatRech===e?'background:var(--bleu);color:#fff':'text-decoration:underline dotted')+'"><b>'+n2[e]+'</b> '+esc(ETATS[e]).toLowerCase()+'</span>';}).join(' · ')+(boutonsLiv?'<div class="noprint">'+boutonsLiv+'</div>':'')+'</div>':'';
     document.querySelectorAll('[data-er]').forEach(function(b){b.onclick=function(){etatRech=etatRech===b.dataset.er?'':b.dataset.er;rendre();};});
     document.querySelectorAll('[data-liv]').forEach(function(b){b.onclick=function(){livrerSansScan(b.getAttribute('data-liv'),aLivrer[b.getAttribute('data-liv')]);};});
+    l=trierListe(l);
     $('rT').innerHTML=l.map(function(r){var j=jours(r.maj_le),v=(r.etat==='client'||r.etat==='retour')&&j>=SEUIL_J;
       return '<tr style="cursor:pointer" data-r="'+r.id+'"><td class="noprint" data-ck><input type="checkbox" data-c="'+r.id+'"'+(coches[r.id]?' checked':'')+'></td><td><b>'+esc(r.numero)+'</b></td><td><span class="etat e-'+esc(r.etat)+'">'+esc(ETATS[r.etat]||r.etat)+'</span></td><td>'+esc(r.client||'—')+'</td><td class="'+(v?'vieux':'')+'">'+fmtQ(r.maj_le)+' <span class="s">('+j+' j)</span></td><td>'+esc(r.personne||'')+(AVANT[r.id]&&/^Bureau/.test(r.personne||'')?' <span class="s">(avant : '+esc(AVANT[r.id])+')</span>':'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="s">Aucun roll.'+(t&&filtre?' (recherche limitée à la tuile « '+esc(ETATS[filtre]||filtre)+' » : cliquez « Tout afficher »)':'')+'</td></tr>';
     LISTE_VUE=l;barreLot();}
   $('rq').oninput=rendre;rendre();
+  document.querySelectorAll('[data-tri]').forEach(function(th){th.onclick=function(){var k=th.dataset.tri;TRI=(TRI===k&&k==='date')?'date-':(TRI==='date-'&&k==='date')?'date':k;try{localStorage.setItem('rolls_tri',TRI);}catch(e){}VUES.liste();};});
   document.querySelectorAll('[data-f]').forEach(function(x){x.onclick=function(){filtre=filtre===x.dataset.f?'':x.dataset.f;etatRech='';VUES.liste();};});   // la tuile s'ajoute à la recherche
   if($('rTout'))$('rTout').onclick=function(){filtre='';VUES.liste();};
   $('rT').onclick=function(e){
