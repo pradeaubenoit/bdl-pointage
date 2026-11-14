@@ -267,9 +267,10 @@
           <input type="text" id="sr-find" list="client-list" placeholder="Chercher…" style="flex:1;min-width:130px">
           <input type="text" id="sr-replace" list="client-list" placeholder="Remplacer par…" style="flex:1;min-width:130px">
           <button id="sr-do" class="btn-primary">Remplacer partout</button>
+          <button id="sr-tout" class="btn" title="Corrige ce nom sur TOUTES les journées enregistrées (passées et à venir)">Sur toutes les journées</button>
           <span id="sr-count" class="sub"></span>
         </div>
-        <div class="sub" style="margin-top:6px">Tapez pour surligner les lignes correspondantes. « Remplacer partout » corrige le nom sur toutes les lignes de la journée en cours.</div>
+        <div class="sub" style="margin-top:6px">Tapez pour surligner les lignes correspondantes. « Remplacer partout » corrige le nom dans la journée affichée ; « Sur toutes les journées » le corrige aussi dans toutes les autres journées enregistrées.</div>
       </div>
       <div id="rows"></div>
     </section>
@@ -455,13 +456,18 @@ function estFait(r){ return !!(r&&r._fait); }
 function estLav(r){ return !!(r&&(r._lav||r.machine==='laveuse')); }
 /* ABSENT / IGNORÉ : client prévu mais pas de linge ce jour. Reste sur le plan (barré), n'est pas compté
    dans le travail, et n'est PAS envoyé comme « lavé » à l'atelier. Persisté par ligne : CFG.ignById[date][id]. */
-function estIgn(r){ return !!(r&&r._ign); }
+/* HORS SAISON (pause) : clients mis en pause quelques mois (thermes…). Leurs lignes RESTENT dans les journées
+   (pour les retrouver à la reprise), mais sont traitées comme absentes : pas lavées, pas comptées, pas envoyées
+   à l'atelier. Liste : CFG.enPause = { 'nom en minuscules': {nom, depuis} }. */
+function cleCli(n){ return String(n||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function estPause(r){ return !!(r && CFG && CFG.enPause && CFG.enPause[cleCli(r.client)]); }
+function estIgn(r){ return !!(r&&(r._ign||estPause(r))); }
 function triFaits(l){ return l.map(function(r,i){return {r:r,i:i};}).sort(function(a,b){var ta=a.r._faitAt!=null?a.r._faitAt:1e9, tb=b.r._faitAt!=null?b.r._faitAt:1e9; return (ta-tb)||(a.i-b.i);}).map(function(x){return x.r;}); }
 /* LIVRAISON SUIVANTE : ligne lavée aujourd'hui mais qui part à la prochaine livraison (ex. peignoirs du samedi pour lundi).
    Persisté par ligne : CFG.suivById[date][id]. L'atelier la saisit directement sur le jour de livraison. */
 function toggleSuiv(r){ if(!r)return; r._suiv=!r._suiv; persistFaits(); scheduleSaveConfig(); renderRows(); }
 function libJourCourt(iso){ var p=iso.split('-').map(Number); var d=new Date(p[0],p[1]-1,p[2]); return ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'][d.getDay()]+' '+String(p[2]).padStart(2,'0')+'/'+String(p[1]).padStart(2,'0'); }
-function toggleIgn(r){ if(!r)return; r._ign=!r._ign; if(r._ign){ r._fait=false; r._faitAt=null; r._lav=false; }
+function toggleIgn(r){ if(!r||estPause(r))return; r._ign=!r._ign; if(r._ign){ r._fait=false; r._faitAt=null; r._lav=false; }
   persistFaits(); scheduleSaveConfig(); renderRows(); renderResults(); scheduleSavePlan(); }
 function persistFaits(){
   var fb={},lb={};
@@ -636,6 +642,40 @@ function ecrireSecours(d, liste){
     if(old&&old.rows&&liste.length<old.rows.length/2&&old.rows.length>=4) return;   // ne pas écraser une version complète par une version suspecte
     localStorage.setItem(cleSecours(d), JSON.stringify({t:Date.now(), rows:liste.map(function(r){return {id:r.id,client:r.client,postes:r.postes,machine:r.machine,code:r.code,nbTransferts:r.nbTransferts};})}));
   }catch(e){}
+}
+/* Remplacer un nom de client sur TOUTES les journées enregistrées (pas seulement la journée affichée) */
+async function srReplaceTout(){
+  var f=(document.getElementById('sr-find').value||'').trim(), t=(document.getElementById('sr-replace').value||'').trim();
+  if(!f){alert('Indiquez le nom à chercher.');return;} if(!t){alert('Indiquez le nouveau nom (Remplacer par…).');return;}
+  var cEl=document.getElementById('sr-count'), btn=document.getElementById('sr-tout');
+  var re=new RegExp(f.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig');
+  try{
+    if(cEl)cEl.textContent='Recherche…';
+    var motif='%'+f.replace(/[%_\\]/g,function(c){return '\\'+c;})+'%';
+    var r=await sb.from('plan_charges').select('id,client,date_jour').eq('user_id',USER.id).ilike('client',motif).limit(10000);
+    if(r.error) throw r.error;
+    var autres=(r.data||[]).filter(function(x){return x.date_jour!==curDate;});
+    var nCur=(rows||[]).filter(function(x){return (x.client||'').toLowerCase().indexOf(f.toLowerCase())>=0;}).length;
+    var jours={}; autres.forEach(function(x){jours[x.date_jour]=1;});
+    var nj=Object.keys(jours).length;
+    if(!autres.length&&!nCur){ if(cEl)cEl.textContent='0 ligne trouvée'; return; }
+    if(!confirm('Remplacer « '+f+' » par « '+t+' » :\n\n• '+nCur+' ligne(s) dans la journée affichée\n• '+autres.length+' ligne(s) sur '+nj+' autre(s) journée(s)\n\nContinuer ?')){ if(cEl)cEl.textContent=''; return; }
+    if(btn)btn.disabled=true;
+    if(nCur) srReplace();   // journée affichée : comme d'habitude (elle sera enregistrée)
+    var parNom={}; autres.forEach(function(x){ var nv=String(x.client||'').replace(re,t); (parNom[nv]=parNom[nv]||[]).push(x.id); });
+    var fait=0;
+    for(var nv in parNom){ var ids=parNom[nv];
+      for(var k=0;k<ids.length;k+=100){
+        var u=await sb.from('plan_charges').update({client:nv}).eq('user_id',USER.id).in('id',ids.slice(k,k+100));
+        if(u.error) throw u.error; fait+=Math.min(100,ids.length-k);
+        if(cEl)cEl.textContent='Enregistrement… '+fait+' / '+autres.length;
+      }
+    }
+    lingeType={}; try{ await loadLingeType(); }catch(e){}
+    try{ await loadClientNames(); }catch(e){}
+    if(cEl)cEl.textContent=(nCur+fait)+' ligne'+((nCur+fait)>1?'s':'')+' modifiée'+((nCur+fait)>1?'s':'')+' sur '+(nj+(nCur?1:0))+' journée(s)';
+  }catch(e){ alert('Erreur : '+(e.message||e)+'\n\nUne partie a peut-être été remplacée : relancez, les lignes déjà corrigées ne seront plus trouvées.'); if(cEl)cEl.textContent=''; }
+  finally{ if(btn)btn.disabled=false; }
 }
 function dedoublonner(data){
   // Pendant un enregistrement, l'ancienne et la nouvelle version cohabitent un instant : on garde la plus récente de chaque ligne.
@@ -1877,7 +1917,7 @@ function renderResults(){
   }
   // Filtre par poste (opérateur)
   if(isOperateur){ var _pf=[['tous','Tous'],['faxm','FAXM'],['pliage_table','Table'],['repassage','Repassage']]; h+='<div class="pr-search no-print" style="gap:6px">'+_pf.map(function(p){return '<button class="btn-ghost pfilt'+(posteFilter===p[0]?' on':'')+'" data-pf="'+p[0]+'">'+p[1]+'</button>';}).join('')+'</div>'; }
-  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-next" class="btn-ghost" title="Occurrence suivante" style="padding:4px 10px;color:#1d4ed8">\u2193 suivant</button><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button>'+((adminUnlocked||!isOperateur)?'<button type="button" id="pr-alltop" class="btn-ghost" title="Remonter tous les morceaux de ce client tout en haut" style="color:var(--teal)">\u2b06 toutes en tête</button><button type="button" id="pr-take" class="btn-ghost" style="color:var(--teal)" title="Prendre les lignes sélectionnées pour les poser où tu veux">\u270B prendre la sélection</button><button type="button" id="pr-report" class="btn-ghost" style="color:#6B4FA8" title="Reporter les lignes sélectionnées sur un autre jour">\u{1F4C5} reporter la sélection</button>':'')+'<span id="pr-count" class="sub"></span></div>';
+  h+='<div class="pr-search no-print"><input type="text" id="pr-find" list="client-list" placeholder="\u{1F50D} Rechercher un client\u2026" value="'+esc(planQuery)+'"><button type="button" id="pr-next" class="btn-ghost" title="Occurrence suivante" style="padding:4px 10px;color:#1d4ed8">\u2193 suivant</button><button type="button" id="pr-clear" class="btn-ghost" title="Effacer" style="padding:4px 10px">\u2715</button>'+((adminUnlocked||!isOperateur)?'<button type="button" id="pr-alltop" class="btn-ghost" title="Remonter tous les morceaux de ce client tout en haut" style="color:var(--teal)">\u2b06 toutes en tête</button><button type="button" id="pr-take" class="btn-ghost" style="color:var(--teal)" title="Prendre les lignes sélectionnées pour les poser où tu veux">\u270B prendre la sélection</button><button type="button" id="pr-report" class="btn-ghost" style="color:#6B4FA8" title="Reporter les lignes sélectionnées sur un autre jour">\u{1F4C5} reporter la sélection</button>'+'<button type="button" id="pr-pause" class="btn-ghost" style="color:#6B4FA8" title="Mettre des clients en pause (fin de saison) ou les reprendre">\u23f8 hors saison'+(nbPause()?' ('+nbPause()+')':'')+'</button>':'')+'<span id="pr-count" class="sub"></span></div>';
   if(modeReport) h+='<div class="no-print" style="position:sticky;top:0;z-index:5;background:#EEEAF7;border:1px solid #6B4FA8;border-radius:10px;padding:10px 12px;margin:8px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="color:#6B4FA8">\u{1F4C5} Report : touche les lignes à reporter</b><button type="button" id="rp-all" class="btn-ghost" style="color:#6B4FA8">tout le reste</button><button type="button" id="rp-go" class="btn-primary" style="background:#6B4FA8">\u{1F4C5} choisir le jour \u2192</button><button type="button" id="rp-cancel" class="btn-ghost">annuler</button></div>';
   h+='<div class="sech">Ordre de lavage<span class="fait-count no-print">'+_nf+' / '+rows.length+' fait'+(_nf>1?'s':'')+'</span>'+(((adminUnlocked||!isOperateur)&&undoSnap)?'<button class="btn-ghost no-print" id="undo-move" title="Annuler le dernier déplacement" style="margin-left:10px;color:#8a1a12;font-size:12px;padding:2px 10px">\u21b6 annuler le déplacement</button>':'')+'</div>';
 if(pickedId!=null||(pickedSel&&pickedSel.length)){ var _pn=''; if(pickedId!=null){for(var _z=0;_z<rows.length;_z++){if(rows[_z].id===pickedId){_pn=(rows[_z].client||'').trim();break;}}} else {_pn='s\u00e9lection ('+pickedSel.length+' lignes)';}
@@ -1898,7 +1938,9 @@ if(pickedId!=null||(pickedSel&&pickedSel.length)){ var _pn=''; if(pickedId!=null
     var _mk=(_incoh?'<span class="pill" style="background:#fdecec;color:#c62828" title="Le nom ne correspond pas au type du code de lavage : vérifie le code">\u26A0 code ?</span>':'')+(((CFG.cadenas||{})[_kk])?'<span class="pill" title="Figé : l\'optimiseur ne le déplace pas">\u{1F512}</span>':'')+(((CFG.attelages||{})[_kk])?'<span class="pill" title="Attelé juste après : '+esc((CFG.attelages||{})[_kk])+'">\u26D3\uFE0F</span>':'');
 var _cS=codeByNum(r.code); var _dry=(_cS&&_cS.sechageMin!=null?_cS.sechageMin:(typeOfCode(_cS)==='drap'?2.5:35))*60;
     var _hr='';
-    if(estIgn(r)){
+    if(estPause(r)){
+      _hr='<span class="pill" style="margin-left:6px;color:#6B4FA8" title="Client hors saison : reste dans le plan pour la reprise, mais n\'est pas lavé ni envoyé à l\'atelier">\u23f8 hors saison</span>';
+    } else if(estIgn(r)){
       _hr='<span class="pill" style="margin-left:6px;color:#8a1a12" title="Client absent ce jour : pas lavé, pas envoyé à l\'atelier">\u2205 absent ce jour</span>';
     } else if(estFait(r) && r.machine==='tunnel'){
       var _fc=(r._faitAt!=null)?r._faitAt:(_lastFaitAt!=null?_lastFaitAt:(curDate===todayISO()?nowSec():parseHeure(CFG.heureDemarrage)));  // gelé, sinon on comble avec l'heure du fait précédent
@@ -1923,7 +1965,7 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
     var _dragH=_isEditor?'<span class="drag-h no-print" title="Glisser pour déplacer">\u22ee\u22ee</span>':'';
     var _ign=estIgn(r);
     // « fait » à gauche, « absent » tout à DROITE de la ligne (loin de « fait », pour ne plus se tromper de bouton).
-    var _faitBtn=(!isOperateur)?(_ign?'<button class="btn-ghost bl-ign no-print on" data-ign="'+i+'" title="Remettre ce client présent">\u21b6 présent</button>'
+    var _faitBtn=(!isOperateur)?(estPause(r)?'':_ign?'<button class="btn-ghost bl-ign no-print on" data-ign="'+i+'" title="Remettre ce client présent">\u21b6 présent</button>'
         :'<button class="btn-ghost bl-fait no-print'+(_fait?' on':'')+'" data-fait="'+i+'" title="Pointer comme fait">'+(_fait?'\u2713 fait':'fait')+'</button>')
       :(_fait?'<span class="pill" style="color:var(--teal)">\u2713 fait</span>':'');
     var _ignBtn=(!isOperateur && !_fait && !_ign)?'<button class="btn-ghost bl-ign no-print" data-ign="'+i+'" title="Client absent ce jour : reste sur le plan mais n\'apparaît pas à l\'atelier" style="margin-left:auto;border:1px dashed #d9a5a0">\u2205 absent</button>':'';
@@ -1977,6 +2019,7 @@ var pris=(pickedId===r.id)||(pickedSel&&pickedSel.indexOf(r.id)>=0);
     var pc=document.getElementById('pr-clear'); if(pc)pc.addEventListener('click',function(){planQuery='';pf.value='';prLast='';prIdx=0;prSel={};prHighlight(true);updateAlltopLabel();pf.focus();});
     var pnx=document.getElementById('pr-next'); if(pnx)pnx.addEventListener('click',function(){ var v=(pf.value||'').trim().toLowerCase(); if(v!==prLast){ prLast=v; planQuery=pf.value; prHighlight(true); updateAlltopLabel(); } else { prNext(); } });
     var pa=document.getElementById('pr-alltop'); if(pa)pa.addEventListener('click',function(){planQuery=pf.value;remonterToutesEnTete();});
+    var pz=document.getElementById('pr-pause'); if(pz)pz.addEventListener('click',ouvrirPause);
        var pt=document.getElementById('pr-take'); if(pt)pt.addEventListener('click',function(){ var ids=rows.filter(function(r){return prSel[r.id];}).map(function(r){return r.id;}); if(!ids.length){alert('S\u00e9lectionne d\u2019abord des lignes (recherche, puis clic sur les lignes encadr\u00e9es).');return;} pickedSel=ids; prSel={}; pickedId=null; renderResults(); });
     var prr=document.getElementById('pr-report'); if(prr)prr.addEventListener('click',function(){ if(!modeReport && !prSelCount()){ modeReport=true; renderResults(); return; } reporterSelection(); });
     var rpa=document.getElementById('rp-all'); if(rpa)rpa.addEventListener('click',function(){ rows.forEach(function(r){ if(!estFait(r)&&!estIgn(r)) prSel[r.id]=true; }); renderResults(); });
@@ -2143,8 +2186,10 @@ var _finB=_anc+_delta;
 }
 /* Reprendre la JOURNÉE EN COURS (celle du Plan de travail, avec l'ordre que tu viens de réorganiser)
    directement dans le Brouillon, prête à optimiser puis diffuser. Plus besoin de retaper la date. */
+var bPause=[];   // lignes des clients hors saison : non optimisées, recopiées telles quelles à la diffusion
 function bLoadCurrent(){
 bRows=triFaits(rows.filter(estFait)).concat(rows.filter(function(x){return !estFait(x)&&!estIgn(x);})).map(function(r){return Object.assign({},r);});
+  bPause=rows.filter(estPause).map(function(r){return Object.assign({},r);});
   bBase=bRows.slice(); bBaseDate=curDate; bLoaded=true; bProposFin=null; bOptimized=false;
   var bb=document.getElementById('b-base'); if(bb)bb.value=curDate;
   var bt=document.getElementById('b-target'); if(bt)bt.value=isoPlus(curDate,7);
@@ -2154,7 +2199,7 @@ bRows=triFaits(rows.filter(estFait)).concat(rows.filter(function(x){return !estF
 async function bLoad(){
   var d=document.getElementById('b-base').value||isoMinus(todayISO(),1);
   document.getElementById('b-status').textContent='Chargement…';
-  bRows=await loadDay(d);bBase=bRows.slice();bBaseDate=d;bLoaded=true;bProposFin=null;bOptimized=false;
+  bRows=await loadDay(d);bPause=bRows.filter(estPause);bRows=bRows.filter(function(r){return !estPause(r);});bBase=bRows.slice();bBaseDate=d;bLoaded=true;bProposFin=null;bOptimized=false;
   document.getElementById('b-target').value=isoPlus(d,7);
   document.getElementById('b-status').textContent=bRows.length?('Jour chargé : '+bRows.length+' client(s). Vous pouvez optimiser puis diffuser.'):'Aucune donnée pour ce jour.';
   renderBrouillon();
@@ -2381,7 +2426,7 @@ async function bDiffuse(){
     if(del.error){netErr();alert('La suppression de l\'ancien plan du '+target+' a été refusée :\n'+del.error.message+'\n\nC\'est probablement ça qui te ramène l\'ordre brut.');return;}
     var chk0=await sb.from('plan_charges').select('ordre').eq('user_id',USER.id).eq('date_jour',target);
     if((chk0.data||[]).length>0){netErr();alert('\u26a0 '+chk0.data.length+' anciennes lignes subsistent pour le '+target+' malgré la suppression. C\'est ça qui fait revenir l\'ordre brut (l\'ancien et le nouveau cohabitent). Il faut débloquer la suppression côté Supabase.');return;}
-    var payload=bRows.map(function(r,i){return rowToDb(r,target,i);});
+    var payload=bRows.concat(bPause||[]).map(function(r,i){return rowToDb(r,target,i);});   // les clients hors saison suivent, en fin de journée, pour la reprise
     var ins=payload.length?await sb.from('plan_charges').insert(payload):{error:null};
     if(ins&&ins.error){netErr();alert('L\'écriture du plan a été refusée :\n'+ins.error.message);return;}
     var chk1=await sb.from('plan_charges').select('ordre').eq('user_id',USER.id).eq('date_jour',target);
@@ -2531,6 +2576,7 @@ document.getElementById('r-bouchon').addEventListener('input',function(e){var v=
 document.getElementById('date').addEventListener('change',async function(e){curDate=e.target.value||todayISO();prevTotals=await loadPrevTotals(curDate);await loadPlan(curDate);renderRows();renderResults();updateSummary();mergeClientNames();});
 document.getElementById('sr-find').addEventListener('input',srHighlight);
 document.getElementById('sr-do').addEventListener('click',srReplace);
+document.getElementById('sr-tout').addEventListener('click',srReplaceTout);
 document.getElementById('results').addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('.reopt-here');if(!b)return;var i=parseInt(b.getAttribute('data-i'));if(!isNaN(i))reOptimiserDepuis(i);});
 /* ----- Codes pour l'ordinateur du tunnel : n° client (mémorisé par client) + programme de lavage ----- */
 var MOTS_CAT_JS=/^(sac|sacs|gaz|a|eponge|eponges|drap|draps|serviette|serviettes|peignoir|peignoirs|linge|blouse|blouses|couleur|couleurs|bavoir|bavoirs|couverture|couvertures|plastique|resident|residents|sante|et|de|du|des|la|le|les|spa|spas|table|couette|couettes|cuisine|cuisines|alese|aleses|tenue|tenues)$/;
@@ -2670,6 +2716,38 @@ if(pickedId!=null||pickedSel){pickedId=null;pickedSel=null;renderResults();retur
   });
 })();
 
+function nbPause(){ return Object.keys((CFG&&CFG.enPause)||{}).length; }
+function ouvrirPause(){
+  if(!CFG.enPause)CFG.enPause={};
+  var noms={}; rows.forEach(function(r){ var k=cleCli(r.client); if(k&&!noms[k]) noms[k]=(r.client||'').trim(); });
+  Object.keys(CFG.enPause).forEach(function(k){ if(!noms[k]) noms[k]=CFG.enPause[k].nom||k; });
+  var cles=Object.keys(noms).sort(function(a,b){ var pa=!!CFG.enPause[a], pb=!!CFG.enPause[b]; return (pb-pa)||a.localeCompare(b,'fr'); });
+  var coche={}; cles.forEach(function(k){ coche[k]=!!CFG.enPause[k]; });
+  var wrap=document.createElement('div'); wrap.className='modal-bg';
+  wrap.innerHTML='<div class="modal-card" style="max-width:560px"><h3>\u23f8 Clients hors saison</h3>'+
+    '<div class="sub">Cochez les clients à mettre en pause. Leurs lignes restent dans le plan (barrées, en bas) et reviendront telles quelles à la reprise : il suffira de les décocher. En pause, ils ne sont ni lavés, ni comptés dans le temps, ni envoyés à l\'atelier.</div>'+
+    '<div style="display:flex;gap:8px;margin:10px 0"><input type="text" id="pz-f" placeholder="Filtrer (ex. therme)\u2026" style="flex:1"><button type="button" class="btn-ghost" id="pz-all">cocher la liste filtrée</button><button type="button" class="btn-ghost" id="pz-none">décocher</button></div>'+
+    '<div id="pz-l" style="max-height:50vh;overflow:auto;border:1px solid var(--line,#ddd);border-radius:8px;padding:6px"></div>'+
+    '<div class="modal-actions"><button type="button" class="btn-ghost" id="pz-cancel">Annuler</button><button type="button" class="btn-primary" id="pz-ok">Enregistrer</button></div></div>';
+  document.body.appendChild(wrap);
+  var f=wrap.querySelector('#pz-f'), L=wrap.querySelector('#pz-l');
+  function visibles(){ var q=cleCli(f.value); return cles.filter(function(k){ return !q || k.indexOf(q)>=0; }); }
+  function peindre(){ L.innerHTML=visibles().map(function(k){ var d=CFG.enPause[k]&&CFG.enPause[k].depuis; return '<label style="display:flex;gap:10px;align-items:center;padding:6px 4px;margin:0;font-weight:500;cursor:pointer"><input type="checkbox" data-k="'+esc(k)+'"'+(coche[k]?' checked':'')+' style="width:20px;height:20px">'+esc(noms[k])+(d?'<span class="sub" style="margin-left:auto">en pause depuis le '+esc(d.split('-').reverse().join('/'))+'</span>':'')+'</label>'; }).join('')||'<div class="sub">Aucun client.</div>'; }
+  peindre();
+  f.addEventListener('input',peindre);
+  L.addEventListener('change',function(e){ var k=e.target.getAttribute('data-k'); if(k!=null) coche[k]=e.target.checked; });
+  wrap.querySelector('#pz-all').addEventListener('click',function(){ visibles().forEach(function(k){ coche[k]=true; }); peindre(); });
+  wrap.querySelector('#pz-none').addEventListener('click',function(){ visibles().forEach(function(k){ coche[k]=false; }); peindre(); });
+  wrap.querySelector('#pz-cancel').addEventListener('click',function(){ wrap.remove(); });
+  wrap.querySelector('#pz-ok').addEventListener('click',function(){
+    var avant=nbPause(), np={};
+    cles.forEach(function(k){ if(coche[k]) np[k]=CFG.enPause[k]||{nom:noms[k],depuis:todayISO()}; });
+    var ajout=Object.keys(np).filter(function(k){return !CFG.enPause[k];}).length, retire=Object.keys(CFG.enPause).filter(function(k){return !np[k];}).length;
+    CFG.enPause=np; wrap.remove();
+    scheduleSaveConfig(); renderRows(); renderResults(); if(typeof updateSummary==='function')updateSummary();
+    if(ajout||retire) alert((ajout?ajout+' client(s) mis en pause. ':'')+(retire?retire+' client(s) repris.':''));
+  });
+}
 function ouvrirAjout(pos){
   var chips=POSTES.map(function(p){return '<button type="button" class="chip" data-p="'+p[0]+'">'+p[1]+'</button>';}).join('');
   var wrap=document.createElement('div'); wrap.className='modal-bg';
