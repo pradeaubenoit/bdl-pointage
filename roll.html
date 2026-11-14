@@ -42,6 +42,7 @@ main{padding-bottom:110px}
 <body>
 <header><b>🧺 Roll BdL</b><button id="moiBtn" onclick="changerMoi()"></button></header>
 <main id="main"><div class="carte">Chargement…</div></main>
+<button id="bAnnul" type="button" onclick="annulerDernier()" style="display:none;position:fixed;left:16px;right:16px;bottom:calc(max(16px,env(safe-area-inset-bottom)) + 92px);z-index:51;padding:12px 14px;border-radius:14px;border:2px solid #b3261e;background:#fff;color:#b3261e;font-size:17px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.18)"></button>
 <div id="barre"><button class="gros" id="bChg" onclick="ecranChargement()" style="display:none">🚚</button><button class="gros" id="bOu" onclick="jeSuisChez()" style="display:none">📍 Où ?</button><button class="gros" id="bScan" onclick="ouvrirScanner()">📷 Scanner</button><button class="gros" id="bNum" onclick="ouvrirNumero()">⌨ N°</button></div>
 <div id="numFond"><div class="boite"><div class="s" style="text-align:center">Numéro écrit sur le chariot</div><div id="numAff">R-</div><div class="pave" id="pave"></div><div style="display:flex;gap:10px;margin-top:10px"><button class="gros g" style="margin:0" onclick="fermerNumero()">Annuler</button><button class="gros v" id="numOk" style="margin:0" onclick="validerNumero()">Ouvrir</button></div><div id="numListe" style="margin-top:10px"></div><button class="gros o" id="numCh" style="margin:8px 0 0;display:none" onclick="chargerNumeros()">🚚 Charger</button></div></div>
 <div id="scanFond"><div class="bar" id="scanHaut">Approchez le code-barres dans le cadre — dans n'importe quel sens</div><div id="lecteur"></div><div class="bar" id="scanBas"><button class="gros g" style="margin:0" onclick="fermerScanner()">Annuler</button></div></div>
@@ -55,6 +56,7 @@ var sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false}});
 function pourDe(n){var m=String(n||'').match(/📅\s*(\d{1,2})\/(\d{1,2})/);if(!m)return null;var a=new Date(),d=new Date(a.getFullYear(),+m[2]-1,+m[1]);if(d<new Date(a.getFullYear(),a.getMonth(),a.getDate()-180))d.setFullYear(a.getFullYear()+1);return d;}
 function plusTard(x){var d=pourDe(x&&x.note);if(!d)return false;var a=new Date();return d>new Date(a.getFullYear(),a.getMonth(),a.getDate(),23,59);}
 (function(){var o=sb.rpc.bind(sb);sb.rpc=function(fn,args){var pr=o(fn,args);
+  if(fn==='roll_scan'&&args)Promise.resolve(pr).then(function(r){if(r&&!r.error&&r.data&&r.data.ok){try{localStorage.setItem('roll_dernier_scan',JSON.stringify({n:args.p_numero,e:args.p_etape,c:args.p_client||'',t:Date.now()}));}catch(e){}setTimeout(majAnnul,50);}}).catch(function(){});
   if(fn==='roll_scan'&&args&&args.p_etape==='charge')Promise.resolve(pr).then(function(r){if(r&&!r.error&&r.data&&r.data.ok){try{localStorage.setItem('roll_dernier_charge',new Date().toISOString());}catch(e){}}}).catch(function(){});
   if(fn==='roll_camion'||fn==='roll_client')return Promise.resolve(pr).then(function(r){try{var d=r&&r.data;
     if(d&&Array.isArray(d.a_quai)){d.plus_tard=d.a_quai.filter(plusTard);d.a_quai=d.a_quai.filter(function(x){return !plusTard(x);});}
@@ -172,6 +174,21 @@ function changerMoi(){if(MOI&&!confirm('Changer de personne sur ce téléphone ?
     choisirMoi(function(){INFO=garde;afficherOuAccueil();});
   },function(){$('main').innerHTML='<div class="carte alerte">Pas de réseau : réessayez.</div>';});}
 
+/* ---------- « ↩ Annuler mon dernier scan » (30 min, seulement le sien, seulement si personne n'a rescanné le chariot) ---------- */
+function dernierScan(){try{var d=JSON.parse(localStorage.getItem('roll_dernier_scan')||'null');if(d&&Date.now()-d.t<30*60000)return d;}catch(e){}return null;}
+function majAnnul(){var b=$('bAnnul');if(!b)return;var d=MOI&&dernierScan();if(!d){b.style.display='none';return;}
+  b.textContent='↩ Annuler : '+d.n+' '+(LIB[d.e]||d.e)+(d.c?' ('+d.c+')':'');b.style.display='block';}
+setInterval(majAnnul,30000);setTimeout(majAnnul,800);
+async function annulerDernier(){var d=dernierScan();if(!d||!MOI){majAnnul();return;}
+  if(!confirm('Annuler ce scan ?\n\n'+d.n+' '+(LIB[d.e]||d.e)+(d.c?' — '+d.c:'')+'\n\nLe chariot reprend l\'état qu\'il avait juste avant.'))return;
+  try{var r=await sb.rpc('roll_annuler',{p_personne:MOI.id,p_code:MOI.code});if(r.error)throw r.error;
+    try{localStorage.removeItem('roll_dernier_scan');}catch(e){}majAnnul();
+    if(!r.data.ok){alert(r.data.error||'Annulation refusée');return;}
+    if(navigator.vibrate)navigator.vibrate(120);
+    alert('✓ Annulé : '+r.data.numero+' '+(LIB[r.data.etape]||r.data.etape)+(r.data.client?' — '+r.data.client:''));
+    location.reload();
+  }catch(e){alert('Annulation impossible : '+(e.message||e)+'\n(Pas de réseau ? Réessayez.)');}
+}
 function afficher(msg){
   majMoi();
   var I=INFO,h='';
