@@ -43,7 +43,7 @@ input,select{font-size:15px;padding:8px 10px;border:1px solid var(--ligne);borde
 </style>
 </head>
 <body>
-<header class="noprint"><b>🧺 Rolls BdL</b><a href="#liste" id="n-liste">Rolls</a><a href="#clients" id="n-clients">Par client</a><a href="#personnes" id="n-personnes">Personnes</a><a href="#etiquettes" id="n-etiquettes">Étiquettes QR</a><a href="#qrclients" id="n-qrclients">QR clients</a><a href="#tournees" id="n-tournees">Tournées</a><a href="#incidents" id="n-incidents">⚠ Incidents</a></header>
+<header class="noprint"><b>🧺 Rolls BdL</b><a href="#liste" id="n-liste">Rolls</a><a href="#clients" id="n-clients">Par client</a><a href="#personnes" id="n-personnes">Personnes</a><a href="#etiquettes" id="n-etiquettes">Étiquettes QR</a><a href="#qrclients" id="n-qrclients">QR clients</a><a href="#tournees" id="n-tournees">Tournées</a><a href="#incidents" id="n-incidents">⚠ Incidents</a><a href="#controle" id="n-controle">🔎 Contrôle chauffeurs</a></header>
 <div id="login" class="carte" style="display:none"><h2>Connexion</h2><div class="s">Même compte que la GMAO.</div><input id="lE" type="email" placeholder="E-mail"><input id="lP" type="password" placeholder="Mot de passe"><button class="btn p" id="lOk">Se connecter</button><div id="lErr" class="s" style="color:var(--rouge)"></div></div>
 <main id="main"></main>
 <script>
@@ -485,6 +485,63 @@ VUES.incidents=async function(){
       return;}
     var tr=e.target.closest('[data-r]');if(tr)historique(tr.dataset.r);};
 };
+/* ---------- CONTRÔLE CHAUFFEURS : alertes archivées (rolls_alertes) + anomalies détectées dans les scans ---------- */
+var perCtl=7,chCtl=null;
+VUES.controle=async function(){
+  var p2=function(n){return String(n).padStart(2,'0');};
+  var depuis=new Date(Date.now()-perCtl*864e5);if(perCtl===1){depuis=new Date();depuis.setHours(0,0,0,0);}
+  var al=[];try{al=await q(sb.from('rolls_alertes').select('*').gte('quand',depuis.toISOString()).order('quand',{ascending:false}).limit(5000));}catch(e){al=[];}
+  var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').gte('quand',new Date(depuis.getTime()-864e5).toISOString()).order('quand').limit(30000));
+  sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau)/.test(s.note||'');});
+  var num={},idDe={};ROLLS.forEach(function(r){num[r.id]=r.numero;idDe[r.numero]=r.id;});
+  var dansPer=function(s){return new Date(s.quand)>=depuis;};
+  var A=[];   // {quand,ch,type,grave,client,rolls:[{n,id}],rep}
+  var R=function(id){return {n:num[id]||'?',id:id};};
+  // 1. Alertes archivées (réponses du chauffeur au chargement / au départ)
+  al.forEach(function(a){var normal=/^(normal|pas pour aujourd|rien de prêt : normal)/.test(a.reponse||'');
+    A.push({quand:a.quand,ch:a.personne,type:a.moment==='depart'?'Départ incomplet':'Chargement incomplet',k:'dep',grave:!normal,client:a.client,
+      rolls:(a.restes||[]).map(function(n){return {n:n,id:idDe[n]};}),rep:(a.charges!=null?a.charges+' chargé'+(a.charges>1?'s':'')+' · ':'')+'réponse : « '+(a.reponse||'—')+' »'});});
+  // index des scans par chariot et par personne
+  var parRoll={},parPers={};sc.forEach(function(s,i){s.i=i;(parRoll[s.roll_id]=parRoll[s.roll_id]||[]).push(s);(parPers[s.personne||'?']=parPers[s.personne||'?']||[]).push(s);});
+  var surClient=function(s){return s.etape==='livre'||s.etape==='repris'||s.etape==='arrivee'||s.etape==='depart';};
+  sc.forEach(function(s){if(!dansPer(s))return;var t=new Date(s.quand);
+    // 2. Arrivée chez un client choisie dans la liste au lieu du QR
+    if(s.etape==='arrivee'&&/choisi dans la liste/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Arrivée sans QR client',k:'qr',grave:false,client:s.client,rolls:[],rep:''});
+    // 3. Chariot « chargé » chez le client juste avant d'être livré : pas scanné au chargement à la BdL
+    if(s.etape==='charge'){var L=parRoll[s.roll_id];for(var j=L.indexOf(s)+1;j<L.length;j++){var u=L[j];if(new Date(u.quand)-t>180000)break;
+        if(u.etape==='livre'&&u.personne===s.personne){A.push({quand:s.quand,ch:s.personne,type:'Pas scanné au chargement BdL',k:'chg',grave:true,client:u.client,rolls:[R(s.roll_id)],rep:'chargé et livré à '+p2(t.getHours())+':'+p2(t.getMinutes())+' chez le client'});break;}}}
+    if(s.etape==='livre'&&/déposé sans scan de chargement/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Pas scanné au chargement BdL',k:'chg',grave:true,client:s.client,rolls:[R(s.roll_id)],rep:'livré alors que le chariot était encore au quai pour l\'appli'});
+    // 4. « Déchargé à la BdL » scanné alors qu'il était chez un client il y a moins de 5 min
+    if(s.etape==='rentre'){var P=parPers[s.personne||'?'],k=P.indexOf(s),prev=null;for(var m=k-1;m>=0;m--){if(P[m].etape!=='rentre'){prev=P[m];break;}}
+      if(prev&&surClient(prev)&&t-new Date(prev.quand)<=300000)A.push({quand:s.quand,ch:s.personne,type:'Déchargé « à la BdL » en étant chez un client',k:'imp',grave:true,client:prev.client,rolls:[R(s.roll_id)],rep:'dernier scan chez '+(prev.client||'?')+' à '+p2(new Date(prev.quand).getHours())+':'+p2(new Date(prev.quand).getMinutes())});}
+    // 5. Repris chez un client mais jamais déchargé ni vidé ensuite
+    if(s.etape==='repris'){var L2=parRoll[s.roll_id],nx=L2[L2.indexOf(s)+1];
+      if(nx&&nx.etape!=='rentre'&&nx.etape!=='vide'&&nx.etape!=='repris')A.push({quand:s.quand,ch:s.personne,type:'Repris, jamais déchargé ni vidé',k:'rep',grave:true,client:s.client,rolls:[R(s.roll_id)],rep:'étape suivante : '+(LIB_E[nx.etape]||nx.etape)+' par '+(nx.personne||'?')});
+      else if(!nx&&Date.now()-t>12*3600e3)A.push({quand:s.quand,ch:s.personne,type:'Repris, jamais déchargé ni vidé',k:'rep',grave:true,client:s.client,rolls:[R(s.roll_id)],rep:'toujours pas déchargé'});}
+  });
+  var chauffeurs=PERS.filter(function(x){return /chauffeur/.test(x.role||'');}).map(function(x){return x.nom;});
+  A.forEach(function(a){if(a.ch&&chauffeurs.indexOf(a.ch)<0)chauffeurs.push(a.ch);});chauffeurs.sort(function(a,b){return a.localeCompare(b,'fr');});
+  A=A.filter(function(a){return chauffeurs.indexOf(a.ch)>=0;});
+  A.sort(function(a,b){return String(b.quand).localeCompare(String(a.quand));});
+  var COLS=[['dep','Départs / chargements incomplets'],['chg','Pas scanné au chargement'],['imp','Action impossible'],['rep','Repris non déchargé'],['qr','Arrivées sans QR']];
+  var h='<h1>🔎 Contrôle chauffeurs</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(d===perCtl?' p':'')+'" data-pc="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
+    ' &nbsp; <button class="btn" onclick="window.print()">🖨 Imprimer</button><div class="s" style="margin-top:6px">Réponses des chauffeurs au chargement et au départ (archivées), et anomalies relevées automatiquement dans leurs scans. Les corrections du bureau ne sont pas comptées.</div></div>';
+  h+='<div class="carte"><table><thead><tr><th>Chauffeur</th>'+COLS.map(function(c){return '<th>'+c[1]+'</th>';}).join('')+'<th>Total à vérifier</th></tr></thead><tbody>'+
+    chauffeurs.map(function(c){var L=A.filter(function(a){return a.ch===c;});var tot=L.filter(function(a){return a.grave;}).length;
+      return '<tr data-cc="'+esc(c)+'" style="cursor:pointer'+(chCtl===c?';background:#eef4fb':'')+'"><td><b>🚚 '+esc(c)+'</b></td>'+COLS.map(function(k){var n=L.filter(function(a){return a.k===k[0];}).length,g=L.filter(function(a){return a.k===k[0]&&a.grave;}).length;
+        return '<td>'+(n?'<b style="color:'+(g?'var(--rouge)':'var(--orange)')+'">'+n+'</b>'+(k[0]==='dep'&&n>g?' <span class="s">('+(n-g)+' normal'+(n-g>1?'s':'')+')</span>':''):'<span class="s">0</span>')+'</td>';}).join('')+
+        '<td><b style="font-size:16px;color:'+(tot?'var(--rouge)':'var(--vert)')+'">'+tot+'</b></td></tr>';}).join('')+'</tbody></table><div class="s" style="margin-top:6px">Touchez un chauffeur pour ne voir que ses anomalies.</div></div>';
+  var D=chCtl?A.filter(function(a){return a.ch===chCtl;}):A;
+  var dt=function(x){var d=new Date(x);return p2(d.getDate())+'/'+p2(d.getMonth()+1)+' '+p2(d.getHours())+':'+p2(d.getMinutes());};
+  h+='<div class="carte"><h2 style="margin-top:0">Détail'+(chCtl?' — 🚚 '+esc(chCtl)+' <button class="btn" data-cc="">Tous</button>':'')+' <span class="s">('+D.length+')</span></h2>'+
+    (D.length?'<table><thead><tr><th>Quand</th><th>Chauffeur</th><th>Anomalie</th><th>Client</th><th>Chariots</th><th>Détail / réponse</th></tr></thead><tbody>'+
+    D.map(function(a){return '<tr'+(a.grave?'':' style="color:#777"')+'><td>'+dt(a.quand)+'</td><td>'+esc(a.ch)+'</td><td><b style="color:'+(a.grave?'var(--rouge)':'inherit')+'">'+esc(a.type)+'</b></td><td>'+esc(a.client||'')+'</td><td>'+
+      a.rolls.map(function(r){return r.id?'<span data-r="'+esc(r.id)+'" style="cursor:pointer;text-decoration:underline dotted">'+esc(r.n)+'</span>':esc(r.n);}).join(', ')+'</td><td>'+esc(a.rep)+'</td></tr>';}).join('')+'</tbody></table>':'<div class="s">Aucune anomalie sur la période. 👍</div>')+'</div>';
+  $('main').innerHTML=h;
+  $('main').onclick=function(e){var r=e.target.closest('[data-r]');if(r)return historique(r.dataset.r);var c=e.target.closest('[data-cc]');if(c){chCtl=c.dataset.cc||null;VUES.controle();}};
+  document.querySelectorAll('[data-pc]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();perCtl=+b.dataset.pc;VUES.controle();};});
+};
+var LIB_E={vide:'vidé au tunnel',rempli:'rempli',charge:'chargé',livre:'livré',repris:'repris',rentre:'déchargé à la BdL',arrivee:'arrivée',depart:'départ'};
 /* ---------- TOURNÉES : horaires du chauffeur, déduits de ses scans ---------- */
 var jourT=null;
 var chT=null;   // chauffeur affiché (null = tous)
