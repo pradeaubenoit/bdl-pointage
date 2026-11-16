@@ -495,6 +495,8 @@ var chT=null;   // chauffeur affiché (null = tous)
 function scansTournee(sc){
   var deja={},dern={};   // a-t-il déjà livré/repris ce jour-là ? dernier arrêt client
   var norme=function(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();};
+  // « Chargé » scanné chez le client juste avant de le déposer (chargement oublié à la BdL) : ce n'est ni une reprise ni un passage à la BdL → ignoré
+  sc=sc.filter(function(s,i){if(s.etape!=='charge')return true;for(var m=i+1;m<sc.length;m++){var t=sc[m];if(new Date(t.quand)-new Date(s.quand)>180000)break;if(t.roll_id===s.roll_id&&t.personne===s.personne&&t.etape==='livre')return false;}return true;});
   sc.forEach(function(s,i){
     var j=String(s.quand).slice(0,10),k=(s.personne||'')+'|'+j;
     if(s.etape==='charge'&&deja[k]){
