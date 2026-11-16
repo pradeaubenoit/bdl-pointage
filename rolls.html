@@ -487,11 +487,13 @@ VUES.incidents=async function(){
 };
 /* ---------- CONTRÔLE CHAUFFEURS : alertes archivées (rolls_alertes) + anomalies détectées dans les scans ---------- */
 var perCtl=7,chCtl=null;
+// Supabase ne renvoie que 1000 lignes par requête : on lit par paquets jusqu'au bout
+async function toutLire(f){var out=[],p=0;for(;;){var r=await q(f().range(p,p+999));out=out.concat(r);if(r.length<1000||p>=100000)break;p+=1000;}return out;}
 VUES.controle=async function(){
   var p2=function(n){return String(n).padStart(2,'0');};
   var depuis=new Date(Date.now()-perCtl*864e5);if(perCtl===1){depuis=new Date();depuis.setHours(0,0,0,0);}
-  var al=[];try{al=await q(sb.from('rolls_alertes').select('*').gte('quand',depuis.toISOString()).order('quand',{ascending:false}).limit(5000));}catch(e){al=[];}
-  var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').gte('quand',new Date(depuis.getTime()-864e5).toISOString()).order('quand').limit(30000));
+  var al=[];try{al=await toutLire(function(){return sb.from('rolls_alertes').select('*').gte('quand',depuis.toISOString()).order('quand',{ascending:false});});}catch(e){al=[];}
+  var sc=await toutLire(function(){return sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').gte('quand',new Date(depuis.getTime()-864e5).toISOString()).order('quand').order('id');});
   sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau)/.test(s.note||'');});
   var num={},idDe={};ROLLS.forEach(function(r){num[r.id]=r.numero;idDe[r.numero]=r.id;});
   var dansPer=function(s){return new Date(s.quand)>=depuis;};
@@ -503,9 +505,12 @@ VUES.controle=async function(){
       rolls:(a.restes||[]).map(function(n){return {n:n,id:idDe[n]};}),rep:(a.charges!=null?a.charges+' chargé'+(a.charges>1?'s':'')+' · ':'')+'réponse : « '+(a.reponse||'—')+' »'});});
   // index des scans par chariot et par personne
   var parRoll={},parPers={};sc.forEach(function(s,i){s.i=i;(parRoll[s.roll_id]=parRoll[s.roll_id]||[]).push(s);(parPers[s.personne||'?']=parPers[s.personne||'?']||[]).push(s);});
+  var DERN_ARR={};
   var surClient=function(s){return s.etape==='livre'||s.etape==='repris'||s.etape==='arrivee'||s.etape==='depart';};
   sc.forEach(function(s){if(!dansPer(s))return;var t=new Date(s.quand);
     // 2. Arrivée chez un client choisie dans la liste au lieu du QR
+    var nrmC=function(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();};
+    if(s.etape==='arrivee'){var ka=(s.personne||'')+'|'+nrmC(s.client),dj=DERN_ARR[ka];DERN_ARR[ka]=t;if(dj&&t-dj<20*60e3)return;}
     if(s.etape==='arrivee'&&/choisi dans la liste/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Arrivée sans QR client',k:'qr',grave:false,client:s.client,rolls:[],rep:''});
     // 3. Chariot « chargé » chez le client juste avant d'être livré : pas scanné au chargement à la BdL
     if(s.etape==='charge'){var L=parRoll[s.roll_id];for(var j=L.indexOf(s)+1;j<L.length;j++){var u=L[j];if(new Date(u.quand)-t>180000)break;
