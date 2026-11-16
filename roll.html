@@ -69,6 +69,13 @@ var $=function(i){return document.getElementById(i);};
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function lire(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
 function ecrire(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+/* ---------- Archive des alertes chauffeur (table rolls_alertes) : chaque réponse est gardée pour le bureau ---------- */
+function jourIso(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function cleRep(c,q){return nrm(c)+'|'+(q||[]).slice().sort().join(',');}
+function dejaRepondu(c,q){return !!lire('roll_rep_'+jourIso(),{})[cleRep(c,q)];}
+function noterAlerte(moment,client,charges,restes,reponse,memo){if(!MOI)return;
+  if(memo){var m=lire('roll_rep_'+jourIso(),{});m[cleRep(client,restes)]=reponse;ecrire('roll_rep_'+jourIso(),m);}
+  sb.rpc('roll_alerte',{p_personne:String(MOI.id),p_code:MOI.code,p_moment:moment,p_client:client||null,p_charges:charges==null?null:charges,p_restes:restes||[],p_reponse:reponse,p_detail:null}).then(function(r){if(r&&r.error)console.warn(r.error);}).catch(function(){});}
 // En tournée = ce téléphone a déjà livré ou repris un chariot chez un client aujourd'hui
 function enTournee(){try{return lire('roll_tournee','')===new Date().toDateString();}catch(e){return false;}}
 var ETATS={bdl:'Vide à la BdL',pret:'Rempli — prêt à partir',chauffeur:'Dans le camion',client:'Chez le client',retour:'Repris — en retour',sale:'Sale — déchargé à la BdL'};
@@ -132,9 +139,30 @@ async function chargerArret(msg){
   if(!MOI)return choisirMoi(function(){chargerArret();});
   if(NOUVEL_ARRET&&aRole('chauffeur')){NOUVEL_ARRET=false;noterArret('arrivee',ARRET.client);
     try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});var li=cm&&cm.data&&cm.data.ok?incomplets(cm.data):[];
-      if(li.length){if(navigator.vibrate)navigator.vibrate([300,150,300]);msg=bandeauIncomplet(li)+'<div style="font-size:15px;margin-top:6px">Ces chariots sont restés à la BdL. Prévenez Benoît.</div>'+(msg?'<div style="margin-top:8px">'+msg+'</div>':'');}}catch(e){}}
+      var nonRep=li.filter(function(x){return !dejaRepondu(x.c,x.q);});
+      if(nonRep.length){if(navigator.vibrate)navigator.vibrate([300,150,300]);var m0=msg;return verifDepart(nonRep,function(){afficherArret(m0);});}
+      if(li.length){msg=bandeauIncomplet(li)+'<div style="font-size:15px;margin-top:6px">Ces chariots sont restés à la BdL. Prévenez Benoît.</div>'+(msg?'<div style="margin-top:8px">'+msg+'</div>':'');}}catch(e){}}
   afficherArret(msg);
 }
+// Parti de la BdL sans tous les chariots prêts pour un client qu'il livre : il doit dire pourquoi (réponse archivée pour le bureau)
+function verifDepart(liste,suite){var i=0;
+  function ecran(){if(i>=liste.length)return suite();var x=liste[i];
+    $('main').innerHTML='<div class="carte"><div class="alerte" style="font-size:20px;text-align:center">⛔ VOUS ÊTES PARTI SANS TOUS LES CHARIOTS</div>'+
+      '<div class="num" style="font-size:26px;margin-top:10px">'+esc(x.c)+'</div>'+
+      '<div style="font-size:20px;font-weight:700;margin:6px 0">'+x.ch+' / '+(x.ch+x.q.length)+' chargés</div>'+
+      '<div style="font-size:18px">Restés au quai : <b>'+x.q.map(esc).join(', ')+'</b></div>'+
+      '<div style="font-size:18px;font-weight:700;margin:12px 0 4px">Pourquoi ?</div>'+
+      '<button class="gros v" data-r="pas pour aujourd\'hui (normal)">📅 Pas pour aujourd\'hui (normal)</button>'+
+      '<button class="gros r" data-r="oublié au quai">😬 Oublié au quai</button>'+
+      '<button class="gros o" data-r="pas de place dans le camion">📦 Pas de place dans le camion</button>'+
+      '<button class="gros g" data-r="">✏ Autre raison…</button>'+
+      '<div class="s" style="margin-top:8px">Votre réponse est transmise au bureau.</div></div>';
+    $('main').onclick=function(e){var b=e.target.closest('[data-r]');if(!b)return;var r=b.getAttribute('data-r');
+      if(!r){r=(prompt('Pourquoi êtes-vous parti sans '+x.q.join(', ')+' ?')||'').trim();if(!r)return;r='autre : '+r;}
+      $('main').onclick=null;noterAlerte('depart',x.c,x.ch,x.q,r,true);
+      if(/^oublié/.test(r))fetch(LINGE_API,{method:'POST',body:JSON.stringify({action:'messageEnvoyer',de:'🚚 '+MOI.nom,client:x.c,journee:jourIso(),texte:'🚚 '+MOI.nom+' est parti sans '+x.q.join(', ')+' pour « '+x.c+' » (oublié au quai).'})}).catch(function(){});
+      i++;ecran();};}
+  ecran();}
 function afficherArret(msg){
   majMoi();
   var A=ARR,cam=A.a_decharger.filter(function(x){return x.etat==='chauffeur';}),quai=A.a_decharger.filter(function(x){return x.etat==='pret'&&pretAuDepart(x);});
@@ -502,9 +530,9 @@ async function ecranChargement(msg,d){
         '<button class="gros v" id="rOk">✓ Oui, normal (pas de livraison aujourd\'hui)</button>'+
         '<button class="gros r" id="rNon">✗ Non → prévenir l\'atelier</button>'+
         (x.vide?'':'<button class="gros g" id="rRet">← Retourner charger</button>')+'</div>';
-      $('rOk').onclick=function(){rep[c]='ok';suivant();};
-      $('rNon').onclick=function(){rep[c]='non';prevenir(c);suivant();};
-      if($('rRet'))$('rRet').onclick=function(){CHG=c;ecranChargement(null,d);};
+      $('rOk').onclick=function(){rep[c]='ok';noterAlerte('chargement',c,x.ch.length,x.q,x.vide?'rien de prêt : normal':'normal (pas de livraison aujourd\'hui)',true);suivant();};
+      $('rNon').onclick=function(){rep[c]='non';noterAlerte('chargement',c,x.ch.length,x.q,'pas normal : atelier prévenu',true);prevenir(c);suivant();};
+      if($('rRet'))$('rRet').onclick=function(){noterAlerte('chargement',c,x.ch.length,x.q,'retourne charger',false);CHG=c;ecranChargement(null,d);};
     }
     suivant();
   };
