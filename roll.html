@@ -73,6 +73,12 @@ function ecrire(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 function jourIso(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function cleRep(c,q){return nrm(c)+'|'+(q||[]).slice().sort().join(',');}
 function dejaRepondu(c,q){return !!lire('roll_rep_'+jourIso(),{})[cleRep(c,q)];}
+/* Chargement obligatoire : après avoir vidé son camion (ou ouvert l'écran Chargement), le chauffeur est À LA BDL.
+   Tant qu'il n'a pas touché « Terminer le chargement », il ne peut choisir aucun client (liste ou QR). */
+function chargeEnCours(){return !!(MOI&&aRole('chauffeur')&&!aRole('bureau')&&lire('roll_charge_'+MOI.id,false));}
+function poserCharge(v){if(MOI)ecrire('roll_charge_'+MOI.id,!!v);}
+function bloquerClient(){if(!chargeEnCours())return false;finArret();if(navigator.vibrate)navigator.vibrate([300,150,300]);
+  ecranChargement('<div style="color:var(--rouge);font-size:18px">⛔ Vous êtes en CHARGEMENT à la Blanchisserie.</div><div style="font-size:16px;margin-top:6px">Scannez vos chariots, puis touchez <b>« Terminer le chargement »</b> en bas. Vous pourrez ensuite aller chez vos clients.</div>');return true;}
 function noterAlerte(moment,client,charges,restes,reponse,memo){if(!MOI)return;
   if(memo){var m=lire('roll_rep_'+jourIso(),{});m[cleRep(client,restes)]=reponse;ecrire('roll_rep_'+jourIso(),m);}
   sb.rpc('roll_alerte',{p_personne:String(MOI.id),p_code:MOI.code,p_moment:moment,p_client:client||null,p_charges:charges==null?null:charges,p_restes:restes||[],p_reponse:reponse,p_detail:null}).then(function(r){if(r&&r.error)console.warn(r.error);}).catch(function(){});}
@@ -137,6 +143,7 @@ async function chargerArret(msg){
   INFO={personnes:ARR.personnes};
   if(MOI){var me=(ARR.personnes||[]).find(function(p){return p.id===MOI.id;});if(!me){MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}}else{MOI.role=me.role;MOI.nom=me.nom;ecrire('roll_moi',MOI);majMoi();}}
   if(!MOI)return choisirMoi(function(){chargerArret();});
+  if(bloquerClient())return;
   if(NOUVEL_ARRET&&aRole('chauffeur')){NOUVEL_ARRET=false;noterArret('arrivee',ARRET.client);
     try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});var li=cm&&cm.data&&cm.data.ok?incomplets(cm.data):[];
       var nonRep=li.filter(function(x){return !dejaRepondu(x.c,x.q);});
@@ -268,8 +275,10 @@ function actions(){
     }else if(I.etat==='pret'){
       // Rempli mais jamais chargé dans un camion : il est normalement encore au quai de la BdL
       $('acts').insertAdjacentHTML('beforeend','<div class="alerte" style="font-size:18px;text-align:center">⚠ Ce chariot n\'a pas été chargé dans un camion.<br>Pour l\'appli, il est encore <b>au quai de la BdL</b>.</div>');
-      bouton('Je ne suis plus chez '+ARRET.client,'o',function(){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}afficher();});
-      bouton('Il est bien ici : le déposer chez '+ARRET.client,'g',function(){if(confirm(I.numero+' n\'a pas été scanné « Chargé dans mon camion ».\n\nVous êtes VRAIMENT chez '+ARRET.client+' et vous le déposez ?'))scan('livre',ARRET.client,'déposé sans scan de chargement');});
+      // Cas fréquent : le chauffeur est encore À LA BDL et a choisi un client dans la liste en croyant « charger pour ce client »
+      if(navigator.vibrate)navigator.vibrate([300,150,300]);
+      bouton('🏭 Je suis à la Blanchisserie : le CHARGER dans mon camion','v',function(){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}if(typeof majMoi==='function')try{majMoi();}catch(e){}scan('charge',null);});
+      bouton('Il est bien ici : le déposer chez '+ARRET.client,'g',function(){if(prompt(I.numero+' n\'a JAMAIS été scanné au chargement : pour l\'appli il est encore au quai de la BdL.\n\nSi vous êtes vraiment chez « '+ARRET.client+' », tapez OUI pour le déposer.')!=='OUI')return;scan('livre',ARRET.client,'déposé sans scan de chargement');});
     }else{
       bouton('✅ Déposer chez '+ARRET.client,'v',function(){scan('livre',ARRET.client);});
     }
@@ -303,7 +312,7 @@ function actions(){
     // Chez un client (arrêt en cours), « Déchargé à la BdL » était pris à la place de « Je le reprends » : on demande confirmation
     if(sale)bouton('🏭 Déchargé à la BdL (linge sale)','v',function(){
       if(aRole('chauffeur')&&ARRET&&!arretExpire()){if(!confirm('Vous êtes noté chez « '+ARRET.client+' ».\n\nÊtes-vous bien RENTRÉ à la Blanchisserie ?\n\nSi vous êtes encore chez le client, appuyez sur Annuler puis sur « ↩ Je le reprends ».'))return;finArret();}
-      scan('rentre',null);});
+      poserCharge(true);scan('rentre',null);});
     if(I.etat==='retour')bouton('🏭 Vider tout mon camion d\'un coup','g',dechargerTout);
     if(!sale&&I.etat!=='sale'&&I.etat!=='chauffeur'&&!(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur')))bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
     if(I.etat==='retour'||I.etat==='client'||I.etat==='sale')bouton('📦 Chariot VIDE — rangé au dépôt BdL','g',function(){if(confirm(I.numero+' : chariot vide, rangé au dépôt ?\n(Il redevient libre, sans client.)'))scan('vide',null,'rangé vide au dépôt');});
@@ -468,6 +477,7 @@ document.addEventListener('visibilitychange',function(){if(document.visibilitySt
 async function ecranChargement(msg,d){
   if(!MOI)return;
   if(ARRET){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}}
+  poserCharge(true);
   if(CHG===null)CHG='';
   if(!d){$('main').innerHTML='<div class="carte">Chargement de la liste…</div>';
     try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(r.error)throw r.error;d=r.data;if(!d.ok)throw new Error(d.error);}
@@ -518,7 +528,7 @@ async function ecranChargement(msg,d){
     var pb=cl.filter(function(c){return (estFav(c)&&(g[c].vide||g[c].q.length))||(g[c].ch.length&&g[c].q.length);});
     var autres=cl.filter(function(c){return !estFav(c)&&!g[c].ch.length&&g[c].q.length;});
     var rep={};
-    function fin(){CHG=null;
+    function fin(){CHG=null;poserCharge(false);
       var nonOk=pb.filter(function(c){return rep[c]==='non';});
       $('main').innerHTML='<div class="carte ok">🏁 Chargement terminé<div style="font-size:18px;margin-top:6px">🚚 '+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+' dans le camion</div></div>'+
         (nonOk.length?'<div class="carte alerte">📨 Atelier prévenu pour : '+nonOk.map(esc).join(', ')+'</div>':'')+
@@ -564,7 +574,7 @@ async function dechargerTout(){
     for(var i=0;i<l.length;i++){$('dtOk').textContent='Envoi… '+(i+1)+' / '+l.length;
       try{var r2=await sb.rpc('roll_scan',{p_numero:l[i].numero,p_personne:MOI.id,p_code:MOI.code,p_etape:'rentre',p_client:null,p_note:'déchargé en lot (vider mon camion)'});
         if(r2.error)throw r2.error;if(!r2.data.ok)throw new Error(r2.data.error);ok.push(l[i].numero);}catch(e){ko.push(l[i].numero);if(/code/i.test(String(e.message||e)))break;}}
-    if(navigator.vibrate)navigator.vibrate(120);
+    if(navigator.vibrate)navigator.vibrate(120);if(ok.length)poserCharge(true);
     $('main').innerHTML='<div class="carte ok">✓ '+ok.length+' chariot'+(ok.length>1?'s':'')+' déchargé'+(ok.length>1?'s':'')+' à la BdL (sale)</div>'+
       (ko.length?'<div class="carte alerte">Pas enregistrés (réseau ?) : '+ko.map(esc).join(', ')+'</div><button class="gros" onclick="dechargerTout()">Réessayer</button>':'');
   };
@@ -704,6 +714,7 @@ async function validerNumero(){if(!NUMS)return;var n='R-'+NUMS.padStart(3,'0');
 function chargerNumeros(){if(!NUML||!NUML.length)return;var l=NUML.slice(),m=NUM_MODE;$('numCh').disabled=true;chargerListe(l,function(i,n){$('numCh').textContent='Envoi… '+i+' / '+n;},m);}
 /* ---------- « Je suis chez… » : le chauffeur choisit le client (QR absent ou abîmé) ---------- */
 async function jeSuisChez(suite){
+  if(bloquerClient())return;
   var cam=[];try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!r.error&&r.data&&r.data.ok)cam=r.data.camion;}catch(e){}
   var g={};cam.forEach(function(x){if(x.client)g[x.client]=(g[x.client]||0)+1;});
   var dans=Object.keys(g).sort(function(a,b){return a.localeCompare(b,'fr');});
