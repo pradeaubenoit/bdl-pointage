@@ -521,6 +521,7 @@ VUES.controle=async function(){
   var A=[];   // {quand,ch,type,grave,client,rolls:[{n,id}],rep}
   var R=function(id){return {n:num[id]||'?',id:id};};
   // 1. Alertes archivées (réponses du chauffeur au chargement / au départ)
+  al=al.filter(function(a){return (a.restes||[]).length>0;});   // « rien de prêt » : simple information, pas une anomalie
   al.forEach(function(a){var normal=/^(normal|pas pour aujourd|rien de prêt : normal)/.test(a.reponse||'');
     A.push({quand:a.quand,ch:a.personne,type:a.moment==='depart'?'Départ incomplet':'Chargement incomplet',k:'dep',grave:!normal,client:a.client,
       rolls:(a.restes||[]).map(function(n){return {n:n,id:idDe[n]};}),rep:(a.charges!=null?a.charges+' chargé'+(a.charges>1?'s':'')+' · ':'')+'réponse : « '+(a.reponse||'—')+' »'});});
