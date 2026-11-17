@@ -518,9 +518,12 @@ VUES.controle=async function(){
     if(s.etape==='livre'&&/déposé sans scan de chargement/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Pas scanné au chargement BdL',k:'chg',grave:true,client:s.client,rolls:[R(s.roll_id)],rep:'livré alors que le chariot était encore au quai pour l\'appli'});
     // 4. « Déchargé à la BdL » scanné alors qu'il était chez un client il y a moins de 5 min
     if(s.etape==='rentre'){var P=parPers[s.personne||'?'],k=P.indexOf(s),prev=null;for(var m=k-1;m>=0;m--){if(P[m].etape!=='rentre'){prev=P[m];break;}}
-      if(prev&&surClient(prev)&&t-new Date(prev.quand)<=300000)A.push({quand:s.quand,ch:s.personne,type:'Déchargé « à la BdL » en étant chez un client',k:'imp',grave:true,client:prev.client,rolls:[R(s.roll_id)],rep:'dernier scan chez '+(prev.client||'?')+' à '+p2(new Date(prev.quand).getHours())+':'+p2(new Date(prev.quand).getMinutes())});}
+      // Rattrapage fait à la BdL (« scan oublié chez le client », « repris sans scan ») : ce n'est pas une action impossible, c'est un oubli de scan chez le client
+      var rat=null;for(var m2=k-1;m2>=0&&m2>=k-3;m2--){if(P[m2].roll_id===s.roll_id&&/scan oublié chez le client|repris sans scan/.test(P[m2].note||'')){rat=P[m2];break;}}
+      if(rat)A.push({quand:s.quand,ch:s.personne,type:'Oubli de scanner chez le client',k:'oub',grave:true,client:rat.client,rolls:[R(s.roll_id)],rep:'livraison / reprise non scannées chez le client, rattrapées au déchargement à la BdL'});
+      else if(prev&&surClient(prev)&&t-new Date(prev.quand)<=300000)A.push({quand:s.quand,ch:s.personne,type:'Déchargé « à la BdL » en étant chez un client',k:'imp',grave:true,client:prev.client,rolls:[R(s.roll_id)],rep:'dernier scan chez '+(prev.client||'?')+' à '+p2(new Date(prev.quand).getHours())+':'+p2(new Date(prev.quand).getMinutes())});}
     // 5. Repris chez un client mais jamais déchargé ni vidé ensuite
-    if(s.etape==='repris'){var L2=parRoll[s.roll_id],nx=L2[L2.indexOf(s)+1];
+    if(s.etape==='repris'&&!/repris sans scan/.test(s.note||'')){var L2=parRoll[s.roll_id],nx=L2[L2.indexOf(s)+1];
       if(nx&&nx.etape!=='rentre'&&nx.etape!=='vide'&&nx.etape!=='repris')A.push({quand:s.quand,ch:s.personne,type:'Repris, jamais déchargé ni vidé',k:'rep',grave:true,client:s.client,rolls:[R(s.roll_id)],rep:'étape suivante : '+(LIB_E[nx.etape]||nx.etape)+' par '+(nx.personne||'?')});
       else if(!nx&&Date.now()-t>12*3600e3)A.push({quand:s.quand,ch:s.personne,type:'Repris, jamais déchargé ni vidé',k:'rep',grave:true,client:s.client,rolls:[R(s.roll_id)],rep:'toujours pas déchargé'});}
   });
@@ -528,7 +531,7 @@ VUES.controle=async function(){
   A.forEach(function(a){if(a.ch&&chauffeurs.indexOf(a.ch)<0)chauffeurs.push(a.ch);});chauffeurs.sort(function(a,b){return a.localeCompare(b,'fr');});
   A=A.filter(function(a){return chauffeurs.indexOf(a.ch)>=0;});
   A.sort(function(a,b){return String(b.quand).localeCompare(String(a.quand));});
-  var COLS=[['dep','Départs / chargements incomplets'],['chg','Pas scanné au chargement'],['imp','Action impossible'],['rep','Repris non déchargé'],['qr','Arrivées sans QR']];
+  var COLS=[['dep','Départs / chargements incomplets'],['chg','Pas scanné au chargement'],['oub','Oubli de scan chez le client'],['imp','Action impossible'],['rep','Repris non déchargé'],['qr','Client choisi dans la liste (QR client non scanné)']];
   var h='<h1>🔎 Contrôle chauffeurs</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(d===perCtl?' p':'')+'" data-pc="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
     ' &nbsp; <button class="btn" onclick="window.print()">🖨 Imprimer</button><div class="s" style="margin-top:6px">Réponses des chauffeurs au chargement et au départ (archivées), et anomalies relevées automatiquement dans leurs scans. Les corrections du bureau ne sont pas comptées.</div></div>';
   h+='<div class="carte"><table><thead><tr><th>Chauffeur</th>'+COLS.map(function(c){return '<th>'+c[1]+'</th>';}).join('')+'<th>Total à vérifier</th></tr></thead><tbody>'+
