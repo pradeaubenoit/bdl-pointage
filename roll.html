@@ -543,7 +543,7 @@ async function ecranChargement(msg,d){
         '<button class="gros v" id="rOk">✓ Oui, normal (pas de livraison aujourd\'hui)</button>'+
         '<button class="gros r" id="rNon">✗ Non → prévenir l\'atelier</button>'+
         (x.vide?'':'<button class="gros g" id="rRet">← Retourner charger</button>')+'</div>';
-      $('rOk').onclick=function(){rep[c]='ok';noterAlerte('chargement',c,x.ch.length,x.q,x.vide?'rien de prêt : normal':'normal (pas de livraison aujourd\'hui)',true);suivant();};
+      $('rOk').onclick=function(){rep[c]='ok';if(x.q.length)noterAlerte('chargement',c,x.ch.length,x.q,'normal (pas de livraison aujourd\'hui)',true);suivant();};
       $('rNon').onclick=function(){rep[c]='non';noterAlerte('chargement',c,x.ch.length,x.q,'pas normal : atelier prévenu',true);prevenir(c);suivant();};
       if($('rRet'))$('rRet').onclick=function(){noterAlerte('chargement',c,x.ch.length,x.q,'retourne charger',false);CHG=c;ecranChargement(null,d);};
     }
