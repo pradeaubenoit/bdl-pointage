@@ -2487,9 +2487,12 @@ async function refreshFromCloud(){
   }catch(e){}
 }
 /* Synchro permanente dans les deux sens : chaque écran (admin, laveur, finition) se réactualise depuis le
-   cloud toutes les 10 s — plan, pointages, quantités, priorités — pour voir ce que les autres ont fait.
+   cloud toutes les 30 s — plan, pointages, quantités, priorités — pour voir ce que les autres ont fait.
    Seuls les gestes réellement en cours (glissement, fenêtre ouverte) mettent la synchro en pause. */
-setInterval(function(){ if(USER)refreshFromCloud(); }, 10000);
+/* Économie de trafic Supabase (quota gratuit) : synchro toutes les 30 s, et seulement quand l'écran affiche l'appli.
+   Au retour sur l'appli (onglet rouvert, écran rallumé), on se resynchronise tout de suite. */
+setInterval(function(){ if(USER&&!document.hidden)refreshFromCloud(); }, 30000);
+document.addEventListener('visibilitychange',function(){ if(USER&&!document.hidden)refreshFromCloud(); });
 
 async function startApp(){
   document.getElementById('login').style.display='none';
