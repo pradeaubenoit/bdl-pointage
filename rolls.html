@@ -203,6 +203,7 @@ async function historique(id){
     '<button class="btn" data-cor="vide">🌀 Vidé au tunnel (libre)</button> '+
     (r.etat!=='sale'?'<button class="btn" id="corSale">🧺 Arrivé SALE à la BdL de chez…</button> ':'')+
     (!r.client&&r.etat!=='bdl'?'<button class="btn" id="corCli">🏷 Il était plein : indiquer le client</button> ':'')+
+    '<button class="btn" id="corChg">🚚 Chargé (linge propre) dans le camion de…</button> '+
     (r.client?'<button class="btn" data-cor="rentre">🏭 Déchargé à la BdL (sale)</button> <button class="btn" data-cor="repris">↩ Repris chez '+esc(r.client)+'</button> <button class="btn" data-cor="livre">🚚 Livré chez '+esc(r.client)+'</button>':'')+'</div>';
   var EV={vide:'bdl',rempli:'pret',charge:'chauffeur',livre:'client',repris:'retour',rentre:'sale'};
   if($('corCont'))$('corCont').onclick=async function(){
@@ -231,6 +232,25 @@ async function historique(id){
     try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(x){}
     try{await q(sb.from('rolls_scans').insert({roll_id:id,etape:'rempli',client:c,personne:qui,quand:quand,note:'correction du bureau : client oublié'}));
       await q(sb.from('rolls').update({client:c,maj_le:quand}).eq('id',id));r.client=c;historique(id);}catch(x){alert('Correction impossible : '+(x.message||x));}
+  };
+  // Chargé dans le camion d'un chauffeur (linge propre pour un client) : le chariot apparaît dans SON camion
+  if($('corChg'))$('corChg').onclick=async function(){
+    var ch=PERS.filter(function(p){return /chauffeur/.test(p.role||'')&&p.actif!==false;}).map(function(p){return p.nom;}).sort(function(a,b){return a.localeCompare(b,'fr');});
+    var n=prompt('Dans le camion de quel chauffeur ?\n\n'+ch.map(function(x,i){return (i+1)+'. '+x;}).join('\n')+'\n\nTapez le numéro :');if(!n)return;
+    var nom=ch[+n-1];if(!nom){alert('Numéro inconnu.');return;}
+    var connus=Array.from(new Set(ROLLS.map(function(x){return x.client;}).filter(Boolean))).sort(function(a,b){return a.localeCompare(b,'fr');});
+    var c=prompt(r.numero+' : linge propre pour quel client ?',r.client||'');if(!c||!c.trim())return;c=c.trim();
+    var ex=connus.find(function(x){return x.toLowerCase()===c.toLowerCase();});
+    if(!ex&&!confirm('« '+c+' » n\'est sur aucun autre chariot. Le garder quand même ?'))return;c=ex||c;
+    if(!confirm(r.numero+' : chargé, plein de linge propre pour « '+c+' », dans le camion de '+nom+' ?'))return;
+    var qui='Bureau',quand=new Date().toISOString();
+    try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(x){}
+    try{
+      await q(sb.from('rolls_scans').insert({roll_id:id,etape:'charge',client:c,personne:nom,quand:quand,note:'correction du bureau : chargé dans le camion de '+nom+' (par '+qui+')'}));
+      var maj={etat:'chauffeur',client:c,personne:nom,maj_le:quand};
+      await q(sb.from('rolls').update(maj).eq('id',id));
+      Object.assign(r,maj);historique(id);
+    }catch(x){alert('Correction impossible : '+(x.message||x));}
   };
   document.querySelectorAll('[data-cor]').forEach(function(bt){bt.onclick=async function(){
     var e=bt.dataset.cor,lib=L[e]||e;
@@ -514,8 +534,8 @@ VUES.controle=async function(){
     if(s.etape==='arrivee'&&/choisi dans la liste/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Arrivée sans QR client',k:'qr',grave:false,client:s.client,rolls:[],rep:''});
     // 3. Chariot « chargé » chez le client juste avant d'être livré : pas scanné au chargement à la BdL
     if(s.etape==='charge'){var L=parRoll[s.roll_id];for(var j=L.indexOf(s)+1;j<L.length;j++){var u=L[j];if(new Date(u.quand)-t>180000)break;
-        if(u.etape==='livre'&&u.personne===s.personne){A.push({quand:s.quand,ch:s.personne,type:'Pas scanné au chargement BdL',k:'chg',grave:true,client:u.client,rolls:[R(s.roll_id)],rep:'chargé et livré à '+p2(t.getHours())+':'+p2(t.getMinutes())+' chez le client'});break;}}}
-    if(s.etape==='livre'&&/déposé sans scan de chargement/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Pas scanné au chargement BdL',k:'chg',grave:true,client:s.client,rolls:[R(s.roll_id)],rep:'livré alors que le chariot était encore au quai pour l\'appli'});
+        if(u.etape==='livre'&&u.personne===s.personne){A.push({quand:s.quand,ch:s.personne,type:'Pas scanné au chargement BdL',k:'chg',grave:true,client:u.client,rolls:[R(s.roll_id)],rep:'scanné pour la 1re fois chez le client (heure = livraison) : jamais scanné au départ de la BdL'});break;}}}
+    if(s.etape==='livre'&&/déposé sans scan de chargement/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Pas scanné au chargement BdL',k:'chg',grave:true,client:s.client,rolls:[R(s.roll_id)],rep:'livré chez le client (heure = livraison) alors que, pour l\'appli, il était encore au quai : jamais scanné au départ de la BdL'});
     // 4. « Déchargé à la BdL » scanné alors qu'il était chez un client il y a moins de 5 min
     if(s.etape==='rentre'){var P=parPers[s.personne||'?'],k=P.indexOf(s),prev=null;for(var m=k-1;m>=0;m--){if(P[m].etape!=='rentre'){prev=P[m];break;}}
       // Rattrapage fait à la BdL (« scan oublié chez le client », « repris sans scan ») : ce n'est pas une action impossible, c'est un oubli de scan chez le client
@@ -531,7 +551,7 @@ VUES.controle=async function(){
   A.forEach(function(a){if(a.ch&&chauffeurs.indexOf(a.ch)<0)chauffeurs.push(a.ch);});chauffeurs.sort(function(a,b){return a.localeCompare(b,'fr');});
   A=A.filter(function(a){return chauffeurs.indexOf(a.ch)>=0;});
   A.sort(function(a,b){return String(b.quand).localeCompare(String(a.quand));});
-  var COLS=[['dep','Départs / chargements incomplets'],['chg','Pas scanné au chargement'],['oub','Oubli de scan chez le client'],['imp','Action impossible'],['rep','Repris non déchargé'],['qr','Client choisi dans la liste (QR client non scanné)']];
+  var COLS=[['dep','Départs / chargements incomplets'],['chg','Livré sans scan au départ BdL'],['oub','Oubli de scan chez le client'],['imp','Action impossible'],['rep','Repris non déchargé'],['qr','Client choisi dans la liste (QR client non scanné)']];
   var h='<h1>🔎 Contrôle chauffeurs</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(d===perCtl?' p':'')+'" data-pc="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
     ' &nbsp; <button class="btn" onclick="window.print()">🖨 Imprimer</button><div class="s" style="margin-top:6px">Réponses des chauffeurs au chargement et au départ (archivées), et anomalies relevées automatiquement dans leurs scans. Les corrections du bureau ne sont pas comptées.</div></div>';
   h+='<div class="carte"><table><thead><tr><th>Chauffeur</th>'+COLS.map(function(c){return '<th>'+c[1]+'</th>';}).join('')+'<th>Total à vérifier</th></tr></thead><tbody>'+
