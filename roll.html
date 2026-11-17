@@ -300,7 +300,10 @@ function actions(){
           if(navigator.vibrate)navigator.vibrate(120);afficher('✓ '+esc(I.numero)+' chargé pour '+esc(c));}catch(e){afficher('<span style="color:var(--rouge)">Erreur : '+esc(e.message||e)+'</span>');}});});
     // Retour à la BdL : un chariot repris (ou resté « chez le client ») se DÉCHARGE ; on ne propose plus de le charger
     var sale=I.etat==='retour'||I.etat==='client';
-    if(sale)bouton('🏭 Déchargé à la BdL (linge sale)','v',function(){scan('rentre',null);});
+    // Chez un client (arrêt en cours), « Déchargé à la BdL » était pris à la place de « Je le reprends » : on demande confirmation
+    if(sale)bouton('🏭 Déchargé à la BdL (linge sale)','v',function(){
+      if(aRole('chauffeur')&&ARRET&&!arretExpire()){if(!confirm('Vous êtes noté chez « '+ARRET.client+' ».\n\nÊtes-vous bien RENTRÉ à la Blanchisserie ?\n\nSi vous êtes encore chez le client, appuyez sur Annuler puis sur « ↩ Je le reprends ».'))return;finArret();}
+      scan('rentre',null);});
     if(I.etat==='retour')bouton('🏭 Vider tout mon camion d\'un coup','g',dechargerTout);
     if(!sale&&I.etat!=='sale'&&I.etat!=='chauffeur'&&!(I.etat==='bdl'||(!I.client&&I.etat!=='chauffeur')))bouton('🚚 Chargé dans mon camion','o',function(){if(I.etat!=='pret'&&!confirm('Ce roll n\'est pas indiqué « rempli » ('+(ETATS[I.etat]||I.etat)+'). Le charger quand même ?'))return;scan('charge',null);});
     if(I.etat==='retour'||I.etat==='client'||I.etat==='sale')bouton('📦 Chariot VIDE — rangé au dépôt BdL','g',function(){if(confirm(I.numero+' : chariot vide, rangé au dépôt ?\n(Il redevient libre, sans client.)'))scan('vide',null,'rangé vide au dépôt');});
