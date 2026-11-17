@@ -532,7 +532,8 @@ VUES.controle=async function(){
     // 2. Arrivée chez un client choisie dans la liste au lieu du QR
     var nrmC=function(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();};
     if(s.etape==='arrivee'){var ka=(s.personne||'')+'|'+nrmC(s.client),dj=DERN_ARR[ka];DERN_ARR[ka]=t;if(dj&&t-dj<20*60e3)return;}
-    if(s.etape==='arrivee'&&/choisi dans la liste/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Arrivée sans QR client',k:'qr',grave:false,client:s.client,rolls:[],rep:''});
+    // Choisir le client avec « Où suis-je ? » est la méthode prévue (l'appli alerte si on dépose chez le mauvais client) : pas une anomalie
+    if(false&&s.etape==='arrivee'&&/choisi dans la liste/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Arrivée sans QR client',k:'qr',grave:false,client:s.client,rolls:[],rep:''});
     // 3. Chariot « chargé » chez le client juste avant d'être livré : pas scanné au chargement à la BdL
     if(s.etape==='charge'){var L=parRoll[s.roll_id];for(var j=L.indexOf(s)+1;j<L.length;j++){var u=L[j];if(new Date(u.quand)-t>180000)break;
         if(u.etape==='livre'&&u.personne===s.personne){A.push({quand:s.quand,ch:s.personne,type:'Pas scanné au chargement BdL',k:'chg',grave:true,client:u.client,rolls:[R(s.roll_id)],rep:'scanné pour la 1re fois chez le client (heure = livraison) : jamais scanné au départ de la BdL'});break;}}}
@@ -558,7 +559,7 @@ VUES.controle=async function(){
   A.forEach(function(a){if(a.ch&&chauffeurs.indexOf(a.ch)<0)chauffeurs.push(a.ch);});chauffeurs.sort(function(a,b){return a.localeCompare(b,'fr');});
   A=A.filter(function(a){return chauffeurs.indexOf(a.ch)>=0;});
   A.sort(function(a,b){return String(b.quand).localeCompare(String(a.quand));});
-  var COLS=[['dep','Départs / chargements incomplets'],['chg','Livré sans scan au départ BdL'],['oub','Oubli de scan chez le client'],['imp','Action impossible'],['rep','Repris non déchargé'],['qr','Client choisi dans la liste (QR client non scanné)']];
+  var COLS=[['dep','Départs / chargements incomplets'],['chg','Livré sans scan au départ BdL'],['oub','Oubli de scan chez le client'],['imp','Action impossible'],['rep','Repris non déchargé']];
   var h='<h1>🔎 Contrôle chauffeurs</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(d===perCtl?' p':'')+'" data-pc="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
     ' &nbsp; <button class="btn" onclick="window.print()">🖨 Imprimer</button><div class="s" style="margin-top:6px">Réponses des chauffeurs au chargement et au départ (archivées), et anomalies relevées automatiquement dans leurs scans. Les corrections du bureau ne sont pas comptées.</div></div>';
   h+='<div class="carte"><table><thead><tr><th>Chauffeur</th>'+COLS.map(function(c){return '<th>'+c[1]+'</th>';}).join('')+'<th>Total à vérifier</th></tr></thead><tbody>'+
@@ -642,7 +643,7 @@ VUES.tournees=async function(){
     var rows=seg.map(function(g,i){var apres=soir.length&&i>dernierTerrain,estSoir=soir.indexOf(g)>=0;var t=new Date(g.b)-new Date(g.a);if(!apres)place+=t;var tr=i?new Date(g.a)-new Date(seg[i-1].b):0;if(!apres)route+=tr;
       var quoi=[g.ch.length?g.ch.length+' chargé'+(g.ch.length>1?'s':''):'',g.liv.length?g.liv.length+' déposé'+(g.liv.length>1?'s':''):'',g.rep.length?g.rep.length+' repris':'',g.re.length?g.re.length+' déchargé'+(g.re.length>1?'s':''):''].filter(Boolean).join(' · ');
       return (i?'<tr><td></td><td class="s" colspan="5">'+(apres&&i===dernierTerrain+1?'⏸ fin de tournée — '+dur(tr)+' plus tard :':'🚚 trajet '+dur(tr))+'</td></tr>':'')+
-        '<tr'+(apres?' style="background:#f3e8fd"':'')+'><td><b>'+esc(g.lieu)+(estSoir?' 🌙 pour demain':'')+'</b>'+(g.arr?'<div class="s">arrivé '+hm(g.arr)+(g.dep?' · reparti '+hm(g.dep):'')+(g.sansQR?' <b style="color:var(--orange)">· choisi dans la liste, sans QR</b>':'')+'</div>':'')+'</td><td>'+hm(g.a)+'</td><td>'+hm(g.b)+'</td><td>'+dur(t)+'</td><td>'+quoi+'</td><td class="s">'+[[g.ch,'chargés'],[g.liv,'déposés'],[g.rep,'repris'],[g.re,'déchargés']].filter(function(z){return z[0].length;}).map(function(z){return '<div><span style="color:#666">'+z[1]+' :</span> '+z[0].map(function(x){return '<span data-r="'+esc(x.id)+'" style="cursor:pointer;text-decoration:underline dotted">'+esc(x.n)+'</span>'+(x.c&&x.c!==g.lieu?' <b>'+esc(x.c)+'</b>':'');}).join(', ')+'</div>';}).join('')+'</td></tr>';}).join('');
+        '<tr'+(apres?' style="background:#f3e8fd"':'')+'><td><b>'+esc(g.lieu)+(estSoir?' 🌙 pour demain':'')+'</b>'+(g.arr?'<div class="s">arrivé '+hm(g.arr)+(g.dep?' · reparti '+hm(g.dep):'')+(g.sansQR?' <span class="s">· via « Où suis-je ? »</span>':'')+'</div>':'')+'</td><td>'+hm(g.a)+'</td><td>'+hm(g.b)+'</td><td>'+dur(t)+'</td><td>'+quoi+'</td><td class="s">'+[[g.ch,'chargés'],[g.liv,'déposés'],[g.rep,'repris'],[g.re,'déchargés']].filter(function(z){return z[0].length;}).map(function(z){return '<div><span style="color:#666">'+z[1]+' :</span> '+z[0].map(function(x){return '<span data-r="'+esc(x.id)+'" style="cursor:pointer;text-decoration:underline dotted">'+esc(x.n)+'</span>'+(x.c&&x.c!==g.lieu?' <b>'+esc(x.c)+'</b>':'');}).join(', ')+'</div>';}).join('')+'</td></tr>';}).join('');
     // BILAN
     var liv={},rep={},nre=0,nsoir=0,sansQR=0,soirC={};
     seg.forEach(function(g){if(g.liv.length)liv[g.lieu]=(liv[g.lieu]||0)+g.liv.length;if(g.rep.length)rep[g.lieu]=(rep[g.lieu]||0)+g.rep.length;nre+=g.re.length;if(g.sansQR)sansQR++;});
@@ -667,7 +668,7 @@ VUES.tournees=async function(){
       '<div style="margin-bottom:6px"><b>Repris :</b> '+ligne(rep)+'</div>'+
       (soir.length?'<div style="margin-bottom:6px"><b>🌙 Chargé pour demain :</b> '+ligne(clientSoir)+'</div>':'')+
       (camion?'<div style="margin-bottom:6px"><b>Dans son camion maintenant :</b> '+(camion.length?camion.length+' chariot'+(camion.length>1?'s':'')+' — '+ligne(camG):'vide')+'</div>':'')+
-      (sansQR?'<div style="margin-bottom:6px;color:var(--orange)">⚠ '+sansQR+' arrivée'+(sansQR>1?'s':'')+' choisie'+(sansQR>1?'s':'')+' dans la liste, sans QR client.</div>':'')+
+      ''+
       '<div style="margin-bottom:10px">'+fin+'</div>'+
       '<details'+(chT?' open':'')+'><summary style="cursor:pointer;font-weight:700">📋 Déroulé de la journée, dans l\'ordre ('+seg.length+' étapes)</summary>'+
       '<table style="margin-top:8px"><thead><tr><th>Où</th><th>Début</th><th>Fin</th><th>Durée scannée</th><th>Chariots</th><th>N°</th></tr></thead><tbody>'+rows+'</tbody></table></details>'+
