@@ -32,7 +32,7 @@ label{font-weight:600;font-size:15px}
 #numFond .boite{background:#fff;border-radius:18px 18px 0 0;padding:16px;width:100%;max-width:560px}
 #numAff{font-size:40px;font-weight:800;text-align:center;letter-spacing:2px;min-height:52px}
 .pave{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.pave button{font-size:28px;font-weight:700;padding:16px 0;border-radius:12px;border:1px solid var(--ligne);background:#f4f6f8}
-main{padding-bottom:110px}
+main{padding-bottom:110px}body.annulOn main{padding-bottom:210px}
 #scanFond{position:fixed;inset:0;background:#000;z-index:100;display:none;flex-direction:column}
 #lecteur{flex:1;width:100%;min-height:0;overflow:hidden}#lecteur video{object-fit:cover}
 #scanFond{height:100%;height:100dvh}#scanFond .bar{flex-shrink:0}#scanBas{padding-bottom:max(12px,env(safe-area-inset-bottom))!important}#rafListe{max-height:18vh;overflow:auto}
@@ -211,8 +211,8 @@ function changerMoi(){if(MOI&&!confirm('Changer de personne sur ce téléphone ?
 
 /* ---------- « ↩ Annuler mon dernier scan » (30 min, seulement le sien, seulement si personne n'a rescanné le chariot) ---------- */
 function dernierScan(){try{var d=JSON.parse(localStorage.getItem('roll_dernier_scan')||'null');if(d&&Date.now()-d.t<30*60000)return d;}catch(e){}return null;}
-function majAnnul(){var b=$('bAnnul');if(!b)return;var d=MOI&&dernierScan();if(!d){b.style.display='none';return;}
-  b.textContent='↩ Annuler : '+d.n+' '+(LIB[d.e]||d.e)+(d.c?' ('+d.c+')':'');b.style.display='block';}
+function majAnnul(){var b=$('bAnnul');if(!b)return;var d=MOI&&dernierScan();if(!d){b.style.display='none';document.body.classList.remove('annulOn');return;}
+  b.textContent='↩ Annuler : '+d.n+' '+(LIB[d.e]||d.e)+(d.c?' ('+d.c+')':'');b.style.display='block';document.body.classList.add('annulOn');}   // place en bas pour ne rien cacher (bouton « Terminer le chargement »)
 setInterval(majAnnul,30000);setTimeout(majAnnul,800);
 async function annulerDernier(){var d=dernierScan();if(!d||!MOI){majAnnul();return;}
   if(!confirm('Annuler ce scan ?\n\n'+d.n+' '+(LIB[d.e]||d.e)+(d.c?' — '+d.c:'')+'\n\nLe chariot reprend l\'état qu\'il avait juste avant.'))return;
@@ -435,7 +435,8 @@ async function scan(etape,client,note){
     if(ARRET&&(etape==='livre'||etape==='repris')){ARRET.t=Date.now();ecrire('roll_arret',ARRET);}
     if(ARRET&&(etape==='charge'||etape==='rentre'))finArret();   // il est revenu à la BdL
     if(ARRET&&(etape==='livre'||etape==='repris')){numero='';history.replaceState(null,'',location.pathname);return chargerArret('✓ '+esc(INFO.numero)+' '+esc(LIB[etape])+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le chariot suivant.</div>');}
-    if(etape==='charge'){try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!cm.error&&cm.data&&cm.data.ok&&CHG){numero='';history.replaceState(null,'','?');return ecranChargement('✓ '+esc(INFO.numero)+' chargé ('+esc(INFO.client||'')+')',cm.data);}
+    if(etape==='charge'){try{var cm=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(!cm.error&&cm.data&&cm.data.ok&&aRole('chauffeur')&&!aRole('bureau')){if(CHG===null)CHG='';poserCharge(true);}
+      if(!cm.error&&cm.data&&cm.data.ok&&CHG!==null&&aRole('chauffeur')&&!aRole('bureau')){numero='';history.replaceState(null,'','?');return ecranChargement('✓ '+esc(INFO.numero)+' chargé ('+esc(INFO.client||'')+')',cm.data);}
       if(!cm.error&&cm.data&&cm.data.ok){var ic=INFO.client?await infoChargement(INFO.client,true):'';return afficher('✓ '+esc(INFO.numero)+' chargé'+ic+resumeCamion(cm.data));}}catch(x){}}
     afficher('✓ '+esc(INFO.numero)+' '+esc(LIB[etape]||etape)+(client?' · '+esc(client):'')+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le roll suivant.</div>');
   }catch(e){$('acts').innerHTML='<div class="carte alerte">Non enregistré : '+esc(e.message||e)+'</div>';var b=document.createElement('button');b.className='gros';b.textContent='Réessayer';b.onclick=function(){scan(etape,client);};$('acts').appendChild(b);}
@@ -510,9 +511,9 @@ async function ecranChargement(msg,d){
       '<button class="gros g" id="chAddFav">⭐ Ajouter un client à mes clients…</button>'+
       '<div class="s" style="margin:-6px 4px 10px">☆ = ajouter à <b>mes clients</b> : ils restent en haut de la liste, même quand rien n\'est prêt (pour ne pas en oublier).</div>';
   }
-  h='<button class="gros o" onclick="chargerRafale()" style="font-size:20px">📷 Charger en rafale<div style="font-size:14px;font-weight:600">scannez tous les chariots à la suite, puis « Charger »</div></button>'+h;
+  h='<button class="gros g" id="chFinHaut">🏁 Terminer le chargement</button>'+'<button class="gros o" onclick="chargerRafale()" style="font-size:20px">📷 Charger en rafale<div style="font-size:14px;font-weight:600">scannez tous les chariots à la suite, puis « Charger »</div></button>'+h;
   h+='<div class="s" style="text-align:center;margin:-4px 0 8px">🔄 Mis à jour à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' (automatique toutes les 30 s)</div>';
-  h+='<button class="gros g" id="chFin">Terminer le chargement</button>';
+  h+='<button class="gros g" id="chFin">🏁 Terminer le chargement</button>';
   $('main').innerHTML=h;
   if($('chQ')){$('chQ').oninput=function(){var t=nrm(this.value);document.querySelectorAll('#chL [data-c]').forEach(function(x){x.style.display=!t||x.dataset.n.indexOf(t)>=0?'flex':'none';});};}
   if($('chL'))$('chL').onclick=function(e){var fv=e.target.closest('[data-fav]');if(fv){basculerFav(fv.getAttribute('data-fav'));return ecranChargement(null,d);}var t=e.target.closest('[data-c]');if(t){CHG=t.getAttribute('data-c');ecranChargement(null,d);}};
@@ -523,6 +524,7 @@ async function ecranChargement(msg,d){
     $('fL').onclick=function(e){var t=e.target.closest('[data-c]');if(t){basculerFav(t.getAttribute('data-c'));rendre();}};
     $('fX').onclick=function(){ecranChargement(null,d);};};
   if($('chRet'))$('chRet').onclick=function(){CHG='';ecranChargement(null,d);};
+  $('chFinHaut').onclick=function(){$('chFin').onclick();};
   $('chFin').onclick=function(){
     // Mes clients pas (entièrement) chargés : on demande si c'est normal, sinon on prévient l'atelier
     var pb=cl.filter(function(c){return (estFav(c)&&(g[c].vide||g[c].q.length))||(g[c].ch.length&&g[c].q.length);});
