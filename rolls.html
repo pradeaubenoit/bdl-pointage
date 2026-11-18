@@ -506,18 +506,21 @@ VUES.incidents=async function(){
     var tr=e.target.closest('[data-r]');if(tr)historique(tr.dataset.r);};
 };
 /* ---------- CONTRÔLE CHAUFFEURS : alertes archivées (rolls_alertes) + anomalies détectées dans les scans ---------- */
-var perCtl=7,chCtl=null;
+var perCtl=7,chCtl=null,jourCtl=null;   // jourCtl : 'AAAA-MM-JJ' quand on choisit un jour précis dans le calendrier
 // Supabase ne renvoie que 1000 lignes par requête : on lit par paquets jusqu'au bout
 async function toutLire(f){var out=[],p=0;for(;;){var r=await q(f().range(p,p+999));out=out.concat(r);if(r.length<1000||p>=100000)break;p+=1000;}return out;}
 VUES.controle=async function(){
   var p2=function(n){return String(n).padStart(2,'0');};
   var depuis=new Date(Date.now()-perCtl*864e5);if(perCtl===1){depuis=new Date();depuis.setHours(0,0,0,0);}
+  var jusqua=null;if(jourCtl){var jp=jourCtl.split('-');depuis=new Date(+jp[0],+jp[1]-1,+jp[2]);jusqua=new Date(+jp[0],+jp[1]-1,+jp[2]+1);}
+  var isoJ=function(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());};
   var al=[];try{al=await toutLire(function(){return sb.from('rolls_alertes').select('*').gte('quand',depuis.toISOString()).order('quand',{ascending:false});});}catch(e){al=[];}
+  if(jusqua)al=al.filter(function(a){return new Date(a.quand)<jusqua;});
   var sc=await toutLire(function(){return sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').gte('quand',new Date(depuis.getTime()-864e5).toISOString()).order('quand').order('id');});
   var scTous=sc.slice();   // avec les corrections du bureau : sert à savoir si un chariot livré avait bien été chargé
-  sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau)/.test(s.note||'');});
+  sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau|linge en vrac)/.test(s.note||'');});   // linge en vrac mis en chariot à la BdL : pas une anomalie
   var num={},idDe={};ROLLS.forEach(function(r){num[r.id]=r.numero;idDe[r.numero]=r.id;});
-  var dansPer=function(s){return new Date(s.quand)>=depuis;};
+  var dansPer=function(s){var d=new Date(s.quand);return d>=depuis&&(!jusqua||d<jusqua);};
   var A=[];   // {quand,ch,type,grave,client,rolls:[{n,id}],rep}
   var R=function(id){return {n:num[id]||'?',id:id};};
   // 1. Alertes archivées (réponses du chauffeur au chargement / au départ)
@@ -561,7 +564,8 @@ VUES.controle=async function(){
   A=A.filter(function(a){return chauffeurs.indexOf(a.ch)>=0;});
   A.sort(function(a,b){return String(b.quand).localeCompare(String(a.quand));});
   var COLS=[['dep','Départs / chargements incomplets'],['chg','Livré sans scan au départ BdL'],['oub','Oubli de scan chez le client'],['imp','Action impossible'],['rep','Repris non déchargé']];
-  var h='<h1>🔎 Contrôle chauffeurs</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(d===perCtl?' p':'')+'" data-pc="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
+  var h='<h1>🔎 Contrôle chauffeurs'+(jourCtl?' — '+depuis.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}):'')+'</h1><div class="carte noprint">Période : '+[1,7,30,90].map(function(d){return '<button class="btn'+(!jourCtl&&d===perCtl?' p':'')+'" data-pc="'+d+'">'+(d===1?'aujourd\'hui':d+' jours')+'</button>';}).join(' ')+
+    ' &nbsp; ou un jour : <button class="btn" id="jPrec" title="Jour d\'avant">◀</button> <input type="date" id="jCtl" max="'+isoJ(new Date())+'" value="'+(jourCtl||'')+'" style="padding:6px;border-radius:8px;border:1px solid #ccc'+(jourCtl?';background:#2b5aa8;color:#fff':'')+'"> <button class="btn" id="jSuiv" title="Jour d\'après">▶</button>'+
     ' &nbsp; <button class="btn" onclick="window.print()">🖨 Imprimer</button><div class="s" style="margin-top:6px">Réponses des chauffeurs au chargement et au départ (archivées), et anomalies relevées automatiquement dans leurs scans. Les corrections du bureau ne sont pas comptées.</div></div>';
   h+='<div class="carte"><table><thead><tr><th>Chauffeur</th>'+COLS.map(function(c){return '<th>'+c[1]+'</th>';}).join('')+'<th>Total à vérifier</th></tr></thead><tbody>'+
     chauffeurs.map(function(c){var L=A.filter(function(a){return a.ch===c;});var tot=L.filter(function(a){return a.grave;}).length;
@@ -576,7 +580,11 @@ VUES.controle=async function(){
       a.rolls.map(function(r){return r.id?'<span data-r="'+esc(r.id)+'" style="cursor:pointer;text-decoration:underline dotted">'+esc(r.n)+'</span>':esc(r.n);}).join(', ')+'</td><td>'+esc(a.rep)+'</td></tr>';}).join('')+'</tbody></table>':'<div class="s">Aucune anomalie sur la période. 👍</div>')+'</div>';
   $('main').innerHTML=h;
   $('main').onclick=function(e){var r=e.target.closest('[data-r]');if(r)return historique(r.dataset.r);var c=e.target.closest('[data-cc]');if(c){chCtl=c.dataset.cc||null;VUES.controle();}};
-  document.querySelectorAll('[data-pc]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();perCtl=+b.dataset.pc;VUES.controle();};});
+  document.querySelectorAll('[data-pc]').forEach(function(b){b.onclick=function(ev){ev.stopPropagation();perCtl=+b.dataset.pc;jourCtl=null;VUES.controle();};});
+  var decJ=function(n){var b=jourCtl?jourCtl.split('-'):null,d=b?new Date(+b[0],+b[1]-1,+b[2]):new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+n);var auj=new Date();auj.setHours(0,0,0,0);if(d>auj)return;jourCtl=isoJ(d);VUES.controle();};
+  if($('jCtl')){$('jCtl').onclick=function(ev){ev.stopPropagation();};$('jCtl').onchange=function(){jourCtl=this.value||null;VUES.controle();};}
+  if($('jPrec'))$('jPrec').onclick=function(ev){ev.stopPropagation();decJ(-1);};
+  if($('jSuiv'))$('jSuiv').onclick=function(ev){ev.stopPropagation();decJ(1);};
 };
 var LIB_E={vide:'vidé au tunnel',rempli:'rempli',charge:'chargé',livre:'livré',repris:'repris',rentre:'déchargé à la BdL',arrivee:'arrivée',depart:'départ'};
 /* ---------- TOURNÉES : horaires du chauffeur, déduits de ses scans ---------- */
@@ -611,7 +619,7 @@ VUES.tournees=async function(){
   var j=jourT||auj;
   var deb=new Date(j+'T00:00:00'),fin=new Date(deb.getTime()+864e5);
   var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').in('etape',['charge','livre','repris','rentre','arrivee','depart','rempli','vide']).gte('quand',deb.toISOString()).lt('quand',fin.toISOString()).order('quand'));
-  sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau)/.test(s.note||'');});
+  sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau)/.test(s.note||'')&&!(s.etape==='repris'&&/^linge en vrac/.test(s.note||''));});
   sc=scansTournee(sc);   // regroupement de chariots dans le camion : pas une étape de tournée
   var num={};ROLLS.forEach(function(r){num[r.id]=r.numero;});
   var hm=function(t){var x=new Date(t);return p2(x.getHours())+':'+p2(x.getMinutes());};
@@ -692,7 +700,7 @@ async function planTournee(dt,ch,wd){
   var sc;
   try{sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').eq('personne',ch).in('etape',['charge','livre','repris','rentre','arrivee','rempli','vide']).gte('quand',depuis.toISOString()).order('quand').limit(10000));}
   catch(e){box.innerHTML='<div style="color:var(--rouge)">Erreur : '+esc(e.message||e)+'</div>';return;}
-  sc=scansTournee(sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau)/.test(s.note||'');}));
+  sc=scansTournee(sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau)/.test(s.note||'')&&!(s.etape==='repris'&&/^linge en vrac/.test(s.note||''));}));
   var cleJ=function(t){var d=new Date(t);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());};
   var parJour={};sc.forEach(function(s){var k=cleJ(s.quand);(parJour[k]=parJour[k]||[]).push(s);});
   var dispo={};Object.keys(parJour).forEach(function(k){var w=new Date(k+'T12:00:00').getDay();if(parJour[k].some(function(s){return s.etape==='livre'||s.etape==='repris'||s.etape==='arrivee';}))dispo[w]=(dispo[w]||0)+1;});
