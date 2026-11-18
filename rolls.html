@@ -523,9 +523,14 @@ VUES.controle=async function(){
   var dansPer=function(s){var d=new Date(s.quand);return d>=depuis&&(!jusqua||d<jusqua);};
   var A=[];   // {quand,ch,type,grave,client,rolls:[{n,id}],rep}
   var R=function(id){return {n:num[id]||'?',id:id};};
+  var nrmC2=function(x){return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();};
   // 1. Alertes archivées (réponses du chauffeur au chargement / au départ)
   al=al.filter(function(a){return (a.restes||[]).length>0;});   // « rien de prêt » : simple information, pas une anomalie
-  al.forEach(function(a){var normal=/^(normal|pas pour aujourd|rien de prêt : normal)/.test(a.reponse||'');
+  // Plusieurs « Terminer le chargement » le même jour pour le même client : seule la DERNIÈRE réponse compte
+  // (« retourne charger » n'est qu'une étape : s'il revient ensuite, sa réponse suivante remplace la précédente)
+  (function(){var vu={},jr=function(q){var d=new Date(q);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();};
+    al=al.slice().sort(function(x,y){return new Date(y.quand)-new Date(x.quand);}).filter(function(a){var k=(a.personne||'')+'|'+nrmC2(a.client)+'|'+jr(a.quand)+'|'+a.moment;if(vu[k])return false;vu[k]=1;return true;});})();
+  al.forEach(function(a){var normal=/^(normal|pas pour aujourd|rien de prêt : normal|retourne charger)/.test(a.reponse||'');
     A.push({quand:a.quand,ch:a.personne,type:a.moment==='depart'?'Départ incomplet':'Chargement incomplet',k:'dep',grave:!normal,client:a.client,
       rolls:(a.restes||[]).map(function(n){return {n:n,id:idDe[n]};}),rep:(a.charges!=null?a.charges+' chargé'+(a.charges>1?'s':'')+' · ':'')+'réponse : « '+(a.reponse||'—')+' »'});});
   // index des scans par chariot et par personne
