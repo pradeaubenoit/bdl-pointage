@@ -85,7 +85,7 @@ function noterAlerte(moment,client,charges,restes,reponse,memo){if(!MOI)return;
 // En tournée = ce téléphone a déjà livré ou repris un chariot chez un client aujourd'hui
 function enTournee(){try{return lire('roll_tournee','')===new Date().toDateString();}catch(e){return false;}}
 var ETATS={bdl:'Vide à la BdL',pret:'Rempli — prêt à partir',chauffeur:'Dans le camion',client:'Chez le client',retour:'Repris — en retour',sale:'Sale — déchargé à la BdL'};
-var ROLES={chauffeur:'Chauffeur',atelier:'Atelier',laveur:'Laveur',bureau:'Bureau'};
+var ROLES={chauffeur:'Chauffeur',atelier:'Atelier',laveur:'Laveur',maintenance:'Maintenance',bureau:'Bureau'};
 var PRM=new URLSearchParams(location.search);
 var numero=(PRM.get('r')||'').trim().toUpperCase();
 // Arrêt chez un client : posé en scannant le QR du client (roll.html?c=Nom), gardé 4 h sur le téléphone
@@ -239,7 +239,32 @@ function afficher(msg){
   if(I.derniers&&I.derniers.length)h+='<div class="carte hist"><b>Derniers passages</b>'+I.derniers.map(function(d){return '<div>'+fmtQ(d.quand)+' · '+esc(LIB[d.etape]||d.etape)+(d.client?' · '+esc(d.client):'')+' · '+esc(d.personne||'')+(d.note?(d.etape==='rempli'?'<div style="color:var(--bleu);font-weight:600">📦 '+esc(d.note)+'</div>':'<div style="color:var(--doux);font-style:italic">📝 '+esc(d.note)+'</div>'):'')+'</div>';}).join('')+'</div>';
   $('main').innerHTML=h;
   actions();
+  majHS(I);
   if(MOI&&aRole('chauffeur')&&!ARRET&&I.client&&(I.etat==='pret'||I.etat==='chauffeur'))infoChargement(I.client).then(function(x){if($('chg'))$('chg').innerHTML=x;});
+}
+/* ---------- 🔧 Chariot HORS SERVICE (maintenance) : bloqué jusqu'à ce que la maintenance le remette en service ---------- */
+async function majHS(I){
+  if(!MOI||!I||!I.numero)return;
+  var r;try{r=await sb.rpc('roll_hs_etat',{p_numero:I.numero});}catch(e){return;}
+  if(!r||r.error||!r.data||!r.data.ok||!$('acts')||!INFO||INFO.numero!==I.numero)return;
+  var X=r.data;
+  if(X.hs){
+    var c=document.createElement('div');c.className='carte alerte';c.style.textAlign='center';
+    c.innerHTML='<div style="font-size:22px;font-weight:800">🔧 HORS SERVICE</div><div style="margin-top:4px">En maintenance depuis le '+esc(fmtQ(X.depuis))+(X.par?' (signalé par '+esc(X.par)+')':'')+'</div>'+
+      (X.motif?'<div style="margin-top:4px">« '+esc(X.motif)+' »</div>':'')+'<div style="margin-top:6px;font-weight:700">Ne pas le remplir ni le charger.</div>';
+    $('acts').insertBefore(c,$('acts').firstChild);
+    if(aRole('maintenance')){var b=document.createElement('button');b.className='gros v';b.textContent='✅ Réparé : remettre en service';
+      b.onclick=async function(){if(!confirm(I.numero+' est réparé et peut être réutilisé ?\n\n(Le bon GMAO sera marqué terminé.)'))return;
+        try{var x=await sb.rpc('roll_hs_lever',{p_numero:I.numero,p_personne:MOI.id,p_code:MOI.code});if(x.error)throw x.error;if(!x.data.ok)throw new Error(x.data.error);
+          afficher('✓ '+esc(I.numero)+' remis en service');}catch(e){alert('Erreur : '+(e.message||e));}};
+      c.insertAdjacentElement('afterend',b);}
+  }else{
+    bouton('🔧 Chariot abîmé : le mettre hors service','g',async function(){
+      var m=prompt(I.numero+' : qu\'est-ce qui ne va pas ?\n(ex. roue cassée, porte arrachée, montant tordu…)\n\nLe chariot sera bloqué et un bon sera créé pour la maintenance.');
+      if(m===null)return;if(!m.trim()){alert('Indiquez ce qui ne va pas.');return;}
+      try{var x=await sb.rpc('roll_hs',{p_numero:I.numero,p_personne:MOI.id,p_code:MOI.code,p_motif:m.trim()});if(x.error)throw x.error;if(!x.data.ok)throw new Error(x.data.error);
+        if(navigator.vibrate)navigator.vibrate(120);afficher('🔧 '+esc(I.numero)+' mis HORS SERVICE : la maintenance est prévenue (bon GMAO créé).');}catch(e){alert('Erreur : '+(e.message||e));}});
+  }
 }
 function bouton(txt,cls,fn){var b=document.createElement('button');b.className='gros '+(cls||'');b.textContent=txt;b.onclick=fn;$('acts').appendChild(b);}
 // Une personne peut avoir plusieurs postes (ex. « atelier,laveur ») ; Bureau = tous les boutons.
