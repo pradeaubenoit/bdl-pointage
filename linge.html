@@ -1517,9 +1517,10 @@ async function chariotsClient(c) {
   const bt = 'width:100%;margin-top:8px;font-size:17px;padding:12px;border-radius:12px;font-weight:700;';
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
     '<div style="font-size:22px;font-weight:800">🧺 Chariots prêts — ' + rollEsc(c.client) + '</div>' +
-    (l.length ? l.map((x, i) => '<div style="border:1px solid #dde2e7;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + '</div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'sans contenu') + '</div>' +
+    (l.length ? l.map((x, i) => '<div style="border:1px solid #dde2e7;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + '</div><div data-rep="' + i + '" title="Toucher pour reporter à une autre livraison" style="color:#1f5fa8;font-weight:600;cursor:pointer">📦 ' + rollEsc(x.note || 'sans contenu') + '</div>' +
       '<button data-qte="' + i + '" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">✎ Corriger les quantités</button>' +
-      '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° du chariot</button></div>').join('')
+      '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° du chariot</button>' +
+      '<button data-rep="' + i + '" style="' + bt + 'border:2px solid #6B4FA8;color:#6B4FA8;background:#fff">📅 Reporter ce chariot à une autre livraison</button></div>').join('')
       : '<div style="color:#666;margin-top:10px">Aucun chariot « prêt » pour ce client.</div>') +
     (cam.length ? '<div style="font-size:19px;font-weight:800;margin-top:16px">🚚 Déjà partis de l\'atelier (camion ou livrés aujourd\'hui)</div>' + cam.map((x, i) => '<div style="border:1px solid #f0c48a;background:#fff8ef;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + ' <span style="font-size:15px;font-weight:600;color:#b25e00">' + rollEsc(x.ou) + '</span></div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'contenu : voir en corrigeant') + '</div>' +
       '<button data-cam="' + i + '" style="' + bt + 'border:2px solid #b25e00;color:#b25e00;background:#fff">✎ Corriger les quantités (code Bureau)</button></div>').join('') : '') +
@@ -1531,9 +1532,74 @@ async function chariotsClient(c) {
   document.getElementById('ccX').onclick = () => { f.style.display = 'none'; };
   f.querySelectorAll('[data-qte]').forEach(b => b.onclick = () => corrigerQuantites(c, l[+b.dataset.qte]));
   f.querySelectorAll('[data-cam]').forEach(b => b.onclick = () => corrigerQuantites(c, cam[+b.dataset.cam], true));
+  f.querySelectorAll('[data-rep]').forEach(b => b.onclick = () => reporterChariot(c, l[+b.dataset.rep]));
   f.querySelectorAll('[data-chg]').forEach(b => b.onclick = () => { const x = l[+b.dataset.chg]; deplacerLinge(c, x.numero, x.note || '', 'Nouveau numéro pour le linge de ' + x.numero + ' :'); });
   if (document.getElementById('ccJ')) document.getElementById('ccJ').onclick = () => deplacerLinge(c, null, duJour, 'Numéro du chariot où est ce linge :');
 }
+/* ---------- 📅 Reporter un chariot prêt à une autre livraison ----------
+   Le linge de ce chariot est déjà saisi sur ce jour : on change la date de livraison de SES lignes de saisie
+   (même client, saisies à la même heure). Code responsable obligatoire (ça touche à la facturation). */
+async function reporterChariot(c, x) {
+  const f = document.getElementById('fondRoll');
+  const date = jourCourant();
+  const bt = 'width:100%;margin-top:8px;font-size:17px;padding:12px;border-radius:12px;font-weight:700;';
+  if (jourRecap.date !== date) { toast('Liste du jour pas encore chargée : réessayez dans un instant.', true); chargerJour(); return; }
+  // contenu du chariot (sans l'étiquette 📅)
+  const cont = {};
+  String(x.note || '').split(',').forEach(m => { const y = m.trim().match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/); if (y && !/^📅/.test(y[1])) cont[sansAccent(y[1])] = (cont[sansAccent(y[1])] || 0) + Number(y[2].replace(',', '.')); });
+  // saisies du jour pour ce client, regroupées par moment de saisie
+  const G = {};
+  jourRecap.saisies.filter(s => cleNom(s.client) === cleNom(c.client) && s.le && s.heure).forEach(s => {
+    const k = s.le + ' ' + s.heure; (G[k] = G[k] || { le: s.le, heure: s.heure, l: [] }).l.push(s);
+  });
+  const groupes = Object.keys(G).sort().map(k => G[k]);
+  const egal = g => { const m = {}; g.l.forEach(s => { m[sansAccent(s.article)] = (m[sansAccent(s.article)] || 0) + Number(s.quantite || 0); });
+    const a = Object.keys(m), b = Object.keys(cont); return a.length === b.length && a.every(k => cont[k] === m[k]); };
+  const txtG = g => g.l.map(s => s.article + ' ' + s.quantite).join(', ');
+  const jj = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+  if (!groupes.length) { toast('Aucune saisie trouvée pour ce client ce jour-là.', true); return; }
+  const sel = {}; groupes.forEach((g, i) => { if (egal(g)) sel[i] = 1; });
+  // jours proposés : les 7 prochains jours de livraison (sans le dimanche), sauf le jour actuel
+  const jours = []; const d0 = dateDe(date);
+  for (let i = 1; jours.length < 6 && i <= 10; i++) { const d = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + i, 12); if (d.getDay() !== 0) jours.push(isoLocal(d)); }
+  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
+    '<div style="font-size:22px;font-weight:800">📅 Reporter ' + rollEsc(x.numero) + ' — ' + rollEsc(c.client) + '</div>' +
+    '<div style="color:#555;margin:4px 0 8px">Dans le chariot : <b>' + rollEsc(avecTag('', x.note) || '—') + '</b></div>' +
+    '<div style="font-weight:700">Quelle saisie part avec ce chariot ?</div>' +
+    groupes.map((g, i) => '<label style="display:flex;gap:10px;align-items:flex-start;border:1px solid #dde2e7;border-radius:10px;padding:8px 10px;margin-top:6px;font-size:16px"><input type="checkbox" data-g="' + i + '"' + (sel[i] ? ' checked' : '') + ' style="width:22px;height:22px;margin-top:2px">' +
+      '<span><b>saisi le ' + jj(g.le) + ' à ' + rollEsc(g.heure) + '</b>' + (egal(g) ? ' <span style="color:#2e7d32;font-weight:700">= contenu du chariot</span>' : '') + '<br><span style="color:#555">' + rollEsc(txtG(g)) + '</span></span></label>').join('') +
+    '<div style="font-weight:700;margin-top:12px">Livrer ce linge le :</div>' +
+    jours.map(j => '<button data-j="' + j + '" style="' + bt + 'border:2px solid #6B4FA8;color:#6B4FA8;background:#fff">' + rollEsc(libelleJour(j)) + '</button>').join('') +
+    '<button id="rcX" style="' + bt + 'border:2px solid #999;background:#fff">Annuler</button></div>';
+  f.style.display = 'flex';
+  document.getElementById('rcX').onclick = () => chariotsClient(c);
+  f.querySelectorAll('[data-g]').forEach(cb => cb.onchange = () => { if (cb.checked) sel[cb.dataset.g] = 1; else delete sel[cb.dataset.g]; });
+  f.querySelectorAll('[data-j]').forEach(b => b.onclick = async () => {
+    const cible = b.dataset.j, choisis = Object.keys(sel).map(i => groupes[+i]);
+    if (!choisis.length) { toast('Coche la saisie qui part avec ce chariot.', true); return; }
+    if (!confirm('Reporter au ' + libelleJour(cible) + ' :\n\n' + choisis.map(g => '• saisi le ' + jj(g.le) + ' à ' + g.heure + ' : ' + txtG(g)).join('\n') +
+      '\n\nCes quantités quittent le bon du ' + libelleJour(date) + ' et vont sur celui du ' + libelleJour(cible) + '.\nLe chariot ' + x.numero + ' sera marqué 📅 ' + jj(cible) + '.')) return;
+    const code = demanderCode(); if (!code) return;
+    let n = 0;
+    try {
+      for (const g of choisis) {
+        const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'deplacerSaisie', code: code, client: c.client, date: date, le: g.le, heure: g.heure, cible: cible }) });
+        const data = await rep.json();
+        if (!data.ok) { if (data.error === 'Code incorrect') codeResponsable = ''; toast(data.error || 'Refusé', true); if (!n) return; break; }
+        n += data.deplacees || 0;
+      }
+    } catch (e) { toast('Pas de réseau : réessayez.', true); return; }
+    // étiquette du chariot : 📅 nouveau jour (le chauffeur ne le chargera pas avant)
+    try {
+      const id = await rollIdentite(x.numero);
+      if (id) await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: avecTag('📅 ' + jj(cible), x.note) });
+    } catch (e) {}
+    toast('📅 ' + x.numero + ' reporté au ' + libelleJour(cible) + ' (' + n + ' ligne' + (n > 1 ? 's' : '') + ' de saisie déplacée' + (n > 1 ? 's' : '') + ')');
+    f.style.display = 'none';
+    chargerJour(); chargerListeJour();
+  });
+}
+
 // Corriger le contenu d'un chariot prêt (quantités fausses) directement à l'atelier : le chariot reste le même, seul son contenu change.
 async function corrigerQuantites(c, x, camion) {
   if (camion) { try { const inf = await rollRpc('roll_info', { p_numero: x.numero }); x = Object.assign({}, x, { note: noteDeRoll(inf) }); } catch (e) {} }
