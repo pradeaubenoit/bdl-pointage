@@ -342,6 +342,21 @@ function actions(){
     else{if(!confirm(I.numero+' : chariot vide chargé par erreur ?\n\nIl retourne au dépôt, libre.'))return;scan('vide',null,'redescendu du camion (chargé par erreur)');}
   });
   if(aRole('atelier')&&rempliApres)bRempli();
+  // Linge sale ramené EN VRAC (sans chariot) : à la BdL, le chauffeur le met dans un chariot vide → repris + déchargé, noté « linge en vrac »
+  // (le contrôle chauffeurs ne le compte pas comme une anomalie)
+  if(aRole('chauffeur')&&I.etat==='bdl')bouton('🧺 Linge sale EN VRAC : je le mets dans ce chariot','v',function(){
+    choisirClient('Linge sale en vrac de quel client ?',async function(c){
+      if(!c)return afficher();
+      if(!confirm(I.numero+' : je mets dedans le linge sale EN VRAC de « '+c+' », et je le décharge à la Blanchisserie ?'))return;
+      var base={p_numero:I.numero,p_personne:MOI.id,p_code:MOI.code},nt='linge en vrac (mis en chariot à la BdL)';
+      try{var r=await sb.rpc('roll_scan',Object.assign({p_etape:'repris',p_client:c,p_note:nt},base));if(r.error)throw r.error;if(!r.data.ok)throw new Error(r.data.error);
+        r=await sb.rpc('roll_scan',Object.assign({p_etape:'rentre',p_client:c,p_note:nt},base));if(r.error)throw r.error;if(!r.data.ok)throw new Error(r.data.error);
+        finArret();poserCharge(true);
+        var i2=await sb.rpc('roll_info',{p_numero:I.numero});if(!i2.error&&i2.data&&i2.data.ok)INFO=i2.data;
+        if(navigator.vibrate)navigator.vibrate(120);afficher('✓ '+esc(I.numero)+' : linge sale en vrac de « '+esc(c)+' », déchargé à la BdL');
+      }catch(e){afficher('<span style="color:var(--rouge)">Erreur : '+esc(e.message||e)+'</span>');}
+    });
+  });
   // Aux sales : chariot déchargé plein de linge sale alors qu'il est noté vide / prêt / chez le client (scans oubliés) → on le note sale, du bon client
   if((aRole('laveur')||aRole('chauffeur'))&&I.etat!=='sale'&&I.etat!=='retour'&&I.etat!=='chauffeur')bouton('🧺 Il est ici aux sales, PLEIN de linge sale','o',function(){
     choisirClient('Linge sale de quel client ?',async function(c){
