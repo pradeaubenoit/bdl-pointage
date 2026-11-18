@@ -530,6 +530,9 @@ async function ecranChargement(msg,d){
     var rep={};
     function fin(){CHG=null;poserCharge(false);
       var nonOk=pb.filter(function(c){return rep[c]==='non';});
+      // Chariots de ses clients restés au quai : Benoît est averti par e-mail, quelle que soit la réponse du chauffeur
+      var restes=pb.filter(function(c){return g[c].q.length;}).map(function(c){return {client:c,restes:g[c].q,charges:g[c].ch.length,reponse:rep[c]==='non'?'pas normal : atelier prévenu':'normal (pas de livraison aujourd\'hui)'};});
+      if(restes.length)fetch(LINGE_API,{method:'POST',body:JSON.stringify({action:'alerteChauffeur',chauffeur:MOI.nom,camion:d.camion.length,lignes:restes})}).catch(function(){});
       $('main').innerHTML='<div class="carte ok">🏁 Chargement terminé<div style="font-size:18px;margin-top:6px">🚚 '+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+' dans le camion</div></div>'+
         (nonOk.length?'<div class="carte alerte">📨 Atelier prévenu pour : '+nonOk.map(esc).join(', ')+'</div>':'')+
         (autres.length?'<div class="carte s">Prêts pour d\'autres chauffeurs : '+autres.map(function(c){return esc(c)+' ('+g[c].q.length+')';}).join(' · ')+'</div>':'');}
