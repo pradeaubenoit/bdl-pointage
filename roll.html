@@ -555,19 +555,27 @@ async function ecranChargement(msg,d){
         (autres.length?'<div class="carte s">Prêts pour d\'autres chauffeurs : '+autres.map(function(c){return esc(c)+' ('+g[c].q.length+')';}).join(' · ')+'</div>':'');}
     function prevenir(c){var x=g[c],t='🚚 '+MOI.nom+' part sans '+(x.vide?'aucun chariot':'tous les chariots')+' pour « '+c+' »'+(x.q.length?' — restent à quai : '+x.q.join(', '):' — rien de prêt')+'. Est-ce normal ?';
       fetch(LINGE_API,{method:'POST',body:JSON.stringify({action:'messageEnvoyer',de:'🚚 '+MOI.nom,client:c,journee:new Date().toISOString().slice(0,10),texte:t})}).catch(function(){});}
-    function suivant(){
-      var c=pb.find(function(x){return !rep[x];});if(!c)return fin();var x=g[c];
-      $('main').innerHTML='<div class="carte"><div class="s">Vérification avant de partir</div><div class="num" style="font-size:26px">'+esc(c)+'</div>'+
-        '<div class="alerte" style="font-size:18px">'+(x.vide?'Aucun chariot prêt pour ce client.':(x.ch.length+' / '+(x.ch.length+x.q.length)+' chargés — restent à quai : '+x.q.map(esc).join(', ')))+'</div>'+
-        '<div style="font-size:18px;font-weight:700;margin:10px 0">Est-ce normal ?</div>'+
-        '<button class="gros v" id="rOk">✓ Oui, normal (pas de livraison aujourd\'hui)</button>'+
-        '<button class="gros r" id="rNon">✗ Non → prévenir l\'atelier</button>'+
-        (x.vide?'':'<button class="gros g" id="rRet">← Retourner charger</button>')+'</div>';
-      $('rOk').onclick=function(){rep[c]='ok';if(x.q.length)noterAlerte('chargement',c,x.ch.length,x.q,'normal (pas de livraison aujourd\'hui)',true);suivant();};
-      $('rNon').onclick=function(){rep[c]='non';noterAlerte('chargement',c,x.ch.length,x.q,'pas normal : atelier prévenu',true);prevenir(c);suivant();};
-      if($('rRet'))$('rRet').onclick=function(){noterAlerte('chargement',c,x.ch.length,x.q,'retourne charger',false);CHG=c;ecranChargement(null,d);};
+    // UN seul écran : tous les clients pas complets d'un coup, « normal » par défaut ; on touche une ligne si ce n'est PAS normal
+    function recap(){
+      if(!pb.length)return fin();
+      $('main').innerHTML='<div class="carte"><div class="s">Vérification avant de partir</div><div style="font-size:20px;font-weight:800;margin:4px 0 6px">Restent au quai :</div>'+
+        pb.map(function(c){var x=g[c],non=rep[c]==='non';
+          return '<div data-pb="'+esc(c)+'" style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 4px;border-bottom:1px solid #e5e7eb;cursor:pointer">'+
+            '<div><b style="font-size:18px">'+esc(c)+'</b><div class="s">'+(x.vide?'aucun chariot prêt':(x.ch.length+' / '+(x.ch.length+x.q.length)+' chargés — à quai : '+x.q.map(esc).join(', ')))+'</div></div>'+
+            '<span style="flex:0 0 auto;font-weight:800;padding:8px 10px;border-radius:10px;'+(non?'background:#fde2e1;color:var(--rouge)':'background:#e3f4e6;color:var(--vert)')+'">'+(non?'✗ pas normal':'✓ normal')+'</span></div>';}).join('')+
+        '<div class="s" style="margin-top:8px">Touchez un client si ce n\'est <b>PAS normal</b> : l\'atelier sera prévenu.</div></div>'+
+        '<button class="gros v" id="rTout">✓ C\'est bon, je pars</button>'+
+        '<button class="gros g" id="rRet">← Retourner charger</button>';
+      $('main').querySelectorAll('[data-pb]').forEach(function(el){el.onclick=function(){var c=el.getAttribute('data-pb');if(rep[c]==='non')delete rep[c];else rep[c]='non';recap();};});
+      $('rTout').onclick=function(){
+        pb.forEach(function(c){var x=g[c];
+          if(rep[c]==='non'){noterAlerte('chargement',c,x.ch.length,x.q,'pas normal : atelier prévenu',true);prevenir(c);}
+          else{rep[c]='ok';if(x.q.length)noterAlerte('chargement',c,x.ch.length,x.q,'normal (pas de livraison aujourd\'hui)',true);}});
+        fin();};
+      $('rRet').onclick=function(){CHG='';ecranChargement(null,d);};
+      window.scrollTo(0,0);
     }
-    suivant();
+    recap();
   };
 }
 // Retour à la BdL : tous les chariots repris par ce chauffeur sont déchargés d'un seul coup (sans les scanner un par un)
