@@ -1616,11 +1616,13 @@ async function chariotsClient(c) {
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
     '<div style="font-size:22px;font-weight:800">🧺 Chariots prêts — ' + rollEsc(c.client) + '</div>' +
     (l.length ? l.map((x, i) => '<div style="border:1px solid #dde2e7;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + '</div><div data-rep="' + i + '" title="Toucher pour reporter à une autre livraison" style="color:#1f5fa8;font-weight:600;cursor:pointer">📦 ' + rollEsc(x.note || 'sans contenu') + '</div>' +
+      '<button data-imp="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#fff;background:#1f5fa8">🖨 Imprimer l\'étiquette</button>' +
       '<button data-qte="' + i + '" style="' + bt + 'border:2px solid #2e7d32;color:#2e7d32;background:#fff">✎ Corriger les quantités</button>' +
       '<button data-chg="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">Changer le n° du chariot</button>' +
       '<button data-rep="' + i + '" style="' + bt + 'border:2px solid #6B4FA8;color:#6B4FA8;background:#fff">📅 Reporter ce chariot à une autre livraison</button></div>').join('')
       : '<div style="color:#666;margin-top:10px">Aucun chariot « prêt » pour ce client.</div>') +
     (cam.length ? '<div style="font-size:19px;font-weight:800;margin-top:16px">🚚 Déjà partis de l\'atelier (camion ou livrés aujourd\'hui)</div>' + cam.map((x, i) => '<div style="border:1px solid #f0c48a;background:#fff8ef;border-radius:12px;padding:10px 12px;margin-top:10px"><div style="font-size:22px;font-weight:900">' + rollEsc(x.numero) + ' <span style="font-size:15px;font-weight:600;color:#b25e00">' + rollEsc(x.ou) + '</span></div><div style="color:#1f5fa8;font-weight:600">📦 ' + rollEsc(x.note || 'contenu : voir en corrigeant') + '</div>' +
+      '<button data-impc="' + i + '" style="' + bt + 'border:2px solid #1f5fa8;color:#1f5fa8;background:#fff">🖨 Imprimer l\'étiquette</button>' +
       '<button data-cam="' + i + '" style="' + bt + 'border:2px solid #b25e00;color:#b25e00;background:#fff">✎ Corriger les quantités (code Bureau)</button></div>').join('') : '') +
     (saisiJour ? '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #dde2e7"><div style="font-weight:700">Linge saisi aujourd\'hui (tous ateliers) :</div><div style="color:#555">' + rollEsc(saisiJour) + '</div>' +
       '<div style="font-weight:700;margin-top:6px">Pas encore dans un chariot :</div><div style="color:' + (duJour ? '#b3261e' : '#2e7d32') + ';font-weight:600">' + rollEsc(duJour || '✓ tout est rangé dans un chariot') + '</div></div>' : '') +
@@ -1629,6 +1631,11 @@ async function chariotsClient(c) {
     '<button id="ccX" style="' + bt + 'border:2px solid #999;background:#fff">Fermer</button></div>';
   document.getElementById('ccX').onclick = () => { f.style.display = 'none'; };
   f.querySelectorAll('[data-qte]').forEach(b => b.onclick = () => corrigerQuantites(c, l[+b.dataset.qte]));
+  // 🖨 Réimprimer l'étiquette d'un chariot déjà validé (contenu lu dans Rolls)
+  const lignesDe = note => String(note || '').split(',').map(m => m.trim().match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)$/)).filter(y => y && !/^📅/.test(y[1])).map(y => ({ article: y[1], quantite: y[2].replace(',', '.') }));
+  const imp = x => { const li = lignesDe(x.note); if (!li.length) { toast(x.numero + ' : pas de quantités à imprimer.', true); return; } imprimerEtiquette(c.client, li, [x.numero]); };
+  f.querySelectorAll('[data-imp]').forEach(b => b.onclick = () => imp(l[+b.dataset.imp]));
+  f.querySelectorAll('[data-impc]').forEach(b => b.onclick = () => imp(cam[+b.dataset.impc]));
   f.querySelectorAll('[data-cam]').forEach(b => b.onclick = () => corrigerQuantites(c, cam[+b.dataset.cam], true));
   f.querySelectorAll('[data-rep]').forEach(b => b.onclick = () => reporterChariot(c, l[+b.dataset.rep]));
   f.querySelectorAll('[data-chg]').forEach(b => b.onclick = () => { const x = l[+b.dataset.chg]; deplacerLinge(c, x.numero, x.note || '', 'Nouveau numéro pour le linge de ' + x.numero + ' :'); });
