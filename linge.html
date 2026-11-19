@@ -1337,7 +1337,7 @@ function demanderChariot(client, lignes, opts) {
   if (!f) { f = document.createElement('div'); f.id = 'fondRoll'; f.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(f); }
   let saisie = '';
   const touches = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
-  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:440px">' +
+  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:440px;max-height:94vh;overflow:auto">' +
     '<div id="rollTitre" style="font-size:22px;font-weight:800">🧺 Dans quel chariot ?</div><div id="rollSous" style="color:#555;margin:4px 0 10px">' + rollEsc(client) + ' · ' + rollEsc(sousTitre) + '</div>' +
     '<div id="rollAff" style="font-size:44px;font-weight:900;text-align:center;border:2px solid #ccd;border-radius:12px;padding:8px;min-height:68px;letter-spacing:2px"></div>' +
     '<button id="rollScan" style="width:100%;margin-top:8px;font-size:20px;padding:14px;border-radius:12px;border:0;background:#1f2a35;color:#fff;font-weight:800">📷 Scanner le QR du chariot</button>' +
