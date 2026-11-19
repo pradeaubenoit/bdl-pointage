@@ -1381,6 +1381,21 @@ function demanderChariot(client, lignes, opts) {
     const INC = {sale:'incident : non vidé au tunnel (oubli du laveur)',retour:'incident : pas déchargé ni vidé (oubli chauffeur + laveur)',client:'incident : noté chez le client, retrouvé à l\'atelier'};
     const avant = info && info.ok ? INC[info.etat] || null : null;
     if (faits.indexOf(numero) >= 0) { msg.style.color = '#c62828'; msg.textContent = numero + ' est déjà dans ce lot.'; return; }
+    // Chariot déjà CHARGÉ dans un camion : l'atelier y AJOUTE du linge sans le sortir du camion (le chauffeur n'a rien à refaire)
+    if (info && info.ok && info.etat === 'chauffeur') {
+      const qui = info.personne ? ' de ' + info.personne : '';
+      if (!info.client || sansAccent(info.client) !== sansAccent(client)) { msg.style.color = '#c62828'; msg.textContent = '⛔ ' + numero + ' est dans le camion' + qui + ' pour « ' + (info.client || '?') + ' ». Prenez un autre chariot.'; return; }
+      const deja = noteDeRoll(info), total = fusionContenu(deja, contenuCur || '');
+      if (!confirm('🚚 ' + numero + ' est déjà dans le camion' + qui + '.\n\nVous avez mis ce linge dedans ?\n\n' + numero + ' contiendra :\n' + (total || '—') + '\n\nAvant : ' + (deja || '—'))) { msg.style.color = '#c62828'; msg.textContent = 'Prenez un autre chariot que ' + numero + '.'; return; }
+      msg.style.color = '#555'; msg.textContent = 'Ajout dans ' + numero + '…';
+      try {
+        let id = await rollIdentite(numero), r = id ? await rollRpc('roll_contenu', { p_numero: numero, p_personne: id.id, p_code: id.code, p_note: total }) : null;
+        if (!r || !r.ok) { id = await idBureau(numero); r = id ? await rollRpc('roll_contenu', { p_numero: numero, p_personne: id.id, p_code: id.code, p_note: total }) : null; }   // si l'atelier n'a pas le droit : code Bureau
+        if (!r || !r.ok) { msg.style.color = '#c62828'; msg.textContent = (r && r.error) || 'Ajout refusé'; return; }
+      } catch (e) { msg.style.color = '#c62828'; msg.textContent = 'Pas de réseau : réessayez.'; return; }
+      toast('🚚 ' + numero + ' : linge ajouté (reste dans le camion' + qui + ')');
+      f.style.display = 'none'; suivant(numero); return;
+    }
     if (avant) { f.style.display = 'none'; rollEnvoyer({ numero, client, contenu: contenuCur, avant }); suivant(numero); return; }
     if (info && info.ok && info.etat === 'pret' && info.client) {
       const qui = (info.personne || 'quelqu\'un') + ' à ' + new Date(info.maj_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
