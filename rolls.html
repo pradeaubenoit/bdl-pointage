@@ -61,7 +61,7 @@ function trierListe(l){l=l.slice();
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 async function q(p){var r=await p;if(r.error)throw r.error;return r.data;}
 var ETATS={bdl:'Vide à la BdL',pret:'Rempli, prêt',chauffeur:'Dans le camion',client:'Chez le client',retour:'En retour',sale:'Sale, à la BdL'};
-var ROLES={chauffeur:'Chauffeur',atelier:'Atelier',laveur:'Laveur',bureau:'Bureau'};
+var ROLES={chauffeur:'Chauffeur',atelier:'Atelier',laveur:'Laveur',maintenance:'Maintenance',bureau:'Bureau'};
 var ROLLS=[],PERS=[],SEUIL_J=10;
 function jours(d){return Math.floor((Date.now()-new Date(d).getTime())/864e5);}
 function fmtQ(q){var d=new Date(q);return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
@@ -531,7 +531,7 @@ VUES.controle=async function(){
   (function(){var vu={},jr=function(q){var d=new Date(q);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();};
     al=al.slice().sort(function(x,y){return new Date(y.quand)-new Date(x.quand);}).filter(function(a){var k=(a.personne||'')+'|'+nrmC2(a.client)+'|'+jr(a.quand)+'|'+a.moment;if(vu[k])return false;vu[k]=1;return true;});})();
   al.forEach(function(a){var normal=/^(normal|pas pour aujourd|rien de prêt : normal|retourne charger)/.test(a.reponse||'');
-    A.push({quand:a.quand,ch:a.personne,type:a.moment==='depart'?'Départ incomplet':'Chargement incomplet',k:'dep',grave:!normal,client:a.client,
+    A.push({quand:a.quand,ch:a.personne,type:a.moment==='depart'?'Départ incomplet':a.moment==='hors_ligne'?'📶 Scan sans réseau refusé':'Chargement incomplet',k:'dep',grave:!normal,client:a.client,
       rolls:(a.restes||[]).map(function(n){return {n:n,id:idDe[n]};}),rep:(a.charges!=null?a.charges+' chargé'+(a.charges>1?'s':'')+' · ':'')+'réponse : « '+(a.reponse||'—')+' »'});});
   // index des scans par chariot et par personne
   var parRoll={},parPers={};sc.forEach(function(s,i){s.i=i;(parRoll[s.roll_id]=parRoll[s.roll_id]||[]).push(s);(parPers[s.personne||'?']=parPers[s.personne||'?']||[]).push(s);});
