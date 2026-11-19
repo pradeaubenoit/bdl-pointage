@@ -76,7 +76,16 @@ function dejaRepondu(c,q){return !!lire('roll_rep_'+jourIso(),{})[cleRep(c,q)];}
 /* Chargement obligatoire : après avoir vidé son camion (ou ouvert l'écran Chargement), le chauffeur est À LA BDL.
    Tant qu'il n'a pas touché « Terminer le chargement », il ne peut choisir aucun client (liste ou QR). */
 function chargeEnCours(){return !!(MOI&&aRole('chauffeur')&&!aRole('bureau')&&lire('roll_charge_'+MOI.id,false));}
-function poserCharge(v){if(MOI)ecrire('roll_charge_'+MOI.id,!!v);}
+function poserCharge(v){if(!MOI)return;var deja=lire('roll_charge_'+MOI.id,false);ecrire('roll_charge_'+MOI.id,v?(typeof deja==='number'?deja:Date.now()):false);}
+// 🏁 Le bureau peut terminer le chargement à distance : le téléphone le voit et débloque le chauffeur
+async function verifFinBureau(){
+  if(!chargeEnCours())return false;var t=lire('roll_charge_'+MOI.id,false);var dep=new Date(typeof t==='number'?t:Date.now()-18*36e5).toISOString();
+  try{var r=await sb.from('rolls_alertes').select('quand').eq('personne',MOI.nom).eq('moment','fin_bureau').gt('quand',dep).limit(1);
+    if(!r.error&&r.data&&r.data.length){CHG=null;poserCharge(false);if(navigator.vibrate)navigator.vibrate([150,80,150]);
+      alert('🏁 Le bureau a terminé votre chargement.\n\nVous pouvez partir : chez votre premier client, touchez 📍 Où suis-je ?');
+      if($('chFin')||$('chgErr')){numero='';charger();}return true;}}catch(e){}
+  return false;}
+setInterval(verifFinBureau,30000);document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')verifFinBureau();});
 function bloquerClient(){if(!chargeEnCours())return false;finArret();if(navigator.vibrate)navigator.vibrate([300,150,300]);
   ecranChargement('<div style="color:var(--rouge);font-size:18px">⛔ Vous êtes en CHARGEMENT à la Blanchisserie.</div><div style="font-size:16px;margin-top:6px">Scannez vos chariots, puis touchez <b>« Terminer le chargement »</b> en bas. Vous pourrez ensuite aller chez vos clients.</div>');return true;}
 /* ---------- 📶 SCANS SANS RÉSEAU : gardés dans le téléphone, envoyés tout seuls dès que le réseau revient ----------
@@ -676,6 +685,9 @@ async function ecranChargement(msg,d){
     var autres=cl.filter(function(c){return !estFav(c)&&!g[c].ch.length&&g[c].q.length;});
     var rep={};
     function fin(){CHG=null;poserCharge(false);
+      try{var tous=[];pb.forEach(function(c){tous=tous.concat(g[c].q);});
+        sb.rpc('roll_alerte',{p_personne:String(MOI.id),p_code:MOI.code,p_moment:'fin_chargement',p_client:null,p_charges:d.camion.length,p_restes:tous,
+          p_reponse:tous.length?tous.length+' chariot'+(tous.length>1?'s':'')+' de ses clients laissé'+(tous.length>1?'s':'')+' au quai ('+d.camion.length+' dans le camion)':'complet ('+d.camion.length+' chariot'+(d.camion.length>1?'s':'')+' dans le camion)',p_detail:null}).then(function(){},function(){});}catch(e){}
       var nonOk=pb.filter(function(c){return rep[c]==='non';});
       // Chariots de ses clients restés au quai : Benoît est averti par e-mail, quelle que soit la réponse du chauffeur
       var restes=pb.filter(function(c){return g[c].q.length;}).map(function(c){return {client:c,restes:g[c].q,charges:g[c].ch.length,reponse:rep[c]==='non'?'pas normal : atelier prévenu':'normal (pas de livraison aujourd\'hui)'};});
