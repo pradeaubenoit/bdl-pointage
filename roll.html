@@ -79,6 +79,88 @@ function chargeEnCours(){return !!(MOI&&aRole('chauffeur')&&!aRole('bureau')&&li
 function poserCharge(v){if(MOI)ecrire('roll_charge_'+MOI.id,!!v);}
 function bloquerClient(){if(!chargeEnCours())return false;finArret();if(navigator.vibrate)navigator.vibrate([300,150,300]);
   ecranChargement('<div style="color:var(--rouge);font-size:18px">⛔ Vous êtes en CHARGEMENT à la Blanchisserie.</div><div style="font-size:16px;margin-top:6px">Scannez vos chariots, puis touchez <b>« Terminer le chargement »</b> en bas. Vous pourrez ensuite aller chez vos clients.</div>');return true;}
+/* ---------- 📶 SCANS SANS RÉSEAU : gardés dans le téléphone, envoyés tout seuls dès que le réseau revient ----------
+   Chaque scan garde l'heure où il a été fait ; le serveur (roll_scan_differe) l'enregistre à cette heure-là. */
+function estReseau(e){return !navigator.onLine||/fetch|network|load failed|timeout|réseau|abort/i.test(String((e&&e.message)||e||''));}
+function uid(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);}
+function scansAtt(){return lire('roll_scans_att',[]);}
+function majAtt(){var n=scansAtt().length,b=$('attBadge');
+  if(!b){b=document.createElement('div');b.id='attBadge';b.style.cssText='position:fixed;top:64px;right:10px;z-index:60;background:#e67e00;color:#fff;font-weight:800;border-radius:12px;padding:8px 12px;box-shadow:0 2px 8px rgba(0,0,0,.25);font-size:16px';document.body.appendChild(b);b.onclick=function(){envoyerScans(true);};}
+  b.style.display=n?'block':'none';b.textContent='📶 '+n+' scan'+(n>1?'s':'')+' en attente d\'envoi';}
+function mettreEnAttente(n,etape,client){
+  if(!MOI)return false;var l=scansAtt();
+  if(l.some(function(x){return x.n===n&&x.e===etape&&Date.now()-new Date(x.q).getTime()<15*60e3;}))return true;   // déjà gardé
+  l.push({n:n,e:etape,c:client||null,q:new Date().toISOString(),k:uid(),id:MOI.id,code:MOI.code,nom:MOI.nom});ecrire('roll_scans_att',l);
+  if(navigator.vibrate)navigator.vibrate([120,80,120]);majAtt();return true;}
+var ENVOI_SC=false;
+async function envoyerScans(manuel){
+  var l=scansAtt();majAtt();if(!l.length||ENVOI_SC)return;ENVOI_SC=true;var nb=0;
+  try{
+    while(l.length){var x=l[0];
+      var r=await sb.rpc('roll_scan_differe',{p_numero:x.n,p_personne:x.id,p_code:x.code,p_etape:x.e,p_client:x.c,p_note:null,p_quand:x.q,p_cle:x.k});
+      if(r.error)throw r.error;
+      if(!r.data||!r.data.ok){   // refusé par le serveur (pas un problème de réseau) : on le signale au bureau et on passe au suivant
+        try{await sb.rpc('roll_alerte',{p_personne:String(x.id),p_code:x.code,p_moment:'hors_ligne',p_client:x.c,p_charges:null,p_restes:[x.n],p_reponse:'scan sans réseau refusé ('+(LIB[x.e]||x.e)+') : '+((r.data&&r.data.error)||'?'),p_detail:null});}catch(y){}}
+      l.shift();ecrire('roll_scans_att',l);nb++;majAtt();}
+  }catch(e){if(manuel)alert('Toujours pas de réseau : les scans restent gardés dans le téléphone.');}
+  ENVOI_SC=false;majAtt();
+  if(nb&&manuel)alert('✓ '+nb+' scan'+(nb>1?'s':'')+' envoyé'+(nb>1?'s':'')+' au bureau.');
+}
+setTimeout(function(){majAtt();envoyerScans();},2500);setInterval(envoyerScans,30000);
+window.addEventListener('online',function(){setTimeout(envoyerScans,1500);});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')setTimeout(envoyerScans,1000);});
+
+// Écran d'un chariot scanné sans réseau : boutons selon l'endroit (chez le client choisi avec 📍, ou à la BdL)
+function horsLigneRoll(n){
+  var A=ARRET&&!arretExpire()?ARRET:null;
+  $('main').innerHTML='<div class="carte alerte" style="text-align:center"><div style="font-size:26px;font-weight:800">'+esc(n)+'</div>📶 <b>Pas de réseau</b><div class="s">Le scan sera gardé dans le téléphone et envoyé tout seul dès que le réseau revient.</div></div>'+
+    (A?'<div class="carte" style="text-align:center">📍 Chez <b>'+esc(A.client)+'</b></div>':'')+'<div id="acts"></div>';
+  function garder(etape,client,txt){mettreEnAttente(n,etape,client);
+    if(A&&(etape==='livre'||etape==='repris')){ARRET.t=Date.now();ecrire('roll_arret',ARRET);}
+    if(etape==='rentre'||etape==='charge')finArret();
+    numero='';history.replaceState(null,'','?');
+    $('main').innerHTML='<div class="carte ok">✓ '+esc(n)+' '+txt+'<div class="s" style="margin-top:6px">📶 Gardé dans le téléphone ('+scansAtt().length+' en attente).</div><div class="s" style="color:var(--vert)">Scannez le chariot suivant.</div></div>';}
+  if(A){
+    bouton('✅ LIVRÉ chez '+A.client+' (linge propre)','v',function(){garder('livre',A.client,'livré chez '+A.client);});
+    bouton('🧺 REPRIS chez '+A.client+' (linge sale)','o',function(){garder('repris',A.client,'repris chez '+A.client);});
+    bouton('Je ne suis plus chez ce client','g',function(){finArret();horsLigneRoll(n);});
+  }else{
+    bouton('🏭 Déchargé à la BdL (linge sale)','o',function(){garder('rentre',null,'déchargé à la BdL');});
+    bouton('🚚 Chargé dans mon camion','v',function(){garder('charge',null,'chargé dans votre camion');});
+    bouton('📍 Je suis chez un client…','g',function(){jeSuisChez(function(){horsLigneRoll(n);});});
+  }
+  bouton('🔄 Réessayer avec le réseau','g',function(){charger();});
+}
+function horsLigneArret(){
+  $('main').innerHTML='<div class="carte" style="text-align:center">📍 Chez <b>'+esc(ARRET.client)+'</b></div><div class="carte alerte">📶 <b>Pas de réseau.</b><br>Scannez quand même vos chariots (bouton 📷 Scanner) : chaque scan est gardé dans le téléphone et envoyé tout seul dès que le réseau revient.</div>'+
+    '<button class="gros g" onclick="chargerArret()">🔄 Réessayer avec le réseau</button>';
+}
+
+/* ---------- Chargement terminé SANS RÉSEAU : débloque le chauffeur, et prévient le bureau dès que le réseau revient ---------- */
+function terminerSansReseau(){
+  if(!MOI)return;
+  if(!confirm('Pas de réseau : on ne peut pas vérifier ce qui reste au quai.\n\nVous avez bien chargé TOUS vos chariots ?\n\n(Le bureau sera prévenu que le chargement a été terminé sans vérification.)'))return;
+  clearTimeout(window.RETRY_CHG);
+  var h=new Date(),hh=('0'+h.getHours()).slice(-2)+':'+('0'+h.getMinutes()).slice(-2);
+  var att=lire('roll_attente',[]);att.push({id:String(MOI.id),code:MOI.code,nom:MOI.nom,hh:hh});ecrire('roll_attente',att);
+  CHG=null;poserCharge(false);
+  $('main').innerHTML='<div class="carte ok">🏁 Chargement terminé (sans réseau)</div><div class="carte" style="font-size:16px">Le bureau sera prévenu dès que le téléphone retrouvera du réseau.<br>Chez votre premier client : <b>📍 Où suis-je ?</b></div>';
+  envoyerAttente();
+}
+var ENVOI_ATT=false;
+async function envoyerAttente(){
+  var att=lire('roll_attente',[]);if(!att.length||ENVOI_ATT)return;ENVOI_ATT=true;
+  try{
+    while(att.length){var a=att[0],rep='chargement terminé SANS RÉSEAU à '+a.hh+' : quai non vérifié';
+      var r=await sb.rpc('roll_alerte',{p_personne:a.id,p_code:a.code,p_moment:'chargement',p_client:'(quai non vérifié)',p_charges:null,p_restes:['?'],p_reponse:rep,p_detail:null});
+      if(r.error)throw r.error;
+      try{fetch(LINGE_API,{method:'POST',body:JSON.stringify({action:'alerteChauffeur',chauffeur:a.nom,camion:0,lignes:[{client:'(quai non vérifié — pas de réseau)',restes:['?'],charges:0,reponse:rep}]})}).catch(function(){});}catch(x){}
+      att.shift();ecrire('roll_attente',att);}
+  }catch(e){}   // toujours pas de réseau : on réessaiera
+  ENVOI_ATT=false;
+}
+setTimeout(envoyerAttente,3000);setInterval(envoyerAttente,60000);window.addEventListener('online',function(){setTimeout(envoyerAttente,2000);});
+
 function noterAlerte(moment,client,charges,restes,reponse,memo){if(!MOI)return;
   if(memo){var m=lire('roll_rep_'+jourIso(),{});m[cleRep(client,restes)]=reponse;ecrire('roll_rep_'+jourIso(),m);}
   sb.rpc('roll_alerte',{p_personne:String(MOI.id),p_code:MOI.code,p_moment:moment,p_client:client||null,p_charges:charges==null?null:charges,p_restes:restes||[],p_reponse:reponse,p_detail:null}).then(function(r){if(r&&r.error)console.warn(r.error);}).catch(function(){});}
@@ -124,7 +206,7 @@ async function charger(){
   if(!numero){return demanderNumero();}
   $('main').innerHTML='<div class="carte">Chargement du roll '+esc(numero)+'…</div>';
   try{var r=await sb.rpc('roll_info',{p_numero:numero});if(r.error)throw r.error;INFO=r.data;}
-  catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="charger()">Réessayer</button>';return;}
+  catch(e){if(MOI&&estReseau(e))return horsLigneRoll(String(numero).toUpperCase());$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="charger()">Réessayer</button>';return;}
   if(!INFO.ok){$('main').innerHTML='<div class="carte alerte">'+esc(INFO.error)+'</div>';return demanderNumero(true);}
   // Postes mis à jour depuis le bureau : on les relit à chaque scan (et on redemande si la personne a été désactivée).
   if(MOI){var me=(INFO.personnes||[]).find(function(p){return p.id===MOI.id;});if(!me){MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}}else{MOI.role=me.role;MOI.nom=me.nom;ecrire('roll_moi',MOI);majMoi();}}
@@ -136,7 +218,7 @@ var ARR=null;
 async function chargerArret(msg){
   $('main').innerHTML='<div class="carte">Chez '+esc(ARRET.client)+'…</div>';
   try{var r=await sb.rpc('roll_client',{p_client:ARRET.client});if(r.error)throw r.error;ARR=r.data;}
-  catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="chargerArret()">Réessayer</button>';return;}
+  catch(e){if(estReseau(e))return horsLigneArret();$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="chargerArret()">Réessayer</button>';return;}
   if(!ARR.ok){$('main').innerHTML='<div class="carte alerte">'+esc(ARR.error)+'</div>';return;}
   // heure de remplissage des chariots restés au quai (pour ne pas signaler le linge préparé après le départ du camion)
   try{await Promise.all((ARR.a_decharger||[]).filter(function(x){return x.etat==='pret'&&!x.maj_le;}).map(async function(x){var i=await sb.rpc('roll_info',{p_numero:x.numero});if(!i.error&&i.data&&i.data.maj_le)x.maj_le=i.data.maj_le;}));}catch(e){}
@@ -479,7 +561,10 @@ async function scan(etape,client,note){
       if(!cm.error&&cm.data&&cm.data.ok&&CHG!==null&&aRole('chauffeur')&&!aRole('bureau')){numero='';history.replaceState(null,'','?');return ecranChargement('✓ '+esc(INFO.numero)+' chargé ('+esc(INFO.client||'')+')',cm.data);}
       if(!cm.error&&cm.data&&cm.data.ok){var ic=INFO.client?await infoChargement(INFO.client,true):'';return afficher('✓ '+esc(INFO.numero)+' chargé'+ic+resumeCamion(cm.data));}}catch(x){}}
     afficher('✓ '+esc(INFO.numero)+' '+esc(LIB[etape]||etape)+(client?' · '+esc(client):'')+'<div class="s" style="margin-top:6px;color:var(--vert)">Scannez le roll suivant.</div>');
-  }catch(e){$('acts').innerHTML='<div class="carte alerte">Non enregistré : '+esc(e.message||e)+'</div>';var b=document.createElement('button');b.className='gros';b.textContent='Réessayer';b.onclick=function(){scan(etape,client);};$('acts').appendChild(b);}
+  }catch(e){
+    if(estReseau(e)&&['livre','repris','charge','rentre'].indexOf(etape)>=0&&INFO&&INFO.numero){mettreEnAttente(INFO.numero,etape,client||(etape==='livre'||etape==='repris'?(ARRET&&ARRET.client)||INFO.client:null));
+      $('acts').innerHTML='<div class="carte ok">✓ '+esc(INFO.numero)+' '+esc(LIB[etape]||etape)+'<div class="s" style="margin-top:6px">📶 Pas de réseau : gardé dans le téléphone ('+scansAtt().length+' en attente), envoyé tout seul plus tard.</div></div>';return;}
+    $('acts').innerHTML='<div class="carte alerte">Non enregistré : '+esc(e.message||e)+'</div>';var b=document.createElement('button');b.className='gros';b.textContent='Réessayer';b.onclick=function(){scan(etape,client);};$('acts').appendChild(b);}
 }
 // Chargement d'un client : « Hôpital du Mont : 3 / 8 chargés » … « 8 / 8 — chargement complet »
 async function infoChargement(client,apres){
@@ -522,7 +607,14 @@ async function ecranChargement(msg,d){
   if(CHG===null)CHG='';
   if(!d){$('main').innerHTML='<div class="carte">Chargement de la liste…</div>';
     try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(r.error)throw r.error;d=r.data;if(!d.ok)throw new Error(d.error);}
-    catch(e){$('main').innerHTML='<div class="carte alerte">Pas de réseau ou erreur : '+esc(e.message||e)+'</div><button class="gros g" onclick="ecranChargement()">Réessayer</button>';return;}}
+    catch(e){
+      // Pas de réseau au quai : on réessaie tout seul toutes les 5 s ; bouton de secours pour ne pas rester bloqué
+      $('main').innerHTML='<div class="carte alerte" id="chgErr">📶 Pas de réseau : la liste du chargement ne se charge pas.<div class="s" style="margin-top:6px">Nouvel essai automatique toutes les 5 secondes…</div><div class="s">('+esc(e.message||e)+')</div></div>'+
+        '<button class="gros g" onclick="ecranChargement()">🔄 Réessayer maintenant</button>'+
+        '<button class="gros v" id="chgSans">🏁 Terminer quand même (pas de réseau)</button>';
+      $('chgSans').onclick=terminerSansReseau;
+      clearTimeout(window.RETRY_CHG);window.RETRY_CHG=setTimeout(function(){if($('chgErr')&&document.visibilityState==='visible')ecranChargement(msg);},5000);
+      return;}}
   majMoi();CHG_NB=d.a_quai.length;
   var g={};function a(x,k){var c=x.client||'🧺 Chariots vides';c=Object.keys(g).find(function(z){return nrm(z)===nrm(c);})||c;(g[c]=g[c]||{ch:[],q:[]})[k].push(x.numero);}
   d.camion.forEach(function(x){a(x,'ch');});d.a_quai.forEach(function(x){a(x,'q');});
