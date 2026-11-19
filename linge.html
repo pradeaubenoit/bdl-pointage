@@ -1251,6 +1251,73 @@ async function rollRpc(fn, args) {
   return r.json();
 }
 function numRoll(v) { v = String(v || '').trim().toUpperCase(); if (/^\d+$/.test(v)) v = 'R-' + v.padStart(3, '0'); return v; }
+/* ---------- 📷 Lecteur QR du chariot (au lieu de taper le numéro) ---------- */
+let ZXL = null, FLUXL = null, BOUCLEL = null;
+function chargerScriptL(srcs) { return new Promise((ok, ko) => { (function essai(i) { if (i >= srcs.length) return ko(new Error('Lecteur indisponible (réseau)')); const sc = document.createElement('script'); sc.src = srcs[i]; sc.onload = ok; sc.onerror = () => essai(i + 1); document.head.appendChild(sc); })(0); }); }
+function fermerScanL() { if (BOUCLEL) { clearInterval(BOUCLEL); BOUCLEL = null; } if (FLUXL) { FLUXL.getTracks().forEach(t => t.stop()); FLUXL = null; } const f = document.getElementById('scanL'); if (f) f.remove(); }
+async function scannerChariot(suite) {
+  fermerScanL();
+  const f = document.createElement('div'); f.id = 'scanL';
+  f.style.cssText = 'position:fixed;inset:0;z-index:120;background:#000;display:flex;flex-direction:column';
+  f.innerHTML = '<div style="color:#fff;text-align:center;font-size:20px;font-weight:700;padding:14px">Visez le QR code du chariot</div><div id="scanLV" style="flex:1;position:relative;overflow:hidden"></div>' +
+    '<button id="scanLX" style="margin:14px;font-size:20px;padding:16px;border-radius:12px;border:0;background:#fff;font-weight:800">Annuler</button>';
+  document.body.appendChild(f);
+  document.getElementById('scanLX').onclick = fermerScanL;
+  try {
+    if (!window.ZXing) await chargerScriptL(['https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js', 'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js']);
+    if (!ZXL) { ZXL = new ZXing.MultiFormatReader(); const h = new Map(); h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.CODE_128]); h.set(ZXing.DecodeHintType.TRY_HARDER, true); ZXL.setHints(h); }
+    FLUXL = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    const v = document.createElement('video'); v.setAttribute('playsinline', ''); v.muted = true; v.autoplay = true; v.srcObject = FLUXL; v.style.cssText = 'width:100%;height:100%;object-fit:cover';
+    const zone = document.getElementById('scanLV'); zone.appendChild(v);
+    zone.insertAdjacentHTML('beforeend', '<div style="position:absolute;left:15%;right:15%;top:20%;bottom:20%;border:3px solid #fff8;border-radius:14px;pointer-events:none"></div>');
+    await v.play();
+    const c = document.createElement('canvas'), x = c.getContext('2d', { willReadFrequently: true }); let tour = 0;
+    BOUCLEL = setInterval(() => {
+      if (!v.videoWidth) return;
+      const zoom = tour++ % 2 === 1, W = v.videoWidth, H = v.videoHeight, cw = W * (zoom ? 0.45 : 0.8), ch = H * (zoom ? 0.5 : 0.7), k = Math.min(zoom ? 2 : 1, 900 / Math.max(cw, ch));
+      c.width = Math.round(cw * k); c.height = Math.round(ch * k);
+      x.drawImage(v, (W - cw) / 2, (H - ch) / 2, cw, ch, 0, 0, c.width, c.height);
+      try {
+        const r = ZXL.decodeWithState(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c))));
+        const t = r && r.getText ? r.getText() : '';
+        if (!t) return;
+        const mr = t.match(/[?&]r=([^&#]+)/), nu = t.trim().match(/^R-?(\d{1,4})$/i);
+        const n = mr ? decodeURIComponent(mr[1]).trim().toUpperCase() : (nu ? 'R-' + nu[1].padStart(3, '0') : '');
+        if (!n) return;   // pas un QR de chariot : on continue de chercher
+        if (navigator.vibrate) navigator.vibrate(80);
+        fermerScanL(); suite(n);
+      } catch (e) {}
+    }, 130);
+  } catch (e) { fermerScanL(); alert('Caméra impossible : ' + (e.message || e) + '\n\nAutorisez la caméra pour ce site dans le navigateur.'); }
+}
+
+/* ---------- 🖨 Étiquette du bon (imprimante d'étiquettes reliée à la tablette) ----------
+   Format réglé ici (en mm). 100 x 150 = étiquette 10 x 15 cm ; pour 15 x 15, mettre 150 et 150. */
+const ETIQ_L = 100, ETIQ_H = 150;
+function imprimerEtiquette(client, lignes, chariots) {
+  const esc = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const tot = lignes.reduce((t, l) => t + Number(l.quantite || 0), 0);
+  const maint = new Date(), hh = String(maint.getHours()).padStart(2, '0') + ':' + String(maint.getMinutes()).padStart(2, '0');
+  let st = document.getElementById('etiqStyle');
+  if (!st) { st = document.createElement('style'); st.id = 'etiqStyle'; document.head.appendChild(st); }
+  st.textContent = '@media screen{#etiq{display:none}}@media print{@page{size:' + ETIQ_L + 'mm ' + ETIQ_H + 'mm;margin:4mm}body>*:not(#etiq){display:none!important}' +
+    '#etiq{display:block!important;font-family:Arial,Helvetica,sans-serif;color:#000;width:' + (ETIQ_L - 8) + 'mm}' +
+    '#etiq h1{font-size:24pt;margin:0 0 1mm;line-height:1.1}#etiq .j{font-size:13pt;font-weight:bold;border-bottom:.6mm solid #000;padding-bottom:1.5mm;margin-bottom:2mm}' +
+    '#etiq table{width:100%;border-collapse:collapse;font-size:13pt}#etiq td{padding:.8mm 0;border-bottom:.2mm solid #999}#etiq td.q{text-align:right;font-weight:bold;width:18mm}' +
+    '#etiq .t{font-size:15pt;font-weight:bold;margin-top:2mm;text-align:right}#etiq .ch{font-size:20pt;font-weight:900;margin-top:2mm;text-align:center;border:.6mm solid #000;padding:1mm}' +
+    '#etiq .pied{font-size:9pt;margin-top:2mm}}';
+  let e = document.getElementById('etiq');
+  if (!e) { e = document.createElement('div'); e.id = 'etiq'; document.body.appendChild(e); }
+  const op = lire(CLE_OP, '');
+  e.innerHTML = '<h1>' + esc(client) + '</h1>' +
+    '<div class="j">Livraison : ' + esc(libelleJour(jourCourant())) + (lotFiltre && lotFiltre.mode === 'apres' ? ' — 2ᵉ livraison' : '') + '</div>' +
+    '<table>' + lignes.map(l => '<tr><td>' + esc(l.article) + '</td><td class="q">' + esc(l.quantite) + '</td></tr>').join('') + '</table>' +
+    '<div class="t">Total : ' + tot + ' pièce' + (tot > 1 ? 's' : '') + '</div>' +
+    (chariots && chariots.length ? '<div class="ch">🧺 ' + chariots.map(esc).join(' · ') + '</div>' : '') +
+    '<div class="pied">Blanchisserie du Limousin · ' + esc(op) + ' · ' + new Date().toLocaleDateString('fr-FR') + ' ' + hh + '</div>';
+  setTimeout(() => window.print(), 80);
+}
+
 function demanderChariot(client, lignes, opts) {
   const contenu = lignes.map(l => l.article + ' ' + l.quantite).join(', ');
   const sousTitre = contenu || 'sans quantités (suivi du chariot seulement)';
@@ -1261,8 +1328,10 @@ function demanderChariot(client, lignes, opts) {
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:440px">' +
     '<div id="rollTitre" style="font-size:22px;font-weight:800">🧺 Dans quel chariot ?</div><div id="rollSous" style="color:#555;margin:4px 0 10px">' + rollEsc(client) + ' · ' + rollEsc(sousTitre) + '</div>' +
     '<div id="rollAff" style="font-size:44px;font-weight:900;text-align:center;border:2px solid #ccd;border-radius:12px;padding:8px;min-height:68px;letter-spacing:2px"></div>' +
+    '<button id="rollScan" style="width:100%;margin-top:8px;font-size:20px;padding:14px;border-radius:12px;border:0;background:#1f2a35;color:#fff;font-weight:800">📷 Scanner le QR du chariot</button>' +
     '<div id="rollMsg" style="min-height:22px;color:#c62828;font-weight:700;margin:6px 0"></div>' +
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + touches.map(t => '<button data-t="' + t + '" style="font-size:28px;font-weight:700;padding:16px 0;border-radius:12px;border:1px solid #ccd;background:' + (t === 'OK' ? '#2e7d32;color:#fff' : '#f4f6f8') + '">' + t + '</button>').join('') + '</div>' +
+    (lignes.length ? '<button id="rollImp" style="width:100%;margin-top:12px;font-size:18px;padding:14px;border-radius:12px;border:2px solid #1f5fa8;color:#1f5fa8;background:#fff;font-weight:700">🖨 Imprimer l\'étiquette</button>' : '') +
     '<button id="rollSans" style="width:100%;margin-top:12px;font-size:18px;padding:14px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">' + (lignes.length ? 'Pas de chariot pour l\'instant' : 'Annuler') + '</button></div>';
   f.style.display = 'flex';
   const aff = () => { document.getElementById('rollAff').textContent = saisie ? numRoll(saisie) : ''; };
@@ -1286,6 +1355,8 @@ function demanderChariot(client, lignes, opts) {
     document.getElementById('rollSans').textContent = '✓ Terminé (' + faits.length + ' chariot' + (faits.length > 1 ? 's' : '') + ')';
     f.style.display = 'flex';
   }
+  document.getElementById('rollScan').onclick = () => scannerChariot(n => { saisie = n.replace(/^R-/, ''); aff(); verifierPuisEnvoyer(n); });
+  if (document.getElementById('rollImp')) document.getElementById('rollImp').onclick = () => imprimerEtiquette(client, lignes, faits);
   document.getElementById('rollSans').onclick = () => { f.style.display = 'none'; if (!faits.length && opts && opts.surSans) opts.surSans(); };
   // Déjà fait ? (une autre personne a déjà scanné ce chariot) : jamais de chariot compté deux fois
   async function verifierPuisEnvoyer(numero) {
