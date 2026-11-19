@@ -805,6 +805,7 @@ async function chargerRafale(){
 }
 async function verifierPourCharger(n){   // → {ok:true,c:client} ou {msg,coul}
   var i=await sb.rpc('roll_info',{p_numero:n});if(i.error)throw i.error;var I=i.data;if(!I||!I.ok)throw new Error((I&&I.error)||'chariot inconnu');
+  if(I.etat==='bdl'&&NUML!==null&&$('numFond')&&$('numFond').style.display==='flex'){fermerNumero();setTimeout(function(){traiterCode(n);},50);return {msg:'',coul:'#555e68',deja:true,fiche:true};}   // pas enregistré : on ouvre sa fiche pour lui donner un client
   if(I.etat==='pret'){if(CHG&&I.client&&nrm(I.client)!==nrm(CHG))return {msg:'✗ STOP '+esc(n)+' est pour « '+esc(I.client)+' », pas pour « '+esc(CHG)+' »',coul:'#b3261e'};return {ok:true,c:I.client};}
   if(I.etat==='chauffeur'&&MOI&&I.personne===MOI.nom)return {msg:'✓ '+esc(n)+' déjà dans votre camion',coul:'#555e68',deja:true};
   return {msg:'⚠ '+esc(n)+' : '+esc((ETATS[I.etat]||I.etat).toLowerCase())+(I.client?' ('+esc(I.client)+')':'')+' — pas chargé',coul:'#e67e00'};}
@@ -829,6 +830,7 @@ async function rafaleCode(t){
       if(CHG&&I.client&&nrm(I.client)!==nrm(CHG)){bip(false);rafaleAff('✗ STOP '+esc(n)+'<div style="font-size:18px">est pour « '+esc(I.client)+' »,<br>pas pour « '+esc(CHG)+' »</div>','#b3261e');}
       else{RAF.ok.push({n:n,c:I.client});bip(true);rafaleAff('✓ '+esc(n)+' ('+RAF.ok.length+')<div style="font-size:18px">'+esc(I.client||'')+'</div>','#2e7d32');rafaleBas();}
     }else if(I.etat==='chauffeur'&&MOI&&I.personne===MOI.nom){rafaleAff('✓ '+esc(n)+' déjà dans votre camion','#555e68');}
+    else if(I.etat==='bdl'){bip(false);rafaleAff('⚠ '+esc(n)+' n\'est enregistré pour aucun client<div style="font-size:16px">Plein ? Touchez Annuler, puis <b>N°</b> → '+esc(n)+' → « Il est PLEIN : charger pour un client… »</div>','#e67e00');}
     else{bip(false);rafaleAff('⚠ '+esc(n)+' : '+esc((ETATS[I.etat]||I.etat).toLowerCase())+(I.client?' ('+esc(I.client)+')':'')+'<div style="font-size:16px">PAS chargé. Terminez la rafale et scannez-le seul.</div>','#e67e00');}
   }catch(e){
     if(estReseau(e)&&MOI){RAF.ok.push({n:n,c:null});bip(true);rafaleAff('📶 '+esc(n)+' ('+RAF.ok.length+')<div style="font-size:16px">pas de réseau : gardé, vérifié plus tard</div>','#e67e00');rafaleBas();}
