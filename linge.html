@@ -655,7 +655,7 @@ function ouvrirJours() {
   const liste = document.getElementById('listeJours');
   liste.innerHTML = '';
   const auj = new Date();
-  for (let i = -2; i <= 7; i++) {
+  for (let i = -10; i <= 7; i++) {   // jusqu'à 10 jours en arrière : au-delà d'hier, code responsable (rattrapage d'un oubli)
     const d = new Date(auj.getFullYear(), auj.getMonth(), auj.getDate() + i, 12);
     const iso = isoLocal(d);
     const b = document.createElement('button');
@@ -665,8 +665,20 @@ function ouvrirJours() {
     if (i === 0) lib += ' (aujourd\'hui)';
     if (i === 1) lib += ' (demain)';
     if (i === -1) lib += ' (hier)';
+    if (i < -1) { lib = '🔒 ' + lib; b.style.opacity = '.75'; }
     b.textContent = lib;
-    b.onclick = () => { choisirJour(i === 0 ? null : iso); fermerJours(); };
+    b.onclick = async () => {
+      if (i < -1) {   // jour passé : rattrapage réservé au responsable
+        if (!confirm('Saisir pour ' + libelleJour(iso) + ' (jour passé) ?\n\nÀ utiliser seulement pour rattraper un oubli. Le code responsable est demandé.')) return;
+        const code = demanderCode(); if (!code) return;
+        try {
+          const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'verifierCode', code: code }) });
+          const data = await rep.json();
+          if (!data.ok) { codeResponsable = ''; toast('Code incorrect', true); return; }
+        } catch (e) { toast('Pas de réseau : impossible de vérifier le code.', true); return; }
+      }
+      choisirJour(i === 0 ? null : iso); fermerJours();
+    };
     liste.appendChild(b);
   }
   document.getElementById('fondJour').style.display = 'flex';
