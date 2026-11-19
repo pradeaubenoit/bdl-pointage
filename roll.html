@@ -90,7 +90,8 @@ function majAtt(){var n=scansAtt().length,b=$('attBadge');
 function mettreEnAttente(n,etape,client){
   if(!MOI)return false;var l=scansAtt();
   if(l.some(function(x){return x.n===n&&x.e===etape&&Date.now()-new Date(x.q).getTime()<15*60e3;}))return true;   // déjà gardé
-  l.push({n:n,e:etape,c:client||null,q:new Date().toISOString(),k:uid(),id:MOI.id,code:MOI.code,nom:MOI.nom});ecrire('roll_scans_att',l);
+  var k=uid();l.push({n:n,e:etape,c:client||null,q:new Date().toISOString(),k:k,id:MOI.id,code:MOI.code,nom:MOI.nom});ecrire('roll_scans_att',l);
+  try{localStorage.setItem('roll_dernier_scan',JSON.stringify({n:n,e:etape,c:client||'',t:Date.now(),k:k}));}catch(e){}setTimeout(majAnnul,50);
   if(navigator.vibrate)navigator.vibrate([120,80,120]);majAtt();return true;}
 var ENVOI_SC=false;
 async function envoyerScans(manuel){
@@ -296,10 +297,20 @@ function changerMoi(){if(MOI&&!confirm('Changer de personne sur ce téléphone ?
 /* ---------- « ↩ Annuler mon dernier scan » (30 min, seulement le sien, seulement si personne n'a rescanné le chariot) ---------- */
 function dernierScan(){try{var d=JSON.parse(localStorage.getItem('roll_dernier_scan')||'null');if(d&&Date.now()-d.t<30*60000)return d;}catch(e){}return null;}
 function majAnnul(){var b=$('bAnnul');if(!b)return;var d=MOI&&dernierScan();if(!d){b.style.display='none';document.body.classList.remove('annulOn');return;}
-  b.textContent='↩ Annuler : '+d.n+' '+(LIB[d.e]||d.e)+(d.c?' ('+d.c+')':'');b.style.display='block';document.body.classList.add('annulOn');}   // place en bas pour ne rien cacher (bouton « Terminer le chargement »)
+  var att=d.k&&scansAtt().some(function(x){return x.k===d.k;});
+  b.textContent='↩ Annuler : '+d.n+' '+(LIB[d.e]||d.e)+(d.c?' ('+d.c+')':'')+(att?' · pas encore envoyé':'');b.style.display='block';document.body.classList.add('annulOn');}   // place en bas pour ne rien cacher (bouton « Terminer le chargement »)
 setInterval(majAnnul,30000);setTimeout(majAnnul,800);
 async function annulerDernier(){var d=dernierScan();if(!d||!MOI){majAnnul();return;}
   if(!confirm('Annuler ce scan ?\n\n'+d.n+' '+(LIB[d.e]||d.e)+(d.c?' — '+d.c:'')+'\n\nLe chariot reprend l\'état qu\'il avait juste avant.'))return;
+  // scan encore dans le téléphone (pas de réseau) : on le retire simplement de la file d'attente
+  if(d.k){var l=scansAtt(),i=l.findIndex(function(x){return x.k===d.k;});
+    if(i>=0){l.splice(i,1);ecrire('roll_scans_att',l);try{localStorage.removeItem('roll_dernier_scan');}catch(e){}majAnnul();majAtt();alert('✓ Annulé : '+d.n+' '+(LIB[d.e]||d.e)+' (il n\'avait pas encore été envoyé)');return;}}
+  // sécurité : on vérifie que ce scan est TOUJOURS le dernier de ce chariot (le bureau a pu le corriger entre-temps)
+  try{var iv=await sb.rpc('roll_info',{p_numero:d.n});var D=((iv&&iv.data&&iv.data.derniers)||[]).reduce(function(m,x){return !m||new Date(x.quand)>new Date(m.quand)?x:m;},null);
+    if(!iv.error&&iv.data&&iv.data.ok&&(!D||D.etape!==d.e||(D.personne&&D.personne!==MOI.nom))){
+      try{localStorage.removeItem('roll_dernier_scan');}catch(e){}majAnnul();
+      alert('Rien à annuler : '+d.n+' a déjà été modifié depuis (par le bureau ou un autre scan).\n\nSon état actuel : '+((ETATS[iv.data.etat]||iv.data.etat)||'?')+(iv.data.client?' — '+iv.data.client:'')+'.');return;}
+  }catch(e){}
   try{var r=await sb.rpc('roll_annuler',{p_personne:MOI.id,p_code:MOI.code});if(r.error)throw r.error;
     try{localStorage.removeItem('roll_dernier_scan');}catch(e){}majAnnul();
     if(!r.data.ok){alert(r.data.error||'Annulation refusée');return;}
