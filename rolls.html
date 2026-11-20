@@ -667,7 +667,7 @@ VUES.tournees=async function(){
       return finsCh.find(function(a){var t=new Date(a.quand).getTime();return t>=new Date(g.a).getTime()-6e4&&t<=lim;})||null;};
     var ligneFin=function(g,i){if(g.lieu!=='BdL — chargement')return '';var f=finDe(g,i),estSoir=soir.indexOf(g)>=0;
       if(f)return '<tr><td colspan="6" style="color:'+(f.moment==='fin_bureau'||/SANS RÉSEAU/.test(f.reponse||'')||(f.restes&&f.restes.length)?'var(--orange)':'var(--vert)')+';font-weight:700">🏁 '+
-        (f.moment==='fin_bureau'?'Chargement terminé À DISTANCE par le bureau à '+hm(f.quand):/SANS RÉSEAU/.test(f.reponse||'')?'Chargement terminé SANS RÉSEAU à '+hm(f.quand)+' (quai non vérifié)':'Chargement terminé à '+hm(f.quand)+' — '+esc(f.reponse||'').replace(/dans le camion\)/,'dans le camion à '+hm(f.quand)+', vides compris)'))+'</td></tr>';
+        (f.moment==='fin_bureau'?'Chargement terminé À DISTANCE par le bureau à '+hm(f.quand):/SANS RÉSEAU/.test(f.reponse||'')?'Chargement terminé SANS RÉSEAU à '+hm(f.quand)+' (quai non vérifié)':'Chargement terminé à '+hm(f.quand)+' — '+esc(String(f.reponse||'').replace(/\s*\(\d+ (chariots? )?dans le camion\)/,'').trim())+' ('+g.ch.length+' chargé'+(g.ch.length>1?'s':'')+')')+'</td></tr>';
       if(estSoir)return '<tr><td colspan="6" class="s">🏁 « Terminer le chargement » : à faire au départ demain matin.</td></tr>';
       return seg[i+1]?'<tr><td colspan="6" style="color:var(--rouge);font-weight:700">⚠ Chargement jamais terminé : parti chez « '+esc(seg[i+1].lieu)+' » sans toucher « Terminer le chargement ».</td></tr>':
         '<tr><td colspan="6" style="color:var(--orange);font-weight:700">⏳ Chargement en cours : « Terminer le chargement » pas encore touché.</td></tr>';};
