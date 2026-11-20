@@ -699,8 +699,9 @@ VUES.tournees=async function(){
       '<div style="margin-bottom:6px"><b>Repris :</b> '+ligne(rep)+'</div>'+
       (soir.length?'<div style="margin-bottom:6px"><b>🌙 Chargé pour demain :</b> '+ligne(clientSoir)+'</div>':'')+
       (camion?'<div style="margin-bottom:6px"><b>Dans son camion maintenant :</b> '+(camion.length?camion.length+' chariot'+(camion.length>1?'s':'')+' — '+ligne(camG):'vide')+
-        (function(){var anc=camion.filter(function(r){return String(r.maj_le||'').slice(0,10)<j||!r.client;});if(!anc.length)return '';
-          return '<div class="s" style="margin-top:2px">dont pas chargés aujourd\'hui ou vides : '+anc.map(function(r){var d=new Date(r.maj_le);return '<span data-r="'+esc(r.id)+'" style="cursor:pointer;text-decoration:underline dotted">'+esc(r.numero)+'</span> '+(r.client?esc(r.client):'vide')+' (depuis le '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+')';}).join(' · ')+'</div>';})()+'</div>':'')+
+        (function(){var jp=j.split('-'),veilleSoir=new Date(+jp[0],+jp[1]-1,+jp[2]-1,14,0);   // chargés la veille à partir de 14 h = chargement pour aujourd'hui (normal)
+          var anc=camion.filter(function(r){return !r.client||new Date(r.maj_le)<veilleSoir;});if(!anc.length)return '';
+          return '<div class="s" style="margin-top:2px">⚠ anciens ou vides (pas chargés pour aujourd\'hui) : '+anc.map(function(r){var d=new Date(r.maj_le);return '<span data-r="'+esc(r.id)+'" style="cursor:pointer;text-decoration:underline dotted">'+esc(r.numero)+'</span> '+(r.client?esc(r.client):'vide')+' (depuis le '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+')';}).join(' · ')+'</div>';})()+'</div>':'')+
       ''+
       (function(){var k=-1;seg.forEach(function(g,i){if(g.lieu==='BdL — chargement'&&soir.indexOf(g)<0)k=i;});
         if(k<0||finDe(seg[k],k)||j!==auj)return '';
