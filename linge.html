@@ -1755,9 +1755,10 @@ async function deplacerLinge(c, ancien, contenu, question) {
     const deja2 = noteDeRoll(info);
     const total2 = fusionContenu(deja2, contenu);
     if (!confirm(cible + ' est déjà parti de l\'atelier (chargé ou livré).\n\nAjouter ce linge à son contenu quand même ?\n\n' + cible + ' (' + c.client + ') contiendra :\n' + (total2 || '—') + '\n\nAvant : ' + (deja2 || '—'))) return;
-    const id2 = await idBureau(cible); if (!id2) return;
     try {
-      const r = await rollRpc('roll_contenu', { p_numero: cible, p_personne: id2.id, p_code: id2.code, p_note: total2 });
+      // d'abord avec le code de l'atelier ; si Supabase le refuse : code Bureau
+      let id2 = await rollIdentite(cible), r = id2 ? await rollRpc('roll_contenu', { p_numero: cible, p_personne: id2.id, p_code: id2.code, p_note: total2 }) : null;
+      if (!r || !r.ok) { id2 = await idBureau(cible); if (!id2) return; r = await rollRpc('roll_contenu', { p_numero: cible, p_personne: id2.id, p_code: id2.code, p_note: total2 }); }
       if (!r || !r.ok) { toast((r && r.error) || 'Refusé', true); return; }
       toast('🧺 ' + cible + ' : ' + total2);
       chariotsClient(c);
