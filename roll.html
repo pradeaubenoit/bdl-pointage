@@ -853,7 +853,8 @@ async function rafaleCode(t){
     else{bip(false);rafaleAff('⚠ '+esc(n)+' non enregistré<div style="font-size:15px">'+esc(e.message||e)+' — rescannez-le</div>','#b3261e');RAF.dernier='';}}
   if(RAF)RAF.occupe=false;
 }
-async function finRafale(){if(!RAF||!RAF.ok.length)return;RAF.occupe=true;var m=RAF.mode;return chargerListe(RAF.ok.slice(),function(i,n){rafaleAff((m==='vide'?'🌀 Enregistrement… ':'🚚 Chargement… ')+i+' / '+n,'#1f2a35');},m);}
+async function finRafale(){if(!RAF||!RAF.ok.length||RAF.fin)return;RAF.fin=true;RAF.occupe=true;   // 2e appui sur « Terminer » pendant l'envoi : ignoré (sinon chaque chariot était chargé 2 fois)
+  var m=RAF.mode;return chargerListe(RAF.ok.slice(),function(i,n){rafaleAff((m==='vide'?'🌀 Enregistrement… ':'🚚 Chargement… ')+i+' / '+n,'#1f2a35');},m);}
 async function chargerListe(l,prog,mode){var ok=0,ko=[],etape=mode==='vide'?'vide':'charge';
   for(var i=0;i<l.length;i++){prog(i+1,l.length);
     try{var r=await sb.rpc('roll_scan',{p_numero:l[i].n,p_personne:MOI.id,p_code:MOI.code,p_etape:etape,p_client:null,p_note:l[i].note||null});if(r.error)throw r.error;
