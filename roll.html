@@ -75,7 +75,9 @@ function cleRep(c,q){return nrm(c)+'|'+(q||[]).slice().sort().join(',');}
 function dejaRepondu(c,q){return !!lire('roll_rep_'+jourIso(),{})[cleRep(c,q)];}
 /* Chargement obligatoire : après avoir vidé son camion (ou ouvert l'écran Chargement), le chauffeur est À LA BDL.
    Tant qu'il n'a pas touché « Terminer le chargement », il ne peut choisir aucun client (liste ou QR). */
-function chargeEnCours(){return !!(MOI&&aRole('chauffeur')&&!aRole('bureau')&&lire('roll_charge_'+MOI.id,false));}
+function chargeEnCours(){if(!(MOI&&aRole('chauffeur')&&!aRole('bureau')))return false;var t=lire('roll_charge_'+MOI.id,false);if(!t)return false;
+  if(typeof t==='number'&&Date.now()-t>5*36e5){poserCharge(false);return false;}   // commencé il y a plus de 5 h (ex. chargé la veille au soir) : plus bloquant
+  return true;}
 function poserCharge(v){if(!MOI)return;var deja=lire('roll_charge_'+MOI.id,false);ecrire('roll_charge_'+MOI.id,v?(typeof deja==='number'?deja:Date.now()):false);}
 // 🏁 Le bureau peut terminer le chargement à distance : le téléphone le voit et débloque le chauffeur
 async function verifFinBureau(){
@@ -625,7 +627,7 @@ document.addEventListener('visibilitychange',function(){if(document.visibilitySt
 async function ecranChargement(msg,d){
   if(!MOI)return;
   if(ARRET){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(e){}}
-  poserCharge(true);
+  // NB : ouvrir cet écran (ex. bouton 🚚 pour voir son camion) ne bloque plus le chauffeur ; seuls un scan « chargé »/« déchargé » ou « Je suis à la BdL » le mettent en chargement
   if(CHG===null)CHG='';
   if(!d){$('main').innerHTML='<div class="carte">Chargement de la liste…</div>';
     try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(r.error)throw r.error;d=r.data;if(!d.ok)throw new Error(d.error);}
@@ -856,6 +858,7 @@ async function chargerListe(l,prog,mode){var ok=0,ko=[],etape=mode==='vide'?'vid
       if(!r.data.ok){if(/code/i.test(r.data.error)){fermerScanner();alert('Code incorrect. Retapez votre code.');MOI=null;try{localStorage.removeItem('roll_moi');}catch(e){}return choisirMoi();}throw new Error(r.data.error);}ok++;}catch(e){if(estReseau(e)&&mettreEnAttente(l[i].n,etape,l[i].c||null))ok++;else ko.push(l[i].n);}}
   fermerScanner();fermerNumero();if(ko.length)alert('⚠ Pas enregistrés (réseau ?) : '+ko.join(', ')+'\n\nScannez-les à nouveau.');
   if(etape==='vide'){$('main').innerHTML='<div class="carte ok">✓ '+ok+' chariot'+(ok>1?'s':'')+' vidé'+(ok>1?'s':'')+' au tunnel : ils sont libres</div><button class="gros v" onclick="viderRafale()">🌀 Vider d\'autres chariots en rafale</button><button class="gros" style="background:#fff;color:#1f2a35;border:2px solid #1f2a35" onclick="viderParNumeros()">⌨ Vider d\'autres chariots par numéros</button>';return;}
+  if(ok)poserCharge(true);
   ecranChargement('✓ '+ok+' chariot'+(ok>1?'s':'')+' chargé'+(ok>1?'s':'')+' dans votre camion');}
 /* ---------- Saisie du numéro au clavier (étiquette illisible, pas de caméra…) ---------- */
 var NUMS='';
@@ -903,7 +906,7 @@ async function jeSuisChez(suite){
   function rendre(){var t=nrm($('jsQ').value);$('jsL').innerHTML=tousClients().filter(function(c){return !t||nrm(c).indexOf(t)>=0;}).slice(0,80).map(function(c){return '<div data-c="'+esc(c)+'">'+esc(c)+'</div>';}).join('');}
   $('jsQ').oninput=rendre;rendre();
   z.onclick=function(e){
-    if(e.target.closest('[data-bdl]')){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(x){}majMoi();return ecranChargement();}   // à la BdL : écran de chargement
+    if(e.target.closest('[data-bdl]')){ARRET=null;try{localStorage.removeItem('roll_arret');}catch(x){}poserCharge(true);majMoi();return ecranChargement();}   // à la BdL : écran de chargement
     var d=e.target.closest('[data-c]');if(d)choisir(d.getAttribute('data-c'));};
 }
 function afficherOuAccueil(){if(INFO&&INFO.numero)afficher();else demanderNumero();}
