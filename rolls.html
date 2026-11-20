@@ -545,7 +545,11 @@ VUES.controle=async function(){
     // Choisir le client avec « Où suis-je ? » est la méthode prévue (l'appli alerte si on dépose chez le mauvais client) : pas une anomalie
     if(false&&s.etape==='arrivee'&&/choisi dans la liste/.test(s.note||''))A.push({quand:s.quand,ch:s.personne,type:'Arrivée sans QR client',k:'qr',grave:false,client:s.client,rolls:[],rep:''});
     // 3. Chariot « chargé » chez le client juste avant d'être livré : pas scanné au chargement à la BdL
-    if(s.etape==='charge'){var L=parRoll[s.roll_id];for(var j=L.indexOf(s)+1;j<L.length;j++){var u=L[j];if(new Date(u.quand)-t>180000)break;
+    // Linge AJOUTÉ par l'atelier dans un chariot déjà chargé dans ce camion (« rempli » entre deux « chargé ») : pas la faute du chauffeur
+    var ajoutAtelier=function(s){var Lt=scTous.filter(function(x){return x.roll_id===s.roll_id&&x.quand<s.quand;}),j=Lt.length-1,vuR=false;
+      while(j>=0&&Lt[j].etape==='rempli'){vuR=true;j--;}
+      return vuR&&j>=0&&Lt[j].etape==='charge'&&Lt[j].personne===s.personne&&new Date(s.quand)-new Date(Lt[j].quand)<16*3600e3;};
+    if(s.etape==='charge'&&!ajoutAtelier(s)){var L=parRoll[s.roll_id];for(var j=L.indexOf(s)+1;j<L.length;j++){var u=L[j];if(new Date(u.quand)-t>180000)break;
         if(u.etape==='livre'&&u.personne===s.personne){A.push({quand:s.quand,ch:s.personne,type:'Pas scanné au chargement BdL',k:'chg',grave:true,client:u.client,rolls:[R(s.roll_id)],rep:'scanné pour la 1re fois chez le client (heure = livraison) : jamais scanné au départ de la BdL'});break;}}}
     // Livré sans avoir été chargé juste avant (quel que soit l'état précédent) : le scan de chargement à la BdL manque
     if(s.etape==='livre'&&!/chariot vide déposé/.test(s.note||'')){var Lt=scTous.filter(function(x){return x.roll_id===s.roll_id&&x.quand<s.quand;});var pv=Lt[Lt.length-1];
@@ -694,7 +698,9 @@ VUES.tournees=async function(){
       '<div style="margin-bottom:6px"><b>Livré :</b> '+ligne(liv)+'</div>'+
       '<div style="margin-bottom:6px"><b>Repris :</b> '+ligne(rep)+'</div>'+
       (soir.length?'<div style="margin-bottom:6px"><b>🌙 Chargé pour demain :</b> '+ligne(clientSoir)+'</div>':'')+
-      (camion?'<div style="margin-bottom:6px"><b>Dans son camion maintenant :</b> '+(camion.length?camion.length+' chariot'+(camion.length>1?'s':'')+' — '+ligne(camG):'vide')+'</div>':'')+
+      (camion?'<div style="margin-bottom:6px"><b>Dans son camion maintenant :</b> '+(camion.length?camion.length+' chariot'+(camion.length>1?'s':'')+' — '+ligne(camG):'vide')+
+        (function(){var anc=camion.filter(function(r){return String(r.maj_le||'').slice(0,10)<j||!r.client;});if(!anc.length)return '';
+          return '<div class="s" style="margin-top:2px">dont pas chargés aujourd\'hui ou vides : '+anc.map(function(r){var d=new Date(r.maj_le);return '<span data-r="'+esc(r.id)+'" style="cursor:pointer;text-decoration:underline dotted">'+esc(r.numero)+'</span> '+(r.client?esc(r.client):'vide')+' (depuis le '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+')';}).join(' · ')+'</div>';})()+'</div>':'')+
       ''+
       (function(){var k=-1;seg.forEach(function(g,i){if(g.lieu==='BdL — chargement'&&soir.indexOf(g)<0)k=i;});
         if(k<0||finDe(seg[k],k)||j!==auj)return '';
