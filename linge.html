@@ -1715,22 +1715,37 @@ async function corrigerQuantites(c, x, camion) {
   const champ = 'width:110px;font-size:24px;font-weight:700;text-align:center;padding:8px;border:2px solid #ccd;border-radius:10px';
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
     '<div style="font-size:22px;font-weight:800">✎ ' + rollEsc(x.numero) + ' — ' + rollEsc(c.client) + '</div>' +
-    '<div style="color:#555;margin:4px 0 10px">Tapez les quantités qui sont VRAIMENT dans ce chariot. Vide = article absent.</div>' +
-    lignes.map((l, i) => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #eef0f2"><span style="font-size:18px;font-weight:600">' + rollEsc(l.a) + '</span>' +
-      '<input data-q="' + i + '" type="number" inputmode="numeric" min="0" value="' + rollEsc(l.q) + '" style="' + champ + '"></div>').join('') +
+    '<div style="color:#555;margin:4px 0 10px">Tapez la quantité à AJOUTER (ou en négatif pour retirer). Le chiffre en vert est déjà dans le chariot.</div>' +
+    lignes.map((l, i) => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #eef0f2"><span style="font-size:18px;font-weight:600">' + rollEsc(l.a) +
+      (Number(l.q) > 0 ? '<div style="font-size:14px;color:#2e7d32;font-weight:700">déjà dans le chariot : ' + rollEsc(l.q) + '</div>' : '') + '</span>' +
+      '<input data-q="' + i + '" type="number" inputmode="numeric" value="" placeholder="0" style="' + champ + '"></div>').join('') +
     '<button id="cqOk" style="width:100%;margin-top:14px;font-size:20px;padding:14px;border-radius:12px;border:none;background:#2e7d32;color:#fff;font-weight:800">✓ Enregistrer le contenu</button>' +
     '<button id="cqX" style="width:100%;margin-top:8px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Annuler</button></div>';
   f.style.display = 'flex';
   document.getElementById('cqX').onclick = () => chariotsClient(c);
   document.getElementById('cqOk').onclick = async () => {
-    const total = avecTag(tagPour(x.note), lignes.map((l, i) => { const v = Number(String(f.querySelector('[data-q="' + i + '"]').value).replace(',', '.')); return v > 0 ? l.a + ' ' + v : ''; }).filter(Boolean).join(', '));
-    if (!confirm(x.numero + ' (' + c.client + ') contiendra :\n\n' + (total || '— vide —') + '\n\nAvant : ' + (x.note || '—'))) return;
+    const ajouts = lignes.map((l, i) => ({ a: l.a, av: Number(String(l.q).replace(',', '.')) || 0, add: Number(String(f.querySelector('[data-q="' + i + '"]').value).replace(',', '.')) || 0 }));
+    if (!ajouts.some(e => e.add)) { toast('Rien à ajouter.', true); return; }
+    const total = avecTag(tagPour(x.note), ajouts.map(e => { const n = e.av + e.add; return n > 0 ? e.a + ' ' + n : ''; }).filter(Boolean).join(', '));
+    const resume = ajouts.filter(e => e.add).map(e => e.a + ' ' + (e.add > 0 ? '+' + e.add : e.add)).join(', ');
+    if (!confirm(x.numero + ' (' + c.client + ') : ' + resume + '\n\nContiendra : ' + (total || '— vide —') + '\nAvant : ' + (x.note || '—'))) return;
     const id = camion ? await idBureau(x.numero) : await rollIdentite(x.numero); if (!id) return;
     try {
       const r = camion ? await rollRpc('roll_contenu', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_note: total })
                        : await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
       if (!r || !r.ok) { if (!camion && /code/i.test((r && r.error) || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} } toast((r && r.error) || 'Refusé', true); return; }
-      toast('🧺 ' + x.numero + ' corrigé : ' + (total || 'vide'));
+      // 📊 La correction se répercute sur le total du client (facturation) : on enregistre l'écart (+ ou −) comme une saisie, article par article
+      const op = lire(CLE_OP, '') || 'correction chariot';
+      const maintenant = new Date().toISOString(), jr = jourCourant();
+      const ecarts = ajouts.filter(e => e.add).map(e => ({ article: e.a, d: e.add }));
+      if (ecarts.length) {
+        const saisies = ecarts.map(e => ({ id: nouvelId(), horodatage: maintenant, date: jr, client: c.client, article: e.article, quantite: e.d, operateur: op }));
+        ecrire(CLE_FILE, lire(CLE_FILE, []).concat(saisies));
+        saisies.forEach(ajouterAuJour);
+        rafraichirDeja();
+        envoyer();
+      }
+      toast('🧺 ' + x.numero + ' corrigé : ' + (total || 'vide') + (ecarts.length ? ' · total client mis à jour' : ''));
       chariotsClient(c);
     } catch (e) { toast('Pas de réseau : réessayez.', true); }
   };
