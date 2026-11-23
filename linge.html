@@ -1740,8 +1740,7 @@ async function corrigerQuantites(c, x, camion) {
       const ecarts = ajouts.filter(e => e.add).map(e => ({ article: e.a, d: e.add }));
       if (ecarts.length) {
         const saisies = ecarts.map(e => ({ id: nouvelId(), horodatage: maintenant, date: jr, client: c.client, article: e.article, quantite: e.d, operateur: op }));
-        ecrire(CLE_FILE, lire(CLE_FILE, []).concat(saisies));
-        saisies.forEach(ajouterAuJour);
+        ecrire(CLE_FILE, lire(CLE_FILE, []).concat(saisies));   // envoyer() les affichera (une seule fois) ; d'ici là elles comptent déjà via la file « en attente »
         rafraichirDeja();
         envoyer();
       }
