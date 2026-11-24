@@ -158,7 +158,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 /* =====================================================================
    GMAO BdL — v1
    ===================================================================== */
-var VERSION='v9.38';
+var VERSION='v9.39';
 var SB_URL='https://wjaesphordfjzavnptpu.supabase.co';
 var SB_KEY='sb_publishable_5mm_jnRkeRucn-VSNc6nhA_Htc6PBk8';
 var sb=supabase.createClient(SB_URL,SB_KEY);
@@ -750,7 +750,7 @@ VUES.bon=async function(id,extra){
     '<div class="actions" style="justify-content:flex-start">'+
       (!fini&&b.statut!=='Attente pièce'?'<button class="btn sm" id="bAtt">⏳ Attente pièce</button>':'')+
       (fini?'<button class="btn sm" id="bRouv">↺ Rouvrir</button>':'')+
-      '<button class="btn sm" id="bMail">✉ Écrire au prestataire</button><button class="btn sm" id="bRepM">📥 Ajouter leur réponse</button><button class="btn sm" id="bSuite">🔁 Suite à donner / commander une pièce</button><button class="btn sm l" id="bEdit">✎ Modifier / confier</button><button class="btn sm l" onclick="qrTel()">📱 Sur le téléphone</button></div></div>';
+      '<button class="btn sm" id="bMail">✉ Écrire au prestataire</button><button class="btn sm" id="bRepM">📥 Ajouter leur réponse</button><button class="btn sm" id="bSuite">🔁 Suite à donner / commander une pièce</button>'+(b.preventif_id?'':'<button class="btn sm" id="bVersPrev">🗓 En faire un plan préventif</button>')+'<button class="btn sm l" id="bEdit">✎ Modifier / confier</button><button class="btn sm l" onclick="qrTel()">📱 Sur le téléphone</button></div></div>';
   if(fini){
     html+='<div class="carte" style="background:var(--vert2)"><h2>✓ Terminé le '+fmtDH(b.fin)+(b.intervenant?' par '+esc(b.intervenant):'')+'</h2><div style="white-space:pre-wrap">'+esc(b.rapport||'')+'</div>'+
       '<div class="stats" style="margin-top:8px"><div><span class="etiq">Temps passé</span><b>'+fmtMin(b.duree_min)+'</b></div>'+(prevu?'<div><span class="etiq">Prévu</span><b>'+fmtMin(prevu)+'</b></div>':'')+'<div><span class="etiq">Arrêt machine</span><b>'+fmtDuree(+b.arret_min||0)+'</b></div></div>'+
@@ -785,6 +785,7 @@ VUES.bon=async function(id,extra){
   if($('bPieceAtt'))$('bPieceAtt').onclick=function(){suiteADonner(b,true);};
   if($('bRouv'))$('bRouv').onclick=function(){changer((+b.duree_min||0)>0?'En pause':'Demandé','↺ '+NOM+' rouvre le bon',V6?{valide_le:null,valide_par:null}:{});};
   if($('bFin'))$('bFin').onclick=function(){terminerBon(b,tempsPasse(msgs).min,items.length-nbFait,msgs);};
+  if($('bVersPrev'))$('bVersPrev').onclick=function(){if(!b.equipement_id){toast('Choisis d\'abord la machine du bon');return;}editerPrev(null,b.equipement_id,null,b);};
   if($('bVal'))$('bVal').onclick=async function(){try{await q(sb.from('gmao_interventions').update({valide_par:NOM,valide_le:new Date().toISOString()}).eq('id',id));await logSys(id,'✔ '+NOM+' valide le travail');if(b.preventif_id)await chargerTout();route();}catch(x){erreur(x);}};
   document.querySelectorAll('[data-ck]').forEach(function(d){d.onclick=async function(){
     var i=+d.dataset.ck,lignes=String(b.description||'').split('\n'),it=L[i],nv=!it.fait;
@@ -1443,12 +1444,16 @@ VUES.preventif=async function(){
   $('main').innerHTML='<h1 class="titre">Maintenance préventive <button class="btn p sm" style="float:right" onclick="editerPrev()">+ Plan préventif</button></h1>'+
     '<div class="carte">'+(l.length?l.map(function(p){return p.actif?lignePrev(p):lignePrev(p).replace('class="ligne"','class="ligne" style="opacity:.45"');}).join(''):'<div class="vide">Aucun plan. Exemple : « Graissage paliers sécheuse — tous les 30 jours ».</div>')+'</div>';
 };
-async function editerPrev(pid,eqId,mesId){
+async function editerPrev(pid,eqId,mesId,srcBon){
   var p=pid?PREV.find(function(x){return x.id===pid;}):{equipement_id:eqId||null,titre:'',periodicite_jours:30,checklist:'',dernier:null,actif:true};
+  if(!pid&&srcBon){var Lb=lignesCheck(srcBon.description),it=Lb.filter(function(x){return !x.libre;});
+    p.titre=srcBon.titre||'';p.checklist=(it.length?it:Lb).map(function(x){return x.txt.trim();}).filter(function(x){return x;}).join('\n');
+    if(srcBon.statut==='Terminé'){if(srcBon.fin){var df=new Date(srcBon.fin);p.dernier=df.getFullYear()+'-'+String(df.getMonth()+1).padStart(2,'0')+'-'+String(df.getDate()).padStart(2,'0');}if(srcBon.duree_min)p.temps_prevu_min=+srcBon.duree_min;}
+    else if(srcBon.temps_prevu_min)p.temps_prevu_min=+srcBon.temps_prevu_min;}
   var eqSel=EQID[p.equipement_id]||null, mesSel=MESID[p.mesure_id]||MESID[mesId]||null;
   if(!pid&&mesSel){p.mesure_id=mesSel.id;if(DERN[mesSel.id])p.dernier_valeur=+DERN[mesSel.id].valeur;}
   var pj=p.periodicite_jours||30;
-  ouvrir('<h3>'+(pid?'Modifier le plan':'Nouveau plan préventif')+'</h3><label>Machine</label><div class="ligne" id="pvE" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
+  ouvrir('<h3>'+(pid?'Modifier le plan':'Nouveau plan préventif')+'</h3>'+(srcBon?'<div class="etiq" style="margin-bottom:6px">Repris du bon '+esc(srcBon.numero?'n° '+srcBon.numero:'')+' « '+esc(srcBon.titre||'')+' » — vérifie et complète, puis choisis la fréquence.</div>':'')+'<label>Machine</label><div class="ligne" id="pvE" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
     '<label>Opération</label><input id="pvT" value="'+esc(p.titre)+'" placeholder="ex. Graissage paliers, vidange compresseur…">'+
     '<label>Se déclenche</label><select id="pvK"><option value="date">à la date (tous les X jours / semaines / mois)</option><option value="cpt"'+(p.mesure_id?' selected':'')+'>au compteur (heures, cycles, m³…)</option></select>'+
     '<div id="pvZD" class="grille"><div><label>Tous les…</label><div style="display:flex;gap:6px"><input id="pvN" inputmode="numeric" value="'+(pj%30===0?pj/30:pj%7===0?pj/7:pj)+'"><select id="pvU"><option value="1">jours</option><option value="7"'+(pj%30!==0&&pj%7===0?' selected':'')+'>semaines</option><option value="30"'+(pj%30===0?' selected':'')+'>mois</option></select></div></div>'+
@@ -1456,7 +1461,7 @@ async function editerPrev(pid,eqId,mesId){
     '<div id="pvZC"><label>Compteur</label><div class="ligne" id="pvM" style="cursor:pointer;border:1px solid var(--ligne);border-radius:8px"></div>'+
     '<div class="grille"><div><label>Toutes les… (unités du compteur)</label><input id="pvPV" inputmode="decimal" value="'+(p.periodicite_valeur==null?'':p.periodicite_valeur)+'" placeholder="ex. 500"></div>'+
     '<div><label>Valeur du compteur la dernière fois</label><input id="pvDV" inputmode="decimal" value="'+(p.dernier_valeur==null?'':p.dernier_valeur)+'"></div></div></div>'+
-    (V6?'<label>Temps prévu (minutes)</label><div style="display:flex;gap:6px"><input id="pvTP" inputmode="numeric" value="'+(p.temps_prevu_min||'')+'" placeholder="ex. 90">'+(pid&&STATS[pid]?'<button class="btn sm" type="button" onclick="$(\'pvTP\').value='+STATS[pid].moy+'">Prendre le réel moyen ('+fmtMin(STATS[pid].moy)+')</button>':'')+'</div>':'')+
+    (V6?'<label>Temps prévu <span class="etiq">(en minutes, ou « 4h », « 1h30 »)</span></label><div style="display:flex;gap:6px"><input id="pvTP" value="'+(p.temps_prevu_min||'')+'" placeholder="ex. 90 ou 1h30">'+(pid&&STATS[pid]?'<button class="btn sm" type="button" onclick="$(\'pvTP\').value='+STATS[pid].moy+'">Prendre le réel moyen ('+fmtMin(STATS[pid].moy)+')</button>':'')+'</div>':'')+
     '<label>Points à vérifier (un par ligne)'+(PREV.length?' <button class="btn l sm" type="button" id="pvCp">📋 copier depuis un autre plan</button>':'')+'</label><textarea id="pvC" placeholder="Graisser palier gauche&#10;Graisser palier droit&#10;Contrôler tension courroie">'+esc(p.checklist||'')+'</textarea>'+
     '<label style="display:flex;gap:8px;align-items:center;color:var(--txt);font-size:14px"><input type="checkbox" id="pvA" style="width:auto"'+(p.actif!==false?' checked':'')+'> Plan actif</label>'+
     '<div class="actions">'+(pid?'<button class="btn r sm" id="pvX" style="margin-right:auto">Supprimer</button><button class="btn sm" id="pvDup">⧉ Dupliquer vers d\'autres machines</button>':'')+'<button class="btn" onclick="fermer()">Annuler</button><button class="btn p" id="pvO">Enregistrer</button></div>');
@@ -1477,7 +1482,7 @@ async function editerPrev(pid,eqId,mesId){
     if(!V2){$('pvK').value='date';$('pvK').disabled=true;zones();}
     $('pvO').onclick=async function(){
       var t=val('pvT');if(!t||!eqSel){toast('Machine et opération obligatoires');return;}
-      var d={equipement_id:eqSel.id,titre:t,checklist:$('pvC').value,actif:$('pvA').checked};if(V6)d.temps_prevu_min=nb(val('pvTP'));
+      var d={equipement_id:eqSel.id,titre:t,checklist:$('pvC').value,actif:$('pvA').checked};if(V6){if(val('pvTP')&&dureeMin(val('pvTP'))==null){toast('Temps prévu pas compris (ex. 240, 4h, 1h30)');return;}d.temps_prevu_min=dureeMin(val('pvTP'));}
       if($('pvK').value==='cpt'){
         if(!mesSel||!nb(val('pvPV'))){toast('Choisis le compteur et la périodicité');return;}
         Object.assign(d,{mesure_id:mesSel.id,periodicite_valeur:nb(val('pvPV')),dernier_valeur:nb(val('pvDV'))});
@@ -1485,7 +1490,8 @@ async function editerPrev(pid,eqId,mesId){
         d.periodicite_jours=Math.max(1,Math.round((nb(val('pvN'))||1)*(+$('pvU').value)));d.dernier=val('pvD')||null;if(d.dernier&&d.dernier>auj()){toast('« Dernière fois faite » ne peut pas être dans le futur. Pour prévoir une date : « Créer le bon » puis choisir le jour.');return;}
         if(V2){d.mesure_id=null;}
       }
-      try{if(pid)await q(sb.from('gmao_preventifs').update(d).eq('id',pid));else await q(sb.from('gmao_preventifs').insert(d));
+      try{if(pid)await q(sb.from('gmao_preventifs').update(d).eq('id',pid));else{var nv=await q(sb.from('gmao_preventifs').insert(d).select());
+          if(srcBon&&nv&&nv[0]){await q(sb.from('gmao_interventions').update({preventif_id:nv[0].id}).eq('id',srcBon.id));await logSys(srcBon.id,'🗓 '+NOM+' crée le plan préventif « '+t+' » à partir de ce bon');toast('✓ Plan préventif créé et relié à ce bon');}}
         PREV=await q(sb.from('gmao_preventifs').select('*'));fermer();route();}catch(x){erreur(x);}
     };
     if($('pvCp'))$('pvCp').onclick=async function(){var o=sauver();
@@ -1929,15 +1935,15 @@ VUES.planning=async function(){
       '<div class="barre gros'+(trop?' rouge':'')+'"><div style="width:'+pc+'%"></div></div>'+
       (trop?'<div class="alerte">⚠ Trop de tâches pour cette journée : <b>+'+fmtMin(charge-cap)+'</b>. Décale un bon à un autre jour ou confie-le à quelqu\'un d\'autre.</div>':(l.length?'<div class="etiq" style="margin:6px 0">Encore '+fmtMin(cap-charge)+' de disponible.</div>':''))+
       (sansT?'<div class="etiq" style="color:var(--orange)">'+sansT+' bon'+(sansT>1?'s':'')+' sans temps prévu (non compté'+(sansT>1?'s':'')+')</div>':'')+
-      (l.length?l.map(function(b){return ligneBonPlan(b,j);}).join(''):(f.length?'':'<div class="vide">Rien de prévu.</div>'))+
+      (l.length?l.slice().sort(parUrgence).map(function(b){return ligneBonPlan(b,j);}).join(''):(f.length?'':'<div class="vide">Rien de prévu.</div>'))+
       (f.length?'<div class="etiq" style="margin-top:8px;font-weight:600">✓ Fait ce jour-là · '+fmtMin(fait)+'</div>'+f.map(function(b){var e=EQID[b.equipement_id];return '<a class="ligne" href="#bon/'+b.id+'" style="opacity:.85"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+' · terminé à '+new Date(b.fin).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+(b.prevu_le?'':' · <i>non prévu</i>')+'</div></div><b>'+fmtMin(b.duree_min)+'</b>'+(b.valide_le?'<span class="badge b-vert">✔</span>':'<span class="badge b-orange">à valider</span>')+'</a>';}).join(''):'')+'</div>';
   });
   var retard=ouverts.filter(function(b){return b.prevu_le&&b.prevu_le<auj()&&!b.assigne_a;});
-  if(retard.length)html+='<div class="carte" style="border-color:var(--rouge)"><h2>⏰ Prévus un jour passé, pas terminés</h2>'+retard.map(ligneBonPlan).join('')+'</div>';
+  if(retard.length)html+='<div class="carte" style="border-color:var(--rouge)"><h2>⏰ Prévus un jour passé, pas terminés</h2>'+retard.slice().sort(parUrgence).map(ligneBonPlan).join('')+'</div>';
   if(V8){var cmdA=await q(sb.from('gmao_commandes').select('*').neq('statut','Reçue').order('cree_le'));
     if(cmdA.length)html+='<div class="carte" style="border-color:var(--orange)"><h2>🛒 Pièces en attente ('+cmdA.length+')<a class="btn sm d" href="#achats">gérer</a></h2>'+cmdA.map(function(c){return '<div class="ligne"><div class="g"><div class="t">'+esc((c.quantite&&c.quantite!=1?c.quantite+' × ':'')+c.designation)+'</div><div class="s">'+esc(c.fournisseur||'fournisseur ?')+' · depuis le '+fmtD(c.cree_le)+'</div></div>'+badgeCmd(c.statut)+'</div>';}).join('')+'</div>';}
   var nonPl=ouverts.filter(function(b){return !b.prevu_le||!b.assigne_a;});
-  html+='<div class="carte"><h2>📥 À planifier ('+nonPl.length+')</h2>'+(nonPl.length?nonPl.map(ligneBonPlan).join(''):'<div class="vide">Tout est planifié.</div>')+'</div>';
+  html+='<div class="carte"><h2>📥 À planifier ('+nonPl.length+')</h2>'+(nonPl.length?nonPl.slice().sort(parUrgence).map(ligneBonPlan).join(''):'<div class="vide">Tout est planifié.</div>')+'</div>';
   /* Bon déjà ouvert pour ce plan : lié au plan, ou même opération sur la même machine (plan recréé / copié) */
   function bonDuPlan(p){return ouverts.find(function(b){return b.preventif_id===p.id;})||ouverts.find(function(b){return b.equipement_id===p.equipement_id&&memeTitre(b.titre,p.titre)&&(!b.preventif_id||!PREV.some(function(x){return x.id===b.preventif_id;}));});}
   PREV.forEach(function(p){var b=bonDuPlan(p);if(b&&b.preventif_id!==p.id){b.preventif_id=p.id;sb.from('gmao_interventions').update({preventif_id:p.id}).eq('id',b.id).then(function(){});}});
@@ -1959,9 +1965,11 @@ VUES.planning=async function(){
   $('peN').onclick=function(){editerPersonne(null);};
   document.querySelectorAll('[data-pe]').forEach(function(x){x.onclick=function(){editerPersonne(x.dataset.pe);};});
 };
+function estUrgent(b){return !!(b&&(b.priorite==='Urgente'||b.machine_arretee));}
+function parUrgence(a,b){return (estUrgent(b)?1:0)-(estUrgent(a)?1:0);}   // urgents d'abord, ordre conservé sinon
 function ligneBonPlan(b,jVu){
-  var e=EQID[b.equipement_id],p=+b.temps_prevu_min||0,fait=+b.duree_min||0,jRef=typeof jVu==='string'?jVu:auj();
-  return '<a class="ligne" href="#bon/'+b.id+'"><div class="g"><div class="t">'+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+
+  var e=EQID[b.equipement_id],p=+b.temps_prevu_min||0,fait=+b.duree_min||0,jRef=typeof jVu==='string'?jVu:auj(),U=estUrgent(b);
+  return '<a class="ligne" href="#bon/'+b.id+'"'+(U?' style="border-left:5px solid var(--rouge);background:#fff5f5"':'')+'><div class="g"><div class="t">'+(U?'<span class="badge b-rouge">🔴 URGENT</span> ':'')+numBT(b.numero)+' · '+esc(b.titre)+'</div><div class="s">'+esc(e?chemin(e):'—')+
     (b.assigne_a?' · 👷 '+esc(b.assigne_a):'')+(b.prevu_le?(b.prevu_le<jRef?' · <b style="color:var(--orange)">reporté du '+fmtD(b.prevu_le)+'</b>':' · '+fmtD(b.prevu_le)):'')+(p?' · prévu '+fmtMin(p)+(fait?' (déjà '+fmtMin(fait)+')':''):' · <span style="color:var(--orange)">temps ?</span>')+'</div></div>'+
     // v9.29 : déjà planifié (jour + personne) → badge vert et bouton « Modifier » ; sinon « Planifier »
     (b.prevu_le&&b.assigne_a&&b.statut==='Demandé'?'<span class="badge b-vert">✓ Planifié</span>':badgeStatut(b.statut))+
