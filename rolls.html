@@ -647,6 +647,15 @@ VUES.tournees=async function(){
   var j=jourT||auj;
   var deb=new Date(j+'T00:00:00'),fin=new Date(deb.getTime()+864e5),finJour=fin.getTime();
   var sc=await q(sb.from('rolls_scans').select('quand,etape,client,personne,roll_id,note').in('etape',['charge','livre','repris','rentre','arrivee','depart','rempli','vide']).gte('quand',deb.toISOString()).lt('quand',fin.toISOString()).order('quand'));
+  // Un « chargé » annulé plus tard (chariot remis « rempli/prêt » ou vidé, ou rechargé dans un autre camion — par le chauffeur OU par le bureau) ne compte plus dans la tournée
+  sc=sc.filter(function(s,i){
+    if(s.etape!=='charge')return true;
+    for(var k=i+1;k<sc.length;k++){var t=sc[k];if(t.roll_id!==s.roll_id)continue;
+      if(t.etape==='rempli'||t.etape==='vide')return false;
+      if(t.etape==='charge'&&t.personne!==s.personne)return false;
+      break;}
+    return true;
+  });
   sc=sc.filter(function(s){return !/^(regroupement|régularisé par le bureau|correction du bureau)/.test(s.note||'')&&!(s.etape==='repris'&&/^linge en vrac/.test(s.note||''));});
   sc=scansTournee(sc);   // regroupement de chariots dans le camion : pas une étape de tournée
   // 🏁 « Terminer le chargement » (par le chauffeur, sans réseau, ou à distance par le bureau)
