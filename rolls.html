@@ -206,6 +206,7 @@ async function historique(id){
     '<button class="btn" data-cor="vide">🌀 Vidé au tunnel (libre)</button> '+
     (r.etat!=='sale'?'<button class="btn" id="corSale">🧺 Arrivé SALE à la BdL de chez…</button> ':'')+
     (!r.client&&r.etat!=='bdl'?'<button class="btn" id="corCli">🏷 Il était plein : indiquer le client</button> ':'')+
+    '<button class="btn" id="corPret">🧺 Rempli, prêt au quai (pour un client)</button> '+
     '<button class="btn" id="corChg">🚚 Chargé (linge propre) dans le camion de…</button> '+
     (r.client?'<button class="btn" data-cor="rentre">🏭 Déchargé à la BdL (sale)</button> <button class="btn" data-cor="repris">↩ Repris chez '+esc(r.client)+'</button> <button class="btn" data-cor="livre">🚚 Livré chez '+esc(r.client)+'</button>':'')+'</div>';
   var EV={vide:'bdl',rempli:'pret',charge:'chauffeur',livre:'client',repris:'retour',rentre:'sale'};
@@ -251,6 +252,20 @@ async function historique(id){
     try{
       await q(sb.from('rolls_scans').insert({roll_id:id,etape:'charge',client:c,personne:nom,quand:quand,note:'correction du bureau : chargé dans le camion de '+nom+' (par '+qui+')'}));
       var maj={etat:'chauffeur',client:c,personne:nom,maj_le:quand};
+      await q(sb.from('rolls').update(maj).eq('id',id));
+      Object.assign(r,maj);historique(id);
+    }catch(x){alert('Correction impossible : '+(x.message||x));}
+  };
+  if($('corPret'))$('corPret').onclick=async function(){
+    var connus=Array.from(new Set(ROLLS.map(function(x){return x.client;}).filter(Boolean))).sort(function(a,b){return a.localeCompare(b,'fr');});
+    var c=r.client;
+    if(!c){c=prompt(r.numero+' : rempli, prêt pour quel client ?\n(nom exact, ex. : '+connus.slice(0,6).join(', ')+'…)');if(!c||!c.trim())return;c=c.trim();var ex=connus.find(function(x){return x.toLowerCase()===c.toLowerCase();});if(!ex&&!confirm('« '+c+' » n\'est sur aucun autre chariot. Le garder quand même ?'))return;c=ex||c;}
+    if(!confirm(r.numero+' : remis « Rempli, prêt » au quai pour « '+c+' » ?'+(r.etat==='chauffeur'?'\n\nIl SORT du camion de '+esc(r.personne||'')+'.':'')))return;
+    var qui='Bureau',quand=new Date().toISOString();
+    try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(x){}
+    try{
+      await q(sb.from('rolls_scans').insert({roll_id:id,etape:'rempli',client:c,personne:qui,quand:quand,note:'correction du bureau : remis prêt au quai'}));
+      var maj={etat:'pret',client:c,personne:qui,maj_le:quand};
       await q(sb.from('rolls').update(maj).eq('id',id));
       Object.assign(r,maj);historique(id);
     }catch(x){alert('Correction impossible : '+(x.message||x));}
