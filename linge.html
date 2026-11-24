@@ -463,9 +463,28 @@ let recherche = '';
 function sansAccent(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
 function filtrerTuiles() {
   const q = sansAccent(recherche);
-  document.querySelectorAll('#zone .tuile[data-nom]').forEach(t => {
+  const zone = document.getElementById('zone');
+  // retire les tuiles « recherche catalogue » ajoutées au coup d'avant
+  zone.querySelectorAll('.tuile[data-extra]').forEach(t => t.remove());
+  const dejaVisible = new Set();
+  zone.querySelectorAll('.tuile[data-nom]').forEach(t => {
     t.style.display = !q || t.dataset.nom.includes(q) ? '' : 'none';
+    dejaVisible.add(t.dataset.nom);
   });
+  // Recherche élargie : on peut ouvrir N'IMPORTE QUEL client du catalogue, même sans saisie (ex. Pont au mur), pour voir/vérifier ses chariots
+  if (q && q.length >= 2) {
+    catalogue.forEach(c => {
+      const n = sansAccent(c.client);
+      if (!n.includes(q) || dejaVisible.has(n)) return;
+      dejaVisible.add(n);
+      const b = document.createElement('button');
+      b.className = 'tuile attente'; b.dataset.nom = n; b.dataset.extra = '1';
+      b.innerHTML = '<span class="nom-tuile"></span><span class="deja-tuile">pas de saisie — ouvrir pour voir ses chariots</span>';
+      b.querySelector('.nom-tuile').textContent = c.client;
+      b.onclick = () => afficherArticles(c, false, null);
+      zone.appendChild(b);
+    });
+  }
 }
 
 function afficherArticles(c, garder, filtre) {
