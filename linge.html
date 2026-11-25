@@ -1164,13 +1164,13 @@ function entreesJour(client, article, filtre = lotFiltre) {
   const liste = [];
   if (jourRecap.date === date) {
     jourRecap.saisies.forEach(x => {
-      if (x.client === client && x.article === article) liste.push({ q: x.quantite, h: x.heure, le: x.le || '', attente: false, id: x.id || null });
+      if (x.client === client && x.article === article) liste.push({ q: x.quantite, h: x.heure, le: x.le || '', attente: false, id: x.id || null, chariot: x.chariot || '' });
     });
   }
   lire(CLE_FILE, []).forEach(l => {
     const d = new Date(l.horodatage);
     if (l.client === client && l.article === article && jourDeLigne(l) === date) {
-      liste.push({ q: Number(l.quantite || 0), h: heureLocale(d), le: isoLocal(d), attente: true, id: l.id || null });
+      liste.push({ q: Number(l.quantite || 0), h: heureLocale(d), le: isoLocal(d), attente: true, id: l.id || null, chariot: l.chariot || '' });
     }
   });
   const res = filtre ? liste.filter(e => {
@@ -1197,9 +1197,11 @@ function majDeja(ligne, client, article) {
   if (!e.length) { el.textContent = ''; return; }
   const total = e.reduce((t, x) => t + x.q, 0);
   const morceaux = e.map(x => '<span style="white-space:nowrap">' + x.q + ' (' + x.h + (x.attente ? ', en attente' : '') + ')' +
+    (x.chariot ? ' <a href="#" data-ch="' + rollEsc(x.chariot) + '" title="Ouvrir ce chariot pour corriger" style="text-decoration:none;color:#1f5fa8;font-weight:700">' + rollEsc(x.chariot) + '</a>' : '') +
     (x.id ? ' <a href="#" data-del="' + x.id + '" data-att="' + (x.attente ? 1 : 0) + '" title="Supprimer cette saisie" style="text-decoration:none;color:#c62828">🗑</a>' : '') + '</span>');
   el.innerHTML = 'Déjà saisi : ' + morceaux.join(' + ') + (e.length > 1 ? ' = ' + total : '');
   el.querySelectorAll('[data-del]').forEach(a => a.onclick = ev => { ev.preventDefault(); supprimerSaisie(a.dataset.del, a.dataset.att === '1'); });
+  el.querySelectorAll('[data-ch]').forEach(a => a.onclick = ev => { ev.preventDefault(); ouvrirChariotDepuisAtelier(a.dataset.ch); });
 }
 
 // 🗑 Supprimer une saisie (corriger une erreur de pointage) : en attente = local ; envoyée = via l'API
@@ -1222,6 +1224,21 @@ async function supprimerSaisie(id, attente) {
   } catch (e) { toast('Pas de réseau : réessayez.', true); }
 }
 
+async function ouvrirChariotDepuisAtelier(numero) {
+  const c = clientCourant; if (!c) { toast('Ouvrez d\'abord le client.', true); return; }
+  let note = '', camion = false;
+  try { const inf = await rollRpc('roll_info', { p_numero: numero }); note = noteDeRoll(inf); camion = !!(inf && inf.etat === 'chauffeur'); }
+  catch (e) { toast('Pas de réseau : réessayez.', true); return; }
+  corrigerQuantites(c, { numero: numero, note: note }, camion);
+}
+function saisiesDuChariot(client, article, chariot) {
+  const out = [], cc = sansAccent(client), aa = sansAccent(article), ch = String(chariot);
+  if (jourRecap && jourRecap.date === jourCourant() && Array.isArray(jourRecap.saisies)) {
+    jourRecap.saisies.forEach(s => { if (sansAccent(s.client) === cc && sansAccent(s.article) === aa && String(s.chariot || '') === ch && s.id != null) out.push({ id: s.id, attente: false }); });
+  }
+  lire(CLE_FILE, []).forEach(l => { if (sansAccent(l.client) === cc && sansAccent(l.article) === aa && String(l.chariot || '') === ch && jourDeLigne(l) === jourCourant() && l.id != null) out.push({ id: l.id, attente: true }); });
+  return out;
+}
 function rafraichirDeja() {
   if (clientCourant) {
     document.querySelectorAll('.article').forEach(l => majDeja(l, clientCourant.client, l.dataset.article));
@@ -1397,8 +1414,24 @@ function demanderChariot(client, lignes, opts) {
   });
   // Un même linge peut remplir PLUSIEURS chariots (ex. Royatonic plié à la table) : après chaque chariot, on propose le suivant
   const faits = [];
+  let dejaMarque = false;
+  // Rattacher les saisies de ce lot au 1er chariot choisi (la facture saura d'où vient chaque saisie)
+  async function marquerChariot(numero) {
+    if (dejaMarque || !lignes.length) return;
+    dejaMarque = true;
+    const ids = lignes.map(l => l.id).filter(v => v != null);
+    if (!ids.length) return;
+    ecrire(CLE_FILE, lire(CLE_FILE, []).map(l => ids.indexOf(l.id) >= 0 ? Object.assign({}, l, { chariot: numero }) : l));
+    if (jourRecap && Array.isArray(jourRecap.saisies)) {
+      jourRecap.saisies = jourRecap.saisies.map(s => ids.indexOf(s.id) >= 0 ? Object.assign({}, s, { chariot: numero }) : s);
+      ecrire(CLE_JOUR, jourRecap);
+    }
+    rafraichirDeja();
+    try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'tagChariot', ids: ids, chariot: numero }) }); } catch (e) {}
+  }
   let contenuCur = contenu;
   function suivant(numero) {
+    marquerChariot(numero);
     faits.push(numero);
     contenuCur = contenu ? 'suite du lot ' + faits[0] + ' (' + contenu + ')' : '';
     saisie = ''; aff();
@@ -1756,7 +1789,7 @@ async function corrigerQuantites(c, x, camion) {
   const champ = 'width:110px;font-size:24px;font-weight:700;text-align:center;padding:8px;border:2px solid #ccd;border-radius:10px';
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
     '<div style="font-size:22px;font-weight:800">✎ ' + rollEsc(x.numero) + ' — ' + rollEsc(c.client) + '</div>' +
-    '<div style="color:#555;margin:4px 0 10px">Corrigez la quantité <b>réelle</b> de chaque article <b>dans ce chariot</b>. Le total facturé, lui, se corrige à part (🗑 sur la page atelier).</div>' +
+    '<div style="color:#555;margin:4px 0 10px">Corrigez la quantité <b>réelle</b> de chaque article dans ce chariot. La <b>facture de ce chariot</b> suit automatiquement.</div>' +
     lignes.map((l, i) => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #eef0f2"><span style="font-size:18px;font-weight:600">' + rollEsc(l.a) +
       (Number(l.q) > 0 ? '<div style="font-size:14px;color:#2e7d32;font-weight:700">actuellement : ' + rollEsc(l.q) + '</div>' : '') + '</span>' +
       '<input data-q="' + i + '" type="number" inputmode="numeric" value="' + (Number(l.q) > 0 ? rollEsc(l.q) : '') + '" placeholder="0" style="' + champ + '"></div>').join('') +
@@ -1780,8 +1813,31 @@ async function corrigerQuantites(c, x, camion) {
       const r = camion ? await rollRpc('roll_contenu', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_note: total })
                        : await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
       if (!r || !r.ok) { if (!camion && /code/i.test((r && r.error) || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} } toast((r && r.error) || 'Refusé', true); return; }
-      // La correction ne touche QUE le chariot. La facturation (page atelier) se corrige à part avec la 🗑, pour éviter tout double comptage.
-      toast('🧺 ' + x.numero + ' corrigé : ' + (total || 'vide'));
+      // Facturation : on réécrit UNIQUEMENT les lignes rattachées à CE chariot (colonne I). Les saisies sans chariot (anciennes) ne sont pas touchées ici.
+      const changes = ajouts.filter(e => e.add);
+      let faitsFact = 0, orphelins = 0;
+      for (const e of changes) {
+        const liees = saisiesDuChariot(c.client, e.a, x.numero);
+        if (!liees.length) { orphelins++; continue; }
+        let pend = lire(CLE_FILE, []);
+        for (const o of liees) {
+          if (o.attente) { pend = pend.filter(l => String(l.id) !== String(o.id)); }
+          else {
+            if (jourRecap && Array.isArray(jourRecap.saisies)) jourRecap.saisies = jourRecap.saisies.filter(s => String(s.id) !== String(o.id));
+            try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'supprimerSaisie', id: o.id }) }); } catch (er) {}
+          }
+        }
+        ecrire(CLE_FILE, pend);
+        if (jourRecap) ecrire(CLE_JOUR, jourRecap);
+        if (e.nv > 0) {
+          const sais = { id: nouvelId(), horodatage: new Date().toISOString(), date: jourCourant(), client: c.client, article: e.a, quantite: e.nv, operateur: (lire(CLE_OP, '') || 'correction chariot'), chariot: x.numero };
+          ecrire(CLE_FILE, lire(CLE_FILE, []).concat([sais]));
+        }
+        faitsFact++;
+      }
+      rafraichirDeja();
+      envoyer();
+      toast('🧺 ' + x.numero + ' corrigé : ' + (total || 'vide') + (faitsFact ? ' · facture mise à jour' : '') + (orphelins ? ' · ' + orphelins + ' sans rattachement → 🗑 à l\'atelier' : ''));
       chariotsClient(c);
     } catch (e) { toast('Pas de réseau : réessayez.', true); }
   };
