@@ -1756,7 +1756,7 @@ async function corrigerQuantites(c, x, camion) {
   const champ = 'width:110px;font-size:24px;font-weight:700;text-align:center;padding:8px;border:2px solid #ccd;border-radius:10px';
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
     '<div style="font-size:22px;font-weight:800">✎ ' + rollEsc(x.numero) + ' — ' + rollEsc(c.client) + '</div>' +
-    '<div style="color:#555;margin:4px 0 10px">Corrigez la quantité <b>réelle</b> de chaque article. Elle <b>remplace</b> l\'ancienne, et le total du client se met à jour.</div>' +
+    '<div style="color:#555;margin:4px 0 10px">Corrigez la quantité <b>réelle</b> de chaque article <b>dans ce chariot</b>. Le total facturé, lui, se corrige à part (🗑 sur la page atelier).</div>' +
     lignes.map((l, i) => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #eef0f2"><span style="font-size:18px;font-weight:600">' + rollEsc(l.a) +
       (Number(l.q) > 0 ? '<div style="font-size:14px;color:#2e7d32;font-weight:700">actuellement : ' + rollEsc(l.q) + '</div>' : '') + '</span>' +
       '<input data-q="' + i + '" type="number" inputmode="numeric" value="' + (Number(l.q) > 0 ? rollEsc(l.q) : '') + '" placeholder="0" style="' + champ + '"></div>').join('') +
@@ -1780,17 +1780,8 @@ async function corrigerQuantites(c, x, camion) {
       const r = camion ? await rollRpc('roll_contenu', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_note: total })
                        : await rollRpc('roll_scan', { p_numero: x.numero, p_personne: id.id, p_code: id.code, p_etape: 'rempli', p_client: c.client, p_note: total });
       if (!r || !r.ok) { if (!camion && /code/i.test((r && r.error) || '')) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} } toast((r && r.error) || 'Refusé', true); return; }
-      // 📊 La correction se répercute sur le total du client (facturation) : on enregistre l'écart (+ ou −) comme une saisie, article par article
-      const op = lire(CLE_OP, '') || 'correction chariot';
-      const maintenant = new Date().toISOString(), jr = jourCourant();
-      const ecarts = ajouts.filter(e => e.add).map(e => ({ article: e.a, d: e.add }));
-      if (ecarts.length) {
-        const saisies = ecarts.map(e => ({ id: nouvelId(), horodatage: maintenant, date: jr, client: c.client, article: e.article, quantite: e.d, operateur: op }));
-        ecrire(CLE_FILE, lire(CLE_FILE, []).concat(saisies));   // envoyer() les affichera (une seule fois) ; d'ici là elles comptent déjà via la file « en attente »
-        rafraichirDeja();
-        envoyer();
-      }
-      toast('🧺 ' + x.numero + ' corrigé : ' + (total || 'vide') + (ecarts.length ? ' · total client mis à jour' : ''));
+      // La correction ne touche QUE le chariot. La facturation (page atelier) se corrige à part avec la 🗑, pour éviter tout double comptage.
+      toast('🧺 ' + x.numero + ' corrigé : ' + (total || 'vide'));
       chariotsClient(c);
     } catch (e) { toast('Pas de réseau : réessayez.', true); }
   };
