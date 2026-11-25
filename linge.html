@@ -1764,16 +1764,14 @@ async function changerJourClient(c, cibleActuelle) {
     const cible = b.dataset.j;
     if (!confirm('Déplacer tout le linge de ' + c.client + '\ndu ' + libelleJour(cibleActuelle) + ' vers le ' + libelleJour(cible) + ' ?')) return;
     const code = demanderCode(); if (!code) return;
-    let nb = 0;
+    let data;
     try {
-      for (const g of groupes) {
-        const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'deplacerSaisie', code: code, client: c.client, date: cibleActuelle, le: g.le, heure: g.heure, cible: cible }) });
-        const data = await rep.json();
-        if (!data.ok) { if (data.error === 'Code incorrect') codeResponsable = ''; toast(data.error || 'Refusé', true); if (!nb) return; break; }
-        nb += data.deplacees || 0;
-      }
+      const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'changerJourClient', code: code, client: c.client, date: cibleActuelle, cible: cible }) });
+      data = await rep.json();
     } catch (e) { toast('Pas de réseau : réessayez.', true); return; }
-    toast('📅 ' + c.client + ' déplacé au ' + libelleJour(cible) + ' (' + nb + ' ligne' + (nb > 1 ? 's' : '') + ')');
+    if (!data || !data.ok) { if (data && data.error === 'Code incorrect') codeResponsable = ''; toast((data && data.error) || 'Refusé', true); return; }
+    const nb = data.deplacees || 0;
+    toast('📅 ' + c.client + ' déplacé au ' + libelleJour(cible) + ' (' + nb + ' ligne' + (nb > 1 ? 's' : '') + (data.bls ? ' · BL suivi' : '') + ')');
     f.style.display = 'none';
     chargerJour(); chargerListeJour();
   });
