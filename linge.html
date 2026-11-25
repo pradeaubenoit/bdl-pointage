@@ -420,6 +420,14 @@ function afficherClients() {
       bas.onclick = ev => { ev.stopPropagation(); if (cible) { if (it.lot === 3) reporterLot3(c.client, null); else basculerReport(c.client); } else choisirDateLivraison(c.client, it.lot); };
       b.appendChild(bas);
     }
+    if (cible) {
+      const chg = document.createElement('span');
+      chg.className = 'bascule';
+      chg.style.color = '#6B4FA8';
+      chg.textContent = '📅 Changer le jour de livraison';
+      chg.onclick = ev => { ev.stopPropagation(); changerJourClient(c, cible); };
+      b.appendChild(chg);
+    }
     if (it.lot === 1) b.onclick = () => afficherArticles(c, false, { mode: 'avant', cut: lot2De(c.client).limite || lot2De(c.client).depuis, lecture: true });
     else if (cible && tot > 0) b.onclick = () => choisirOuvertureReporte(it);
     else if (cible) b.onclick = () => ouvrirReporte(c, cible);
@@ -1723,6 +1731,53 @@ async function chariotsClient(c) {
 /* ---------- 📅 Reporter un chariot prêt à une autre livraison ----------
    Le linge de ce chariot est déjà saisi sur ce jour : on change la date de livraison de SES lignes de saisie
    (même client, saisies à la même heure). Code responsable obligatoire (ça touche à la facturation). */
+// 📅 Changer le jour de livraison d'un client depuis sa carte (déplace les lignes déjà posées sur le jour affiché vers le jour choisi)
+async function changerJourClient(c, cibleActuelle) {
+  let f = document.getElementById('fondRoll');
+  if (!f) { f = document.createElement('div'); f.id = 'fondRoll'; f.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px'; document.body.appendChild(f); }
+  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px">Chargement…</div>'; f.style.display = 'flex';
+  let saisies = [];
+  try {
+    const rep = await fetch(API_URL + '?action=detailJour&date=' + cibleActuelle);
+    const data = await rep.json();
+    saisies = (data.saisies || []).filter(s => cleNom(s.client) === cleNom(c.client) && s.le && s.heure);
+  } catch (e) { toast('Pas de réseau : réessayez.', true); f.style.display = 'none'; return; }
+  if (!saisies.length) { toast('Aucune saisie de ' + c.client + ' le ' + libelleJour(cibleActuelle) + '.', true); f.style.display = 'none'; return; }
+  const G = {}; saisies.forEach(s => { const k = s.le + ' ' + s.heure; (G[k] = G[k] || { le: s.le, heure: s.heure, l: [] }).l.push(s); });
+  const groupes = Object.keys(G).sort().map(k => G[k]);
+  const jj = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+  const txtG = g => g.l.map(s => s.article + ' ' + s.quantite).join(', ');
+  const auj = isoLocal(new Date()), jours = [];
+  if (cibleActuelle !== auj) jours.push(auj);
+  const d0 = dateDe(auj);
+  for (let i = 1; jours.length < 7 && i <= 12; i++) { const d = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + i, 12); const iso = isoLocal(d); if (d.getDay() !== 0 && iso !== cibleActuelle && jours.indexOf(iso) < 0) jours.push(iso); }
+  const bt = 'width:100%;margin-top:8px;font-size:17px;padding:12px;border-radius:12px;font-weight:700;';
+  f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
+    '<div style="font-size:22px;font-weight:800">📅 Changer le jour — ' + rollEsc(c.client) + '</div>' +
+    '<div style="color:#555;margin:4px 0 10px">Actuellement livré le <b>' + rollEsc(libelleJour(cibleActuelle)) + '</b>. Tout ce linge partira sur le jour que vous choisissez.</div>' +
+    groupes.map(g => '<div style="border:1px solid #dde2e7;border-radius:10px;padding:8px 10px;margin-top:6px;font-size:15px"><b>saisi le ' + jj(g.le) + ' à ' + rollEsc(g.heure) + '</b><br><span style="color:#555">' + rollEsc(txtG(g)) + '</span></div>').join('') +
+    '<div style="font-weight:700;margin-top:12px">Livrer plutôt le :</div>' +
+    jours.map(j => '<button data-j="' + j + '" style="' + bt + 'border:2px solid #6B4FA8;color:#6B4FA8;background:#fff">' + rollEsc(libelleJour(j)) + (j === auj ? ' (aujourd\'hui)' : '') + '</button>').join('') +
+    '<button id="cjX" style="' + bt + 'border:2px solid #999;background:#fff">Annuler</button></div>';
+  document.getElementById('cjX').onclick = () => { f.style.display = 'none'; };
+  f.querySelectorAll('[data-j]').forEach(b => b.onclick = async () => {
+    const cible = b.dataset.j;
+    if (!confirm('Déplacer tout le linge de ' + c.client + '\ndu ' + libelleJour(cibleActuelle) + ' vers le ' + libelleJour(cible) + ' ?')) return;
+    const code = demanderCode(); if (!code) return;
+    let nb = 0;
+    try {
+      for (const g of groupes) {
+        const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'deplacerSaisie', code: code, client: c.client, date: cibleActuelle, le: g.le, heure: g.heure, cible: cible }) });
+        const data = await rep.json();
+        if (!data.ok) { if (data.error === 'Code incorrect') codeResponsable = ''; toast(data.error || 'Refusé', true); if (!nb) return; break; }
+        nb += data.deplacees || 0;
+      }
+    } catch (e) { toast('Pas de réseau : réessayez.', true); return; }
+    toast('📅 ' + c.client + ' déplacé au ' + libelleJour(cible) + ' (' + nb + ' ligne' + (nb > 1 ? 's' : '') + ')');
+    f.style.display = 'none';
+    chargerJour(); chargerListeJour();
+  });
+}
 async function reporterChariot(c, x) {
   const f = document.getElementById('fondRoll');
   const date = jourCourant();
