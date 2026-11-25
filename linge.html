@@ -1197,7 +1197,7 @@ function majDeja(ligne, client, article) {
   if (!e.length) { el.textContent = ''; return; }
   const total = e.reduce((t, x) => t + x.q, 0);
   const morceaux = e.map(x => '<span style="white-space:nowrap">' + x.q + ' (' + x.h + (x.attente ? ', en attente' : '') + ')' +
-    (x.chariot ? ' <a href="#" data-ch="' + rollEsc(x.chariot) + '" title="Ouvrir ce chariot pour corriger" style="text-decoration:none;color:#1f5fa8;font-weight:700">' + rollEsc(x.chariot) + '</a>' : '') +
+    (x.chariot ? ' <a href="#" data-ch="' + rollEsc(x.chariot) + '" title="Ouvrir ce chariot pour corriger" style="text-decoration:none;color:#1f5fa8;font-weight:800;display:inline-block;padding:3px 10px;margin:0 2px;border:1px solid #b9d0ea;border-radius:8px;background:#eef4fb">' + rollEsc(x.chariot) + '</a>' : '') +
     (x.id ? ' <a href="#" data-del="' + x.id + '" data-att="' + (x.attente ? 1 : 0) + '" title="Supprimer cette saisie" style="text-decoration:none;color:#c62828">🗑</a>' : '') + '</span>');
   el.innerHTML = 'Déjà saisi : ' + morceaux.join(' + ') + (e.length > 1 ? ' = ' + total : '');
   el.querySelectorAll('[data-del]').forEach(a => a.onclick = ev => { ev.preventDefault(); supprimerSaisie(a.dataset.del, a.dataset.att === '1'); });
@@ -1224,11 +1224,16 @@ async function supprimerSaisie(id, attente) {
   } catch (e) { toast('Pas de réseau : réessayez.', true); }
 }
 
+let ouvertureChariot = false;
 async function ouvrirChariotDepuisAtelier(numero) {
+  if (ouvertureChariot) return;
   const c = clientCourant; if (!c) { toast('Ouvrez d\'abord le client.', true); return; }
+  ouvertureChariot = true;
+  toast('Ouverture de ' + numero + '…');
   let note = '', camion = false;
   try { const inf = await rollRpc('roll_info', { p_numero: numero }); note = noteDeRoll(inf); camion = !!(inf && inf.etat === 'chauffeur'); }
-  catch (e) { toast('Pas de réseau : réessayez.', true); return; }
+  catch (e) { ouvertureChariot = false; toast('Pas de réseau : réessayez.', true); return; }
+  ouvertureChariot = false;
   corrigerQuantites(c, { numero: numero, note: note }, camion);
 }
 function saisiesDuChariot(client, article, chariot) {
