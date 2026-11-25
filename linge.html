@@ -1756,19 +1756,24 @@ async function corrigerQuantites(c, x, camion) {
   const champ = 'width:110px;font-size:24px;font-weight:700;text-align:center;padding:8px;border:2px solid #ccd;border-radius:10px';
   f.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 20px;width:100%;max-width:520px;max-height:90vh;overflow:auto">' +
     '<div style="font-size:22px;font-weight:800">✎ ' + rollEsc(x.numero) + ' — ' + rollEsc(c.client) + '</div>' +
-    '<div style="color:#555;margin:4px 0 10px">Tapez la quantité à AJOUTER (ou en négatif pour retirer). Le chiffre en vert est déjà dans le chariot.</div>' +
+    '<div style="color:#555;margin:4px 0 10px">Corrigez la quantité <b>réelle</b> de chaque article. Elle <b>remplace</b> l\'ancienne, et le total du client se met à jour.</div>' +
     lignes.map((l, i) => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #eef0f2"><span style="font-size:18px;font-weight:600">' + rollEsc(l.a) +
-      (Number(l.q) > 0 ? '<div style="font-size:14px;color:#2e7d32;font-weight:700">déjà dans le chariot : ' + rollEsc(l.q) + '</div>' : '') + '</span>' +
-      '<input data-q="' + i + '" type="number" inputmode="numeric" value="" placeholder="0" style="' + champ + '"></div>').join('') +
+      (Number(l.q) > 0 ? '<div style="font-size:14px;color:#2e7d32;font-weight:700">actuellement : ' + rollEsc(l.q) + '</div>' : '') + '</span>' +
+      '<input data-q="' + i + '" type="number" inputmode="numeric" value="' + (Number(l.q) > 0 ? rollEsc(l.q) : '') + '" placeholder="0" style="' + champ + '"></div>').join('') +
     '<button id="cqOk" style="width:100%;margin-top:14px;font-size:20px;padding:14px;border-radius:12px;border:none;background:#2e7d32;color:#fff;font-weight:800">✓ Enregistrer le contenu</button>' +
     '<button id="cqX" style="width:100%;margin-top:8px;font-size:18px;padding:12px;border-radius:12px;border:2px solid #999;background:#fff;font-weight:700">Annuler</button></div>';
   f.style.display = 'flex';
   document.getElementById('cqX').onclick = () => chariotsClient(c);
   document.getElementById('cqOk').onclick = async () => {
-    const ajouts = lignes.map((l, i) => ({ a: l.a, av: Number(String(l.q).replace(',', '.')) || 0, add: Number(String(f.querySelector('[data-q="' + i + '"]').value).replace(',', '.')) || 0 }));
-    if (!ajouts.some(e => e.add)) { toast('Rien à ajouter.', true); return; }
-    const total = avecTag(tagPour(x.note), ajouts.map(e => { const n = e.av + e.add; return n > 0 ? e.a + ' ' + n : ''; }).filter(Boolean).join(', '));
-    const resume = ajouts.filter(e => e.add).map(e => e.a + ' ' + (e.add > 0 ? '+' + e.add : e.add)).join(', ');
+    const ajouts = lignes.map((l, i) => {
+      const av = Number(String(l.q).replace(',', '.')) || 0;
+      const raw = String(f.querySelector('[data-q="' + i + '"]').value).trim();
+      const nv = raw === '' ? av : (Number(raw.replace(',', '.')) || 0);   // vide = on ne touche pas
+      return { a: l.a, av: av, nv: nv, add: nv - av };
+    });
+    if (!ajouts.some(e => e.add)) { toast('Rien de changé.', true); return; }
+    const total = avecTag(tagPour(x.note), ajouts.map(e => e.nv > 0 ? e.a + ' ' + e.nv : '').filter(Boolean).join(', '));
+    const resume = ajouts.filter(e => e.add).map(e => e.a + ' : ' + e.av + ' → ' + e.nv).join(', ');
     if (!confirm(x.numero + ' (' + c.client + ') : ' + resume + '\n\nContiendra : ' + (total || '— vide —') + '\nAvant : ' + (x.note || '—'))) return;
     const id = camion ? await idBureau(x.numero) : await rollIdentite(x.numero); if (!id) return;
     try {
