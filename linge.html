@@ -1164,13 +1164,13 @@ function entreesJour(client, article, filtre = lotFiltre) {
   const liste = [];
   if (jourRecap.date === date) {
     jourRecap.saisies.forEach(x => {
-      if (x.client === client && x.article === article) liste.push({ q: x.quantite, h: x.heure, le: x.le || '', attente: false });
+      if (x.client === client && x.article === article) liste.push({ q: x.quantite, h: x.heure, le: x.le || '', attente: false, id: x.id || null });
     });
   }
   lire(CLE_FILE, []).forEach(l => {
     const d = new Date(l.horodatage);
     if (l.client === client && l.article === article && jourDeLigne(l) === date) {
-      liste.push({ q: Number(l.quantite || 0), h: heureLocale(d), le: isoLocal(d), attente: true });
+      liste.push({ q: Number(l.quantite || 0), h: heureLocale(d), le: isoLocal(d), attente: true, id: l.id || null });
     }
   });
   const res = filtre ? liste.filter(e => {
@@ -1193,11 +1193,33 @@ function totalJourClient(client, filtre = lotFiltre) {
 
 function majDeja(ligne, client, article) {
   const e = entreesJour(client, article);
-  if (!e.length) { ligne.querySelector('.deja').textContent = ''; return; }
+  const el = ligne.querySelector('.deja');
+  if (!e.length) { el.textContent = ''; return; }
   const total = e.reduce((t, x) => t + x.q, 0);
-  const morceaux = e.map(x => x.q + ' (' + x.h + (x.attente ? ', en attente' : '') + ')');
-  ligne.querySelector('.deja').textContent =
-    'Déjà saisi : ' + morceaux.join(' + ') + (e.length > 1 ? ' = ' + total : '');
+  const morceaux = e.map(x => '<span style="white-space:nowrap">' + x.q + ' (' + x.h + (x.attente ? ', en attente' : '') + ')' +
+    (x.id ? ' <a href="#" data-del="' + x.id + '" data-att="' + (x.attente ? 1 : 0) + '" title="Supprimer cette saisie" style="text-decoration:none;color:#c62828">🗑</a>' : '') + '</span>');
+  el.innerHTML = 'Déjà saisi : ' + morceaux.join(' + ') + (e.length > 1 ? ' = ' + total : '');
+  el.querySelectorAll('[data-del]').forEach(a => a.onclick = ev => { ev.preventDefault(); supprimerSaisie(a.dataset.del, a.dataset.att === '1'); });
+}
+
+// 🗑 Supprimer une saisie (corriger une erreur de pointage) : en attente = local ; envoyée = via l'API
+async function supprimerSaisie(id, attente) {
+  if (!confirm('Supprimer cette saisie ?')) return;
+  if (attente) {
+    ecrire(CLE_FILE, lire(CLE_FILE, []).filter(l => String(l.id) !== String(id)));
+    rafraichirDeja();
+    toast('Saisie supprimée');
+    return;
+  }
+  try {
+    const rep = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'supprimerSaisie', id: id }) });
+    const r = await rep.json();
+    if (!r || r.ok === false) { toast((r && r.error) || 'Suppression refusée', true); return; }
+    jourRecap.saisies = jourRecap.saisies.filter(x => String(x.id) !== String(id));
+    ecrire(CLE_JOUR, jourRecap);
+    rafraichirDeja();
+    toast('Saisie supprimée');
+  } catch (e) { toast('Pas de réseau : réessayez.', true); }
 }
 
 function rafraichirDeja() {
