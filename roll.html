@@ -395,14 +395,14 @@ function actions(){
       if(navigator.vibrate)navigator.vibrate([300,150,300]);
       if(aRole('bureau'))bouton('Forcer : livré chez '+ARRET.client+' (bureau)','g',function(){if(confirm('Ce roll contient le linge de « '+I.client+' ». Le livrer quand même chez « '+ARRET.client+' » ?'))scan('livre',ARRET.client);});
     }else if(I.etat==='client'&&nrm(I.client)===nrm(ARRET.client)){
-      bouton('↩ Je le reprends : linge SALE (ou vide) dans mon camion','o',function(){scan('repris',ARRET.client);});
+      bouton('↩ Le REPRENDRE dans mon camion (linge sale, ou vide)','o',function(){scan('repris',ARRET.client);});
     }else if(I.etat==='client'){
       // chariot noté chez un AUTRE client, mais il est ici : on le reprend quand même
-      bouton('↩ Je le reprends : linge SALE (ou vide) dans mon camion','o',function(){scan('repris',ARRET.client,'noté chez '+I.client+', repris chez '+ARRET.client);});
+      bouton('↩ Le REPRENDRE dans mon camion (linge sale, ou vide)','o',function(){scan('repris',ARRET.client,'noté chez '+I.client+', repris chez '+ARRET.client);});
       bouton('✅ Déposer chez '+ARRET.client,'v',function(){scan('livre',ARRET.client,'noté chez '+I.client);});
     }else if(I.etat==='retour'||I.etat==='bdl'||I.etat==='sale'||!I.client){
-      if(I.etat!=='retour')bouton('↩ Je le reprends plein de linge sale (ou j\'y mets le linge EN VRAC du client)','o',function(){scan('repris',ARRET.client,(I.etat==='bdl'||!I.client)?'chariot non scanné chez le client : repris sale':null);});
-      bouton('✅ Déposer VIDE chez '+ARRET.client,'v',function(){scan('livre',ARRET.client,'chariot vide déposé'+(I.client&&nrm(I.client)!==nrm(ARRET.client)?' (repris chez '+I.client+')':''));});
+      bouton('✅ LAISSER ce chariot VIDE ici (chez '+ARRET.client+')','v',function(){scan('livre',ARRET.client,'chariot vide déposé'+(I.client&&nrm(I.client)!==nrm(ARRET.client)?' (repris chez '+I.client+')':''));});
+      if(I.etat!=='retour')bouton('↩ Le REPRENDRE dans mon camion (linge sale ou en vrac du client)','o',function(){scan('repris',ARRET.client,(I.etat==='bdl'||!I.client)?'chariot non scanné chez le client : repris sale':null);});
     }else if(I.etat==='pret'){
       // Rempli mais jamais chargé dans un camion : il est normalement encore au quai de la BdL
       $('acts').insertAdjacentHTML('beforeend','<div class="alerte" style="font-size:18px;text-align:center">⚠ Ce chariot n\'a pas été chargé dans un camion.<br>Pour l\'appli, il est encore <b>au quai de la BdL</b>.</div>');
