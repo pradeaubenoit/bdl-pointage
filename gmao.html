@@ -153,6 +153,7 @@ mark{background:#fff2a8;padding:0 1px;border-radius:2px}
 <div id="fond"><div id="boite"></div></div>
 <div id="toast"></div>
 <input type="file" id="filePhoto" accept="image/*" style="display:none">
+<input type="file" id="fileVideo" accept="video/*" style="display:none">
 
 <script>
 /* =====================================================================
@@ -299,6 +300,9 @@ async function envoyerPhoto(file){
   if(r.error)throw r.error;
   return sb.storage.from('gmao').getPublicUrl(nom).data.publicUrl;
 }
+function estVideoUrl(u){return /\.(mov|mp4|m4v|webm|ogg)(\?|$)/i.test(String(u||''));}
+function choisirVideo(){return new Promise(function(res){var f=$('fileVideo');if(!f){res(null);return;}f.value='';f.onchange=function(){res(f.files[0]||null);};f.click();});}
+async function envoyerVideo(file){var m=(file.name||'').match(/\.([a-z0-9]+)$/i);var ext=(m?m[1]:'mp4').toLowerCase();var type=file.type||('video/'+(ext==='mov'?'quicktime':ext));var nom=Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.'+ext;var r=await sb.storage.from('gmao').upload(nom,file,{contentType:type});if(r.error)throw r.error;return sb.storage.from('gmao').getPublicUrl(nom).data.publicUrl;}
 function zoom(url){ouvrir('<img src="'+esc(url)+'" style="width:100%;border-radius:10px"><div class="actions"><button class="btn" onclick="fermer()">Fermer</button></div>');}
 
 /* ---------- fenêtres ---------- */
@@ -759,9 +763,9 @@ VUES.bon=async function(id,extra){
   }
   html+='<div class="carte"><h2>💬 Échanges</h2><div class="fil">'+(msgs.length?msgs.map(function(m){
       if(m.auteur==='•')return '<div class="msg sys">'+esc(m.texte)+' · '+fmtDH(m.cree_le)+'</div>';
-      return '<div class="msg"><div class="q"><b>'+esc(m.auteur||'?')+'</b> · '+fmtDH(m.cree_le)+'</div>'+(m.texte?'<div style="white-space:pre-wrap">'+esc(m.texte)+'</div>':'')+(m.photo?'<img src="'+esc(m.photo)+'" onclick="zoom(this.src)">':'')+'</div>';
+      return '<div class="msg"><div class="q"><b>'+esc(m.auteur||'?')+'</b> · '+fmtDH(m.cree_le)+'</div>'+(m.texte?'<div style="white-space:pre-wrap">'+esc(m.texte)+'</div>':'')+(m.photo?(estVideoUrl(m.photo)?'<video src="'+esc(m.photo)+'" controls playsinline style="width:100%;max-height:320px;border-radius:10px;background:#000"></video>':'<img src="'+esc(m.photo)+'" onclick="zoom(this.src)">'):'')+'</div>';
     }).join(''):'<div class="vide">Pas encore d\'échange. Note ici ce que tu constates, ce que tu as fait, ce qu\'il manque…</div>')+'</div>'+
-    '<div class="compo"><textarea id="mTxt" placeholder="Écrire un message…"></textarea><button class="btn" id="mPh" title="Photo">📷</button><button class="btn p" id="mEnv">Envoyer</button></div></div>';
+    '<div class="compo"><textarea id="mTxt" placeholder="Écrire un message…"></textarea><button class="btn" id="mPh" title="Photo">📷</button><button class="btn" id="mVid" title="Vidéo courte">🎬</button><button class="btn p" id="mEnv">Envoyer</button></div></div>';
   if(!fini)html+='<div class="carte" id="simCarte" style="display:none"></div>';
   var sugg=e?piecesDe(e):[];
   html+='<div class="carte"><h2>🔩 Pièces utilisées <button class="btn sm d" id="bPiece">+ Sortir une pièce</button></h2>'+
@@ -802,6 +806,7 @@ VUES.bon=async function(id,extra){
     try{await q(sb.from('gmao_interventions').update({equipement_id:x.id}).eq('id',id));try{await logSys(id,'🔁 Machine changée'+(e?' : '+e.nom+' → ':' : ')+x.nom);}catch(z){}route();}catch(z){erreur(z);}};
   var photoMsg=null;
   $('mPh').onclick=async function(){var f=await choisirPhoto();if(!f)return;$('mPh').textContent='⏳';try{photoMsg=await envoyerPhoto(f);$('mPh').textContent='✅';}catch(x){$('mPh').textContent='📷';erreur(x);}};
+  $('mVid').onclick=async function(){var f=await choisirVideo();if(!f)return;$('mVid').textContent='⏳';try{photoMsg=await envoyerVideo(f);$('mVid').textContent='✅';toast('Vidéo ajoutée : puis Envoyer');}catch(x){$('mVid').textContent='🎬';erreur(x);}};
   // v9.30 - Coller (⌘V) ou glisser une image dans la zone message du bon (ex. une pièce copiée depuis un PDF)
   accepterPhoto(document.querySelector('.compo'),async function(f){$('mPh').textContent='⏳';try{photoMsg=await envoyerPhoto(f);$('mPh').textContent='✅';toast('Image ajoutée : écrivez un mot si besoin, puis Envoyer');}catch(x){$('mPh').textContent='📷';erreur(x);}},true);
   $('mEnv').onclick=async function(){
@@ -867,7 +872,7 @@ async function lireCapture(url,info){
   if(lignes[0]){var d=lignes[0].replace(/\s+/g,' ').replace(/´/g,'\'');out.des=d===d.toUpperCase()?d.charAt(0)+d.slice(1).toLowerCase().replace(/\bmm\b/g,'mm'):d;}
   return out;
 }
-async function dernierePhotoBon(id){var ph=await q(sb.from('gmao_messages').select('photo').eq('intervention_id',id).not('photo','is',null).order('cree_le',{ascending:false}).limit(1));return ph.length?ph[0].photo:null;}
+async function dernierePhotoBon(id){var ph=await q(sb.from('gmao_messages').select('photo').eq('intervention_id',id).not('photo','is',null).order('cree_le',{ascending:false}).limit(8));for(var i=0;i<ph.length;i++){if(ph[i].photo&&!estVideoUrl(ph[i].photo))return ph[i].photo;}return null;}
 // v9.35 - Pièce commandée sans fiche : on crée la fiche (désignation, réf., fournisseur, prix, photo du bon, lien machine) et on la rattache à la commande
 function ficheDepuisCommande(c,b,e){
   var refLike=/^[\w.\/-]+$/.test(c.designation||'')&&/\d/.test(c.designation||'');
@@ -893,8 +898,8 @@ function ficheDepuisCommande(c,b,e){
       var nv=(await q(sb.from('gmao_articles').insert({designation:d,stock:0,stock_mini:0,ref_fabricant:rf||null}).select()))[0];ART.push(nv);ARTID[nv.id]=nv;
       if(fo||rf||px!=null){try{var sx=(await q(sb.from('gmao_sources').insert({article_id:nv.id,partenaire:fo||'?',ref:rf||null,prix:px,date_prix:auj()}).select()))[0];(SRCA[nv.id]=SRCA[nv.id]||[]).push(sx);}catch(z){}}
       if(e&&$('fpL')&&$('fpL').checked){try{var lk=(await q(sb.from('gmao_liens').insert({article_id:nv.id,equipement_id:e.id,quantite:1}).select()))[0];LIENS.push(lk);}catch(z){}}
-      if($('fpP').checked){try{var ph=await q(sb.from('gmao_messages').select('photo').eq('intervention_id',b.id).not('photo','is',null).order('cree_le',{ascending:false}).limit(1));
-        if(ph.length&&ph[0].photo){await q(sb.from('gmao_articles').update({photo:ph[0].photo}).eq('id',nv.id));nv.photo=ph[0].photo;}}catch(z){}}
+      if($('fpP').checked){try{var ph=await q(sb.from('gmao_messages').select('photo').eq('intervention_id',b.id).not('photo','is',null).order('cree_le',{ascending:false}).limit(8));var _pu=null;for(var _pi=0;_pi<ph.length;_pi++){if(ph[_pi].photo&&!estVideoUrl(ph[_pi].photo)){_pu=ph[_pi].photo;break;}}
+        if(_pu){await q(sb.from('gmao_articles').update({photo:_pu}).eq('id',nv.id));nv.photo=_pu;}}catch(z){}}
       await q(sb.from('gmao_commandes').update({article_id:nv.id,designation:d,ref:rf||c.ref||null}).eq('id',c.id));
       await logSys(b.id,'➕ '+NOM+' : fiche pièce créée « '+d+' »');
       fermer();toast('✓ Fiche « '+d+' » créée dans Pièces');route();
