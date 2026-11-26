@@ -265,13 +265,14 @@ async function historique(id){
     if(!confirm(r.numero+' : enregistrer « chariot VIDE déposé chez '+c+' » ?\n\n'+r.numero+' sera placé dans l\'arrêt chez '+c+' et passera « Chez le client ».'))return;
     var qui='Bureau',quand=new Date().toISOString();
     try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(x){}
-    // placer le dépôt à l'heure réelle de l'arrêt chez ce client (sinon il ne figure pas dans le bon arrêt des Tournées)
+    // placer le dépôt à l'heure ET au nom du chauffeur de l'arrêt réel chez ce client (sinon il ne figure pas dans sa tournée)
+    var parQui=qui;
     try{var depuis=new Date(Date.now()-20*3600*1000).toISOString();
-      var meme=await q(sb.from('rolls_scans').select('quand').eq('client',c).neq('roll_id',id).in('etape',['livre','repris']).gte('quand',depuis).order('quand',{ascending:false}).limit(1));
-      if(meme&&meme[0]&&meme[0].quand)quand=meme[0].quand;}catch(x){}
+      var meme=await q(sb.from('rolls_scans').select('quand,personne').eq('client',c).neq('roll_id',id).in('etape',['livre','repris']).gte('quand',depuis).order('quand',{ascending:false}).limit(1));
+      if(meme&&meme[0]){if(meme[0].quand)quand=meme[0].quand;if(meme[0].personne)parQui=meme[0].personne;}}catch(x){}
     try{
-      await q(sb.from('rolls_scans').insert({roll_id:id,etape:'livre',client:c,personne:qui,quand:quand,note:'chariot vide déposé'}));
-      var maj={etat:'client',client:c,personne:qui,maj_le:quand};
+      await q(sb.from('rolls_scans').insert({roll_id:id,etape:'livre',client:c,personne:parQui,quand:quand,note:'chariot vide déposé (corr. bureau)'}));
+      var maj={etat:'client',client:c,personne:parQui,maj_le:quand};
       await q(sb.from('rolls').update(maj).eq('id',id));
       Object.assign(r,maj);historique(id);
     }catch(x){alert('Correction impossible : '+(x.message||x));}
