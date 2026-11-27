@@ -85,6 +85,9 @@
   .tuile.retire { opacity: .45; text-decoration: line-through; }
   .tuile.saisi { background: #EAF2FB; border-left-color: #2F6FB3; }
   .tuile.saisi .badge { background: #fff; color: #2F6FB3; }
+  .tuile.pret { background: #FBEAF2; border-left-color: #C2578F; }
+  .tuile.pret .badge { background: #fff; color: #B23A77; }
+  .legende .l-rose::before { background: #C2578F; }
   .tuile.absent { background: #F2F4F5; border-left-color: #B8C2C8; opacity: .6; }
   .tuile.absent .badge { background: #fff; color: var(--doux); }
   .legende { display: flex; gap: 16px; flex-wrap: wrap; margin: -6px 0 14px; color: var(--doux); font-size: 14px; }
@@ -416,6 +419,16 @@ function etat(c) {
   return c.recu ? 'saisi' : 'oubli';
 }
 
+// « Terminé » par tablette : parties = { 'partie haute': 'saisi'|'termine', … }
+function partiesPartielles(c) {
+  const p = c.parties || {}, ks = Object.keys(p);
+  return ks.length > 0 && ks.some(t => p[t] === 'termine') && !ks.every(t => p[t] === 'termine');
+}
+function libParties(c) {
+  const p = c.parties || {}, noms = { 'partie haute': 'Haute', 'partie basse': 'Basse' };
+  return Object.keys(p).map(t => (noms[t] || t) + (p[t] === 'termine' ? ' ✓' : ' en cours')).join(' · ');
+}
+
 function compte(c) {
   if (etat(c) === 'reporte') return false;
   if (retires.has(cle(c.client)) && !c.recu) return false;
@@ -442,8 +455,8 @@ function afficher() {
   const leg = document.getElementById('legende');
   leg.innerHTML = mode === 'jour'
     ? (avecPlan()
-        ? '<span class="l-orange">Lavé, rien saisi</span><span class="l-bleu">Saisi, à pointer</span><span class="l-vert">Pointé</span><span class="l-gris">Pas lavé aujourd\'hui</span>'
-        : '<span class="l-orange">Rien reçu de l\'atelier</span><span class="l-bleu">Saisi, à pointer</span><span class="l-vert">Pointé</span> · plan de travail injoignable, couleurs selon la journée type')
+        ? '<span class="l-orange">Lavé, rien saisi</span><span class="l-bleu">Saisi, à pointer</span><span class="l-rose">Terminé, à valider</span><span class="l-vert">Pointé</span><span class="l-gris">Pas lavé aujourd\'hui</span>'
+        : '<span class="l-orange">Rien reçu de l\'atelier</span><span class="l-bleu">Saisi, à pointer</span><span class="l-rose">Terminé, à valider</span><span class="l-vert">Pointé</span> · plan de travail injoignable, couleurs selon la journée type')
     : '';
 
   const aCompter = clients.filter(compte);
@@ -474,7 +487,7 @@ function afficher() {
     const et = etat(c);
     if (et === 'pointe') t.classList.add('pointe');
     else if (et === 'oubli') t.classList.add('vide');
-    else if (et === 'saisi') t.classList.add('saisi');
+    else if (et === 'saisi') t.classList.add(c.termine ? 'pret' : 'saisi');
     else if (et === 'reporte') t.classList.add('reporte');
     else t.classList.add('absent');
     if (mode === 'jour' && !c.attendu && !c.ajoute) t.classList.add('nouveau');
@@ -490,6 +503,8 @@ function afficher() {
     else if (et === 'oubli' && c.reporteDe) html += '<span class="badge">Lavé le ' + c.reporteDe.slice(8, 10) + '/' + c.reporteDe.slice(5, 7) + ', rien saisi</span>';
     else if (et === 'oubli') html += '<span class="badge">' + (avecPlan() ? 'Lavé, rien saisi' : 'Rien reçu de l\'atelier') + '</span>';
     else if (et === 'absent') html += '<span class="badge">' + (c.lave ? 'Lavé, rien saisi' : 'Pas lavé aujourd\'hui') + '</span>';
+    else if (et === 'saisi' && c.termine) html += '<span class="badge">✓ Terminé — à valider</span>';
+    else if (et === 'saisi' && partiesPartielles(c)) html += '<span class="badge">' + libParties(c) + '</span>';
     else if (avecPlan() && c.recu && !c.lave && !c.pointe && (c.reporteDe || laveLaVeille(c))) {
       const lv = c.reporteDe || laveLaVeille(c);
       html += '<span class="badge">Lavé le ' + lv.slice(8, 10) + '/' + lv.slice(5, 7) + '</span>';
