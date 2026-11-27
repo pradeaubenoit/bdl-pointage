@@ -276,8 +276,8 @@
           <span id="sr-count" class="sub"></span>
         </div>
         <div class="sub" style="margin-top:6px">Tapez pour surligner les lignes trouvées ; <b>Entrée</b> ou « ↓ suivant » passe à la ligne suivante. « Remplacer partout » corrige le nom dans la journée affichée ; « Sur toutes les journées » le corrige aussi dans toutes les autres journées enregistrées.</div>
+        <div id="sr-bar" class="no-print" style="margin-top:8px"></div>
       </div>
-      <div id="sr-bar" class="no-print" style="margin-bottom:10px"></div>
       <div id="rows"></div>
     </section>
 
@@ -1772,7 +1772,7 @@ function renderRows(){var c=document.getElementById('rows');c.innerHTML='';if(ro
 var srIdx=0, srSeen=null;
 var srSel={}, srPick=null;
 function srSelCount(){var n=0;for(var k in srSel){if(srSel[k])n++;}return n;}
-function srToggle(id){if(srSel[id])delete srSel[id];else srSel[id]=1;renderRows();}
+function srToggle(id){if(srSel[id])delete srSel[id];else srSel[id]=1;renderRows();var sf=document.getElementById('sr-find');if(sf){try{sf.focus({preventScroll:true});}catch(e){sf.focus();}}}
 function srClearSel(){srSel={};renderRows();}
 function srMoveTop(){var sel=rows.filter(function(r){return srSel[r.id];});if(!sel.length)return;if(typeof snapshotOrder==='function')snapshotOrder();var ids={};sel.forEach(function(r){ids[r.id]=1;});rows=sel.concat(rows.filter(function(r){return !ids[r.id];}));srSel={};renderRows();sync();}
 function srTake(){var sel=rows.filter(function(r){return srSel[r.id];});if(!sel.length){alert('Touche d’abord le numéro des lignes à déplacer.');return;}srPick=sel;renderRows();}
