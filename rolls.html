@@ -250,6 +250,10 @@ async function historique(id){
     if(!confirm(r.numero+' : chargé, plein de linge propre pour « '+c+' », dans le camion de '+nom+' ?'))return;
     var qui='Bureau',quand=new Date().toISOString();
     try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(x){}
+    // caler le « chargé » sur le chargement du chauffeur ce jour-là (dernier scan « chargé » de lui), sinon il tombe « resté au quai » dans sa tournée
+    try{var d0c=new Date();d0c.setHours(0,0,0,0);
+      var ch0=await q(sb.from('rolls_scans').select('quand').eq('etape','charge').eq('personne',nom).gte('quand',d0c.toISOString()).order('quand',{ascending:false}).limit(1));
+      if(ch0&&ch0[0]&&ch0[0].quand)quand=ch0[0].quand;}catch(x){}
     try{
       await q(sb.from('rolls_scans').insert({roll_id:id,etape:'charge',client:c,personne:nom,quand:quand,note:'correction du bureau : chargé dans le camion de '+nom+' (par '+qui+')'}));
       var maj={etat:'chauffeur',client:c,personne:nom,maj_le:quand};
