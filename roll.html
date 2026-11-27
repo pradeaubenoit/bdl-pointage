@@ -202,6 +202,10 @@ var INFO=null, MOI=lire('roll_moi',null), CLIENTS=lire('roll_clients',[]);
 function majMoi(){$('moiBtn').textContent=MOI?('👤 '+MOI.nom):'👤 Qui êtes-vous ?';var b=$('bOu');if(b){var ch=MOI&&String(MOI.role||'').split(',').some(function(x){return x==='chauffeur'||x==='bureau';});b.style.display=ch?'':'none';b.textContent=ARRET?'📍 '+ARRET.client:'📍 Où suis-je ?';var c2=$('bChg');if(c2)c2.style.display=ch?'':'none';}}
 function fmtQ(q){var d=new Date(q);return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
 var LIB={vide:'vidé au tunnel',rempli:'rempli',charge:'chargé',livre:'livré',repris:'repris',rentre:'déchargé à la BdL (linge sale)'};
+// État du pointage atelier (appli Linge) par client, pour aider le chauffeur à anticiper : 'fini' = l'atelier a fini de compter (plus rien ne viendra), 'encours' = commencé mais pas fini
+var LINGE_PARTIES={}, LINGE_PARTIES_JOUR='';
+function etatAtelier(client){var e=LINGE_PARTIES[nrm(client)];if(!e)return '';if(e.termine)return 'fini';return (e.parties&&Object.keys(e.parties).length)?'encours':'';}
+async function majPartiesLinge(){var j=jourIso();try{var r=await fetch(LINGE_API+'?action=tableau&mode=jour&periode='+encodeURIComponent(j));var d=await r.json();if(!d||!d.ok||!Array.isArray(d.clients))return;var m={};d.clients.forEach(function(c){m[nrm(c.client)]={termine:!!c.termine,parties:c.parties||{}};});LINGE_PARTIES=m;LINGE_PARTIES_JOUR=j;}catch(e){}}
 
 // Liste des clients : catalogue de BdL Linge (gardé sur le téléphone pour marcher sans réseau)
 fetch(LINGE_API+'?action=catalogue').then(function(r){return r.json();}).then(function(d){
@@ -622,6 +626,8 @@ async function majChargementAuto(){
   var q=$('chQ');if(q&&(document.activeElement===q||q.value))return;                          // il est en train de chercher un client
   try{var r=await sb.rpc('roll_camion',{p_personne:MOI.id,p_code:MOI.code});if(r.error||!r.data||!r.data.ok)return;
     if(!$('chFin'))return;var y=window.scrollY,n=r.data.a_quai.length,av=CHG_NB;
+    await majPartiesLinge();   // rafraîchit l'état atelier (fini / en cours) en même temps, sans clignotement
+    if(!$('chFin'))return;
     ecranChargement(av!==null&&n>av?'🆕 '+(n-av)+' chariot'+(n-av>1?'s':'')+' de plus prêt'+(n-av>1?'s':'')+' à charger':null,r.data);window.scrollTo(0,y);}catch(e){}
 }
 setInterval(majChargementAuto,30000);
@@ -641,6 +647,7 @@ async function ecranChargement(msg,d){
       $('chgSans').onclick=terminerSansReseau;
       clearTimeout(window.RETRY_CHG);window.RETRY_CHG=setTimeout(function(){if($('chgErr')&&document.visibilityState==='visible')ecranChargement(msg);},5000);
       return;}}
+  if(LINGE_PARTIES_JOUR!==jourIso())await majPartiesLinge();   // 1er affichage du jour : on récupère l'état atelier avant de dessiner (pas de clignotement)
   majMoi();CHG_NB=d.a_quai.length;
   var g={};function a(x,k){var c=x.client||'🧺 Chariots vides';c=Object.keys(g).find(function(z){return nrm(z)===nrm(c);})||c;(g[c]=g[c]||{ch:[],q:[]})[k].push(x.numero);}
   d.camion.forEach(function(x){a(x,'ch');});d.a_quai.forEach(function(x){a(x,'q');});
@@ -650,6 +657,7 @@ async function ecranChargement(msg,d){
   if(CHG&&g[CHG]&&!g[CHG].vide){var x=g[CHG],tot=x.ch.length+x.q.length,fini=!x.q.length;
     h+='<div class="carte"><div class="s">🚚 Chargement pour</div><div class="num" style="font-size:28px">'+esc(CHG)+'</div>'+
       '<div style="font-size:24px;font-weight:800;margin-top:8px;color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+(fini?' — CHARGEMENT COMPLET ✓':' chargés')+'</div>'+
+      (function(){var ea=etatAtelier(CHG);return ea==='fini'?'<div style="margin-top:10px;padding:8px;border-radius:10px;background:#FBEAF2;color:#B23A77;font-weight:700;font-size:17px">🌸 Atelier terminé — plus rien ne viendra, vous pouvez partir</div>':ea==='encours'?'<div style="margin-top:10px;padding:8px;border-radius:10px;background:#FFF3E0;color:#C2570B;font-weight:700;font-size:17px">⏳ Atelier en cours — du linge peut encore arriver</div>':'';})()+
       (x.q.length?'<div style="margin-top:10px"><b>Reste à charger :</b>'+x.q.map(function(n){return '<div style="font-size:20px;padding:4px 0">🧺 '+esc(n)+'</div>';}).join('')+'</div>':'')+
       (x.ch.length?'<div class="s" style="margin-top:8px">Déjà dans le camion : '+x.ch.map(esc).join(', ')+'</div>':'')+
       '<div style="margin-top:12px;font-weight:600">➡ Scannez chaque chariot (📷 ou ⌨), puis « Chargé ».</div></div>'+
@@ -665,7 +673,8 @@ async function ecranChargement(msg,d){
     h+='<div class="carte"><b>🚚 Chargement au quai</b><div class="s">'+(tq?tq+' chariot'+(tq>1?'s':'')+' prêt'+(tq>1?'s':'')+' à charger. Touchez un client pour voir ses chariots.':'Rien à charger pour l\'instant.')+'</div>'+(cl.length>3?'<input id="chQ" placeholder="🔎 Chercher un client…" autocomplete="off" style="margin-top:10px">':'')+'</div>'+
       (cl.length?'<div class="carte liste" id="chL" style="max-height:none">'+cl.map(function(c){var x=g[c],tot=x.ch.length+x.q.length,fini=!x.q.length;
         var fv=estFav(c),et=x.vide?'<b style="color:var(--rouge)">rien de prêt</b>':'<b style="color:'+(fini?'var(--vert)':'var(--orange)')+'">'+x.ch.length+' / '+tot+'</b>';
-        return '<div data-c="'+esc(c)+'" data-n="'+esc(nrm(c))+'" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span data-fav="'+esc(c)+'" style="font-size:24px;padding:0 4px">'+(fv?'⭐':'☆')+'</span><span style="flex:1">'+(x.vide?'⚠ ':fini?'✅ ':'🧺 ')+esc(c)+'</span>'+et+'</div>';}).join('')+'</div>':'')+
+        var ea=etatAtelier(c),eaTag=ea==='fini'?'<div style="font-size:13px;color:#B23A77;font-weight:700">🌸 atelier terminé</div>':ea==='encours'?'<div style="font-size:13px;color:var(--orange);font-weight:600">⏳ atelier en cours</div>':'';
+        return '<div data-c="'+esc(c)+'" data-n="'+esc(nrm(c))+'" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span data-fav="'+esc(c)+'" style="font-size:24px;padding:0 4px">'+(fv?'⭐':'☆')+'</span><span style="flex:1">'+(x.vide?'⚠ ':fini?'✅ ':'🧺 ')+esc(c)+eaTag+'</span>'+et+'</div>';}).join('')+'</div>':'')+
       '<button class="gros g" id="chAddFav">⭐ Ajouter un client à mes clients…</button>'+
       '<div class="s" style="margin:-6px 4px 10px">☆ = ajouter à <b>mes clients</b> : ils restent en haut de la liste, même quand rien n\'est prêt (pour ne pas en oublier).</div>';
   }
