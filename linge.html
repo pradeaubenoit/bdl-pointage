@@ -92,6 +92,10 @@
   .tuile .badge-lave { display: inline-block; margin-top: 8px; font-size: 17px; font-weight: 700; color: #C26A12; }
   .tuile .sortie { display: block; margin-top: 6px; font-size: 17px; font-weight: 600; color: var(--doux); }
   .tuile.alave .sortie { color: #8A4A0C; font-size: 19px; font-weight: 800; }
+  .tuile.pret { background: #FBEAF2; border-left-color: #C2578F; }
+  .tuile.partiel { background: #FDF3E7; border-left-color: #C26A12; }
+  .mini-termine { display: block; margin-top: 6px; font-size: 15px; font-weight: 800; color: #B23A77; }
+  .tuile.partiel .mini-termine { color: #8A4A0C; }
   .tuile .bascule {
     display: block; margin-top: 12px; padding: 10px 12px; border-radius: 10px;
     border: 2px solid #C26A12; background: #fff; color: #8A4A0C;
@@ -471,6 +475,7 @@ function afficherClients() {
   vidage.onclick = chariotVide;
   zone.appendChild(vidage);
   filtrerTuiles();
+  chargerPartiesServeur();
 }
 
 let recherche = '';
@@ -637,6 +642,36 @@ async function basculerTermine() {
     majBoutonTermine();
     toast(etaitFini ? 'Terminé annulé : ' + clientCourant.client : '✓ Partie terminée : ' + clientCourant.client);
   } catch (e) { toast('Impossible : ' + (e.message || e), true); }
+}
+
+/* ---------- Repère « terminé » sur la grille des clients (lu depuis l'API) ---------- */
+let partiesTuiles = {};
+async function chargerPartiesServeur() {
+  try {
+    const rep = await fetch(API_URL + '?action=tableau&mode=jour&periode=' + encodeURIComponent(jourCourant()));
+    const data = await rep.json();
+    if (!data || !data.ok || !Array.isArray(data.clients)) return;
+    const m = {};
+    data.clients.forEach(c => { m[sansAccent(c.client)] = { termine: !!c.termine, parties: c.parties || {} }; });
+    partiesTuiles = m;
+    appliquerPartiesTuiles();
+  } catch (e) {}
+}
+function appliquerPartiesTuiles() {
+  document.querySelectorAll('#zone .tuile[data-nom]').forEach(b => {
+    b.classList.remove('pret', 'partiel');
+    const vieux = b.querySelector('.mini-termine'); if (vieux) vieux.remove();
+    const info = partiesTuiles[b.dataset.nom];
+    if (!info) return;
+    const ks = Object.keys(info.parties || {});
+    const partiel = !info.termine && ks.some(t => info.parties[t] === 'termine');
+    if (!info.termine && !partiel) return;
+    b.classList.add(info.termine ? 'pret' : 'partiel');
+    const s = document.createElement('span');
+    s.className = 'mini-termine';
+    s.textContent = info.termine ? '✓ terminé' : '◐ une partie finie';
+    b.appendChild(s);
+  });
 }
 
 /* ---------- Ajout au catalogue (protégé par code) ---------- */
