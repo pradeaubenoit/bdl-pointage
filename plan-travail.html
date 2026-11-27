@@ -1722,7 +1722,7 @@ function makeRow(r,i,charg){
   var el=document.createElement('div');el.className='row'+(srSel[r.id]?' sel':'')+((srPick&&srPick.some(function(p){return p.id===r.id;}))?' picked':'');
   var ma=MACHINES.map(function(m){return '<option value="'+m[0]+'"'+(r.machine===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('');
   var chips=POSTES.map(function(p){var on=(r.postes||[]).indexOf(p[0])>=0;return '<span class="chip'+(on?' on':'')+'" data-p="'+p[0]+'">'+p[1]+'</span>';}).join('');
-  var hr=(charg!=null)?'<span class="pill" style="margin-left:6px">~'+fmtHHMM(charg)+'</span>':'';
+  var hr=(charg!=null)?'<span class="pill no-print" data-htime="'+esc(r.id)+'" title="Cliquer pour replacer cette ligne à une heure" style="margin-left:6px;cursor:pointer;text-decoration:underline dotted">~'+fmtHHMM(charg)+' ✎</span>':'';
   var _k=(r.client||'').trim().toLowerCase();
   var _lock=!!((CFG.cadenas||{})[_k]);
   var _anc=((CFG.attelages||{})[_k])||'';
@@ -2676,6 +2676,21 @@ document.addEventListener('click',function(e){
   if(v==null)return; v=String(v).trim().replace('h',':');
   if(!/^\d{1,2}:\d{2}$/.test(v)){ alert('Heure non comprise. Écris-la sous la forme 08:40.'); return; }
   r._faitAt=parseHeure(v); renderRows(); sync();
+});
+/* ----- Saisie : cliquer sur « ~HH:MM » pour replacer la ligne à une heure ----- */
+document.addEventListener('click',function(e){
+  var p=e.target.closest&&e.target.closest('[data-htime]'); if(!p)return;
+  var id=p.getAttribute('data-htime'); var r=rows.find(function(x){return x.id===id;}); if(!r)return;
+  var cur=''; try{var sim=simulerTunnel(rows); var L=sim.lots[r.id]; if(L&&isFinite(L.charg))cur=fmtHHMM(L.charg);}catch(x){}
+  var v=prompt('Replacer « '+(r.client||'cette ligne')+' » à quelle heure ? (HH:MM)\nLa ligne ira se mettre à la bonne position.', cur);
+  if(v==null)return; v=String(v).trim().replace('h',':');
+  if(!/^\d{1,2}:\d{2}$/.test(v)){ alert('Heure non comprise. Écris-la sous la forme 08:40.'); return; }
+  var horSec=parseHeure(v);
+  var rest=rows.filter(function(x){return x.id!==id;});
+  var pos=posParHoraire(rest,horSec);
+  if(typeof snapshotOrder==='function')snapshotOrder();
+  rest.splice(pos,0,r); rows=rest; renderRows(); sync();
+  setTimeout(function(){var rws=document.getElementById('rows').children;if(rws[pos])rws[pos].scrollIntoView({block:'center',behavior:'smooth'});},120);
 });
 /* ----- Plan de travail : glisser-déposer + « prendre / poser ici » ----- */
 (function(){
