@@ -758,6 +758,7 @@ async function dechargerTout(){
       try{var r2=await sb.rpc('roll_scan',{p_numero:l[i].numero,p_personne:MOI.id,p_code:MOI.code,p_etape:'rentre',p_client:null,p_note:'déchargé en lot (vider mon camion)'});
         if(r2.error)throw r2.error;if(!r2.data.ok)throw new Error(r2.data.error);ok.push(l[i].numero);}catch(e){ko.push(l[i].numero);if(/code/i.test(String(e.message||e)))break;}}
     if(navigator.vibrate)navigator.vibrate(120);if(ok.length)poserCharge(true);
+    if(ok.length)fetch(LINGE_API,{method:'POST',body:JSON.stringify({action:'camionVide',chauffeur:MOI.nom,nb:ok.length,numeros:ok})}).catch(function(){});   // prévient Benoît par email que le camion a été vidé
     $('main').innerHTML='<div class="carte ok">✓ '+ok.length+' chariot'+(ok.length>1?'s':'')+' déchargé'+(ok.length>1?'s':'')+' à la BdL (sale)</div>'+
       (ko.length?'<div class="carte alerte">Pas enregistrés (réseau ?) : '+ko.map(esc).join(', ')+'</div><button class="gros" onclick="dechargerTout()">Réessayer</button>':'');
   };
