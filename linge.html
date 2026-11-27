@@ -475,7 +475,8 @@ function afficherClients() {
   vidage.onclick = chariotVide;
   zone.appendChild(vidage);
   filtrerTuiles();
-  chargerPartiesServeur();
+  appliquerPartiesTuiles();   // applique tout de suite l'état déjà connu (évite le clignotement bleu→rose)
+  chargerPartiesServeur();    // puis rafraîchit en arrière-plan
 }
 
 let recherche = '';
