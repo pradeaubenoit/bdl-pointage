@@ -141,6 +141,11 @@
     background: var(--accent); color: #fff; font-size: 30px; font-weight: 700;
   }
   #valider:disabled { background: #9DB3BC; }
+  #termine {
+    width: 100%; height: 60px; border: 2px solid #2F6FB3; border-radius: 14px;
+    background: #EAF2FB; color: #2F6FB3; font-size: 21px; font-weight: 700; margin-bottom: 10px;
+  }
+  #termine.fini { background: #F6E0EC; border-color: #C2578F; color: #B23A77; }
   #toast {
     position: fixed; left: 50%; top: 110px; transform: translateX(-50%);
     padding: 18px 28px; border-radius: 14px; background: var(--ok); color: #fff;
@@ -171,6 +176,7 @@
   <button id="jourBtn" onclick="ouvrirJours()">Journée : …</button>
   <span id="statut">Tout est envoyé</span>
   <button id="operateur" onclick="changerOperateur()">Opérateur ?</button>
+  <button id="tablette" onclick="changerTablette()">Tablette ?</button>
 </header>
 <div id="bandeauJour" onclick="choisirJour(null)"></div>
 <div id="bandeauCorr"><span id="txtCorr"></span><button onclick="corrigeFini()">✓ C'est corrigé</button></div>
@@ -190,7 +196,7 @@
   <div id="etat">Chargement du catalogue…</div>
   <div id="zone"></div>
 </main>
-<div id="barre"><button id="valider" onclick="valider()">Valider</button></div>
+<div id="barre"><button id="termine" onclick="basculerTermine()">✓ Marquer ma partie terminée</button><button id="valider" onclick="valider()">Valider</button></div>
 <div id="toast"></div>
 <div id="fondMsg"><div id="panneauMsg">
   <h2>⚠ Message du bureau</h2>
@@ -502,6 +508,7 @@ function afficherArticles(c, garder, filtre) {
   document.getElementById('titre').textContent = c.client + (lotFiltre && lotFiltre.mode === 'apres' ? ' — 2ᵉ livraison' : (lecture ? ' — livraison du matin' : ''));
   document.getElementById('retour').style.display = 'block';
   document.getElementById('barre').style.display = lecture ? 'none' : 'block';
+  majBoutonTermine();
   const zone = document.getElementById('zone');
   zone.className = ''; zone.innerHTML = '';
   // Nouveau client créé depuis le plan, pas encore configuré par le bureau : pas de saisie possible.
@@ -581,6 +588,55 @@ function changerOperateur() {
     if (sansAccent(nom.trim()) !== sansAccent(avant)) { try { localStorage.removeItem(CLE_ROLL_ID); } catch (e) {} }
   }
   return lire(CLE_OP, '');
+}
+
+/* ---------- Identité de la tablette (partie haute / basse) ---------- */
+const CLE_TAB = 'linge_tablette';
+function tabletteCourante() { return lire(CLE_TAB, ''); }
+function afficherTablette() {
+  const t = lire(CLE_TAB, '');
+  const b = document.getElementById('tablette');
+  if (b) b.textContent = t ? ('Tablette : ' + t) : '⚠ Tablette ?';
+}
+function changerTablette() {
+  const actuel = lire(CLE_TAB, '');
+  const r = prompt('Quelle tablette est-ce ?\nTape H pour « Partie haute », B pour « Partie basse ».',
+    actuel === 'Partie basse' ? 'B' : (actuel === 'Partie haute' ? 'H' : ''));
+  if (r === null) return;
+  const v = String(r).trim().toLowerCase();
+  let nom = '';
+  if (v === 'h' || v.indexOf('haut') >= 0) nom = 'Partie haute';
+  else if (v === 'b' || v.indexOf('bas') >= 0) nom = 'Partie basse';
+  else { alert('Réponse non comprise. Tape H (haute) ou B (basse).'); return; }
+  ecrire(CLE_TAB, nom); afficherTablette();
+}
+
+/* ---------- « Ma partie terminée » pour un client (par tablette) ---------- */
+let partiesFinies = {};
+function cleFinie(client) { return jourCourant() + '|' + sansAccent(client); }
+function majBoutonTermine() {
+  const b = document.getElementById('termine');
+  if (!b || !clientCourant) return;
+  const fini = !!partiesFinies[cleFinie(clientCourant.client)];
+  b.textContent = fini ? '✓ Ma partie est terminée — toucher pour annuler' : '✓ Marquer ma partie terminée';
+  b.classList.toggle('fini', fini);
+}
+async function basculerTermine() {
+  if (!clientCourant) return;
+  const tab = tabletteCourante();
+  if (!tab) { alert('Règle d\'abord la tablette en haut (bouton « Tablette ? ») : Partie haute ou Partie basse.'); changerTablette(); return; }
+  const k = cleFinie(clientCourant.client);
+  const etaitFini = !!partiesFinies[k];
+  if (!etaitFini && !confirm('Marquer TA partie (' + tab + ') terminée pour « ' + clientCourant.client + ' » ?\n\nLa facturation pourra alors valider ce client.')) return;
+  try {
+    const rep = await fetch(API_URL, { method: 'POST',
+      body: JSON.stringify({ action: etaitFini ? 'partieAnnuler' : 'partieTerminee', date: jourCourant(), client: clientCourant.client, tablette: tab }) });
+    const data = await rep.json();
+    if (!data || !data.ok) throw new Error((data && data.error) || 'Refus du serveur');
+    partiesFinies[k] = !etaitFini;
+    majBoutonTermine();
+    toast(etaitFini ? 'Terminé annulé : ' + clientCourant.client : '✓ Partie terminée : ' + clientCourant.client);
+  } catch (e) { toast('Impossible : ' + (e.message || e), true); }
 }
 
 /* ---------- Ajout au catalogue (protégé par code) ---------- */
@@ -1299,7 +1355,7 @@ async function envoyer() {
   try {
     const rep = await fetch(API_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'saisir', operateur: op, lignes: lot })
+      body: JSON.stringify({ action: 'saisir', operateur: op, lignes: lot, tablette: tabletteCourante() })
     });
     const data = await rep.json();
     if (!data.ok) throw new Error(data.error || 'Refus du serveur');
@@ -2111,6 +2167,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) char
 chargerMessages();
 
 afficherOperateur();
+afficherTablette();
 majJourAffiche();
 chargerJour();
 chargerListeJour();
