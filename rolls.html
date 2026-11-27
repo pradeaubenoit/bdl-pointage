@@ -255,7 +255,7 @@ async function historique(id){
       var ch0=await q(sb.from('rolls_scans').select('quand').eq('etape','charge').eq('personne',nom).gte('quand',d0c.toISOString()).order('quand',{ascending:false}).limit(1));
       if(ch0&&ch0[0]&&ch0[0].quand)quand=ch0[0].quand;}catch(x){}
     try{
-      await q(sb.from('rolls_scans').insert({roll_id:id,etape:'charge',client:c,personne:nom,quand:quand,note:'correction du bureau : chargé dans le camion de '+nom+' (par '+qui+')'}));
+      await q(sb.from('rolls_scans').insert({roll_id:id,etape:'charge',client:c,personne:nom,quand:quand,note:'chargé dans le camion de '+nom+' (corr. bureau, par '+qui+')'}));
       var maj={etat:'chauffeur',client:c,personne:nom,maj_le:quand};
       await q(sb.from('rolls').update(maj).eq('id',id));
       Object.assign(r,maj);historique(id);
