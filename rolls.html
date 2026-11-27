@@ -715,8 +715,8 @@ VUES.tournees=async function(){
     L.forEach(function(s){var lieu=(s.etape==='charge')?'BdL — chargement':(s.etape==='rentre'?'BdL — déchargement linge sale':(s.client||'?'));
       var g=seg[seg.length-1];if(!g||g.lieu!==lieu||s.etape==='arrivee'&&g.dep){g={lieu:lieu,bdl:s.etape==='charge'||s.etape==='rentre',a:s.quand,b:s.quand,liv:[],rep:[],ch:[],re:[]};seg.push(g);}
       g.b=s.quand;if(s.etape==='arrivee'){g.arr=s.quand;g.sansQR=!!s.note;return;}if(s.etape==='depart'){g.dep=s.quand;return;}var n={n:num[s.roll_id]||'?',c:s.client||'',id:s.roll_id};var Lx=({charge:g.ch,livre:g.liv,repris:g.rep,rentre:g.re})[s.etape];if(!Lx.some(function(x){return x.id===n.id;}))Lx.push(n);});   // même chariot scanné 2 fois au même arrêt : compté une fois
-    // Arrêt chez un client sans aucun chariot, juste avant un passage à la BdL : fausse manip (« Où suis-je ? » à la BdL) → ignoré
-    seg=seg.filter(function(g,i){return g.bdl||g.liv.length||g.rep.length||!(seg[i+1]&&seg[i+1].bdl);});
+    // Arrêt où aucun chariot n'est déposé / repris / chargé : « Où suis-je ? » tapé par erreur (mauvais bouton) → masqué du déroulé
+    seg=seg.filter(function(g){return g.bdl||g.liv.length||g.rep.length||g.ch.length||g.re.length;});
     seg=seg.reduce(function(acc,g){var d=acc[acc.length-1];if(d&&d.lieu===g.lieu&&!g.arr){d.b=g.b;d.liv=d.liv.concat(g.liv);d.rep=d.rep.concat(g.rep);d.ch=d.ch.concat(g.ch.filter(function(x){return !d.ch.some(function(y){return y.id===x.id;});}));d.re=d.re.concat(g.re);if(g.dep)d.dep=g.dep;}else acc.push(g);return acc;},[]);
     if(!seg.length)return;
     // Chargement du soir = chargements faits après la dernière livraison / reprise / déchargement de la journée (le camion repart de chez le chauffeur)
