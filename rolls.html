@@ -296,6 +296,15 @@ async function historique(id){
     if(!confirm(r.numero+' : enregistrer « '+lib+(e!=='vide'&&r.client?' — '+r.client:'')+' » maintenant ?\n\n'+r.numero+' passera « '+ETATS[EV[e]]+' ».'))return;
     var qui='Bureau',quand=new Date().toISOString();
     try{var u=await sb.auth.getUser();if(u&&u.data&&u.data.user&&u.data.user.email)qui='Bureau ('+u.data.user.email.split('@')[0]+')';}catch(x){}
+    // Livré / Repris : à l'heure de l'arrêt réel du chauffeur chez ce client ; Déchargé : à l'heure de son déchargement à la BdL après cet arrêt
+    if((e==='livre'||e==='repris'||e==='rentre')&&r.client){try{
+      var depuis=new Date(Date.now()-24*3600*1000).toISOString();
+      var arr=(await q(sb.from('rolls_scans').select('quand,personne,note').eq('client',r.client).neq('roll_id',id).in('etape',['livre','repris']).gte('quand',depuis).order('quand',{ascending:false}).limit(10))).filter(function(y){return !/^correction du bureau/.test(y.note||'');})[0];
+      if(arr){
+        if(e==='livre'||e==='repris')quand=new Date(new Date(arr.quand).getTime()+(e==='repris'?1000:0)).toISOString();
+        else{var dech=await q(sb.from('rolls_scans').select('quand').eq('personne',arr.personne).eq('etape','rentre').gt('quand',arr.quand).order('quand').limit(1));if(dech[0]&&dech[0].quand)quand=dech[0].quand;}
+      }
+    }catch(x){}}
     try{
       await q(sb.from('rolls_scans').insert({roll_id:id,etape:e,client:e==='vide'?null:r.client,personne:qui,quand:quand,note:'correction du bureau'}));
       var maj={etat:EV[e],client:e==='vide'?null:r.client,personne:qui,maj_le:quand};
